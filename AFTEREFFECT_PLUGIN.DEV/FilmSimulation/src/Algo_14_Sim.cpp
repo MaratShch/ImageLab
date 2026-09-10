@@ -178,7 +178,17 @@ void AlgoStage14_Transmittance
         const HighPrecType tMax = std::pow(10.0,
             -static_cast<HighPrecType>(curve[c]->dmin));
 
-        const HighPrecType tMin = std::pow(10.0,
+        // \warning THE BLACK POINT IS A CONTROL AS OF 2026-09-09c (queue item
+        // #303). tMin used to be 10^-Dmax unconditionally, which stretched every
+        // stock's Dmax down to output zero and destroyed everything at or past
+        // it -- measured, 13.06 per cent of the blue record on the Velvia
+        // regression frame. At the default 1.0 this multiply is the identity and
+        // the expression is arithmetically what it always was. The anchor solve
+        // at stage 08 sees the SAME value, which is the part that matters: the
+        // solve aims at a display number this loop produces.
+        const HighPrecType tMin =
+            static_cast<HighPrecType>(params.blackPointStretch)
+          * std::pow(10.0,
             -static_cast<HighPrecType>(curve[c]->dmax()));
 
         const HighPrecType span = tMax - tMin;
@@ -192,6 +202,8 @@ void AlgoStage14_Transmittance
                                : ALGO_ZERO;
 
         const AlgoType tMinA = static_cast<AlgoType>(tMin);
+
+        const AlgoType dMaxA = static_cast<AlgoType>(curve[c]->dmax());
 
         AlgoType* RESTRICT pD = dstPlane[c];
 
@@ -209,6 +221,7 @@ void AlgoStage14_Transmittance
             const __m256 vZeroL   = _mm256_setzero_ps();
             const __m256 vTMinA   = _mm256_set1_ps(tMinA);
             const __m256 vInvSpan = _mm256_set1_ps(invSpan);
+            const __m256 vDMaxA   = _mm256_set1_ps(dMaxA);
 
             const int32_t nvL = sizeX / ALGO_AVX2_LANES_LOCAL;
             const int32_t ntL = sizeX - nvL * ALGO_AVX2_LANES_LOCAL;
@@ -221,8 +234,15 @@ void AlgoStage14_Transmittance
                 // Density floored at zero before the exponentiation: a negative
                 // density would give a transmittance above one - a material that
                 // emits light.
-                const __m256 dv =
-                    _mm256_max_ps(_mm256_loadu_ps(pRow + xv), vZeroL);
+                // \warning AND DENSITY IS CAPPED AT Dmax FIRST (2026-09-09c). A
+                // layer cannot be denser than its own maximum dye load, yet
+                // stages 09 and 12 are unbounded additions in the density
+                // domain and do exceed it -- measured, blue on Velvia reaches
+                // 4.2439 against a Dmax of 3.3072. At blackPointStretch 1.0 the
+                // cap is OUTPUT-NEUTRAL; below 1.0 it is what stops an
+                // over-dense pixel encoding to code zero anyway.
+                const __m256 dv = _mm256_min_ps(
+                    _mm256_max_ps(_mm256_loadu_ps(pRow + xv), vZeroL), vDMaxA);
 
                 const __m256 tv =
                     FastCompute::AVX2::Exp(_mm256_mul_ps(dv, vNegLn10));
@@ -236,8 +256,9 @@ void AlgoStage14_Transmittance
 
             if (ntL > 0)
             {
-                const __m256 dv =
-                    _mm256_max_ps(_mm256_maskload_ps(pRow + xv, mtL), vZeroL);
+                const __m256 dv = _mm256_min_ps(
+                    _mm256_max_ps(_mm256_maskload_ps(pRow + xv, mtL), vZeroL),
+                    vDMaxA);
 
                 const __m256 tv =
                     FastCompute::AVX2::Exp(_mm256_mul_ps(dv, vNegLn10));
@@ -251,7 +272,7 @@ void AlgoStage14_Transmittance
             for (int32_t x = 0; x < 0; x++)
             {
                 const HighPrecType d = static_cast<HighPrecType>(
-                    MAX_VALUE(pRow[x], ALGO_ZERO));
+                    MIN_VALUE(MAX_VALUE(pRow[x], ALGO_ZERO), dMaxA));
 
                 const AlgoType trans = static_cast<AlgoType>(std::pow(10.0, -d));
 

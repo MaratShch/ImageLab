@@ -16,6 +16,36 @@
 
 #include "AlgoControl.hpp"
 
+#include <cstring>
+
+namespace {
+
+//  ⚠ NUL-TERMINATION IS THE WHOLE POINT OF THIS HELPER. `strncpy(dst, src, n)`
+//  does NOT terminate when src is n or more characters long, so the idiomatic
+//  one-liner leaves an unterminated buffer exactly in the case a bound is
+//  supposed to protect. Copying n-1 and writing the terminator by hand is
+//  unconditional. A truncated key resolves to the profile default and then
+//  looks like a working setting, which is why the header tells the host to
+//  REJECT an over-long value rather than rely on this.
+void algoSetKey (char* dst, int cap, const char* src) noexcept
+{
+    if ((nullptr == dst) || (cap <= 0))
+        return;
+
+    if (nullptr == src)
+    {
+        dst[0] = '\0';
+        return;
+    }
+
+    std::strncpy (dst, src, static_cast<std::size_t>(cap) - 1u);
+    dst[cap - 1] = '\0';
+    return;
+}
+
+}  // anonymous namespace
+
+
 // ---------------------------------------------------------------------------
 //  getFilmDamageDefault
 //
@@ -254,14 +284,42 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     // defect figure in the damage group would be tuned against.
     controls.frameRate   = 24.0;
 
-    // film_sim: film_format = "super35"
-    controls.filmFormat  = "super35";
+    // ⚠ BOUNDED COPIES, NOT POINTER ASSIGNMENT, SINCE 2026-09-09. These three
+    // are fixed-size char arrays now (see the ownership note in
+    // AlgoControl.hpp): a pointer cannot be serialised into an After Effects
+    // project, and the old `= "super35"` no longer compiles.
+    // `algoSetKey` NUL-terminates unconditionally -- `strncpy` alone does not
+    // on truncation, which is the classic way this fix goes wrong.
+    algoSetKey(controls.filmFormat, ALGO_FILM_FORMAT_CAP, "super35");
 
     // film_sim: print_stock = ""  -- empty means the stock's own default_print.
-    controls.printStock  = "";
+    algoSetKey(controls.printStock, ALGO_PRINT_STOCK_CAP, "");
 
     // film_sim: dupe_stock = "DUPE_FINE_GRAIN"
-    controls.dupeStock   = "DUPE_FINE_GRAIN";
+    algoSetKey(controls.dupeStock, ALGO_PRINT_STOCK_CAP, "DUPE_FINE_GRAIN");
+
+    // ----------------------------------------------------------------------
+    //  ⚠⚠ THREE SENTINELS THAT WERE NEVER ASSIGNED, ADDED 2026-09-09.
+    //
+    //  `AlgoControls controls{}` zero-initialises, and for these three ZERO IS
+    //  NOT THE SENTINEL:
+    //
+    //    * processVariant's sentinel is -1 and zero is variant INDEX ZERO.
+    //      AlgorithmMain.cpp states "processVariant is -1 unless the caller
+    //      selects" and the header's item 7 says DEFAULT -1; neither was true.
+    //      ⚠ IT WAS HARMLESS BY ACCIDENT, NOT BY DESIGN: variant[0] on all 8
+    //      stocks that carry variants is the as-shipped row (REFINAL, "EI 800
+    //      (box speed)", "C-41 cross-process, as shipped", ...), each with no
+    //      curves and gamma_scale 1.0, so no pixel moved. The first stock
+    //      whose variant[0] is a push would have shipped silently wrong.
+    //    * developmentMinutes and developmentCelsius test strictly < 0, so
+    //      zero would read as "0 minutes / 0 degrees" rather than "as the
+    //      stock was developed". Inert today because no stock's traced family
+    //      is consulted at 0, but inert for the wrong reason.
+    // ----------------------------------------------------------------------
+    controls.processVariant     = -1;
+    controls.developmentMinutes = -1.0;
+    controls.developmentCelsius = -1.0;
 
     // film_sim: generations = 0 -- camera negative straight to print.
     controls.generations = 0;
@@ -306,6 +364,12 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     // film_sim: grey_target = 0.18 -- display-linear value an 18 per cent scene
     // grey must reach. This is what both anchor solves aim at.
     controls.greyTarget    = 0.18;
+
+    // 1.0 reproduces every render made before this control existed: at exactly
+    // one the stage-14 expression is arithmetically what it always was. See the
+    // field's own block in AlgoControl.hpp before moving it -- it is a look
+    // decision across all 184 stocks, not a shadow tweak.
+    controls.blackPointStretch = 1.0;
 
     // ----------------------------------------------------------------------
     //  Effect scales. 1.0 means "as the stock specifies".

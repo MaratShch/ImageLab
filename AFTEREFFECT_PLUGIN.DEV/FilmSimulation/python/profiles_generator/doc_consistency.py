@@ -258,8 +258,14 @@ REGISTRY: tuple[tuple[str, str, str, str], ...] = (
     ("doc/NotFound.md",
      r"\*\*(\d+) carry the manufacturer's own\s+emulsion designation\*\*",
      "designations", "the carrier census: emulsion designations (schema v23)"),
+    # ⚠ PATTERN WIDENED 2026-09-10c IN THE SAME EDIT AS THE SENTENCE. The date
+    # in the re-measured parenthesis was `[\d-]+`, which cannot match this
+    # project's own suffixed-revision dates (2026-09-10c). The v30 bump was
+    # re-measured on such a date, the sentence took it, and the pattern stopped
+    # matching -- which failed the check rather than passing silently, as
+    # designed. The suffix is now optional and the anchor is otherwise unchanged.
     ("doc/PROGRESS.md",
-     r"schema \*\*v\d+\*\* \(re-measured from the live module [\d-]+: `SCHEMA_VERSION`, "
+     r"schema \*\*v\d+\*\* \(re-measured from the live module [\d-]+[a-z]?: `SCHEMA_VERSION`, "
      r"`len\(FILM_PROFILES\)`, `len\(PRINT_STOCKS\)`, `len\(FORMATS\)`\)\. (\d+) negative",
      "negative", "the PROGRESS build-facts negative count"),
 )

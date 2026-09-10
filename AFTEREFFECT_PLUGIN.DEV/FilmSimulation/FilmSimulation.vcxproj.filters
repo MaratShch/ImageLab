@@ -413,6 +413,18 @@
     <ClCompile Include="src\AlgoControlAdobe.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\film_profiles_data_21.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_22.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_23.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_24.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FilmSimulation.rc">
@@ -668,6 +680,36 @@
     <None Include="python\profiles_generator\spectral_sampling.py">
       <Filter>python\profiles_generator</Filter>
     </None>
+    <None Include="python\profiles_generator\_fujivec_probe.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_1998_gamma_time.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_1998_sharpness.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_vista_mtf.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfaphoto_vista_plus.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\field_coverage.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_spectral4_2026.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\h24_variations.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\stage_delivery.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\superia_2026.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\profiles_generator\Readme!.txt">
@@ -677,6 +719,18 @@
       <Filter>include</Filter>
     </Text>
     <Text Include="python\profiles_generator\MANIFEST.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="python\profiles_generator\film_display_order.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="python\profiles_generator\film_id_migration.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="python\profiles_generator\film_names.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="python\profiles_generator\README.txt">
       <Filter>python\profiles_generator</Filter>
     </Text>
   </ItemGroup>

@@ -8,7 +8,7 @@ from PIL import Image
 import film_sim as fs
 import film_profiles
 from film_profiles import (FILM_PROFILES, FORMATS, PRINT_STOCKS, StockKind,
-                           get_profile, validate_all)
+                           ToneCurve, get_profile, validate_all)
 
 ok = True
 def chk(label, cond, extra=""):
@@ -602,6 +602,242 @@ if _sec_on():
     )
     chk("all characteristic curves monotonic", worst >= -1e-5,
         f"min slope/gamma={worst:.3e}")
+
+    # ---- G-MONO (2026-09-09, queue A3) ------------------------------------
+    # ⚠ THE CHECK ABOVE IS A FLOAT32 SCAN OVER x in [-6, 6] AND THAT IS NOT THE
+    # WHOLE ABSCISSA. `ToneCurve.mono_dip` is the excursion in closed form over
+    # the WHOLE line, so these three guards state the exact property instead of
+    # a windowed approximation of it. Written together on purpose: C18's lesson
+    # was that a guard whose title claims more than its test can pass a change
+    # that breaks the claim, so the closed form is checked against a scan
+    # (G-MONO-a), the database against the bound (G-MONO-b), and the BOUND
+    # ITSELF against a curve built to violate it (G-MONO-c). Without the third,
+    # a `validate` that had lost its dip test would pass a and b unnoticed.
+    def _dip_scan(c, n=400001):
+        """Numeric excursion, stable softplus, no argument clipping."""
+        def _sp(v, k):
+            u = v / k
+            return k * (np.maximum(u, 0.0) + np.log1p(np.exp(-np.abs(u))))
+        pad = 40.0 * max(c.toe_k, c.shoulder_k) + 6.0
+        g = np.linspace(min(c.toe_x, c.shoulder_x) - pad,
+                        max(c.toe_x, c.shoulder_x) + pad, n)
+        d = (c.dmin + c.gamma * (_sp(g - c.toe_x, c.toe_k)
+                                 - _sp(g - c.shoulder_x, c.shoulder_k)))
+        return float((np.maximum.accumulate(d) - d).max())
+
+    # a. the closed form IS the excursion. Sampled over the 12 curves with the
+    #    largest dips plus 12 spread through the file -- a full 552-curve scan
+    #    at 400k points costs ~90 s and buys nothing the extremes do not.
+    _cs = [(p.name, ch, getattr(p.curves, ch))
+           for p in FILM_PROFILES for ch in ("r", "g", "b")]
+    _cs.sort(key=lambda t: -t[2].mono_dip)
+    _probe = _cs[:12] + _cs[12::46]
+    _err = max(abs(c.mono_dip - _dip_scan(c)) for _n, _ch, c in _probe)
+    chk("G-MONO-a  ToneCurve.mono_dip's closed form reproduces a 400,001-point "
+        "scan of the actual excursion", _err <= 1e-9,
+        f"worst |closed form - scan| = {_err:.3e} D over {len(_probe)} curves, "
+        f"largest dip probed {_cs[0][2].mono_dip:.3e} D on "
+        f"{_cs[0][0]}.{_cs[0][1]}")
+
+    # b. and every stored curve sits under the bound `validate` enforces.
+    chk("G-MONO-b  every characteristic curve's non-monotonic excursion is "
+        "under ToneCurve.MONO_DIP_MAX_D",
+        _cs[0][2].mono_dip <= ToneCurve.MONO_DIP_MAX_D,
+        f"worst {_cs[0][2].mono_dip:.3e} D on {_cs[0][0]}.{_cs[0][1]}, limit "
+        f"{ToneCurve.MONO_DIP_MAX_D} D; "
+        f"{sum(1 for _n, _ch, c in _cs if c.mono_dip > 1e-3)} curves over "
+        f"1e-3 D, "
+        # ⚠ TWO DIFFERENT ZEROES, counted apart. Only toe_k == shoulder_k is
+        # monotone BY CONSTRUCTION; the rest reach 0.0 because
+        # exp(-(shoulder_x-toe_x)/|dk|) underflows, which is a real excursion
+        # below the smallest double rather than the absence of one. Reporting
+        # them as one number would claim a structural property for curves that
+        # only have a numerical one.
+        f"{sum(1 for _n, _ch, c in _cs if c.toe_k == c.shoulder_k)} monotone "
+        f"by construction (toe_k == shoulder_k), "
+        f"{sum(1 for _n, _ch, c in _cs if c.mono_dip == 0.0 and c.toe_k != c.shoulder_k)}"
+        f" more whose excursion underflows to 0.0")
+
+    # c. ⚠ AND THE BOUND ACTUALLY BITES, IN BOTH DIRECTIONS. The retired guard
+    #    tested `shoulder_k > 2*toe_k`, which is why the second curve here --
+    #    shoulder SHARPER than toe, overshooting dmax past the shoulder -- used
+    #    to be accepted without limit.
+    _below = ToneCurve(0.10, 3.0, 0.0, 0.60, 0.30, 1.20)   # sh_k > toe_k
+    _above = ToneCurve(0.10, 3.0, 0.0, 1.20, 0.30, 0.60)   # sh_k < toe_k
+    _caught = 0
+    for _c, _end in ((_below, "dips below dmin before the toe"),
+                     (_above, "overshoots dmax past the shoulder")):
+        try:
+            _c.validate("synthetic")
+        except ValueError as _e:
+            _caught += 1 if _end in str(_e) else 0
+    chk("G-MONO-c  ToneCurve.validate rejects an over-limit curve in BOTH "
+        "directions and names the end that reverses", _caught == 2,
+        f"{_caught}/2 rejected; dips {_below.mono_dip:.4f} D (below the toe) "
+        f"and {_above.mono_dip:.4f} D (past the shoulder) vs limit "
+        f"{ToneCurve.MONO_DIP_MAX_D} D")
+
+    # ---- G-FITMODEL (2026-09-09, queue A3) --------------------------------
+    # ⚠ THE FITTER'S MODEL AND THE RENDERER'S MODEL MUST BE ONE MODEL, and for
+    # a year they were not: digitize_plot clipped the softplus ARGUMENT at 60
+    # and so returned ~60k instead of v once saturated, while film_sim returns
+    # the asymptote. Nothing adopted was affected -- traced panels span 2-5
+    # decades -- but a gamma-constrained A3 fit walked into the clip and
+    # returned toe_k 0.0263 with dmax 12.99. Checked out to x = +-15, far past
+    # any panel, because that is exactly where the old bug hid.
+    import digitize_plot as dp
+    _xw = np.linspace(-15.0, 15.0, 3001)
+    _dw = 0.0
+    for _p in FILM_PROFILES:
+        for _c in _p.curves.as_tuple():
+            _a = dp.softplus_curve(_xw, _c.dmin, _c.gamma, _c.toe_x, _c.toe_k,
+                                   _c.shoulder_x, _c.shoulder_k)
+            _b = np.array([fs.density_scalar(float(_v), _c) for _v in _xw[::30]])
+            _dw = max(_dw, float(np.abs(_a[::30] - _b).max()))
+    chk("G-FITMODEL  digitize_plot.softplus_curve IS film_sim's curve, "
+        "including the saturated branch the fitter used to clip", _dw <= 1e-12,
+        f"worst |fitter - renderer| = {_dw:.3e} D over "
+        f"{len(FILM_PROFILES)*3} curves, x -15..+15 (both in double)")
+
+# ---- G-NOPATH (2026-09-10, owner directive) ------------------------------
+if _sec_on():
+    # ⚠ NO EMITTED CITATION MAY NAME A LOCAL FILE. Owner directive 2026-09-10:
+    # the database's own comments carry the NAME of a book, standard or paper
+    # and never a filename or a path on his machine. A path is worthless to
+    # anyone reading the shipped database and it leaks his directory layout
+    # into a file he distributes.
+    #
+    # ⚠ THIS GUARD IS THE RULE, not the 2026-09-10 cleanup that satisfied it.
+    # 648 string literals were rewritten that day; without this check the next
+    # citation typed by hand would quietly put a path back.
+    #
+    # ⚠ IT DELIBERATELY DOES NOT POLICE PYTHON COMMENTS. A `#` line in
+    # film_profiles.py is the generator's own working note and is never emitted
+    # into the C++ -- those still name the files they were traced from, which
+    # is what makes a trace re-runnable.
+    import re as _re
+    _PATH = _re.compile(r'PDF/[^\s,;)"\']*?\.pdf|[A-Za-z0-9_][A-Za-z0-9_\-.]*\.pdf'
+                        r'|[A-Za-z]:\\\\', _re.I)
+    _off = []
+    for _p in FILM_PROFILES:
+        if _p.description and _PATH.search(_p.description):
+            _off.append("%s.description" % _p.name)
+        for _ps in (_p.param_sources or ()):
+            for _f, _v in (("source", _ps.source), ("note", _ps.note),
+                           ("conditions", _ps.conditions)):
+                if _v and _PATH.search(_v):
+                    _off.append("%s.%s.%s" % (_p.name, _ps.param, _f))
+    for _k, _v in film_profiles._PROVENANCE_SOURCES.items():
+        for _c in _v:
+            if _PATH.search(_c):
+                _off.append("%s.provenance" % _k)
+    chk("G-NOPATH  no emitted citation names a local file or path -- only "
+        "books, standards and papers by name", not _off,
+        "clean across %d profiles" % len(FILM_PROFILES) if not _off
+        else "%d offenders, first: %s" % (len(_off), ", ".join(_off[:3])))
+
+# ---- G-COPYRIGHT (2026-09-10, owner directive) ---------------------------
+if _sec_on():
+    import cpp_codegen as _cg
+    _root = Path(__file__).resolve().parent
+    # The 26 generated DATABASE artefacts that must carry the proprietary
+    # notice: everything in the generated set ending .hpp, .h or .cpp.
+    _cpp = (["film_profiles.hpp", "film_profiles_detail.hpp", "film_profiles.cpp",
+             "film_enum.hpp", "LoadFilmDataBase.h", "LoadFilmDataBase.cpp"]
+            + ["film_profiles_data_%02d.cpp" % i
+               for i in range(1, _cg.N_DATA_SLOTS + 1)])
+    # ⚠ AND THE THREE .txt ARTEFACTS THAT MUST NOT. This half of the guard is
+    # the load-bearing half. `film_names.txt` is consumed as adjacent C++
+    # string literals pasted into the effect panel's listbox, so a notice there
+    # would print into the film dropdown; the owner excluded the other two by
+    # name. A future "add the header everywhere" tidy-up is exactly the change
+    # this catches.
+    _txt = ["film_names.txt", "film_display_order.txt", "film_id_migration.txt"]
+
+    _miss = [n for n in _cpp
+             if not (_root / n).is_file()
+             or "Marat Shchuchinsky" not in (_root / n).read_text(
+                 encoding="utf-8", errors="replace")[:2000]]
+    chk("G-COPYRIGHT-a  every generated database C++/HPP artefact opens with "
+        "the proprietary notice", not _miss,
+        "%d/%d carry it%s" % (len(_cpp) - len(_miss), len(_cpp),
+                              "" if not _miss else "; missing " + ", ".join(_miss[:3])))
+
+    _leak = [n for n in _txt
+             if (_root / n).is_file()
+             and "Shchuchinsky" in (_root / n).read_text(encoding="utf-8",
+                                                         errors="replace")]
+    chk("G-COPYRIGHT-b  the three generated .txt artefacts do NOT carry it -- "
+        "film_names.txt is pasted into the panel listbox as string literals",
+        not _leak, "clean" if not _leak else "LEAKED INTO " + ", ".join(_leak))
+
+    # ⚠ THE NOTICE COSTS SLOT BUDGET AND THE MARGIN IS NOW THE THING TO WATCH.
+    # 1,072 bytes x 20 slots took the largest from 106,886 to 107,958 against a
+    # 112,000 limit. Pinning the headroom here means the next prose addition
+    # that would force a repack reports itself as a number rather than as an
+    # infeasible build.
+    _sizes = [(_root / ("film_profiles_data_%02d.cpp" % i)).stat().st_size
+              for i in range(1, _cg.N_DATA_SLOTS + 1)
+              if (_root / ("film_profiles_data_%02d.cpp" % i)).is_file()]
+    _worst = max(_sizes) if _sizes else 0
+    chk("G-COPYRIGHT-c  the largest data slot still fits under "
+        "SLOT_SOURCE_LIMIT with the notice included",
+        _worst <= _cg.SLOT_SOURCE_LIMIT,
+        "largest %d of %d slots = %d bytes, limit %d, headroom %d"
+        % (_sizes.index(_worst) + 1 if _sizes else 0, len(_sizes), _worst,
+           _cg.SLOT_SOURCE_LIMIT, _cg.SLOT_SOURCE_LIMIT - _worst))
+
+# ---- G-BLACKPOINT (2026-09-09c, queue item #303) -------------------------
+if _sec_on():
+    # ⚠ THREE CLAIMS, AND THE FIRST ONE IS THE PROMISE THE DEFAULT MAKES.
+    # `black_point_stretch` was introduced as a CONTROL rather than a fix
+    # precisely so that nothing moves until the owner moves it, so the default
+    # has to be shown to be inert -- not argued to be.
+    _bpp = get_profile("FUJI_VELVIA_50")
+    _bst = fs.RenderSettings(grain_scale=0.0, print_grain=False,
+                             misreg_scale=0.0, flare=0.0)
+    _b1 = fs.simulate(lin, _bpp, _bst)
+    _b1b = fs.simulate(lin, _bpp,
+                       dataclasses.replace(_bst, black_point_stretch=1.0))
+    chk("G-BLACKPOINT-a  black_point_stretch=1.0 is EXACTLY the default, so "
+        "every render made before the control existed is reproduced",
+        float(np.abs(_b1 - _b1b).max()) == 0.0,
+        f"max abs diff {float(np.abs(_b1 - _b1b).max()):.3e} over "
+        f"{_b1.size} samples")
+
+    # b. and it does what it was added for. The blue record is the one that
+    #    crushed: stages 09 and 12 push it past Dmax, which s=1 maps to zero.
+    _b0 = fs.simulate(lin, _bpp,
+                      dataclasses.replace(_bst, black_point_stretch=0.0))
+    _z1 = float(np.count_nonzero(_b1[:, :, 2] == 0.0)) / _b1[:, :, 2].size
+    _z0 = float(np.count_nonzero(_b0[:, :, 2] == 0.0)) / _b0[:, :, 2].size
+    chk("G-BLACKPOINT-b  at 0.0 nothing in the blue record is clipped to "
+        "output zero, and at 1.0 a large fraction is",
+        _z0 == 0.0 and _z1 > 0.02,
+        f"blue exactly 0.0: {100*_z1:.2f} % at s=1, {100*_z0:.2f} % at s=0 "
+        f"(test chart, not the Velvia regression frame -- the frame measured "
+        f"13.06 % / 0.00 %)")
+
+    # c. ⚠ AND THE ANCHOR STILL LANDS AT THE DEFAULT, WHICH IS WHERE THE COST
+    #    OF s=0 LIVES. At s=0 four POLAROID stocks miss the 12 % mid-grey bound
+    #    (Callier amplifies the scalar solver's residual by 1.62x on a
+    #    monochrome record). That is recorded in the control's own comment and
+    #    in DIGITIZATION_QUEUE.md § 0.0e; this guard pins that the DEFAULT is
+    #    unaffected, so the limitation can never leak into a shipped render
+    #    without the control being moved deliberately.
+    _anch_st = fs.RenderSettings(grain_scale=0.0, print_grain=False,
+                                 misreg_scale=0.0, flare=0.0, vignette=0.0,
+                                 coating_scale=0.0)
+    _worst_nm, _worst = "", 0.0
+    for _p in FILM_PROFILES:
+        _pt = fs.simulate(lin, _p, _anch_st)[615:665, 55:145].mean(axis=(0, 1))
+        _e = max(abs(float(_v) - 0.18) / 0.18 for _v in _pt)
+        if _e > _worst:
+            _worst_nm, _worst = _p.name, _e
+    chk("G-BLACKPOINT-c  the 18 % mid-grey anchor is untouched by the new "
+        "control at its default", _worst < 0.12,
+        f"worst {_worst_nm} {_worst:.4f} of 184 stocks (the same bound "
+        f"section 5 enforces; at s=0.0 four POLAROID stocks reach 0.14-0.17)")
 
 # ---- 3. 16-bit PNG really is 16-bit --------------------------------------
 if _sec_on():
@@ -1268,13 +1504,56 @@ if _sec_on():
         for _c in _p.curves.as_tuple():
             _asym = _c.dmin + _c.gamma * (_c.shoulder_x - _c.toe_x)
             _worst = max(_worst, _asym - _c.dmax)
-    chk("C18: the interimage density weight is capped at Dmax, and the cap is "
-        "provably non-binding on every curve in the database",
+    # ⚠⚠ THIS GUARD'S TITLE WAS CORRECTED 2026-09-09, AND IT IS THE SAME DEFECT
+    # SHAPE AS THE dye_matrix ROW-SUM GUARD FIXED ON 2026-09-08: a title
+    # asserting a CONSEQUENCE that the test below does not establish.
+    #
+    # It used to read "the interimage density weight is capped at Dmax, and the
+    # cap is provably non-binding on every curve in the database". The test
+    # only ever checked `asymptote - dmax <= 1e-9` -- a property of the CURVES.
+    # It never touched the cap, so when the cap changed on 2026-09-09 this
+    # guard passed without noticing.
+    #
+    # ⚠ AND "NON-BINDING" WAS THE DEFECT, NOT THE PROOF. A cap that cannot
+    # engage bounds nothing; C18 asked for a bound and got a no-op. The owner
+    # found it by rendering a real frame: reversal stocks produced saturated
+    # red patches because (D_j - D_ref) * w(D_j) is QUADRATIC in density.
+    # The cap is now ALGO_ONE / 1.0 and it BINDS BY DESIGN.
+    #
+    # What the curve test below still buys, and why it is kept: it establishes
+    # that `ToneCurve.dmax` IS the asymptote of the softplus difference the
+    # stage evaluates, which is what lets the weight's range be reasoned about
+    # at all.
+    chk("C18a: ToneCurve.dmax IS the softplus asymptote on every curve, which "
+        "is what makes the interimage weight's range knowable",
         _worst <= 1e-9,
-        "max(asymptote - dmax) = %.2e over %d stocks x 3 curves; the weight can "
-        "only bind where a density exceeds its own curve's Dmax, which the "
-        "softplus difference cannot produce"
+        "max(asymptote - dmax) = %.2e over %d stocks x 3 curves"
         % (_worst, len(film_profiles.FILM_PROFILES)))
+
+    # ---- C18b, 2026-09-09: the bound now actually ENGAGES ------------------
+    # ⚠ THE POINT OF THIS CHECK IS THE OPPOSITE OF THE ONE ABOVE IT. A bound
+    # that never binds is what shipped the red artifact, so this asserts the
+    # cap is reachable: the weight (1-dw) + dw*D/D_ref equals 1 exactly at
+    # D = D_ref and exceeds 1 for every D above it, so the cap engages over the
+    # whole interval (D_ref, dmax). If a stock ever has D_ref >= dmax the
+    # weighting is inert on it and that is worth knowing.
+    _c18 = []
+    for _p in film_profiles.FILM_PROFILES:
+        if not (_p.interimage.active and _p.interimage.density_weighting > 0.0):
+            continue
+        for _i, _c in enumerate(_p.curves.as_tuple()):
+            _dref = float(fs.density_scalar(0.0, _c))
+            _c18.append((_p.name, "rgb"[_i], _dref, _c.dmax, _c.dmax - _dref))
+    _inert = [r for r in _c18 if r[4] <= 0.0]
+    chk("C18b: the interimage weight cap of 1.0 is REACHABLE on every "
+        "density-weighted stock, i.e. the bound engages instead of being the "
+        "no-op that shipped the 2026-09-09 red artifact",
+        bool(_c18) and not _inert,
+        "%d inert: %s" % (len(_inert), _inert[:2]) if _inert else
+        "%d curves over %d weighted stocks; cap binds across (D_ref, dmax), "
+        "narrowest margin %.3f D"
+        % (len(_c18), len({r[0] for r in _c18}),
+           min(r[4] for r in _c18)))
 
     # ---- queue C2c + C19, closed 2026-09-02: what adjacency_um MEANS -------
     # ⚠ THE ROWS COMPARED A FREQUENCY WITH A LENGTH. `adjacency_um` is the scale
@@ -1962,7 +2241,17 @@ if _sec_on():
     # "distinguishable only by their times". Additive and inert: nothing on any
     # engine's path reads a development point, so a v28 database renders
     # bit-identically to a v27 one and no film index moves.
-    chk("schema version is 28", _fpm.SCHEMA_VERSION == 28, f"v={_fpm.SCHEMA_VERSION}")
+    # v29 (2026-09-10): nineteen fields from the 41-document patent and
+    # Glafkides harvest. The LARGEST bump in the log and, like v28, entirely
+    # additive and entirely inert -- G-V29-INERT below proves it by asserting
+    # that not one of the nineteen is referenced anywhere in film_sim.py, and
+    # none is emitted into the C++ at all (the v23 precedent). Six of them
+    # attach a DEFINITION to a number that was already stored: which aperture
+    # an rms figure was read through, which of nine gamma definitions a stored
+    # gamma is, whether a dye-impurity ratio was measured in transmission or
+    # reflection. Those are ingest-side truth, and each one exists because the
+    # harvest actually made that mistake before the field did.
+    chk("schema version is 30", _fpm.SCHEMA_VERSION == 30, f"v={_fpm.SCHEMA_VERSION}")
 
     # ==== 2026-09-01: THE TWO CARRIERS THAT STOPPED BEING INERT =============
     # `reciprocity_table` and `process_variants` were both listed as "carried,
@@ -4052,7 +4341,7 @@ if _sec_on():
              # nothing checks. KODAK_PORTRA_400 is one of the 13 stocks queue
              # K2 populated, so it holds a real AimDensity record.
              "aim_density"))
-        and film_profiles.SCHEMA_VERSION == 28
+        and film_profiles.SCHEMA_VERSION == 30
         and all(hasattr(_ps, "spectral") for _ps in film_profiles.PRINT_STOCKS)
         # ⚠ v25, and it is the first entry in this probe that is NOT a carrier.
         # The others are here to prove an inert field is reachable; this one is
@@ -5695,7 +5984,12 @@ if _sec_on():
                  "AGFA_RSX_II_200"):
         _agp = get_profile(_agn)
         chk("%s cites the 1998 edition and not the 2004 one" % _agn,
-            any("09/1998" in _s and "agfa_films.pdf" in _s
+            # ⚠ KEYED ON THE EDITION STATEMENT, NOT A FILENAME (2026-09-10).
+            # This used to also require "agfa_films.pdf" in the citation. Local
+            # paths were stripped out of every emitted string by owner
+            # directive, so a filename is no longer a legal thing for a
+            # citation to contain -- the bibliographic identity is.
+            any("09/1998" in _s and "Technical Data PF" in _s
                 for _s in _agp.provenance.sources),
             _agp.provenance.sources[0][:70])
 
@@ -5720,11 +6014,11 @@ if _sec_on():
     for _agn in _agfa_rms:
         _hit = [_e for _e in _fpm._PARAM_SOURCES.get(_agn, ())
                 if _e.param == "grain.rms_granularity"]
-        if len(_hit) != 1 or "agfa_films.pdf" not in (_hit[0].source or ""):
+        if len(_hit) != 1 or "Technical Data PF" not in (_hit[0].source or ""):
             _stale.append(_agn)
     chk("every Agfa rms cell cites the sheet the figure is printed on",
         not _stale, ", ".join(_stale) if _stale else
-        "%d Agfa profiles cite agfa_films.pdf for their rms" % len(_agfa_rms))
+        "%d Agfa profiles cite «Technical Data PF» for their rms" % len(_agfa_rms))
 
     # Published layer thickness, all twelve. Both editions agree on every film
     # they share, so a change here is a change in the reader, not the source.
@@ -8162,7 +8456,7 @@ if _sec_on():
     for _n in ("FUJI_F125_8530",):
         _p = get_profile(_n)
         chk(f"{_n} cites Honjo 1989 for its MTF",
-            "52_509.pdf" in " ".join(_p.provenance.sources), "cited")
+            "Honjo" in " ".join(_p.provenance.sources), "cited")
         chk(f"{_n} keeps the measured f50_g = 42.0 c/mm",
             abs(_p.mtf.f50_g - 42.0) < 1e-9, "f50_g %.1f" % _p.mtf.f50_g)
     _f125 = get_profile("FUJI_F125_8530")
@@ -8200,8 +8494,8 @@ if _sec_on():
     _CLOSED = {
         "FUJICOLOR_A250":             "MP3-57E",
         "GEVACHROME_902":             "Verbrugghe",
-        "KONICA_CHROME_CENTURIA_100": "chrocen100.pdf",
-        "KONICA_CHROME_R100":         "R100.pdf",
+        "KONICA_CHROME_CENTURIA_100": "CENTURIA 100 SRA",
+        "KONICA_CHROME_R100":         "R-100",
         "ILFORD_HPS":                 "table 7",
         "KODAK_SUPER_XX_PAN_4142":    "DS 17",
     }
@@ -8209,10 +8503,10 @@ if _sec_on():
              if tok not in " ".join(get_profile(n).provenance.sources)]
     chk("all 6 closed citations still name their own document",
         not _miss, ", ".join(_miss) if _miss else "6 of 6")
-    # A250's confusable companion file is the one hazard in this batch that
-    # would silently corrupt data if the warning were dropped: PDF/PROFILES/
-    # FUJI/'A 250.pdf' is a 1985 SMPTE paper about AX 8514/8512 and LP 8816.
-    chk("A250 keeps the 'A 250.pdf' misattribution warning",
+    # A250's confusable companion document is the one hazard in this batch
+    # that would silently corrupt data if the warning were dropped: a 1985 SMPTE
+    # paper about AX 8514/8512 and LP 8816 sits under a near-identical name.
+    chk("A250 keeps its misattribution warning",
         "must NOT be attributed to A250"
         in " ".join(get_profile("FUJICOLOR_A250").provenance.sources),
         "hazard recorded")
@@ -8859,6 +9153,52 @@ if _sec_on():
         else "EKTACHROME_100D_5285 15.43, SUPER_ANSCOCHROME_1957 5.27, "
              "median colour gamma 0.62")
 
+    # =======================================================================
+    #  G-REGISTER -- the nine printed parameters are complete on every stock
+    #
+    #  ⚠ THIS GUARD EXISTS BECAUSE THE CLAIM IT CHECKS WAS FALSE FOR 23 STOCKS
+    #  AND NOTHING NOTICED. `_PARAM_SOURCES_DERIVED` is a literal dict keyed by
+    #  the 161 stock names that existed on 2026-08-27; the ParamSource
+    #  docstring promises that in the nine columns FilmActiveProfiles.md prints
+    #  "an absence is impossible, so nothing can fall back to the profile tier
+    #  and quietly read as evidence". Every stock added after that date had an
+    #  EMPTY row and did fall back -- 156 cells over 31 stocks, measured
+    #  2026-09-09.
+    #
+    #  ⚠ A LITERAL DICT KEYED BY STOCK NAME DECAYS EVERY TIME A STOCK IS ADDED,
+    #  and prose cannot stop that. This can. COMPLETENESS IS ASSERTED (hard);
+    #  the fill count is only REPORTED, because a cell upgraded from the
+    #  generated `assumed` placeholder to a real traced/stated record LOWERS
+    #  the count and that is the outcome we want -- pinning it would make an
+    #  improvement fail the build.
+    _nine = [_k for _k, _u, _c in film_profiles._NINE_PRINTED]
+    _reg_bad = [(_p.name, sorted(set(_nine) - {_r.param for _r in _p.param_sources}))
+                for _p in FILM_PROFILES
+                if not set(_nine) <= {_r.param for _r in _p.param_sources}]
+    chk("G-REGISTER  all nine PRINTED parameters carry a provenance record on "
+        "every stock, so an absence in those columns is genuinely impossible "
+        "(the claim the ParamSource docstring makes)",
+        not _reg_bad,
+        "%d stock(s) incomplete: %s" % (len(_reg_bad), _reg_bad[:3])
+        if _reg_bad else
+        "%d stocks x 9 columns, %d cells filled by the 2026-09-09 completeness "
+        "pass on %d stocks (upgrade target, not a target to keep)"
+        % (len(FILM_PROFILES), film_profiles.REGISTER_GAP_FILLED,
+           len(film_profiles.REGISTER_GAP_STOCKS)))
+
+    # ⚠ AND NO PARAMETER MAY CARRY TWO RECORDS -- the G-PROV invariant. The
+    # completeness pass only ADDS where a cell was empty, so it cannot break
+    # this; the check is here because that is exactly the kind of guarantee
+    # that holds until someone adds a second pass which also writes.
+    _prov_dup = []
+    for _p in FILM_PROFILES:
+        _seen = {}
+        for _r in _p.param_sources:
+            _seen[_r.param] = _seen.get(_r.param, 0) + 1
+        _prov_dup += [(_p.name, _k) for _k, _v in _seen.items() if _v > 1]
+    chk("G-PROV  no profile carries two provenance records for one parameter",
+        not _prov_dup, "%d duplicate(s): %s" % (len(_prov_dup), _prov_dup[:3]))
+
     chk("G-FILMID  film_ids.lock exists", _os.path.exists(_lockp), _lockp)
 
     if _os.path.exists(_lockp):
@@ -9030,6 +9370,268 @@ if _sec_on():
             _got == _PREFREEZE_SHA256,
             f"got {_got[:16]}... expected {_PREFREEZE_SHA256[:16]}...")
 
+    # ---- G-V29 (2026-09-10, the patent + Glafkides harvest) --------------
+    # Seven guards on the nineteen schema-v29 fields. Five exist to catch a
+    # mistake that was ACTUALLY MADE during the harvest and would otherwise be
+    # made again; one is the inertness claim the version bump rests on; one is
+    # an independent cross-check on a rule the project already had.
+    if _sec_on():
+        _fp = film_profiles
+
+        # 1. THE LOG BASE. Six independent derivations of size_sigma_log were
+        #    made from the patent corpus and they disagreed by factors of
+        #    exactly ln(10) = 2.3026 and exactly 2 -- one pair had used
+        #    natural logs, another the spread of crystal AREA instead of
+        #    diameter. The convention is now written out in full at the field.
+        #    This guard is what stops the next derivation drifting off it: a
+        #    sigma above 0.5 in log10-of-diameter units is a decade of crystal
+        #    size across two sigma, which no coating survives, so it is the
+        #    signature of the wrong base and not of an unusual film.
+        _sig = [(_p.name, _p.emulsion.size_sigma_log) for _p in FILM_PROFILES
+                if _p.emulsion.size_sigma_log]
+        _sig_bad = [(n, v) for n, v in _sig if not (0.01 <= v <= 0.5)]
+        chk("G-V29-SIGMALOG  every crystal size_sigma_log is in "
+            "log10-of-DIAMETER units (0.01-0.5), not natural logs and not "
+            "area-based", not _sig_bad,
+            "%d populated, range %.3f-%.3f"
+            % (len(_sig), min(v for _, v in _sig), max(v for _, v in _sig))
+            if _sig and not _sig_bad
+            else "offenders: %s" % (_sig_bad[:3],))
+
+        # 2. TURBIDITY IS DELIBERATELY UNPOPULATED, and this guard is that
+        #    reason recorded as a test. Glafkides' Gamma is a coefficient on a
+        #    point-image diameter whose own d0 is tens of micrometres; the
+        #    stored f50 values imply d0 = 1.9-7.8 um. The two are not the same
+        #    diameter, and the conversion between them is printed nowhere in
+        #    the corpus -- so Gamma = 18 fed through turbid_f50s would take an
+        #    f50 of 100 cycles/mm to 14.6, a 6.8x loss of sharpness that no
+        #    photograph shows.
+        #
+        #    IF THIS GUARD FAILS, SOMEONE HAS POPULATED THE FIELD. That is
+        #    allowed, but only together with the calibration: a source stating
+        #    turbidity as an MTF or f50 change, or giving a point-spread
+        #    PROFILE rather than a single diameter. Deleting this check to
+        #    make a populated value pass is the one thing that must not happen.
+        _turb = [_p.name for _p in FILM_PROFILES if _p.mtf.turbidity_gamma_um]
+        chk("G-V29-TURBIDITY  turbidity_gamma_um is 0.0 on every stock -- the "
+            "diameter-to-f50 calibration is not in the corpus, so the carrier "
+            "ships empty", not _turb,
+            "0 of %d populated, as intended" % len(FILM_PROFILES) if not _turb
+            else "%d populated without the calibration: %s"
+                 % (len(_turb), _turb[:3]))
+
+        # 3. KRON, the same shape of argument. p = 1/(1+a) is the law's
+        #    LOW-INTENSITY LIMIT, so an existing schwarzschild_p cannot be
+        #    inverted into (a, I0) without the optimum intensity, and no
+        #    document in the corpus prints one for any named product.
+        #    Inventing an I0 to preserve a p would be inventing a measurement.
+        _kron = [_p.name for _p in FILM_PROFILES if _p.reciprocity.kron_a]
+        chk("G-V29-KRON  kron_a is 0.0 on every stock -- no source prints an "
+            "optimum intensity I0, and Schwarzschild's p cannot be inverted "
+            "without it", not _kron,
+            "0 of %d populated, as intended" % len(FILM_PROFILES) if not _kron
+            else "%d populated: %s" % (len(_kron), _kron[:3]))
+
+        # 4. THE rms APERTURE. Every stored rms figure in this database was
+        #    entered under Kodak's 48 um convention, which the field docstring
+        #    has stated since v1. Konica's patents state 25 um; reading one as
+        #    the other overstates grain by sqrt(48/25) = 1.386, i.e. 39 %,
+        #    more than the whole spread between a 100-speed and a 400-speed
+        #    stock. Asserts both that the convention is uniform and that the
+        #    conversion is the identity at 48.
+        _ap = sorted({_p.grain.rms_aperture_um for _p in FILM_PROFILES})
+        _ap_id = all(
+            abs(_p.grain.rms_at_aperture(48.0) - _p.grain.rms_granularity)
+            < 1e-12 for _p in FILM_PROFILES)
+        chk("G-V29-APERTURE  every rms figure is on the 48 um convention and "
+            "rms_at_aperture(48) is the identity",
+            _ap == [48.0] and _ap_id,
+            "apertures present: %s; identity holds: %s" % (_ap, _ap_id))
+
+        # 5. THE RATE LAW MUST REPRODUCE THE POINTS IT SITS BESIDE. Where
+        #    gamma_infinity and dev_rate_k are set, gamma(t) is checked
+        #    against every stored DevelopmentPoint by validate() at 12 %.
+        #    What validate() does NOT check is the 0.80*gamma_infinity
+        #    ceiling: Glafkides §211 gives that as the usable contrast limit,
+        #    so a fitted asymptote low enough to put the sheet's OWN published
+        #    gamma above the ceiling is a fit that declares the manufacturer's
+        #    stated development impossible. Three Kodak 1952 sheets failed
+        #    exactly this way during the harvest and were refused, not forced.
+        _rl_bad = []
+        for _p in FILM_PROFILES:
+            _pf = _p.processing_family
+            if not _pf.has_rate_law:
+                continue
+            _gmax = max((_pt.gamma or _pt.contrast_index)
+                        for _pt in _pf.points) if _pf.points else 0.0
+            if _gmax > 0.80 * _pf.gamma_infinity + 1e-9:
+                _rl_bad.append((_p.name, round(_gmax, 3),
+                                round(_pf.gamma_infinity, 3)))
+        _rl_n = sum(1 for _p in FILM_PROFILES
+                    if _p.processing_family.has_rate_law)
+        chk("G-V29-RATELAW  no fitted gamma_infinity puts a stock's own "
+            "published gamma above the 0.80*gamma_infinity usable ceiling",
+            not _rl_bad,
+            "%d stocks carry a rate law, all under the ceiling" % _rl_n
+            if not _rl_bad else "offenders: %s" % (_rl_bad[:3],))
+
+        # 6. THE INERTNESS CLAIM. The v29 bump asserts that a v29 database
+        #    renders bit-identically to a v28 one. None of the nineteen is
+        #    emitted into the C++ at all -- the v23 precedent, recorded in the
+        #    generated header -- so the claim reduces to: nothing in
+        #    film_sim.py reads any of them. Checked by name against the module
+        #    source. Crude, but it is the check that fails when someone wires
+        #    one up without moving the version.
+        import inspect as _inspect
+        import film_sim as _fs29
+        _v29_names = (
+            "antihalation", "antihalation_undercoat_um", "silver_g_per_m2",
+            "gelatin_g_per_m2", "coverage_source", "angle_deg",
+            "dye_fade_low_density_factor", "gamma_infinity", "dev_rate_k",
+            "induction_t0_min", "temp_q10", "kron_a", "kron_log_i0_rel",
+            "short_onset_s", "turbidity_gamma_um", "turbidity_ref_log_e",
+            "rms_aperture_um", "interimage_gamma_ratio_r",
+            "interimage_gamma_ratio_g", "interimage_gamma_ratio_b",
+            "gamma_criterion", "density_geometry",
+            # -- schema v30
+            "gamma_ratio_criterion")
+        _sim_src = _inspect.getsource(_fs29)
+        _leaked = [_n for _n in _v29_names if _n in _sim_src]
+        chk("G-V29-INERT  no schema-v29 field is read on the render path, so "
+            "a v29 database renders bit-identically to a v28 one",
+            not _leaked,
+            "%d fields checked, none referenced in film_sim" % len(_v29_names)
+            if not _leaked
+            else "referenced in film_sim: %s -- if deliberate, the field is "
+                 "no longer inert: kSchemaVersion must move again, the C++ "
+                 "struct must gain it, and cpp_parity.py must probe it"
+                 % _leaked)
+
+        # 7. STRICKER'S CALLIER TABLE, as an INDEPENDENT check on a rule this
+        #    project already had. Queue C43 derived callier_q from each
+        #    monochrome stock's own mid slope on 2026-09-02, calibrated on
+        #    Mees FIG. 179. The 2026-09-10 harvest recommended "derive Callier
+        #    Q from gamma" -- already done, and better calibrated than the
+        #    recommendation knew. What Stricker adds, via Glafkides §203, is
+        #    the same function measured in another laboratory in another
+        #    decade: worth having as a guard, worth nothing as a second copy
+        #    of the rule.
+        _q = [(_p.name,
+               abs(_p.callier_q
+                   - _fp.stricker_callier_q(_p.curves.g.mid_slope)))
+              for _p in FILM_PROFILES if _p.is_monochrome]
+        _q_bad = [(n, round(d, 3)) for n, d in _q if d > 0.25]
+        chk("G-STRICKER  the project's Callier rule agrees with Stricker's "
+            "independently measured Q(gamma) table within 0.25 on every "
+            "monochrome stock", not _q_bad,
+            "%d stocks, mean |diff| %.4f, max %.4f"
+            % (len(_q), sum(d for _, d in _q) / max(len(_q), 1),
+               max(d for _, d in _q)) if _q and not _q_bad
+            else "offenders: %s" % (_q_bad[:3],))
+
+        # 8. NEUTRAL BALANCE SURVIVES THE INTERIMAGE STAGE (2026-09-10b).
+        #
+        # ⚠ THIS GUARD EXISTS BECAUSE A PATENT METRIC WAS ALMOST ADOPTED AS A
+        # TARGET AND IS NOT ONE. Kodak's colour-negative patents (US 5,989,798
+        # Tables III/V, EP 0 851 288) publish
+        #
+        #     R = red gamma / green gamma, under a white-light (neutral)
+        #         C-41 exposure
+        #
+        # and state "low values of R are indicative of high interlayer
+        # interimage". Their coatings measure R = 0.70 and 0.85 with NO DIR
+        # coupler and 0.41-0.58 with one. Measured across this database, all
+        # 84 colour negatives sit at R = 0.856-1.127, median 0.972 -- i.e.
+        # every shipping film reads as having LESS interimage than a patent's
+        # deliberately DIR-free control, which cannot be true of VISION3 or
+        # PORTRA.
+        #
+        # ⚠ AND THE FIRST EXPLANATION WAS WRONG. The suspicion was that
+        # manufacturers publish the three records already balanced, so the R
+        # information had been normalised out of the traced curves before this
+        # project ever saw them. Checked, and it is false: only 4 of 115
+        # colour stocks share a mid_slope across records, 71 carry a real
+        # r < g < b dmin mask ladder, the toe_x spread across records has a
+        # median of 0.12, and the 45 tier-1 datasheet-traced negatives give
+        # the same R distribution as the analogy estimates. The curves carry
+        # genuine per-record differences.
+        #
+        # THE ACTUAL REASON, which is a property of the film and not of the
+        # data: a colour negative MUST hold a neutral across its exposure
+        # scale or a grey ramp drifts in colour, which is the crossover defect
+        # every maker engineers against. So the layers are built to matched
+        # contrast, and where interimage suppresses the red record the red
+        # layer is given more inherent contrast to compensate. R on a finished
+        # product is therefore ~1 BY DESIGN, whatever the DIR chemistry inside,
+        # and the patents' low R comes from experimental coatings that were
+        # never rebalanced. R measures interimage only in an A/B where the
+        # coatings are identical except for the DIR loading -- which is what a
+        # patent Example is and what a data sheet can never be.
+        #
+        # ⚠ WHAT DOES TRANSFER IS THE STABILITY OF R, AND THAT IS THIS GUARD.
+        # If the layers are balanced, then whatever this pipeline does to a
+        # NEUTRAL must leave them balanced. The interimage stage is referenced
+        # to the mid-grey anchor precisely so that it nearly vanishes there,
+        # so a coefficient set that swings R on a neutral has broken the
+        # reference, not modelled a film. Measured today: median +0.0136,
+        # worst -0.0205 (KONICA_IMPRESA_50) and +0.0287 (CINESTILL_800T), so
+        # the 0.05 bound carries about 1.7x headroom.
+        #
+        # ⚠ IT IS NOT A CHECK ON THE COEFFICIENTS' MAGNITUDE. Interimage is
+        # SUPPOSED to move saturated colour hard; this only pins the neutral.
+        import math as _m29
+
+        def _d29(_c, _x):
+            def _sp(_z, _k):
+                _t = _z / _k
+                if _t > 40.0:
+                    return _z
+                if _t < -40.0:
+                    return 0.0
+                return _k * _m29.log1p(_m29.exp(_t))
+            return _c.dmin + _c.gamma * (_sp(_x - _c.toe_x, _c.toe_k)
+                                         - _sp(_x - _c.shoulder_x,
+                                               _c.shoulder_k))
+
+        def _R29(_p, _iie):
+            _cur = (_p.curves.r, _p.curves.g, _p.curves.b)
+            _n = 241
+            _lo, _hi = -1.6, 0.6
+            _xs = [_lo + (_hi - _lo) * _i / (_n - 1) for _i in range(_n)]
+            _Dm = [[_d29(_c, _x) for _x in _xs] for _c in _cur]
+            if _iie and _p.interimage.active:
+                _M = _p.interimage.matrix()
+                _dr = [_d29(_c, _p.speed_point_x) for _c in _cur]
+                for _ in range(max(1, _p.interimage.iterations)):
+                    _shift = [[sum(_M[_k][_j] * (_Dm[_j][_i] - _dr[_j])
+                                   for _j in range(3))
+                               for _i in range(_n)] for _k in range(3)]
+                    _Dm = [[_d29(_cur[_k], _xs[_i] + _shift[_k][_i])
+                            for _i in range(_n)] for _k in range(3)]
+            _i0, _i1 = _n // 4, 3 * _n // 4
+            _g = [(_Dm[_k][_i1] - _Dm[_k][_i0]) / (_xs[_i1] - _xs[_i0])
+                  for _k in range(3)]
+            return _g[0] / _g[1] if _g[1] else 0.0
+
+        _bal = []
+        for _p in FILM_PROFILES:
+            if _p.is_monochrome or _p.kind is not StockKind.NEGATIVE:
+                continue
+            if not _p.interimage.active:
+                continue
+            _bal.append((_p.name, _R29(_p, False), _R29(_p, True)))
+        _bal_bad = [(n, round(b - a, 4)) for n, a, b in _bal
+                    if abs(b - a) > 0.05]
+        chk("G-IIE-NEUTRAL  the interimage stage leaves a NEUTRAL ramp's "
+            "red/green gamma balance intact (|dR| <= 0.05) -- the stage is "
+            "anchored at mid grey and must nearly vanish there",
+            not _bal_bad,
+            "%d stocks, R %.4f -> %.4f median, worst move %+.4f"
+            % (len(_bal),
+               sorted(a for _, a, _b in _bal)[len(_bal) // 2],
+               sorted(b for _, _a, b in _bal)[len(_bal) // 2],
+               max((b - a for _, a, b in _bal), key=abs))
+            if _bal and not _bal_bad else "offenders: %s" % (_bal_bad[:3],))
 
     print()
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")

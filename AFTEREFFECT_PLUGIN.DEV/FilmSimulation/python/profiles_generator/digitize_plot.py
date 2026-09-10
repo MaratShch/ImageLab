@@ -113,9 +113,35 @@ def trace_curve(
 def softplus_curve(x: np.ndarray, dmin: float, gamma: float, toe_x: float,
                    toe_k: float, shoulder_x: float, shoulder_k: float
                    ) -> np.ndarray:
-    """The project's ToneCurve model, vectorised (must match film_sim)."""
+    """The project's ToneCurve model, vectorised (must match film_sim).
+
+    ⚠⚠ THE SATURATED BRANCH WAS WRONG UNTIL 2026-09-09, AND "must match
+    film_sim" IS THE PART IT FAILED. The body read::
+
+        k * np.log1p(np.exp(np.clip(v / k, -60.0, 60.0)))
+
+    which clips the ARGUMENT, so it returns ~60*k once saturated where the true
+    softplus returns v. `film_sim._sp_scalar` returns `x if z > 60.0` and
+    `ToneCurve._sample` returns `z`; both are right. Only the FITTER was wrong
+    -- and the fitter is what adopts curves.
+
+    Measured on KODAK_PORTRA_400NC's blue record (toe_k 0.09, toe_x -2.89): the
+    two models part company at x = 2.51 and are 3.34 D apart by x = 8.0,
+    because the two terms saturate at 60*toe_k and 60*shoulder_k, which are
+    different numbers, so their difference walks away linearly.
+
+    ⚠ NO ADOPTED CURVE WAS EVER AFFECTED -- a traced panel spans 2-5 decades,
+    nowhere near 60 softness constants past a knee. It was not harmless either:
+    during queue A3 a gamma-constrained fit of 5285 walked into it and returned
+    toe_k 0.0263 with dmax 12.99, a "fit" that was reading the clip and not the
+    model. Fixed by returning the asymptote on the saturated side, as film_sim
+    does. Both branches of `np.where` are evaluated, so the exp argument stays
+    capped for overflow safety while the capped branch's RESULT is discarded.
+    """
     def sp(v, k):
-        return k * np.log1p(np.exp(np.clip(v / k, -60.0, 60.0)))
+        z = v / k
+        return np.where(z > 60.0, v,
+                        k * np.log1p(np.exp(np.minimum(z, 60.0))))
     return dmin + gamma * (sp(x - toe_x, toe_k) - sp(x - shoulder_x, shoulder_k))
 
 

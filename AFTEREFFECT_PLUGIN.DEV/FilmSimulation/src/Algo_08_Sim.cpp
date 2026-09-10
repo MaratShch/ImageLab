@@ -290,16 +290,28 @@ namespace
     //  expressed as a plain display value independent of how dense a particular
     //  stock's base happens to be.
     // ----------------------------------------------------------------------
+    //  ⚠ THE BLACK POINT IS A CONTROL AS OF 2026-09-09c (queue item #303).
+    //  `blackPointStretch` scales tMin: 1.0 stretches the stock's own Dmax down
+    //  to output zero, which is the shipped behaviour and is arithmetically the
+    //  old expression at exactly 1.0; 0.0 leaves Dmax at its own relative
+    //  transmittance so nothing clips at the bottom. It has to be threaded HERE
+    //  as well as into stage 14, not just at the end: the anchor solve aims at a
+    //  display value through this function and stage 14 is what produces it, so
+    //  the two expressions must agree or a neutral will not land where it was
+    //  solved to. Full rationale and the measured cost are in the Python twin's
+    //  RenderSettings.black_point_stretch.
     inline HighPrecType normalisedTransmittance
     (
         const HighPrecType     d,
-        const film::ToneCurve& c
+        const film::ToneCurve& c,
+        const HighPrecType     blackPointStretch
     ) noexcept
     {
         // Transmittance is ten to the minus density, by the definition of
         // optical density.
         const HighPrecType tMax = std::pow(10.0, -static_cast<HighPrecType>(c.dmin));
-        const HighPrecType tMin = std::pow(10.0, -static_cast<HighPrecType>(c.dmax()));
+        const HighPrecType tMin = blackPointStretch
+                                * std::pow(10.0, -static_cast<HighPrecType>(c.dmax()));
 
         const HighPrecType span = tMax - tMin;
 
@@ -499,6 +511,7 @@ void AlgoSolveAnchors
     const HighPrecType       greyTarget,
     const HighPrecType       couplerScale,
     const HighPrecType       scannerSpecular,
+    const HighPrecType       blackPointStretch,
     HighPrecType             anchorOut[3]
 ) noexcept
 {
@@ -582,7 +595,8 @@ void AlgoSolveAnchors
                         callierQ,
                         scannerSpecular);
 
-                    return normalisedTransmittance(read, curveOf(curves, c));
+                    return normalisedTransmittance(read, curveOf(curves, c),
+                                                   blackPointStretch);
                 };
 
                 // More exposure on a slide means less density means a brighter
@@ -649,7 +663,7 @@ void AlgoSolveAnchors
     // the neutral density has moved and the final print offsets have to be
     // re-solved against the new value, so the routine cannot stay private here.
     AlgoSolveStageOffsets(dMid, pPrintStock->curves, pPrintStock->dye_matrix,
-                          target, anchorOut);
+                          target, blackPointStretch, anchorOut);
 
     return;
 }
@@ -708,6 +722,7 @@ void AlgoSolveStageOffsets
     const film::RGBCurves& dstCurves,
     const film::Matrix3&   dstMatrix,
     const HighPrecType     target[3],
+    const HighPrecType     blackPointStretch,
     HighPrecType           offsetOut[3]
 ) noexcept
 {
@@ -742,7 +757,8 @@ void AlgoSolveStageOffsets
                   + static_cast<HighPrecType>(dstMatrix[c][1]) * dp[1]
                   + static_cast<HighPrecType>(dstMatrix[c][2]) * dp[2];
 
-                return normalisedTransmittance(mixed, curveOf(dstCurves, c));
+                return normalisedTransmittance(mixed, curveOf(dstCurves, c),
+                                               blackPointStretch);
             };
 
             // More offset means more print exposure, which means more density on
@@ -1115,12 +1131,45 @@ void AlgoStage08b_Interimage
 
     for (int32_t c = 0; c < 3; c++)
     {
-        const film::ToneCurve& cv = curveOf(curves, c);
-
-        const AlgoType dMaxC = static_cast<AlgoType>(
-            cv.dmin + cv.gamma * (cv.shoulder_x - cv.toe_x));
-
-        wCap[c] = (ALGO_ONE - dw) + dw * dMaxC * invRef[c];
+        // ⚠ THE CURVE IS NO LONGER READ HERE, and the reference is kept in the
+        // comment below rather than in a variable: the retired cap needed the
+        // curve's own dmax, the replacement does not, and -Wall reported the
+        // leftover as an unused variable on 2026-09-09c.
+        //
+        // ⚠⚠ THE CAP IS ALGO_ONE, AND THE OLD ONE WAS A NO-OP. Corrected
+        // 2026-09-09 after the owner rendered a real frame and got saturated
+        // red patches on every reversal stock.
+        //
+        // It used to be (1 - dw) + dw * dMaxC * invRef[c] -- the value the
+        // weight reaches AT dmax. AlgoDensity() approaches dmax only
+        // asymptotically, so D < dmax for every finite exposure and that
+        // MIN_VALUE COULD NEVER BIND. The 2026-09-02 note calling it
+        // "provably inert ... every render bit-for-bit what it was" was
+        // describing a no-op as a fix. C18 asked for a bound; what landed was
+        // a bound that cannot engage.
+        //
+        // ⚠ WHY THE UNBOUNDED FORM WAS WRONG: the weight is linear in D_j and
+        // it MULTIPLIES (D_j - dRef), so the product is QUADRATIC in density.
+        // US4729943A says the reversal effect "lands in high dye-density
+        // areas" -- ONE factor of density; the (D_j - dRef) exists only to
+        // keep a neutral untouched. Multiplying them DOUBLE-COUNTS density.
+        // Measured on FUJI_VELVIA_50: delta*w ran +0.009 at the calibration
+        // point to +2.829 at dmax, i.e. -0.402 logE of one-channel shift.
+        //
+        // ⚠ WHY ONE IS PRINCIPLED: capping at 1 turns the weighting from a
+        // GAIN into a REDISTRIBUTION -- full strength at and above the
+        // reference density, tapering below it -- so the stage still
+        // concentrates where the neighbour is dense, which is what the patent
+        // states, while total strength stays set by the coefficients, which
+        // are calibrated at that reference. No constant is invented.
+        // ⚠ IT UNDER-MODELS ON PURPOSE. The right shape is convex-but-bounded
+        // and needs two constants no source prints -- C18's wedge
+        // measurement, still open.
+        //
+        // ⚠ dMaxC IS STILL COMPUTED because verify.py asserts the old cap was
+        // non-binding across the database, and that assertion is what proved
+        // this was a no-op. Do not delete it to save a multiply.
+        wCap[c] = ALGO_ONE;
     }
 
     // Per-channel curve parameters and reversal trims, hoisted out of the pixel

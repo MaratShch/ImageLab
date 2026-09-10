@@ -568,8 +568,11 @@ int main()
         }
 
         HighPrecType anchor[3] = { 0, 0, 0 };
+        // blackPointStretch pinned at 1.0: this probe is about the CALLIER
+        // factor entering the solve, and 1.0 is the shipped normalisation, so
+        // the comparison stays against the Python default.
         AlgoSolveAnchors(*p, ps, (HighPrecType)0.18, (HighPrecType)1.0,
-                         (HighPrecType)r.spec, anchor);
+                         (HighPrecType)r.spec, (HighPrecType)1.0, anchor);
 
         printf("CA\t%s\t%d\t0\t%.17g\t%.17g\t%.17g\n",
                r.name, r.is,

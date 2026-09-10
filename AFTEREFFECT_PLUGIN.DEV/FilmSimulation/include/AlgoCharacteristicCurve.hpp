@@ -194,6 +194,14 @@ HighPrecType AlgoDensityScalar
 //                physics; the other is the laboratory failing to do its job.
 //                Pass 0 -- the default -- and the factor is exactly 1.0, so
 //                every render made before stage 12b existed is reproduced.
+//  blackPointStretch
+//                the stage-14 black point, threaded in so the SOLVE and the
+//                PIXEL PASS use one expression. 1.0 is the shipped behaviour
+//                and is arithmetically the old formula; below it the stock's
+//                own Dmax stops being stretched to output zero. Getting this
+//                wrong does not merely shift the shadows -- it moves mid grey,
+//                because the target this solver hits is expressed through the
+//                same normalisation. See AlgoControl.hpp.
 //  anchorOut     three results: log-exposure trims for a reversal stock, print
 //                offsets for a negative
 // ---------------------------------------------------------------------------
@@ -204,6 +212,7 @@ void AlgoSolveAnchors
     const HighPrecType       greyTarget,
     const HighPrecType       couplerScale,
     const HighPrecType       scannerSpecular,
+    const HighPrecType       blackPointStretch,
     HighPrecType             anchorOut[3]
 ) noexcept;
 
@@ -295,6 +304,7 @@ void AlgoSolveStageOffsets
     const film::RGBCurves& dstCurves,
     const film::Matrix3&   dstMatrix,
     const HighPrecType     target[3],
+    const HighPrecType     blackPointStretch,
     HighPrecType           offsetOut[3]
 ) noexcept;
 

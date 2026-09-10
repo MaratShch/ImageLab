@@ -835,8 +835,50 @@ struct FilmDamage
 
 
 // ===========================================================================
-// Live controls -- 25 fields, all consumed by the renderer
+// Live controls -- 28 fields, 26 consumed by the renderer
+//
+// ⚠ 25 -> 27 ON 2026-09-08: developmentMinutes and developmentCelsius were
+// added and are NOT YET CONSUMED. They are declared now, sentinel-defaulted
+// and required to hide themselves where they cannot act, for the same reason
+// the eight unconsumed FilmDamage controls stay in the layout -- the panel and
+// every serialised preset can then be built ONCE against a stable structure.
+// Each says so in its own item 10.
+//
+// ⚠⚠ AND ONE PRE-EXISTING DEFAULT IS WRONG, FOUND WHILE ADDING THEM.
+// `processVariant`'s item 7 says DEFAULT -1, and AlgorithmMain.cpp:475 states
+// "processVariant is -1 unless the caller selects" -- but
+// getAlgoControlsDefault() never assigns it and `AlgoControls controls{}`
+// zero-initialises it to 0, which is variant INDEX ZERO, not the sentinel.
+// It is currently HARMLESS BY ACCIDENT, not by design: variant[0] on all 8
+// stocks that carry variants is the as-shipped row (REFINAL, "EI 800 (box
+// speed)", "C-41 cross-process, as shipped", ...), every one of which has no
+// curves and gamma_scale 1.0, so no pixel moves. The day a stock is added
+// whose variant[0] is a push, the shipped default silently renders it.
+// The same trap now applies to the two new controls, whose sentinel is
+// strictly < 0 while zero-init gives 0.0 -- so BOTH must be assigned
+// explicitly in getAlgoControlsDefault().
+//
+// ✅ FIXED 2026-09-08b. getAlgoControlsDefault() now assigns all three
+// explicitly (AlgoControl.cpp): processVariant = -1, developmentMinutes = -1.0,
+// developmentCelsius = -1.0. The paragraph above is kept because it is the only
+// record of WHY -- a default that is correct by accident reads identical to one
+// that is correct by design, right up to the day a stock is added whose
+// variant[0] is a push.
+//
+// ⚠ 27 -> 28 ON 2026-09-09c: blackPointStretch added, and it IS consumed
+// (stage 14 plus the anchor solve), so the consumed count moves with it:
+// 25/27 on 2026-09-08, 26/28 now. The two unconsumed fields are still
+// developmentMinutes and developmentCelsius.
 // ===========================================================================
+//: Capacities for the three NAME-KEY controls. ⚠ MEASURED FROM THE LONGEST
+//: LEGAL VALUE, not chosen: filmFormat's is "polaroid_pack" at 13 characters,
+//: printStock's is "EASTMANCOLOR_5382_1953" at 22. Each leaves room for a NUL
+//: and a little growth; a host must REJECT anything longer rather than
+//: truncate, because a truncated key silently resolves to the profile default
+//: and then looks like a working setting.
+constexpr int ALGO_FILM_FORMAT_CAP  = 16;
+constexpr int ALGO_PRINT_STOCK_CAP  = 24;
+
 struct AlgoControls
 {
     // -- film selection -----------------------------------------------------
@@ -979,19 +1021,95 @@ struct AlgoControls
     //  every spatial quantity in the simulation resolution independent. It
     //  changes what the algorithm computes. A pixel format does not.
 
+    // ----------------------------------------------------------------------
+    //  ⚠⚠ THE THREE NAME-KEY CONTROLS ARE FIXED-SIZE CHARACTER ARRAYS, NOT
+    //  `const char*`. CORRECTED 2026-09-09 AT THE OWNER'S INSTRUCTION, and the
+    //  reason is OWNERSHIP rather than style:
+    //
+    //    * A POINTER CANNOT BE SERIALISED. AlgoControls is the struct an After
+    //      Effects or Premiere project must persist. Storing a `const char*`
+    //      writes an address that means nothing on reload, and reading one
+    //      back is undefined behaviour rather than a wrong value -- the
+    //      failure mode is a crash or garbage, not a bad render.
+    //    * A POINTER HAD NO OWNER. The struct never said who allocated the
+    //      string or how long it lived, so the only safe caller was one
+    //      passing a literal with static lifetime. Nothing enforced that, and
+    //      a host passing a temporary would have worked in testing and failed
+    //      in the field.
+    //    * ARRAYS MAKE THE STRUCT FLAT AND COPYABLE. `AlgoControls c = other;`
+    //      now copies the whole configuration, which is what a preset, an undo
+    //      step and a render-thread hand-off each need.
+    //
+    //  ⚠ WHY ARRAYS RATHER THAN ENUMS, since either was permitted. Both are
+    //  sound. Arrays were chosen because these three keys are looked up BY
+    //  NAME against tables the DATABASE owns -- `FORMAT_GEOM` and the print
+    //  stock list -- and the profile's own `default_format` / `default_print`
+    //  fallbacks are themselves strings. An enum would need a name<->value
+    //  translation table kept in step with the generated database BY HAND,
+    //  which is the class of duplication this project has been removing (cf.
+    //  the N_DATA_SLOTS note: the slot count is read from the emitter, never
+    //  repeated). Arrays fix the ownership defect and change no lookup or
+    //  comparison anywhere.
+    //  ⚠ THE FILM STOCK ITSELF IS NOT ONE OF THESE and is deliberately left
+    //  alone: `filmProfile` is already a generated enum (`film::eFILM_PROFILE`,
+    //  184 values in film_enum.hpp) and its legal values are NOT enumerated in
+    //  these comments -- they are the database, and duplicating 184 names here
+    //  would be the exact duplication the paragraph above rejects.
+    //
+    //  ⚠ EVERY WRITE MUST BE BOUNDED AND NUL-TERMINATED. `strncpy` does not
+    //  terminate on truncation; pair it with an explicit terminator or use a
+    //  helper that guarantees both.
+    //
+    //  ⚠ THE .cpp SIDE STILL NEEDS EDITING AND WAS NOT TOUCHED HERE.
+    //  `getAlgoControlsDefault()` assigns all three by pointer today
+    //  (`controls.filmFormat = "super35";`), which no longer compiles against
+    //  an array; each becomes a bounded copy. Every READER is unaffected --
+    //  they compare with strcmp, and an array decays to `const char*` at the
+    //  call site.
+    // ----------------------------------------------------------------------
+
     /**
      *  1  NAME           filmFormat
-     *  2  TYPE           const char*
-     *  3  AE CONTROL     dropdown, populated from FORMAT_GEOM
+     *  2  TYPE           char[ALGO_FILM_FORMAT_CAP]  (16 bytes, NUL-terminated)
+     *                    ⚠ WAS `const char*` until 2026-09-09 -- see the
+     *                    ownership note above this block
+     *  3  AE CONTROL     dropdown, populated from FORMAT_GEOM. ⚠ THE COMPLETE
+     *                    LEGAL SET IS 14 VALUES, exhaustive as of schema v28,
+     *                    with the frame WIDTH each one selects and the number
+     *                    of the 184 stocks that name it as their own default:
+     *                      "8mm"             4.800 mm    2 stocks
+     *                      "super8"          5.790 mm    -
+     *                      "16mm"           10.260 mm    6 stocks
+     *                      "super16"        12.520 mm    -
+     *                      "academy35"      21.950 mm    4 stocks
+     *                      "anamorphic35"   21.950 mm    -
+     *                      "super35"        24.890 mm   64 stocks
+     *                      "techni35"       24.890 mm    1 stock
+     *                      "ff35"           36.000 mm   94 stocks
+     *                      "medium645"      56.000 mm    2 stocks
+     *                      "imax15"         70.410 mm    -
+     *                      "polaroid_sx70"  79.000 mm    1 stock
+     *                      "polaroid_pack"  95.000 mm    2 stocks
+     *                      "large4x5"      127.000 mm    8 stocks
+     *                    ⚠ academy35/anamorphic35 and super35/techni35 are
+     *                    PAIRS AT ONE WIDTH and are NOT interchangeable: they
+     *                    differ in frame height and pitch, so the panel must
+     *                    offer all four rather than collapsing either pair.
      *  4  UNIT           a name key, dimensionless. The quantity it selects is
      *                    LENGTH IN MILLIMETRES - frame width, height and pitch
-     *  5  MIN            n/a (string). nullptr and "" are both accepted and
-     *                    mean "use the stock's default_format"
+     *  5  MIN            n/a (string). An EMPTY FIRST BYTE means "use the
+     *                    stock's default_format". ⚠ nullptr is no longer
+     *                    possible and no longer has to be tested: the field is
+     *                    storage, not a pointer
      *  6  MAX            n/a. An unrecognised key falls back to the profile
      *                    default; if that also fails to resolve, the geometry
-     *                    is zeroed rather than guessed
+     *                    is zeroed rather than guessed. ⚠ A value longer than
+     *                    15 characters cannot be stored and must be rejected by
+     *                    the host, not silently truncated -- a truncated key
+     *                    would resolve to the profile default and look like a
+     *                    working setting
      *  7  DEFAULT        "super35"   (AlgoControl.cpp, getAlgoControlsDefault)
-     *  8  STEP           n/a - enumeration by list
+     *  8  STEP           n/a - enumeration by list, 14 entries
      *  9  PURPOSE        Selects the film gauge. With the render width in
      *                    pixels this gives px_per_mm, the single mechanism that
      *                    makes every spatial quantity in the simulation -
@@ -1016,22 +1134,50 @@ struct AlgoControls
      *                    quality, and must not differ between modes or the two
      *                    would not be comparable.
      */
-    const char* filmFormat;
+    char filmFormat[ALGO_FILM_FORMAT_CAP];
 
     /**
      *  1  NAME           printStock
-     *  2  TYPE           const char*
+     *  2  TYPE           char[ALGO_PRINT_STOCK_CAP]  (24 bytes, NUL-terminated)
+     *                    ⚠ WAS `const char*` until 2026-09-09 -- see the
+     *                    ownership note above the filmFormat block
      *  3  AE CONTROL     dropdown
+     *                    ⚠ THE COMPLETE LEGAL SET IS 11 VALUES plus the empty
+     *                    sentinel, exhaustive as of schema v28. Print stocks
+     *                    are a SEPARATE TABLE from the 184 film profiles and
+     *                    are NOT in film_names.txt:
+     *                      ""                         use the stock's own
+     *                                                 default_print
+     *                      "SCAN_DI"                  digital-intermediate
+     *                                                 inversion -- the default
+     *                                                 of 183 of 184 profiles
+     *                      "KODAK_2383_RELEASE"       modern release print
+     *                      "KODAK_VISION3_DI_2254"    DI intermediate
+     *                      "KODAK_5302"               fine-grain release
+     *                                                 positive, 16 mm
+     *                      "EASTMANCOLOR_5382_1953"   1950s release print
+     *                      "TECHNICOLOR_IB"           imbibition (dye
+     *                                                 transfer) -- the
+     *                                                 default_print of exactly
+     *                                                 1 profile
+     *                      "DUPE_FINE_GRAIN"          fine-grain duplicating
+     *                      "TSP_1_POSITIVE"           Soviet TSP-1
+     *                      "TSP_3_POSITIVE"           Soviet TSP-3
+     *                      "TSP_6_POSITIVE"           Soviet TSP-6
+     *                      "TASMA_POSITIVE_28"        Tasma positive 28
      *  4  UNIT           a name key, dimensionless. The quantities it selects
      *                    are the print stock's mtf_f50 in CYCLES PER MILLIMETRE
      *                    and its characteristic curves in OPTICAL DENSITY
-     *  5  MIN            n/a. "" (the default) means "use the stock's own
-     *                    default_print"
+     *  5  MIN            n/a. An EMPTY FIRST BYTE (the default) means "use the
+     *                    stock's own default_print"
      *  6  MAX            n/a. An unmatched name degrades silently to the
      *                    profile default, and failing that to no print stock at
-     *                    all
+     *                    all. ⚠ A value longer than 23 characters must be
+     *                    rejected by the host rather than truncated: the
+     *                    longest legal key is 22 characters, so a truncation
+     *                    can only ever produce a name that matches nothing
      *  7  DEFAULT        ""   (AlgoControl.cpp, getAlgoControlsDefault)
-     *  8  STEP           n/a - enumeration by list
+     *  8  STEP           n/a - enumeration by list, 11 entries + the sentinel
      *  9  PURPOSE        Selects the print emulsion. Nobody looks at a
      *                    negative; this second emulsion is what produces
      *                    correct highlight rolloff and shadow crush.
@@ -1051,22 +1197,35 @@ struct AlgoControls
      *                    identity - tone scale and dmin/dmax - which the Lite
      *                    design explicitly keeps at full quality.
      */
-    const char* printStock;
+    char printStock[ALGO_PRINT_STOCK_CAP];
 
     /**
      *  1  NAME           dupeStock
-     *  2  TYPE           const char*
-     *  3  AE CONTROL     dropdown
+     *  2  TYPE           char[ALGO_PRINT_STOCK_CAP]  (24 bytes, NUL-terminated)
+     *                    ⚠ WAS `const char*` until 2026-09-09 -- see the
+     *                    ownership note above the filmFormat block. Shares
+     *                    printStock's capacity because it draws on the SAME
+     *                    table
+     *  3  AE CONTROL     dropdown. ⚠ THE LEGAL SET IS THE SAME 11 PRINT STOCK
+     *                    KEYS listed under printStock, plus the empty
+     *                    sentinel. It is one table, not two -- any print stock
+     *                    may serve as an intermediate. In practice only
+     *                    "DUPE_FINE_GRAIN" and "KODAK_VISION3_DI_2254" are
+     *                    intermediates by design; the rest are release or
+     *                    positive stocks and selecting one here is a
+     *                    deliberate abuse rather than an error, so it is
+     *                    allowed and not blocked.
      *  4  UNIT           a name key, dimensionless. Selects mtf_f50 in cycles
      *                    per millimetre, dmin in optical density, and an rms
      *                    grain figure
-     *  5  MIN            n/a
+     *  5  MIN            n/a. An EMPTY FIRST BYTE degrades to printStock
      *  6  MAX            n/a. Unmatched degrades to the print stock, then to
      *                    nothing - and nothing forces the duplication chain to
-     *                    zero passes whatever generations says
+     *                    zero passes whatever generations says. ⚠ Over 23
+     *                    characters must be rejected, not truncated
      *  7  DEFAULT        "DUPE_FINE_GRAIN"
      *                    (AlgoControl.cpp, getAlgoControlsDefault)
-     *  8  STEP           n/a - enumeration by list
+     *  8  STEP           n/a - enumeration by list, same 11 entries
      *  9  PURPOSE        Selects the intermediate stock for the duplication
      *                    chain.
      * 10  OUTPUT EFFECT  NONE AT DEFAULT SETTINGS, because generations defaults
@@ -1082,7 +1241,7 @@ struct AlgoControls
      *                    this control's influence is reduced rather than the
      *                    control being ignored.
      */
-    const char* dupeStock;
+    char dupeStock[ALGO_PRINT_STOCK_CAP];
 
     /**
      *  1  NAME           generations
@@ -1270,6 +1429,218 @@ struct AlgoControls
     int32_t processVariant;
 
     /**
+     *  1  NAME           developmentMinutes
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
+     *                    that carries no time-gamma family -- same rule
+     *                    processVariant already follows for an empty variant
+     *                    list. ⚠ THAT IS 174 OF 184 STOCKS TODAY. Showing a
+     *                    live slider that cannot move a pixel is worse than
+     *                    showing none, because the user then reads the absence
+     *                    of change as a broken effect rather than as absent
+     *                    data. Suggested label "Development time", with the
+     *                    stock's own stated time shown as the default readout.
+     *  4  UNIT           MINUTES, absolute, not a multiplier. The stored
+     *                    families are printed in minutes against gamma
+     *                    (`ProcessingFamily.points[].minutes`), so an absolute
+     *                    axis interpolates them directly; a multiplier would
+     *                    need a reference time that 101 of the 183 stocks with
+     *                    a developer do not state
+     *  5  MIN            -1.0 as the sentinel. Effective minimum is the
+     *                    SELECTED STOCK'S OWN shortest traced point, which
+     *                    ranges 1.9 min (AGFA APX 25) to 10.0 min (KODAK
+     *                    VERICHROME 1952). NOT a fixed number -- it is a
+     *                    per-stock bound, like processVariant's MAX
+     *  6  MAX            the selected stock's LONGEST traced point: 7.0 min
+     *                    (PANATOMIC-X) to 36.0 min (VERICHROME). ⚠ DO NOT
+     *                    EXTRAPOLATE past either end. Outside the traced range
+     *                    the value is treated as the sentinel rather than
+     *                    clamped, for processVariant's reason: a stale preset
+     *                    pointing outside the new stock's range must render the
+     *                    stock AS SHIPPED, not render its nearest endpoint
+     *  7  DEFAULT        -1.0 -- the development the stored curves represent,
+     *                    i.e. `profile.processing.minutes` where stated.
+     *                    Reproduces every pre-field render BIT FOR BIT
+     *  8  STEP           0.1 min [proposed]. The traced families resolve to
+     *                    about 0.1 min; APX 25 carries 62 points over
+     *                    1.9-16.9 min, which is finer than any slider needs
+     *  9  PURPOSE        Selects a DIFFERENT DEVELOPMENT TIME of the same
+     *                    emulsion in the same developer. This is the axis the
+     *                    stored curve sits on: every characteristic curve in
+     *                    this database is one development, and until now that
+     *                    development was unnamed and unreachable.
+     * 10  OUTPUT EFFECT  Interpolates gamma along the stock's own traced
+     *                    time-gamma family and rebuilds the characteristic
+     *                    curve from it, before anything reads a curve --
+     *                    exactly where processVariant already substitutes one.
+     *                    ⚠⚠ IT IS A DELIBERATE NO-OP WHERE THERE IS NO FAMILY,
+     *                    AND THAT IS NOT A LIMITATION TO BE ENGINEERED AROUND.
+     *                    Only 12 of 184 stocks carry a family and only 9 of
+     *                    those carry gamma values:
+     *                      AGFA_APX_25 / _100 / _400   62 / 64 / 73 points,
+     *                                                  gamma 0.55-0.75
+     *                      EASTMAN_DOUBLE_X_5222        5 points, 0.50-1.05
+     *                      KODAK_ORTHO_X_SHEET_1952     5 points, 0.60-1.00
+     *                      KODAK_PANATOMIC_X_SHEET_1952 5 points, 0.60-1.00
+     *                      KODAK_TRI_X_SHEET_1952       5 points, 0.60-1.00
+     *                      KODAK_VERICHROME_1952        5 points, 0.60-1.00
+     *                      SUPER_ANSCOCHROME_1957       4 points, 3.55-4.57
+     *                    The remaining three families (FUJI_NEOPAN_1600,
+     *                    ILFORD_PAN_F, SVEMA_DS_5M) carry times and contrast
+     *                    index but NO gamma, so they must behave as no-family
+     *                    stocks until a gamma is traced. Ten of the twelve are
+     *                    monochrome, so this control is very nearly a
+     *                    black-and-white feature as the data stands.
+     *                    ⚠ A GAMMA SCALE APPLIED TO A STOCK WITH NO FAMILY
+     *                    WOULD BE AN INVENTED EFFECT. The relation is not
+     *                    transferable between emulsions: over these nine
+     *                    stocks the same time change buys anything from 0.20
+     *                    of gamma (APX, 0.55-0.75) to 1.02 (SUPER
+     *                    ANSCOCHROME, 3.55-4.57). There is no house curve.
+     *                    ⚠ AND SUPER_ANSCOCHROME_1957 IS A KNOWN-BAD ROW.
+     *                    Its family reads 3.55-4.57 and its stored curve gamma
+     *                    is 5.27, which verify.py G-GAMMA pins as one of two
+     *                    physically impossible curves awaiting a re-trace
+     *                    (NotFound.md 2026-09-08b). The family CORROBORATES
+     *                    the defect rather than excusing it -- both numbers
+     *                    are far outside any real reversal film -- so this
+     *                    control should stay disabled on that stock until the
+     *                    re-trace lands, even though it has a family.
+     * 11  STAGES         resolved in FRAME SETUP, before the anchor solve, for
+     *                    processVariant's reason: stage 8, stage 11's grain
+     *                    amplitude and stage 13's dupe chain all take the
+     *                    profile and must see one consistent film
+     * 12  INTERACTIONS   ⚠ MUTUALLY EXCLUSIVE WITH processVariant IN PRACTICE.
+     *                    A selected variant already IS a different development
+     *                    and carries its own traced curves; layering a time
+     *                    change on top would apply the same physical change
+     *                    twice. The host should disable this control whenever
+     *                    processVariant != -1. Compounds with nothing else: it
+     *                    picks the curve every other control is applied to.
+     *                    ⚠ NOT to be combined with an exposureStops offset
+     *                    meant to represent the same push -- a longer
+     *                    development already carries its own speed change.
+     * 13  SCALAR/AVX2    External semantics identical, and the resolution must
+     *                    live in the SHARED header rather than in either twin,
+     *                    like AlgoGrainAmpBuild: one interpolation, evaluated
+     *                    once per frame in HighPrecType, so the two paths
+     *                    cannot compute different curves. A per-twin copy of a
+     *                    curve rebuild is exactly the divergence
+     *                    cpp_parity.py's TWIN_LAW_TOKENS exists to catch.
+     * 14  FULL/LITE      Both, at full quality: one profile copy and one
+     *                    interpolation per frame, and only when the control is
+     *                    off its sentinel.
+     *
+     *   SENTINEL: the test is strictly developmentMinutes < 0, so -1 means
+     *   "use profile.processing.minutes" and any value inside the stock's
+     *   traced range selects that development. ⚠ THE SENTINEL PATH MUST RETURN
+     *   THE BASE PROFILE BY REFERENCE AND COPY NOTHING, so -1 reproduces
+     *   pre-field renders bit for bit -- the contract processVariant already
+     *   meets.
+     *
+     *   ⚠ WHAT THIS CONTROL DOES NOT DO, stated so it is not filed as a bug:
+     *   it does not change base fog, it does not change granularity, and it
+     *   does not change speed. All three move with development time in
+     *   reality; none of the three has a traced relation in this corpus. The
+     *   DevelopmentPoint record already has base_fog and exposure_index fields
+     *   for the day they do.
+     */
+    double developmentMinutes;
+
+    /**
+     *  1  NAME           developmentCelsius
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF unless the
+     *                    selected stock's family actually varies temperature.
+     *                    ⚠ THAT IS THREE STOCKS -- AGFA_APX_25, _100 and _400,
+     *                    which trace 18-24 °C. Every other family in the
+     *                    database was measured at ONE temperature (20 °C, or
+     *                    21 °C for EASTMAN_DOUBLE_X_5222), so on those stocks
+     *                    this axis has exactly one point and no slope.
+     *                    Suggested label "Development temperature".
+     *  4  UNIT           DEGREES CELSIUS, absolute. The sheets print °C for the
+     *                    still films and °F for the Kodak cine process manuals;
+     *                    the database stores °C (`ProcessingSpec.celsius`,
+     *                    `DevelopmentPoint.celsius`) and the conversion belongs
+     *                    in the panel, not here. ⚠ H-24's ECN-2 is 41.1 °C
+     *                    (106 °F) and TB C41's C-41 is 37.8 °C ± 0.15 -- so a
+     *                    colour process tolerance is a TENTH of a degree,
+     *                    which is why this must never be a free slider on a
+     *                    colour stock.
+     *  5  MIN            -1.0 as the sentinel. Effective minimum is the
+     *                    selected stock's own lowest traced temperature:
+     *                    18 °C on the APX family. NOT a fixed number
+     *  6  MAX            the stock's highest traced temperature: 24 °C on the
+     *                    APX family. ⚠ DO NOT EXTRAPOLATE. Outside the traced
+     *                    range the value is treated as the sentinel rather
+     *                    than clamped, for the same reason as
+     *                    developmentMinutes
+     *  7  DEFAULT        -1.0 -- the temperature the stored curves represent,
+     *                    i.e. `profile.processing.celsius` where stated (82 of
+     *                    184 stocks). Reproduces every pre-field render BIT
+     *                    FOR BIT
+     *  8  STEP           0.5 °C [proposed] for the monochrome families, whose
+     *                    traced span is 6 °C. ⚠ A colour process would need
+     *                    0.05 °C to respect C-41's stated ± 0.15, which is
+     *                    another reason this control has no business being
+     *                    enabled on a colour stock today
+     *  9  PURPOSE        Selects a different development TEMPERATURE of the
+     *                    same emulsion in the same developer, the second axis
+     *                    of the same physical change developmentMinutes moves.
+     *                    Kept SEPARATE from that control rather than folded
+     *                    into one "development" slider, because the traced
+     *                    families are two-dimensional -- the APX sheets print
+     *                    a time axis at each of several temperatures -- and
+     *                    collapsing them would discard half the measurement.
+     * 10  OUTPUT EFFECT  Selects which time-gamma curve of the family the
+     *                    time axis is then read along, and rebuilds the
+     *                    characteristic curve. ⚠ ON 181 OF 184 STOCKS IT IS A
+     *                    DELIBERATE NO-OP, because their family holds one
+     *                    temperature or none. That is the honest behaviour:
+     *                    time-temperature equivalence charts DO exist for real
+     *                    developers, but none has been adopted here, and
+     *                    substituting a published chart from another developer
+     *                    would be an invented effect of exactly the kind
+     *                    method rule 23 forbids.
+     * 11  STAGES         resolved in FRAME SETUP with developmentMinutes, in
+     *                    the same step and from the same family, so the pair
+     *                    cannot disagree about which development was selected
+     * 12  INTERACTIONS   ⚠ NOT INDEPENDENT OF developmentMinutes -- the two
+     *                    are coordinates on ONE traced surface and must be
+     *                    resolved together. Reading temperature first and time
+     *                    second against a different family row is the obvious
+     *                    way to get this wrong. Also mutually exclusive with
+     *                    processVariant, for that control's reason.
+     *                    ⚠ It does NOT interact with processingQuality, which
+     *                    is a FilmDamage control describing bath agitation and
+     *                    mottle. Different family, different physics: quality
+     *                    is surge marks and air bells, this is gamma.
+     * 13  SCALAR/AVX2    External semantics identical; the resolution is the
+     *                    same shared frame-setup step as developmentMinutes,
+     *                    for the same anti-divergence reason
+     * 14  FULL/LITE      Both, at full quality: frame setup only, no pixel
+     *                    loop in either path.
+     *
+     *   SENTINEL: strictly developmentCelsius < 0 means "use
+     *   profile.processing.celsius". The base profile is returned by reference
+     *   and nothing is copied, so -1 is bit-exact.
+     *
+     *   ⚠ WHY BOTH CONTROLS EXIST AT ALL WHEN SO FEW STOCKS CAN USE THEM.
+     *   83 of 184 stocks now state a developer, a time and a temperature --
+     *   45 of them from a PROCESS MANUAL rather than a film datasheet (KODAK
+     *   H-24 for ECN-2, FUJIFILM TB C41 for C-41). That block of data has no
+     *   consumer at all today and is the largest populated-but-unread field
+     *   group in the database after the temporal chain. Declaring the two
+     *   controls now, sentinel-defaulted and hidden where they cannot act,
+     *   means the panel and every serialised preset can be built ONCE against
+     *   a stable structure -- the same reason the eight unconsumed FilmDamage
+     *   controls were left in the layout. What is missing is the traced
+     *   time-gamma relation on the other 172 stocks, and that is a research
+     *   item, not a code one.
+     */
+    double developmentCelsius;
+
+    /**
      *  1  NAME           scannerSpecular
      *  2  TYPE           double
      *  3  AE CONTROL     slider
@@ -1449,6 +1820,79 @@ struct AlgoControls
      *                    approximate.
      */
     double greyTarget;
+
+    /**
+     *  1  NAME           blackPointStretch
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider
+     *  4  UNIT           dimensionless FRACTION on 0..1 - how much of the
+     *                    stock's own Dmax is stretched down to output zero.
+     *                    Stage 14 normalises transmittance as
+     *                       out = (10^-D - s * tMin) / (tMax - s * tMin)
+     *                    with tMax = 10^-Dmin, tMin = 10^-Dmax and s = this
+     *                    control
+     *  5  MIN            0.0 advisory - NOT ENFORCED, and nothing breaks below
+     *                    it either: a negative value simply lifts the floor
+     *                    further, which is a lift and not a film property
+     *  6  MAX            1.0 advisory - NOT ENFORCED. Above 1.0 the black point
+     *                    passes Dmax and the divisor shrinks toward zero; at
+     *                    exactly tMax / tMin it divides by zero. The host
+     *                    should hold the slider at 1.0
+     *  7  DEFAULT        1.0   (AlgoControl.cpp, getAlgoControlsDefault)
+     *  8  STEP           0.01 [proposed] - the range is 1.0 wide and the effect
+     *                    is confined to the deepest shadows, so 100 positions
+     *                    is ample
+     *  9  PURPOSE        Decides whether a stock's Dmax is a RENDERED PROPERTY
+     *                    or a normalisation constant. At 1.0 every stock's Dmax
+     *                    becomes output zero, so a POLAROID's weak 1.6 D black
+     *                    and VELVIA's 3.0 D black look identical. At 0.0 each
+     *                    stock floors at its own 10^-(Dmax-Dmin) and Dmax is
+     *                    visible for the first time.
+     * 10  OUTPUT EFFECT  \warning AT 1.0 IT DESTROYS REAL SHADOW INFORMATION,
+     *                    and that is measured rather than argued. On the
+     *                    2026-09-09 VELVIA regression frame 13.06 per cent of
+     *                    the BLUE record arrives at stage 14 at or above Dmax
+     *                    and is mapped to exactly zero before the encoder sees
+     *                    it. At 0.0 that is 0.00 per cent, the whole-frame mean
+     *                    moves 0.7 of one 8-bit code, and red clipping is
+     *                    untouched.
+     *                    \warning IT ALSO MOVES ALL 184 STOCKS, by each stock's
+     *                    own Dmax: VELVIA floors at 4.0/3.2/2.2 of 255,
+     *                    negatives through SCAN_DI at 1.5, the POLAROID
+     *                    materials at 33 to 46. 14 of the 44 reversal stocks
+     *                    floor at or under 4 codes; the rest visibly lift.
+     * 11  STAGES         14, and 08 / 08b / 13 through the anchor solve, which
+     *                    MUST see the same value - the solve aims at a display
+     *                    number that stage 14 produces, so if the two
+     *                    expressions disagree a neutral stops landing where it
+     *                    was solved to
+     * 12  INTERACTIONS   Enters the anchor solve jointly with greyTarget.
+     *                    \warning AND THE ONE MEASURED COST THE HOST SHOULD
+     *                    SURFACE: at 0.0 the 18 per cent mid-grey anchor misses
+     *                    its 12 per cent bound on the four lowest-Dmax stocks -
+     *                    POLAROID_410 0.1669, POLAROID_42 0.1631, POLAROID_47
+     *                    0.1474, POLAROID_51 0.1429, against a worst of 0.0876
+     *                    at 1.0. Traced to stage 12b: Callier multiplies a
+     *                    monochrome patch's NET density by 1.62 (0.4992 ->
+     *                    0.7591 D measured on POLAROID_42), so the scalar
+     *                    solver's residual against the full pixel pass is
+     *                    amplified by that factor and 0.0 no longer compresses
+     *                    the result. That is solver accuracy on four stocks,
+     *                    not a contradiction in the normalisation.
+     *                    \warning WHAT IT IS NOT: a fix for the cause. 9.73 of
+     *                    those 13.06 points come from stage 12's dye_matrix, a
+     *                    unit-row-sum SATURATION operator that is not bounded
+     *                    by the channel's own range - at Dmax with the other
+     *                    two records low VELVIA's returns 4.14 D against a Dmax
+     *                    of 3.31, which no curve can produce.
+     * 13  SCALAR/AVX2    Same semantics and the same expression. tMin is folded
+     *                    once per channel in both builds, so the vector twin
+     *                    broadcasts an already-scaled constant and costs
+     *                    nothing per pixel.
+     * 14  FULL/LITE      PENDING. Expected both, at full quality - it is one
+     *                    multiply on a per-channel constant.
+     */
+    double blackPointStretch;
 
     // -- effect scales: each multiplies a PROFILED value, never replaces it --
 

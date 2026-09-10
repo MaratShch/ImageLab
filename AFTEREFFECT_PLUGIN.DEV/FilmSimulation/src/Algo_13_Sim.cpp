@@ -555,7 +555,14 @@ void AlgoStage13_Duplication
     // because the dupe chain above has moved the neutral density.
     HighPrecType offsets[3];
 
-    AlgoSolveStageOffsets(dMid, pcurves, pPrintStock->dye_matrix, target, offsets);
+    // The anchor solve must see the same black point stage 14 will use, or a
+    // neutral stops landing where it was solved to. See
+    // AlgoControl.hpp's blackPointStretch block.
+    const HighPrecType blackPointStretch =
+        static_cast<HighPrecType>(params.blackPointStretch);
+
+    AlgoSolveStageOffsets(dMid, pcurves, pPrintStock->dye_matrix, target,
+                          blackPointStretch, offsets);
 
     // Print each record through the print stock's own curve. Written into the
     // scratch triple first, because the print reads the negative density while

@@ -491,8 +491,13 @@ void Algorithm_Main
     //  know one. A name that matches nothing falls back to the same default, so a
     //  stale preset degrades to the stock's intended gauge rather than to zero.
     // -----------------------------------------------------------------------
+    // ⚠ THE `!= nullptr` TEST WAS REMOVED 2026-09-09. filmFormat is a
+    // fixed-size array now, not a pointer, so its address can never be null
+    // and the test was both dead and a -Wall warning ("the address of
+    // 'algoCtrl.filmFormat' will never be NULL"). The EMPTY-FIRST-BYTE test is
+    // the real one and is unchanged.
     const char* const wantFormat =
-        (algoCtrl.filmFormat != nullptr && algoCtrl.filmFormat[0] != '\0')
+        (algoCtrl.filmFormat[0] != '\0')
             ? algoCtrl.filmFormat
             : profile.default_format.c_str();
 
@@ -964,6 +969,7 @@ void Algorithm_Main
                      static_cast<HighPrecType>(algoCtrl.greyTarget),
                      static_cast<HighPrecType>(algoCtrl.couplerScale),
                      static_cast<HighPrecType>(algoCtrl.scannerSpecular),
+                     static_cast<HighPrecType>(algoCtrl.blackPointStretch),
                      anchor);
 
     // -----------------------------------------------------------------------

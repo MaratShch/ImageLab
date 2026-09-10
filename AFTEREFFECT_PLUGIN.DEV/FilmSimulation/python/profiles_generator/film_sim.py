@@ -164,10 +164,19 @@ def density_scalar(log_e: float, c: ToneCurve) -> float:
     )
 
 
-def _normalised_transmittance(d: float, c: ToneCurve) -> float:
-    """Density to display-normalised transmittance for one curve."""
-    t_max = 10.0 ** (-c.dmin)   # clear film: the brightest it can be
-    t_min = 10.0 ** (-c.dmax)   # Dmax: the darkest
+def _normalised_transmittance(d: float, c: ToneCurve,
+                              black_point_stretch: float = 1.0) -> float:
+    """Density to display-normalised transmittance for one curve.
+
+    ⚠ THIS IS THE SAME EXPRESSION AS STAGE 14 AND IT HAS TO STAY THAT WAY. The
+    anchor solvers aim at a display value through this function; stage 14 is
+    what actually produces it, and if the two diverge a neutral does not land
+    where it was solved to. That is why `black_point_stretch` is threaded
+    through every solver rather than applied once at the end. See the field's
+    own note in `RenderSettings`.
+    """
+    t_max = 10.0 ** (-c.dmin)                          # clear film: brightest
+    t_min = black_point_stretch * 10.0 ** (-c.dmax)    # the black point
     return (10.0 ** (-d) - t_min) / (t_max - t_min)
 
 
@@ -317,6 +326,7 @@ def solve_anchors(
     grey_target: float,
     coupler_scale: float = 1.0,
     scanner_specular: float = 0.853,
+    black_point_stretch: float = 1.0,
 ) -> tuple[float, float, float]:
     """Per-channel exposure anchors that land 18% scene grey on target.
 
@@ -425,7 +435,8 @@ def solve_anchors(
                     # A slide is read by the same optics as a negative print, so
                     # the projector's or scanner's directionality applies here too.
                     mixed = _cal_apply([mixed] * 3)[c]
-                    return _normalised_transmittance(mixed, curves[c])
+                    return _normalised_transmittance(
+                        mixed, curves[c], black_point_stretch)
 
                 target = grey_target / _tint_factor(profile, c)
                 trims[c] = _bisect(fn, -8.0, 8.0, target, rising=True)
@@ -437,7 +448,8 @@ def solve_anchors(
         [sum(neg_m[c][k] * d_neg[k] for k in range(3)) for c in range(3)])
     targets = [grey_target / _tint_factor(profile, c) for c in range(3)]
     offsets = solve_stage_offsets(
-        d_mid, print_stock.curves.as_tuple(), print_stock.dye_matrix, targets
+        d_mid, print_stock.curves.as_tuple(), print_stock.dye_matrix, targets,
+        black_point_stretch
     )
     return (offsets[0], offsets[1], offsets[2])
 
@@ -471,6 +483,7 @@ def solve_stage_offsets(
     dst_curves: tuple[ToneCurve, ToneCurve, ToneCurve],
     dst_matrix,
     targets: list[float],
+    black_point_stretch: float = 1.0,
 ) -> list[float]:
     """Print offsets landing neutral grey on ``targets`` display values.
 
@@ -488,7 +501,8 @@ def solve_stage_offsets(
                 dp = list(frozen)
                 dp[c] = density_scalar(off - d_mid[c], dst_curves[c])
                 mixed = sum(dst_matrix[c][k] * dp[k] for k in range(3))
-                return _normalised_transmittance(mixed, dst_curves[c])
+                return _normalised_transmittance(
+                    mixed, dst_curves[c], black_point_stretch)
 
             # More offset means more print exposure, more density, darker print.
             offsets[c] = _bisect(
@@ -1622,8 +1636,49 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal):
             for j in range(3):
                 ref = max(d_ref[j], 1e-4)
                 wj = (1.0 - dw) + dw * (dens[:, :, j] / np.float32(ref))
-                w_cap = (1.0 - dw) + dw * (float(curves[j].dmax) / ref)
-                np.minimum(wj, np.float32(w_cap), out=wj)
+                # ⚠⚠ THE CAP IS 1.0, AND THE OLD ONE WAS A NO-OP. CORRECTED
+                # 2026-09-09 after the owner rendered a real frame.
+                #
+                # It used to be `(1 - dw) + dw * dmax / ref` -- the value the
+                # weight reaches AT dmax. But `density()` approaches dmax only
+                # asymptotically, so D < dmax for every finite exposure and
+                # that minimum COULD NEVER BIND. The 2026-09-02 note calling
+                # it "provably inert ... every render bit-for-bit what it was"
+                # was describing a no-op as a fix. Queue item C18 asked for a
+                # bound; what landed was a bound that cannot engage.
+                #
+                # ⚠ WHY THE UNBOUNDED FORM WAS WRONG, in one line: the weight
+                # is linear in D_j and it MULTIPLIES (D_j - d_ref), so the
+                # product is QUADRATIC in density --
+                #     (D_j - Dr)*[(1-dw) + dw*D_j/Dr]
+                #       = (1-dw)(D_j - Dr) + (dw/Dr)*D_j*(D_j - Dr)
+                # US4729943A says the reversal effect "lands in high dye-
+                # density areas", which is ONE factor of density; the
+                # `- d_ref` exists only to keep a neutral untouched.
+                # Multiplying them DOUBLE-COUNTS density. Measured on
+                # FUJI_VELVIA_50: delta*w ran +0.009 at the calibration point
+                # to +2.829 at dmax, i.e. -0.402 logE of one-channel shift.
+                #
+                # ⚠ WHY 1.0 IS PRINCIPLED AND NOT ARBITRARY. Capping at 1
+                # turns the weighting from a GAIN into a REDISTRIBUTION: the
+                # effect is at FULL strength at and above the reference
+                # density and TAPERS BELOW it, so the stage still concentrates
+                # where the neighbouring layer is dense -- which is what the
+                # patent actually states -- while the stage's total strength
+                # stays set by the coefficients, which are calibrated at that
+                # reference. No constant is invented.
+                #
+                # ⚠ IT DELIBERATELY UNDER-MODELS. A convex-but-bounded weight
+                # is the physically right shape and needs TWO constants (an
+                # asymptote and a half-density) that no surveyed source
+                # prints. That is C18's wedge measurement, still open. Until
+                # it exists, under-modelling is the honest direction.
+                #
+                # Measured on the owner's frame, FUJI_VELVIA_50, table apron:
+                #   before  R 242.8  G 29.1  B 0.0   R=255 on 15.42 % of frame
+                #   after   R  70.1  G  4.6  B 0.0   R=255 on  7.92 %
+                #   (interimage off: R 25.4;  original image: R 42.1)
+                np.minimum(wj, np.float32(1.0), out=wj)
                 delta[j] = delta[j] * wj.astype(np.float32)
         for c in range(3):
             adj = np.zeros((h, w), dtype=np.float32)
@@ -2252,6 +2307,53 @@ class RenderSettings:
     scene_kelvin: float = 5500.0
     wb_strength: float = 0.0
     grey_target: float = 0.18       # display linear value for 18% scene grey
+    # -- 2026-09-09c, queue item #303: HOW MUCH OF THE STOCK'S OWN Dmax IS
+    # -- STRETCHED DOWN TO OUTPUT ZERO. Stage 14 normalises transmittance as
+    # --
+    # --     out = (10^-D  -  s * t_min) / (t_max  -  s * t_min)
+    # --
+    # -- with t_max = 10^-Dmin, t_min = 10^-Dmax and s = this field.
+    # --   s = 1.0  Dmax maps to output 0. Every stock uses the whole output
+    # --            range. THE SHIPPED BEHAVIOUR AND THE DEFAULT -- at exactly
+    # --            1.0 the expression is arithmetically what it always was, so
+    # --            every render made before this field existed is reproduced.
+    # --   s = 0.0  Dmax maps to its own relative transmittance, 10^-(Dmax-Dmin).
+    # --            Nothing clips at the bottom and Dmax becomes RENDER-VISIBLE
+    # --            for the first time -- a Polaroid's weak 1.6 D black stops
+    # --            looking like Velvia's 3.0 D black.
+    # --   between  a linear blend of the two black points.
+    # --
+    # -- ⚠⚠ WHY IT IS A CONTROL AND NOT A FIX. s = 1.0 destroys real shadow
+    # -- information, and that is measured, not argued: on the 2026-09-09 Velvia
+    # -- regression frame 13.06 % of the BLUE record arrives at stage 14 with a
+    # -- density at or above Dmax and is mapped to exactly 0.0 before the encoder
+    # -- ever sees it. At s = 0.0 that is 0.00 %, the whole-frame mean moves only
+    # -- 0.7 of one 8-bit code, and the red clipping is untouched. So s = 0 is
+    # -- strictly more information.
+    # -- ⚠ BUT IT IS ALSO A LOOK, AND IT MOVES EVERY ONE OF THE 184 STOCKS. The
+    # -- floor each stock lands on is its own Dmax: Velvia 4.0/3.2/2.2 of 255,
+    # -- negatives through SCAN_DI 1.5, and the POLAROID materials 33 to 46,
+    # -- because their Dmax really is about 1.6 D. 14 of the 44 reversal stocks
+    # -- floor at or under 4 codes; the rest visibly lift.
+    # -- ⚠ AND ONE MEASURED COST THE OWNER MUST SEE BEFORE SWITCHING: at s = 0
+    # -- the 18 % mid-grey anchor misses its 12 % bound on the four lowest-Dmax
+    # -- stocks -- POLAROID_410 0.1669, POLAROID_42 0.1631, POLAROID_47 0.1474,
+    # -- POLAROID_51 0.1429, against a worst of 0.0876 at s = 1. Traced to
+    # -- stage 12b: Callier multiplies the patch's NET density by 1.62 on a
+    # -- monochrome stock (0.4992 -> 0.7591 D measured on POLAROID_42), so the
+    # -- scalar solver's residual against the full pixel pass is amplified by
+    # -- that factor, and s = 0 no longer compresses the result. That is a
+    # -- SOLVER-ACCURACY limit on four stocks, not a contradiction in the
+    # -- normalisation -- see doc/DIGITIZATION_QUEUE.md § 0.0e.
+    # -- ⚠ WHAT THIS FIELD IS NOT: a fix for the cause. 9.73 of those 13.06
+    # -- points come from stage 12's `dye_matrix`, a unit-row-sum SATURATION
+    # -- operator (Velvia `_dye(-0.42)`, diagonal 1.28) that is not bounded by
+    # -- the channel's own range: at Dmax with the other two records low it
+    # -- returns 1.28 * 3.307 - 0.14 * (D_r + D_g) = 4.14, which no curve can
+    # -- produce. Bounding it needs a measurement nobody in this corpus has.
+    # -- Retuning that tier-3 estimate, or lowering a traced Dmax, to hide the
+    # -- overshoot is exactly the move this project forbids.
+    black_point_stretch: float = 1.0
     grain_scale: float = 1.0
     halation_scale: float = 1.0
     # -- C22, 2026-08-23: how DIRECTIONAL the reader's optics are. 0 = a diffuse
@@ -2929,7 +3031,7 @@ def simulate(
     reversal = profile.is_reversal
     anchors = solve_anchors(
         profile, print_stock, settings.grey_target, settings.coupler_scale,
-        settings.scanner_specular,
+        settings.scanner_specular, settings.black_point_stretch,
     )
     dens = np.empty((h, w, 3), dtype=np.float32)
     if reversal:
@@ -3220,7 +3322,8 @@ def simulate(
                  ).reshape(h, w, 3), dtype=np.float32)
 
         offsets = solve_stage_offsets(
-            d_mid, pcurves, print_stock.dye_matrix, targets
+            d_mid, pcurves, print_stock.dye_matrix, targets,
+            settings.black_point_stretch
         )
         out = np.empty((h, w, 3), dtype=np.float32)
         for c in range(3):
@@ -3258,7 +3361,20 @@ def simulate(
     for c in range(3):
         fc = final_curves[c]
         t_max = 10.0 ** (-fc.dmin)   # clear film: the brightest it can be
-        t_min = 10.0 ** (-fc.dmax)   # Dmax: the darkest
+        # ⚠ THE BLACK POINT IS NOW A CONTROL, not a constant. `t_min` used to be
+        # 10^-Dmax unconditionally, which stretched every stock's Dmax down to
+        # output zero and destroyed everything at or beyond it. Full rationale,
+        # the measured before/after and the one measured cost are in
+        # `RenderSettings.black_point_stretch`. At the default 1.0 this is
+        # arithmetically the old expression.
+        t_min = settings.black_point_stretch * 10.0 ** (-fc.dmax)
+        # ⚠ AND DENSITY IS CAPPED AT Dmax FIRST. A layer cannot be denser than
+        # its own maximum dye load, yet stages 9 and 12 are unbounded additions
+        # in the density domain and do exceed it -- measured, blue on Velvia
+        # reaches 4.2439 against a Dmax of 3.3072. At s = 1 the cap is
+        # OUTPUT-NEUTRAL (both sides map to zero, verified byte-identical); at
+        # s < 1 it is what stops an over-dense pixel encoding to code 0 anyway.
+        np.minimum(out[:, :, c], np.float32(fc.dmax), out=out[:, :, c])
         trans = np.power(np.float32(10.0), -out[:, :, c], dtype=np.float32)
         out[:, :, c] = ((trans - t_min) / (t_max - t_min)).astype(np.float32)
 
@@ -3388,6 +3504,15 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.18,
         help="display linear value that 18%% scene grey is printed to",
     )
+    p.add_argument(
+        "--black-point-stretch", type=float, default=1.0,
+        dest="black_point_stretch",
+        help="how much of the stock's own Dmax is stretched to output zero. "
+             "1 = shipped behaviour (Dmax -> 0, full output range, shadows at "
+             "or past Dmax are crushed); 0 = Dmax renders at its own relative "
+             "transmittance, nothing clips at the bottom and Dmax becomes "
+             "visible. See RenderSettings.black_point_stretch",
+    )
     p.add_argument("--grain", type=float, default=1.0, dest="grain_scale")
     p.add_argument("--halation", type=float, default=1.0, dest="halation_scale")
     p.add_argument("--scanner-specular", type=float, default=0.853,
@@ -3485,6 +3610,7 @@ def main(argv: list[str] | None = None) -> int:
         scene_kelvin=args.scene_kelvin,
         wb_strength=args.wb_strength,
         grey_target=args.grey_target,
+        black_point_stretch=args.black_point_stretch,
         grain_scale=args.grain_scale,
         halation_scale=args.halation_scale,
         scanner_specular=args.scanner_specular,
