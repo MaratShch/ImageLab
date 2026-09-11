@@ -76,26 +76,3 @@ constexpr char FilmProcessVariant[] =
     "CS2 TWO BATHS KIT" 
 };
 
-// generations in AlgoControl
-enum class FilmGenerationsCtrl : int32_t
-{
-    eFILM_GENERAION_0 = 0,
-    eFILM_GENERAION_1,
-    eFILM_GENERAION_2,
-    eFILM_GENERAION_3,
-    eFILM_GENERAION_4,
-    eFILM_GENERAION_TOTAL
-};
-// string representation for generations in AlgoControl structure
-constexpr char FilmGenerationCtrlStr[] =
-{
-    "Generation 0|"
-    "Generation 1|"
-    "Generation 2|"
-    "Generation 3|"
-    "Generation 4"
-};
-
-constexpr double exposeStopMin = -4.0;
-constexpr double exposeStopMax = 4.0;
-constexpr double exposeStopDef = 0.0;
