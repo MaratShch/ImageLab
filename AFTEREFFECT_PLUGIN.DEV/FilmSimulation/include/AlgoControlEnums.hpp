@@ -8,47 +8,94 @@ enum class FilmSimulationCtrl : int32_t
     SETUP_BUTTON, // button for run dialog control
     GROUP_START_FILM_PROPERTIES,
     FILM_STOCK,
-    PRINT_STOCK,
     FILM_FORMAT,
-    GENERATIONS,
+    PROCESS_VARIANT,
     GROUP_STOP_FILM_PROPERTIES,
-    EXPOSURE_STOPS,
-    SCENE_KELVIN,
-    WB_STRENGTH,
-    GREY_TARGET,
-    GRAIN_SCALE,
-    HALATION_SCALE,
-    COUPLER_SCALE,
-    SCANNER_F50,
-    MISREG_SCALE,
-    FLARE,
-    PRINT_GRAIN,
-    RESEAU,
-    FILM_DAMAGE,
-    DAMAGE_ENABLE,
-    DAMAGE_PRESET,
-    DUST_RATE_HZ,
-    DUST_SIZE_UM,
-    BLOB_RATE_HZ,
-    SCRATCH_RATE_HZ,
-    SCRATCH_EMULSION_BIAS,
-    SPLISE_INTERVALS,
-    FLICKER_STOPS,
-    FLICKER_BASE_HZ,
-    FLOCKER_COLOUR_SPREAD,
-    WEAVE_AMP_XUM,
-    WEAVE_AMP_YUM,
-    WEAVE_HZ_CORNER,
-    HAIR_RATE_HZ,
-    GATE_DEFECT_RATE_HZ,
-    DAMAGE_STRENGTH,
-    DAMAGE_SEED,
-    DITHER_OUTPUT,
+    GENERATIONS,
     TOTAL_PARAMS
 };
 
 constexpr char itemNames[][32] = {
     " ",
-    "Film Properties",
-    "Film Stock"
+    "Film Stock",
+    "Film Stock",
+    "Film Format",
+    "Process Variant"
 };
+
+
+// filmFormat in AlgoControl structure
+enum class FilmFormatCtrl : int32_t
+{
+    eFILM_FORMAT_8_MM,
+    eFILM_FORMAT_SUPER_8,
+    eFILM_FORMAT_16_MM,
+    eFILM_FORMAT_SUPER_16,
+    eFILM_FORMAT_ACADEMY_35,
+    eFILM_FORMAT_ANAMORPHIC_35,
+    eFILM_FORMAT_SUPER_35,
+    eFILM_FORMAT_TECHNI_35,
+    eFILM_FORMAT_FF_35,
+    eFILM_FORMAT_MEDIUM_645,
+    eFILM_FORMAT_IMAX_15,
+    eFILM_FORMAT_POLAROID_SX_70,
+    eFILM_FORMAT_POLAROID_PACK,
+    eFILM_FORMAT_LARGE_4x5,
+    eFILM_FORMAT_TOTAL_FORMATS
+};
+// string representation for filmFormat in AlgoControl structure
+constexpr char FilmFormatCtrlStr[] = 
+{
+    "8 mm|"
+    "super 8|"
+    "16 mm|"
+    "super 16|"
+    "academy 35|"
+    "anamorphic 35|"
+    "super 35|"
+    "techni 35|"
+    "ff 35|"
+    "medium 645|"
+    "imax 15|"
+    "polaroid sx70|"
+    "polaroid pack|"
+    "large 4x5"
+};
+
+// processVariant in AlgoControl structure
+enum class FilmProcessVariant : int32_t
+{
+    eFILM_PROCESS_EI_1600 = 0,
+    eFILM_PROCESS_CS2_TWO_BATH_KIT,
+    eFILM_PROCESS_TOTAL
+};
+// string representation for processVariant in AlgoControl structure
+constexpr char FilmProcessVariant[] =
+{
+    "EI 1600|"
+    "CS2 TWO BATHS KIT" 
+};
+
+// generations in AlgoControl
+enum class FilmGenerationsCtrl : int32_t
+{
+    eFILM_GENERAION_0 = 0,
+    eFILM_GENERAION_1,
+    eFILM_GENERAION_2,
+    eFILM_GENERAION_3,
+    eFILM_GENERAION_4,
+    eFILM_GENERAION_TOTAL
+};
+// string representation for generations in AlgoControl structure
+constexpr char FilmGenerationCtrlStr[] =
+{
+    "Generation 0|"
+    "Generation 1|"
+    "Generation 2|"
+    "Generation 3|"
+    "Generation 4"
+};
+
+constexpr double exposeStopMin = -4.0;
+constexpr double exposeStopMax = 4.0;
+constexpr double exposeStopDef = 0.0;

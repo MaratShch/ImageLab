@@ -6,6 +6,7 @@
 // parameter reaches the engine through this structure, and the film selection is
 // an algorithm parameter, so it lives here rather than in the call signature.
 #include "film_enum.hpp"
+#include "AlgoControlEnums.hpp"
 
 /**
  * @file AlgoControl.hpp
@@ -1134,6 +1135,7 @@ struct AlgoControls
      *                    quality, and must not differ between modes or the two
      *                    would not be comparable.
      */
+    // FilmFormatCtrl filmFormat;
     char filmFormat[ALGO_FILM_FORMAT_CAP];
 
     /**

@@ -33,7 +33,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     totalParams++;
 
     ///////////////////////////////////////////////////////////////////
-    // GROUP START: FILM PROPERTIES                                  //
+    // GROUP START: FILM STOCK                                       //
     ///////////////////////////////////////////////////////////////////
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_TOPICX(
@@ -52,9 +52,34 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         UnderlyingType(FilmSimulationCtrl::FILM_STOCK));
     totalParams++;
 
+    // Film Format ListBox
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        itemNames[3],
+        UnderlyingType(FilmFormatCtrl::eFILM_FORMAT_TOTAL_FORMATS),
+        UnderlyingType(FilmFormatCtrl::eFILM_FORMAT_SUPER_35),
+        FilmFormatCtrlStr,
+        UnderlyingType(FilmSimulationCtrl::FILM_FORMAT));
+    totalParams++;
+
+    // Film Process Variant ListBox
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        itemNames[4],
+        UnderlyingType(FilmProcessVariant::eFILM_PROCESS_TOTAL),
+        UnderlyingType(FilmProcessVariant::eFILM_PROCESS_EI_1600),
+        FilmProcessVariant,
+        UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT));
+    totalParams++;
+
+    // Film Generation List Box
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_FILM_PROPERTIES));
     totalParams++;
+
+    ///////////////////////////////////////////////////////////////////
+    // GROUP START: EXPOSURE & TONE                                  //
+    ///////////////////////////////////////////////////////////////////
 
     out_data->num_params = totalParams;
 
