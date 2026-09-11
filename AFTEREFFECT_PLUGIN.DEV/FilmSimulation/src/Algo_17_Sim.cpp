@@ -108,9 +108,18 @@ void AlgoStage17_FinalClamp
             // THE clamp, eight at a time. Zero to one, once, where the numbers stop
             // being physical quantities and become display values.
             //
-            // min then max, in that order: it matches CLAMP_VALUE's ordering and, unlike
-            // a branch pair, it maps a NaN to the low bound rather than letting it reach
-            // the host.
+            // ⚠ max THEN min, AND THE ORDER IS THE WHOLE POINT. It used to be
+            // min then max, with a comment claiming that mapped a NaN to the low
+            // bound. It did the opposite. _mm256_min_ps(a, b) returns b whenever
+            // either operand is NaN, so min(NaN, 1.0) gave 1.0 and the pixel came
+            // out WHITE, while the scalar twin's CLAMP_VALUE let the NaN through
+            // untouched -- two builds disagreeing on exactly the pixels where
+            // something upstream had already failed. Found 2026-09-11.
+            //
+            // With max first: max(NaN, 0.0) returns 0.0 by the same rule, and the
+            // following min leaves it there. NaN now yields ZERO in both builds,
+            // which is what this comment always said. For every non-NaN value the
+            // two orderings are identical, so nothing else moves.
             {
                 const __m256 vLo = _mm256_setzero_ps();
                 const __m256 vHi = _mm256_set1_ps(ALGO_ONE);
@@ -123,8 +132,8 @@ void AlgoStage17_FinalClamp
 
                 for (int32_t v = 0; v < nv; v++, xv += ALGO_AVX2_LANES_LOCAL)
                 {
-                    const __m256 cv = _mm256_max_ps(
-                        _mm256_min_ps(_mm256_loadu_ps(rIn + xv), vHi), vLo);
+                    const __m256 cv = _mm256_min_ps(
+                        _mm256_max_ps(_mm256_loadu_ps(rIn + xv), vLo), vHi);
 
                     // Retained in AlgoType as well, so the clamped result can be
                     // inspected without re-reading the narrowed storage planes.
@@ -137,8 +146,10 @@ void AlgoStage17_FinalClamp
 
                 if (nt > 0)
                 {
-                    const __m256 cv = _mm256_max_ps(
-                        _mm256_min_ps(_mm256_maskload_ps(rIn + xv, mt), vHi), vLo);
+                    // Same max-then-min ordering as the main loop above, for the
+                    // same NaN reason. The two must not drift apart.
+                    const __m256 cv = _mm256_min_ps(
+                        _mm256_max_ps(_mm256_maskload_ps(rIn + xv, mt), vLo), vHi);
 
                     _mm256_maskstore_ps(rStage + xv, mt, cv);
                     _mm256_maskstore_ps(rOut   + xv, mt, cv);

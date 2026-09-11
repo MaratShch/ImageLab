@@ -328,6 +328,18 @@ def build(root: Path) -> tuple[str, list[str]]:
       "`HighPrecType` = double in both) and vectorisation. Every parity audit "
       "reads `sizeof(AlgoType)` from the compiled probe and picks its "
       "tolerance from it, so the typedef stays switchable.")
+    a("- ⚠⚠ THAT IS THE RULE, AND ON 2026-09-11 IT WAS FOUND BROKEN IN THREE "
+      "PLACES AT ONCE -- none of them a type or a vectorisation difference. "
+      "AVX2 stage 14 evaluated `10^-d` with the raw Schraudolph bit-hack, "
+      "wrong by 2.98 % (5.57 code values, white point at 0.9782); "
+      "`GrainSpec.anisotropy` was read by the Python reference and by neither "
+      "C++ engine, while the reference in turn leaked it into six stages that "
+      "are not grain; and stage 17 mapped a NaN to white in AVX2 and passed "
+      "it through in the scalar build. All three are fixed. The rule above is "
+      "an INVARIANT TO BE ENFORCED, not a description of what the tree was "
+      "already doing -- and the reason all three survived is that numeric "
+      "scalar-vs-AVX2 twin checking covers only stages 08b, 09 and 09c. The "
+      "other 24 stages have no automated numeric twin check.")
     a("")
     a("## 6. Live queue")
     a("")

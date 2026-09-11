@@ -300,6 +300,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <ItemGroup>
     <None Include="python\old_films_analyzing\analyze_film_scans.py" />
     <None Include="python\old_films_analyzing\README_v21.md" />
+    <None Include="python\png_compare.py" />
     <None Include="python\profiles_generator\adopt_agfa_1998.py" />
     <None Include="python\profiles_generator\adopt_agfa_full.py" />
     <None Include="python\profiles_generator\agfaphoto_vista_plus.py" />

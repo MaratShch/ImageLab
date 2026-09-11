@@ -233,7 +233,26 @@ _DENSITY_GEOMETRIES = frozenset({"diffuse", "specular", "doubly_diffuse"})
 _GAMMA_CRITERIA = frozenset({
     "straight_line", "chord_0.80_1.80", "chord_0.30_0.80", "chord_0.25_1.25",
     "asa_ci", "gamma_infinity", "delta_log_e", "gamma_ratio",
-    "three_segment"})
+    "three_segment",
+    # -- added 2026-09-11, schema v32: ГОСТ 9160-91 §5.2.2, table 4.
+    # The Soviet standard does not have "a" mean-gradient criterion any more
+    # than it has "a" speed criterion: table 4 keys the construction points
+    # to the MATERIAL CLASS. See `_GOST_9160_GRADIENT_POINTS` for the four
+    # rows, their D1 and dlgH, and the verbatim source line. These are REAL
+    # published criteria and they attach to the Soviet stocks in this file.
+    "gost_mean_gradient_neg_cine", "gost_mean_gradient_pos_cine",
+    "gost_mean_gradient_reversal", "gost_mean_gradient_neg_still",
+    # -- added 2026-09-11, schema v33: EP 0 083 377 A1 (Konishiroku).
+    # ⚠ A THIRD KONICA CHORD, AND THE MAKER IS STILL NOT THE CRITERION.
+    # The database already carries chord_0.80_1.80 and chord_0.30_0.80, both
+    # from Konica documents. This one is the gradient of the straight line
+    # through fog + 0.30 and fog + 1.80, stated verbatim: "The gamma values
+    # were determined here by the gradients of the straight lines passing the
+    # point of the fog + 0.3 and the point of the fog + 1.8." Note the
+    # OFFSETS ARE ABOVE FOG, not absolute densities -- which is what makes it
+    # a different criterion from chord_0.30_0.80 rather than a wider version
+    # of it, and why the name carries the fog term.
+    "chord_fog_0.30_1.80"})
 # ⚠ WIDENING THIS SET DOES NOT MOVE `SCHEMA_VERSION`, and the reason is worth
 # stating because the opposite call would be defensible. The version constant
 # is a truth claim about the SHAPE of a record -- how many fields it has and
@@ -310,11 +329,663 @@ _IMPURITY_MODES = frozenset({"transmission", "reflection", "in_film",
 #:       superposed uniform exposure of another. US 4,528,263 Table 10:
 #:       control 9 %, invention 14 %.
 #:   ""  not stated. The honest value while the field is unpopulated.
+#: ⚠ FIVE MORE ARRIVED ON 2026-09-11 AND THEY CHANGED THE PICTURE COMPLETELY.
+#: The 2026-09-10c entry above concluded that interimage coefficients were
+#: STRUCTURALLY UNOBTAINABLE outside a patent A/B coating set. A sixteen-patent
+#: batch the next day found measured white-versus-separation data in FIVE
+#: independent documents, in five further incompatible definitions -- taking
+#: the count from seven to twelve. The conclusion was too strong and is
+#: corrected at `InterimageSpec`; the definitions are:
+#:
+#:   "hanson_delta_d"
+#:       ⚠ THE MOST USEFUL ONE IN THE CORPUS, because it is DIRECTIONAL.
+#:       W. T. Hanson Jr. et al., J. Opt. Soc. Am. 42 (1952) pp.663-669, as
+#:       used verbatim by US 6,746,834: expose the CAUSING record
+#:       continuously and the RECEIVING record stepwise, then read the change
+#:       in receiver density at integrated density 1.5 as the causer's
+#:       integrated density falls from 2.0 to 1.0. IIExy is the effect FROM x
+#:       TO y, so IIEgr is green acting on red and maps to this record's
+#:       `a_rg`. Units are density, not a ratio.
+#:   "separation_over_white"
+#:       EP 1 033 620 A1 (Kodak): separation-exposure gamma divided by
+#:       white-light gamma, bounded 0.80-1.20, target 0.95-1.05 for scanning
+#:       films. ⚠ THE RECIPROCAL of this project's storage convention --
+#:       convert before writing, and see `gamma_ratio_criterion`.
+#:   "gradient_pair_monochromatic"
+#:       EP 0 324 471 A2 (Fuji): a PAIR of gammas, one under monochromatic
+#:       exposure at each layer's own peak-sensitivity wavelength and one
+#:       under 5500 K white, each read as a least-squares line through
+#:       fog+0.4/0.6/0.8/1.0 behind narrow-band filters (B 434 nm/9 nm HW,
+#:       G 550 nm/8 nm HW, R 690 nm/52 nm HW). Two numbers per record, so it
+#:       cannot be stored in a single float.
+#:   "density_difference_over_decade"
+#:       EP 0 324 471 A2's second form: IE(X/Y) is the density decrease in
+#:       record X over 1.0 log E, measured from the log-exposure giving
+#:       fog+0.2 in donor record Y. Same family as the Agfa DE 19,749,589
+#:       form but with different anchors.
+#:   "total_iodine_ratio"
+#:       US 6,740,481 (Fuji): a COMPOSITIONAL PROXY, not a sensitometric
+#:       measurement -- total iodine I(n) = coated silver g/m2 x average
+#:       iodide mol%, with donor/receiver windows of 60-300 % (cyan over
+#:       green) and 40-250 % (violet over blue). ⚠ It predicts interimage
+#:       from the coating recipe rather than measuring it, so it can never be
+#:       compared numerically with any of the others.
 _IIE_CRITERIA = frozenset({
     "neutral_over_separation", "red_over_green_neutral",
     "causer_over_receiver", "agfa_percent",
     "delta_density_white_vs_separation", "delta_log_e_at_density",
-    "iie_percent_konica"})
+    "iie_percent_konica",
+    # -- added 2026-09-11
+    "hanson_delta_d", "separation_over_white",
+    "gradient_pair_monochromatic", "density_difference_over_decade",
+    "total_iodine_ratio"})
+
+#: ГОСТ 9160-91 speed-criterion classes (schema v31, 2026-09-11).
+#:
+#: ⚠ CONFLICT I-24 IS SETTLED AND NEITHER PARTY WAS RIGHT. The project has
+#: carried an open conflict over "the" Soviet speed criterion: Glafkides gives
+#: D = fog + 0.2 with S = 1/E, while ГОСТ 9160-91 and RU 2172512 C1's own
+#: table heading give fog + 0.85 with S = 20/H. Reading the standard itself
+#: settles it: there is no single criterion. ГОСТ 9160-91 §5.2.4 tabulates FIVE,
+#: keyed to the MATERIAL CLASS, and the two "conflicting" values are simply
+#: two different rows of the same 1991 table.
+#:
+#:     class                            D_kr        K
+#:     negative cine                    0.20        1.6
+#:     negative still, general purpose  0.15        sqrt(2)
+#:     positive / duplicating / aerial  0.90        10
+#:     positive
+#:     NEGATIVE AERIAL (colour and      0.85        20
+#:     spectrozonal)
+#:     spectrozonal aerial, permitted   0.20        1.0
+#:     alternative
+#:     reversal                         two-point:  10
+#:       D1 = 0.2 + Dmin, D2 = the tangent point capped at 2.0 + Dmin, and
+#:       lg H_kr = (lg H1 + lg H2) / 2
+#:
+#: with speed S = K / H_kr throughout. The four main K values were checked
+#: against the standard's own rounding tables 5-8 and reproduce 1.6 / 1.41 /
+#: 20 / 10, so no digit is inferred.
+#:
+#: ⚠ RU 2172512 C1's 0.85/20 IS AN AERIAL-FILM CRITERION and must not be
+#: propagated to ordinary Soviet stocks -- that patent is a spectrozonal
+#: aerial material, which is exactly the row it sits in.
+#:
+#: ⚠ AND THE PRACTICAL CONSEQUENCE IS SMALLER THAN THE ARGUMENT: combining
+#: the criterion with the constant, a general-purpose Soviet colour NEGATIVE
+#: STILL speed is arithmetically identical to ISO 5800, and a reversal speed
+#: to ISO 2240. Only the cine and aerial classes need any conversion at all.
+_GOST_SPEED_CLASSES = frozenset({
+    "neg_cine", "neg_still", "positive_dupe", "aerial_negative",
+    "aerial_spectrozonal_alt", "reversal"})
+
+#: ⚠ THE SOVIET STOCKS DELIBERATELY LEFT WITHOUT A `gost_speed_class`, and
+#: why, recorded here so nobody "completes" the set later. Populated on 13 of
+#: 18 on 2026-09-11; the other five are refusals, not omissions.
+#:
+#:   SVEMA_DS_2, SVEMA_LN_3
+#:       ⚠ THESE ARE NOT RATED IN ГОСТ UNITS AT ALL. Both entries read
+#:       "speed 20-26 NIKFI units". НИКФИ is the cinema research institute's
+#:       own scale, not ГОСТ 9160's, so no criterion of this standard lies
+#:       behind their stored speed and tagging one would invent a provenance.
+#:       Converting NIKFI to ГОСТ needs a NIKFI source; queue P39.
+#:
+#:   SVEMA_FOTO_65, SVEMA_FOTO_250
+#:       ⚠ EACH ENTRY IS TWO DESIGNATIONS MERGED AND SAYS SO. FOTO_250's own
+#:       description: "Svema's FN line was cine negative and the Foto- line
+#:       was still film; both names are in circulation for the fast stock and
+#:       both resolve to this entry." A record that is simultaneously the
+#:       cine and the still designation cannot carry one class honestly --
+#:       `neg_cine` and `neg_still` differ in BOTH D_kr and K (0.20/1.6
+#:       against 0.15/sqrt2), so the choice is not cosmetic. Splitting the
+#:       entries is the fix, and that is a stock-identity decision rather
+#:       than a harvest one; queue P40.
+#: Editions of ГОСТ 9160 that `gost_speed_edition` accepts. Deliberately
+#: short: an edition may be listed only when its text has been read (9160-91)
+#: or when a stored primary ТУ sheet in this file names it (9160-82).
+_GOST_EDITIONS = frozenset({"9160-82", "9160-91"})
+
+_GOST_CLASS_WITHHELD: dict[str, str] = {
+    "SVEMA_DS_2":     "rated in NIKFI units, not ГОСТ",
+    "SVEMA_LN_3":     "rated in NIKFI units, not ГОСТ",
+    "SVEMA_FOTO_65":  "entry merges the FN cine and Foto still designations",
+    "SVEMA_FOTO_250": "entry merges the FN cine and Foto still designations",
+    # ⚠ A FIFTH, AND ITS REASON IS STRUCTURAL RATHER THAN EVIDENTIAL. Tasma
+    # «Позитивная МЗ-3» IS a ГОСТ "positive_dupe" material and the evidence
+    # for that is not in doubt -- its own description reads "Soviet B&W cine
+    # POSITIVE film". But it is stored as a `PrintStock`, and `PrintStock`
+    # holds NO speed: there is no `exposure_index` on that record for a
+    # speed criterion to qualify. Adding `gost_speed_class` there would
+    # create a field that documents the provenance of a number the record
+    # does not contain. Left off deliberately; if a print stock ever gains a
+    # stored speed, this is the first entry to revisit.
+    "TASMA_POSITIVE_28": "a PrintStock, which stores no speed for a "
+                         "criterion to qualify",
+}
+
+# =====================================================================
+# MEASURED REFERENCE DATA -- schema v32, 2026-09-11
+# =====================================================================
+#
+# ⚠ WHAT THIS SECTION IS, AND WHY IT EXISTS AT ALL. Everything below is a
+# TRANSCRIBED PUBLISHED MEASUREMENT: a table that some standards body or
+# patent examiner's copy actually prints, copied digit for digit, with the
+# source line quoted beside it. Nothing here is interpolated, averaged,
+# fitted, or inferred from a neighbouring value. Where a cell was physically
+# unreadable in the scan it is ABSENT rather than filled -- see the `_GAPS`
+# tuples, which name every such cell so that a later, better scan has a
+# checklist rather than a silent hole.
+#
+# ⚠ AND WHY IT IS HERE RATHER THAN IN A REPORT. The 2026-09-10 delivery was
+# criticised, correctly, for harvesting 22 documents and entering nothing:
+# the finding went to Markdown and the database did not move. The rule that
+# came out of that is the owner's, verbatim: "real values will be always
+# preferred to 'non-available' or 'estimated' values". A published curve
+# that sits in a report is not available to any renderer, any validator or
+# any future stock; the same curve here is. Each table below is either read
+# by a derivation, asserted by a guard, or both -- a table that is neither
+# does not belong in this section and should be deleted rather than kept
+# for completeness.
+#
+# ⚠ NONE OF IT IS EMITTED INTO C++, on the v23 precedent. These are
+# generator-side reference data: they constrain and derive what IS emitted.
+
+#: ГОСТ 9160-91, Приложение 3, таблица 11 -- "Монохроматические плотности
+#: D_λ светофильтра-маски" (monochromatic densities of the MASK FILTER).
+#:
+#: ⚠ THIS IS THE PRINTER'S MASK FILTER, NOT A FILM'S ORANGE MASK, and the
+#: distinction is the whole reason it is safe to store. The standard defines
+#: a physical filter placed in the copying source so that an UNMASKED test
+#: material is printed through the same spectral load a masked negative
+#: would impose. It is therefore a property of the Soviet printing chain --
+#: shared by every stock tested to this standard -- and NOT a per-stock
+#: measurement. Writing it into any film's `SpectralDyeDensity.d_dmin`
+#: would be a straightforward falsification: that field means "the D-min
+#: trace this film measured", and no film measured this.
+#:
+#: What it IS good for: it is the only published, digit-exact mask spectral
+#: density in the corpus, so it is the reference the duplication and
+#: printing stages can be checked against, and it is the shape any Soviet
+#: colour-negative mask must resemble.
+#:
+#: 42 of 44 rows are legible. Source, verbatim (line 952 and line 964 of
+#: /root/work/pat/txt/SU__________9160-91.txt):
+#:     "   360                     Mi               580                    0,35"
+#:     "   •180                   о ,ы              700                    0,18"
+#: -- the 360 nm and 480 nm density cells are destroyed in the scan. They
+#: are omitted, NOT interpolated, and named in `_GOST_9160_MASK_GAPS`.
+#:
+#: ⚠ THE STANDARD ITSELF DOWNGRADES PART OF ITS OWN TABLE. Footnote, verbatim:
+#: "Монохроматические плотности для длин волн 360—390 нм и 750—800 нм носят
+#: справочный характер." -- the 360-390 nm and 750-800 nm values are
+#: INFORMATIVE ONLY. `_GOST_9160_MASK_INFORMATIVE_NM` carries that range so
+#: no consumer treats those points as normative. Tolerance on the normative
+#: part is ±0,05 B, and the six wavelengths a substitute filter must match
+#: are named: 410, 460, 540, 560, 620, 660 nm.
+_GOST_9160_MASK_FILTER_D: tuple[tuple[int, float], ...] = (
+    (370, 1.04), (380, 1.03), (390, 1.00), (400, 1.03), (410, 1.07),
+    (420, 1.09), (430, 1.09), (440, 1.07), (450, 1.03), (460, 0.97),
+    (470, 0.91), (490, 0.77), (500, 0.71), (510, 0.66), (520, 0.61),
+    (530, 0.56), (540, 0.51), (550, 0.47), (560, 0.43), (570, 0.39),
+    (580, 0.35), (590, 0.33), (600, 0.30), (610, 0.27), (620, 0.26),
+    (630, 0.24), (640, 0.23), (650, 0.22), (660, 0.21), (670, 0.20),
+    (680, 0.19), (690, 0.18), (700, 0.18), (710, 0.17), (720, 0.16),
+    (730, 0.16), (740, 0.15), (750, 0.15), (760, 0.15), (770, 0.15),
+    (780, 0.15), (790, 0.15), (800, 0.15))
+#: Wavelengths whose density cell is unreadable in the scan held. NOT a
+#: statement that the standard omits them -- it prints them and we cannot
+#: read them. A better scan fills these two and nothing else.
+_GOST_9160_MASK_GAPS: tuple[int, ...] = (360, 480)
+#: The two bands the standard marks "справочный характер" -- informative,
+#: not normative. Half-open ranges in nm.
+_GOST_9160_MASK_INFORMATIVE_NM: tuple[tuple[int, int], ...] = (
+    (360, 390), (750, 800))
+#: The six wavelengths at which a substitute filter must match, per the
+#: same footnote. (The scan prints "160" for 460 and "54а" for 540; both
+#: are unambiguous from the table's own 10 nm grid.)
+_GOST_9160_MASK_MATCH_NM: tuple[int, ...] = (410, 460, 540, 560, 620, 660)
+_GOST_9160_MASK_TOLERANCE_D: float = 0.05
+
+#: ГОСТ 9160-91, Приложение 2, таблица 10 -- density D_λ of the UV/IR-cutting
+#: filter (СЗС-24 + ЖС-11 glass pair) used on the sensitometric source.
+#:
+#: Complete as printed over 380-800 nm; the 350/360/370 rows are printed with
+#: an EMPTY density cell in the source, and the second column starts at 600,
+#: so this is the standard's own extent rather than a scanning loss.
+#: ⚠ 550 nm is printed as a second "560" row (line 932). Both that row and
+#: the true 560 row carry 0.11, so the transcription is unambiguous whichever
+#: label is the typo -- this is recorded because the reasoning matters, not
+#: because the number is in doubt.
+_GOST_9160_UVIR_FILTER_D: tuple[tuple[int, float], ...] = (
+    (380, 1.90), (390, 1.08), (400, 0.46), (410, 0.32), (420, 0.25),
+    (430, 0.21), (440, 0.18), (450, 0.16), (460, 0.16), (470, 0.14),
+    (480, 0.13), (490, 0.13), (500, 0.12), (510, 0.12), (520, 0.12),
+    (530, 0.12), (540, 0.12), (550, 0.11), (560, 0.11), (570, 0.12),
+    (580, 0.12), (590, 0.13), (600, 0.14), (610, 0.15), (620, 0.16),
+    (630, 0.18), (640, 0.20), (650, 0.22), (660, 0.24), (670, 0.27),
+    (680, 0.30), (690, 0.34), (700, 0.38), (710, 0.42), (720, 0.46),
+    (730, 0.52), (740, 0.57), (750, 0.63), (760, 0.70), (770, 0.77),
+    (780, 0.84), (790, 0.92), (800, 0.99))
+
+#: ГОСТ 9160-91, Приложение 1, таблица 9 -- relative monochromatic
+#: transmittance τ(λ) of the reference photographic LENS, two columns:
+#: the ГОСТ 27847 lens and the ISO one. 360-690 nm at 10 nm.
+#:
+#: ⚠ WHY A LENS CURVE IS WORTH STORING. Every spectral sensitivity in this
+#: database was digitised from a plot measured THROUGH some optical train,
+#: and the blue end is where lenses differ most: at 360 nm these two
+#: standards' own reference lenses are 0.20 and 0.07 -- a factor of three,
+#: 0.45 in density. A spectral sensitivity compared across the two
+#: conventions without this correction is wrong by that much at the short
+#: end and by nothing at all in the green.
+#:
+#: 390 nm ISO cell is unreadable in the scan (source line 886, verbatim:
+#: "    390             0.71             о.«>         560              1.00           1.00")
+#: and is stored as None rather than guessed.
+_GOST_9160_LENS_TAU: tuple[tuple[int, float, float | None], ...] = (
+    (360, 0.20, 0.07), (370, 0.41, 0.23), (380, 0.58, 0.42),
+    (390, 0.71, None), (400, 0.80, 0.74), (410, 0.86, 0.83),
+    (420, 0.90, 0.88), (430, 0.93, 0.91), (440, 0.95, 0.94),
+    (450, 0.96, 0.95), (460, 0.97, 0.97), (470, 0.98, 0.98),
+    (480, 0.99, 0.98), (490, 0.99, 0.99), (500, 1.00, 0.99),
+    (510, 1.00, 1.00), (520, 1.00, 1.00), (530, 1.00, 1.00),
+    (540, 1.00, 1.00), (550, 1.00, 1.00), (560, 1.00, 1.00),
+    (570, 1.00, 1.00), (580, 1.00, 1.00), (590, 1.00, 0.99),
+    (600, 1.00, 0.99), (610, 1.00, 0.99), (620, 1.00, 0.98),
+    (630, 1.00, 0.98), (640, 1.00, 0.97), (650, 1.00, 0.97),
+    (660, 1.00, 0.96), (670, 1.00, 0.96), (680, 1.00, 0.94),
+    (690, 1.00, 0.94))
+
+#: ГОСТ 9160-91 §5.2.2, таблица 4 -- the mean-gradient construction points,
+#: keyed to material class. `(D1_above_dmin, delta_lg_H)`.
+#:
+#: The mean gradient is the chord from (lg H1, D1) to (lg H2, D2) where
+#: D1 = the tabulated offset ABOVE Dmin and lg H2 = lg H1 + delta_lg_H.
+#:
+#: Source, verbatim (lines 550-555 of SU__________9160-91.txt):
+#:     "    Цветные негативные кинопленки                     0 ,2 + 0 m m             1 .3"
+#:     "    Цветные позитивные кинопленки                     0 ,9 - г /> я ! в        0 .5"
+#:     "     Цветные обращаемые материалы                     0 . 2 + /J ir itn        12"
+#:     "    Цветные негативные фотопленки о б"
+#:     "t u c r o назначения                                 0 .1 5 + 0 « .m           1 .3"
+#: -- "0m m", "/> я ! в", "/J ir itn" and "0 « .m" are all OCR of "Dmin".
+#:
+#: ⚠ ONE DECIMAL POINT IS RECONSTRUCTED AND IT IS FLAGGED, NOT HIDDEN. The
+#: reversal row's delta prints as bare "12". Every other cell in that column
+#: carries one decimal (1.3 / 0.5 / 1.3) and a log-exposure interval of 12
+#: decades is physically impossible, so the value is 1.2 -- but that is a
+#: reading of the column's format, not a digit off the page, and
+#: `_GOST_9160_GRADIENT_RECONSTRUCTED` says so. Anything that must not
+#: depend on a reconstructed digit should skip that row.
+_GOST_9160_GRADIENT_POINTS: dict[str, tuple[float, float]] = {
+    "gost_mean_gradient_neg_cine":  (0.20, 1.3),
+    "gost_mean_gradient_pos_cine":  (0.90, 0.5),
+    "gost_mean_gradient_reversal":  (0.20, 1.2),
+    "gost_mean_gradient_neg_still": (0.15, 1.3),
+}
+_GOST_9160_GRADIENT_RECONSTRUCTED: frozenset[str] = frozenset({
+    "gost_mean_gradient_reversal"})
+
+#: ГОСТ 9160-91 §5.2.3 -- the standard's OWN rounding ladder for a measured
+#: gamma or mean gradient, as `(upper_bound_inclusive, step)`.
+#: Verbatim: "при значениях до 0,78 — с точностью ±0,02; при значениях от
+#: 0.80 до 1,45 — с точностью ±0,05; при значениях от 1,50 и выше — с
+#: точностью ±0,10."
+#:
+#: ⚠ THIS IS A PRECISION CEILING, NOT A SUGGESTION. A Soviet stock whose
+#: stored gamma reads 1.63 claims a precision the standard that measured it
+#: does not offer: above 1.50 the figure is only good to ±0.10. The guard
+#: G-V32-GOSTROUND asserts the ceiling rather than silently re-rounding the
+#: stored values, because re-rounding would move rendered output on the
+#: strength of a document that governs MEASUREMENT, not manufacture.
+_GOST_9160_GAMMA_ROUNDING: tuple[tuple[float, float], ...] = (
+    (0.78, 0.02), (1.45, 0.05), (float("inf"), 0.10))
+#: §5.2.3 reproducibility of parallel measurements: a single mean-gradient
+#: measurement may differ from the mean of the set by this fraction, and a
+#: contrast coefficient by this one.
+_GOST_9160_MEAN_GRADIENT_SPREAD: float = 0.08
+_GOST_9160_CONTRAST_COEFF_SPREAD: float = 0.10
+
+#: US 6,746,834 B2 (Fuji), TABLE 3 -- the ONLY published, per-sample,
+#: DIRECTIONAL interimage measurement in this corpus.
+#:
+#: Eleven coatings, each measured under the Hanson construction (J. Opt.
+#: Soc. Am. 42, 1952, 663-669) in all four cross directions. Columns, as
+#: printed: sample, remark, λr_max, λg_max, Sr(580), Sr(λr_max), Sg(580),
+#: Sg(500), Sg(λg_max), IIErg, IIEgr, IIEgb, IIEbg.
+#:
+#: ⚠ THE SCAN RENDERS EVERY DIGIT "0" AS THE LETTER "O" IN THIS TABLE, so
+#: "O.25" is 0.25 and "O.O" is 0.0. That substitution is total and
+#: consistent across all eleven rows and both header and body, which is what
+#: makes it safe to undo; no other character is affected. Source, verbatim
+#: (line 2175 of /root/work/pat/txt/US6746834.txt):
+#:     "  108       Inv.      640       545     2.5        3.3         2.8     2.7        3.4           O.1     O.25    O.15   O.21"
+#:
+#: ⚠ WHAT THIS TABLE IS FOR. Every interimage coefficient on all 106 active
+#: stocks in this database is ESTIMATED. This is the measured anchor those
+#: estimates never had -- and the first thing it does is convict them: see
+#: `_US6746834_ASYMMETRY` below and guard G-IIE-ASYM-rg.
+#:
+#: `remark` is the patent's own "Comp." / "Inv." -- a comparative coating is
+#: still a real measurement and is kept; it is the samples the patent
+#: REJECTS that show what the effect looks like when it is absent.
+_US6746834_IIE_TABLE: tuple[
+        tuple[int, str, int, int, float, float, float, float, float,
+              float, float, float, float], ...] = (
+    # sample rem     λr   λg  Sr580 Srmax Sg580 Sg500 Sgmax  rg    gr    gb    bg
+    (101, "Comp.", 660, 580, 1.0, 3.5, 2.8, 1.2, 3.5, 0.10, 0.00, 0.05, 0.02),
+    (102, "Comp.", 640, 580, 2.5, 3.3, 2.8, 1.2, 3.5, 0.10, 0.00, 0.05, 0.02),
+    (103, "Comp.", 640, 545, 2.5, 3.3, 2.8, 2.7, 3.4, 0.10, 0.00, 0.05, 0.02),
+    (104, "Comp.", 660, 580, 1.0, 3.5, 2.8, 1.2, 3.5, 0.10, 0.17, 0.05, 0.02),
+    (105, "Comp.", 660, 580, 1.0, 3.5, 2.8, 1.2, 3.5, 0.10, 0.17, 0.05, 0.18),
+    (106, "Inv.",  640, 580, 2.5, 3.3, 2.8, 1.2, 3.5, 0.10, 0.17, 0.10, 0.02),
+    (107, "Inv.",  640, 545, 2.5, 3.3, 2.8, 2.7, 3.4, 0.10, 0.17, 0.10, 0.18),
+    (108, "Inv.",  640, 545, 2.5, 3.3, 2.8, 2.7, 3.4, 0.10, 0.25, 0.15, 0.21),
+    (109, "Comp.", 640, 545, 2.5, 3.3, 2.8, 2.7, 3.4, 0.28, 0.10, 0.25, 0.10),
+    (110, "Comp.", 640, 545, 2.5, 3.3, 2.8, 2.7, 3.4, 0.30, 0.17, 0.28, 0.18),
+    (111, "Comp.", 640, 545, 2.5, 3.3, 2.8, 2.7, 3.4, 0.10, 0.08, 0.15, 0.21))
+
+#: The claimed windows the same patent asserts around that table, as
+#: `(name, lower, upper)` with `None` for an open end. Verbatim sources:
+#: "IIEgr≧0.15 and IIErg≧0.0" (line 38); "1.5≧IIErg≧0.05" (line 286);
+#: "IIEbg≧0.15 and IIEgb≧0.0" (line 219); "2.0≧IIEbg≧0.2" (line 335);
+#: "IIEgb≦0.05" more preferably "1.5≧IIEgb≧0.05" (line 250).
+_US6746834_WINDOWS: tuple[tuple[str, float | None, float | None], ...] = (
+    ("IIEgr", 0.15, None), ("IIErg", 0.05, 1.5),
+    ("IIEbg", 0.20, 2.0),  ("IIEgb", 0.05, 1.5))
+
+#: The two asymmetry rules the patent states, as ordered pairs
+#: `(causer_to_receiver, must_exceed)`. Source line 253: "IIEbg>IIEgb".
+#: The green-on-red form is the one this database FAILS on 70 of 106 stocks
+#: -- measured, pinned by G-IIE-ASYM-rg, and NOT silently retuned.
+_US6746834_ASYMMETRY: tuple[tuple[str, str], ...] = (
+    ("IIEgr", "IIErg"), ("IIEbg", "IIEgb"))
+
+#: US 5,262,287 (Fuji), TABLE 2 -- seventeen coatings, white-light versus
+#: single-record separation exposure, ΔlogE read at integrated density 0.5
+#: and 1.5 in the red and the green record.
+#:
+#: Columns: sample, ΔlogE(R0.5), ΔlogE(R1.5), ΔlogE(G0.5), ΔlogE(G1.5).
+#: The patent also prints the two DIFFERENCE columns; they are omitted here
+#: because they are exactly col1-col2 and col3-col4 and storing a derived
+#: column invites the two copies to disagree.
+#:
+#: ⚠ FOUR CELLS ARE RECOVERED BY THE TABLE'S OWN ARITHMETIC, NOT BY
+#: ESTIMATION, and the distinction is the point. The scan drops a leading
+#: digit in four places -- sample 104 prints "0.8" for ΔlogE(R0.5) and
+#: "0.7" for the green difference, 105 prints a bare "0." for ΔlogE(G0.5),
+#: 116 prints "0.8" for the green difference. In every one of those rows the
+#: patent ALSO prints the difference column, and the identity
+#: `difference = value_at_0.5 - value_at_1.5` holds EXACTLY on all thirteen
+#: undamaged rows (101: 0.12-0.01=0.11; 106: 0.37-0.05=0.32; 117:
+#: 0.41-0.04=0.37; and ten more). So 104's red is 0.05+0.13 = 0.18, its
+#: green is 0.05+0.17 = 0.22 confirming the printed 0.22, 105's green is
+#: 0.02+0.09 = 0.11, and 116's green difference closes on 0.37-0.19 = 0.18.
+#: These are solved, not guessed, and `_US5262287_RECOVERED` names them.
+#: Source, verbatim (line 1889 of /root/work/pat/txt/US5262287.txt):
+#:     "   04               0.8             0.05             0.13                    0.22              0.05              0.7          Low        Good     Low      Good"
+_US5262287_DLOGE: tuple[tuple[int, float, float, float, float], ...] = (
+    (101, 0.12, 0.01, 0.17, 0.03), (102, 0.04, 0.01, 0.08, 0.01),
+    (103, 0.17, 0.02, 0.21, 0.04), (104, 0.18, 0.05, 0.22, 0.05),
+    (105, 0.06, 0.00, 0.11, 0.02), (106, 0.37, 0.05, 0.40, 0.09),
+    (107, 0.31, 0.03, 0.36, 0.04), (108, 0.24, 0.02, 0.27, 0.03),
+    (109, 0.25, 0.03, 0.29, 0.04), (110, 0.27, 0.02, 0.30, 0.03),
+    (111, 0.36, 0.06, 0.40, 0.13), (112, 0.28, 0.05, 0.30, 0.05),
+    (113, 0.33, 0.05, 0.37, 0.08), (114, 0.32, 0.04, 0.24, 0.02),
+    (115, 0.37, 0.05, 0.28, 0.04), (116, 0.34, 0.21, 0.37, 0.19),
+    (117, 0.41, 0.04, 0.45, 0.08))
+#: `(sample, column)` pairs whose digit was restored by the difference
+#: identity rather than read off the page.
+_US5262287_RECOVERED: tuple[tuple[int, str], ...] = (
+    (104, "dloge_r_0.5"), (105, "dloge_g_0.5"))
+#: The claimed acceptance windows, `(column, lo, hi)`. Verbatim, lines
+#: 239-253: "0.20≦ΔlogE(R0.5)≦0.40", "0≦ΔlogE(R1.5)≦0.07",
+#: "0.25≦ΔlogE(G0.5)≦0.45", "0≦ΔlogE(G1.5)≦0.15".
+_US5262287_WINDOWS: tuple[tuple[str, float, float], ...] = (
+    ("dloge_r_0.5", 0.20, 0.40), ("dloge_r_1.5", 0.00, 0.07),
+    ("dloge_g_0.5", 0.25, 0.45), ("dloge_g_1.5", 0.00, 0.15))
+
+#: US 3,672,898, claims -- spectral sensitivity ENVELOPE SHAPE for all three
+#: records, as `record -> (peak_nm, ((pct, short_nm, long_nm), ...))`.
+#:
+#: ⚠ THIS IS THE ONLY SOURCE IN THE CORPUS THAT STATES AN ENVELOPE WIDTH AS
+#: A SPECIFICATION rather than drawing a curve. Every other spectral
+#: sensitivity here was traced off a plot, which means its width carries the
+#: tracing error; these are printed as words in the claims and carry the
+#: patent's own stated tolerance instead.
+#:
+#: Source, verbatim (lines 386-389 for the magenta record):
+#:     "tion between about 528 nm. to about 557 nm.; about 507"
+#:     "nm. to about 573 nm.; and, about 481 mm. to about 594"
+#:     "nm.  at 80%, 40% and 10% respectively, of a spectrally"
+#:
+#: ⚠ TOLERANCE IS PART OF THE DATUM. The patent defines its own "about":
+#: "The word 'about' as used herein to describe radiation of a particular
+#: wavelength in nanometer (nm.) units is understood to be plus or minus
+#: five (5) nanometers" (line 425), and separately allows the whole abscissa
+#: to shift: "the wavelengths given on the abscissa in nm. units can be
+#: raised or lowered by a factor of 5 nm" (line 392). So no edge here is
+#: better than ±5 nm and the set may translate bodily by another 5.
+_US3672898_ENVELOPE: dict[str, tuple[int, tuple[tuple[int, int, int], ...]]] = {
+    "yellow":  (450, ((80, 441, 458), (40, 429, 472), (10, 412, 498))),
+    "magenta": (544, ((80, 528, 557), (40, 507, 573), (10, 481, 594))),
+    "cyan":    (608, ((80, 595, 620), (40, 580, 633), (10, 561, 654))),
+}
+_US3672898_TOLERANCE_NM: float = 5.0
+
+#: US 4,248,962 (Kodak), Example 6 -- MTF percent response at 20 cycles/mm
+#: for a DIR-timed element (T) against its untimed control (S), measured to
+#: ANSI PH 2-33/7, January 1973.
+#:
+#: ⚠ THE INVENTION EXCEEDS 100 PERCENT AND THAT IS THE WHOLE FINDING. A
+#: modulation transfer function cannot exceed unity for a linear system; a
+#: developed photographic layer with a diffusing inhibitor is not one, and
+#: the adjacency effect adds edge contrast that the sinusoidal target reads
+#: back as response above the large-area value. Any implementation that
+#: clamps an adjacency stage at 1.0 cannot reproduce a measured 112 %.
+#:
+#: Source, verbatim (lines 2085-2087 of /root/work/pat/txt/US4248962.txt):
+#:     " layer was about 108 and the percent response of the"
+#:     "magenta layer was about 1 12, while in element S the"
+#:     "comparable values were 90 and 100 percent."
+#: ("1 12" is 112: the scan splits the digits, and 90/100/108 fix the column.)
+#:
+#: The improvement is stated over 10-40 cy/mm; only the 20 cy/mm point is
+#: given numerically, and only these four numbers exist. There is no MTF
+#: curve in this patent.
+_US4248962_MTF_20CYMM: dict[str, dict[str, int]] = {
+    "control_S":   {"cyan": 90,  "magenta": 100},
+    "invention_T": {"cyan": 108, "magenta": 112},
+}
+_US4248962_MTF_STANDARD: str = "ANSI PH 2-33/7, January 1973"
+_US4248962_MTF_RANGE_CYMM: tuple[int, int] = (10, 40)
+
+#: Fujicolor Crystal Archive -- per-channel REFLECTION Dmax calibration aims,
+#: `product -> (r, g, b)`, from the printer-setup tables in §16 (§10 on the
+#: Type II sheet).
+#:
+#: ⚠ THESE ARE AIMS, NOT A CHARACTERISTIC CURVE, AND NO PAPER PROFILE IS
+#: BUILT FROM THEM. All three bulletins are printer-calibration documents and
+#: none carries a curve of any kind, so there is no tone scale to attach a
+#: Dmax to. What the numbers are good for is the v31 `density_geometry`
+#: guard: they are the measured evidence that a reflection print lands near
+#: 2.0 and not near a print film's 4, and G-V31-REFLDMAX cites them.
+#:
+#: Source, verbatim (line 208 of Fujicolor_Crystal_Archive_Supreme.txt gives
+#: "2.00 /2.00 / 1.95"; line 186 of the Type II sheet gives the asymmetric
+#: "R 2.12, G 2.18, B 2.05" aim for the Agfa d-lab).
+_FUJI_CRYSTAL_ARCHIVE_DMAX: dict[str, tuple[float, float, float]] = {
+    "type_ca_glossy_lustre": (2.00, 2.00, 1.95),
+    "type_ca_matte":         (1.95, 1.95, 1.90),
+    "supreme":               (2.00, 2.00, 1.95),
+    "type_ii_agfa_dlab":     (2.12, 2.18, 2.05),
+}
+#: EP 0 083 377 A1 (Konishiroku / Konica, filed 1982-07-10, published
+#: 1983-07-13), TABLE 1 -- fifteen emulsions as
+#: `(id, AgI_mol_pct, mean_crystal_um, s_over_rbar, habit)`.
+#:
+#: ⚠ THE MOST USEFUL PROPERTY OF THIS TABLE IS THAT IT IS A CONTROLLED PAIRING,
+#: not a list. Emulsions 1/2/12 are all 0.90-0.91 um and differ ONLY in
+#: dispersity and habit (0.25 twin-and-cube, 0.08 cube, 0.09 tetradecahedron);
+#: 4/5 and 8/9 do the same at 0.60 and 0.29 um. So the set isolates dispersity
+#: at constant size, which is exactly the variable this database has never had
+#: a measured handle on -- `GrainSpec.size_sigma_log` is populated on 170
+#: stocks and every one of them is an estimate.
+#:
+#: The patent's own monodispersity criterion is `s / r_bar <= 0.15`, where
+#: r_bar is the mean of the sphere-equivalent projected diameters. On that
+#: rule 1, 4 and 8 are POLYDISPERSE controls and the other twelve are
+#: monodisperse -- and the table's values cluster tightly at 0.07-0.09 and
+#: 0.23-0.28 with nothing between, so the criterion separates them cleanly.
+_EP0083377_TABLE1: tuple[
+        tuple[int, float, float, float, str], ...] = (
+    ( 1, 7.0, 0.91, 0.25, "twin_and_cube"),
+    ( 2, 7.0, 0.90, 0.08, "cube"),
+    ( 3, 2.0, 0.92, 0.09, "cube"),
+    ( 4, 6.0, 0.60, 0.23, "twin_and_cube"),
+    ( 5, 6.0, 0.61, 0.09, "cube"),
+    ( 6, 5.0, 0.61, 0.09, "cube"),
+    ( 7, 2.0, 0.62, 0.08, "cube"),
+    ( 8, 6.0, 0.29, 0.28, "twin_and_cube"),
+    ( 9, 6.0, 0.30, 0.07, "cube"),
+    (10, 5.0, 0.31, 0.08, "cube"),
+    (11, 2.0, 0.30, 0.08, "cube"),
+    (12, 7.0, 0.91, 0.09, "tetradecahedron"),
+    (13, 6.0, 0.60, 0.09, "tetradecahedron"),
+    (14, 6.0, 0.31, 0.08, "tetradecahedron"),
+    (15, 5.0, 0.31, 0.09, "tetradecahedron"))
+#: The patent's monodispersity threshold on `s / r_bar`, verbatim: "the value
+#: obtained by dividing the standard deviation S ... by the average crystal
+#: size r is 0.15 or less".
+_EP0083377_MONODISPERSE_MAX: float = 0.15
+
+#: EP 0 083 377 A1, TABLE 3 -- eight specimens as
+#: `(id, is_invention, (relS_b, relS_g, relS_r), (les_b, les_g, les_r))`.
+#:
+#: ⚠ L.E.S. IS A LATITUDE IN log10 E AND IS THE ONLY MEASURED COLOUR-NEGATIVE
+#: LATITUDE SET IN THIS CORPUS. The patent defines it as "the linear exposure
+#: scale ... as described in The Theory of the Photographic Process, 4th
+#: Edition, page 501-502, written by T. H. James", with relative sensitivity
+#: read as the reciprocal exposure giving fog + 0.10.
+#:
+#: The measured band across all eight coatings is 2.57 to 3.03 log E, i.e.
+#: 8.5 to 10.1 stops. See `G-V33-LES` in verify.py for what this database's own
+#: 84 colour negatives do against that band -- the answer is not comfortable
+#: and the guard reports it rather than asserting it, because these are 1982
+#: Konica coatings and most of the database is not.
+_EP0083377_TABLE3: tuple[
+        tuple[int, bool, tuple[int, int, int],
+              tuple[float, float, float]], ...] = (
+    (1, False, (100, 100, 100), (2.58, 2.65, 2.66)),
+    (2, False, ( 99, 109,  98), (2.57, 2.70, 2.67)),
+    (3, True,  (100, 115, 101), (2.59, 2.86, 2.65)),
+    (4, True,  ( 98, 113, 101), (2.59, 2.90, 2.67)),
+    (5, True,  (102, 113, 101), (2.60, 2.92, 2.70)),
+    (6, True,  ( 98, 114, 100), (2.60, 2.91, 2.69)),
+    (7, True,  (102, 112, 116), (2.61, 2.99, 2.91)),
+    (8, True,  (112, 113, 115), (2.91, 3.03, 2.99)))
+
+#: EP 0 083 377 A1, TABLE 6 -- the DEVELOPMENT-TIME RESPONSE, and the single
+#: most algorithmically useful table in the document.
+#:
+#: `(id, is_invention, (sens_b, sens_g, sens_r), (gamma_b, gamma_g, gamma_r))`
+#: for each of the two off-nominal development times, with the values at the
+#: nominal 3 min 15 s taken as 100 % for every specimen. Times are 2 min 55 s
+#: and 3 min 35 s, i.e. 175 s and 215 s against a 195 s reference -- plus and
+#: minus 10.3 % of the development time.
+#:
+#: ⚠ IT MEASURES SOMETHING THIS PROJECT'S PROCESSING MODEL DOES NOT HAVE:
+#: SPEED MOVES WITH DEVELOPMENT TIME, AND IT MOVES MORE THAN GAMMA DOES.
+#: `ProcessingFamily` fits gamma against time through `gamma_at()` and
+#: `minutes_for_gamma()`; there is no corresponding speed term anywhere in the
+#: schema or in either engine. On the polydisperse control, specimen 1, a
+#: +/-20 s swing moves BLUE SPEED from 75 % to 129 % -- a factor of 1.72,
+#: which is 0.24 log E or about 0.8 of a stop -- while gamma moves only
+#: 89 % to 115 %. Speed is roughly twice as sensitive to development as
+#: contrast is, and modelling only the contrast half is why a push in this
+#: engine changes the look but not the effective exposure index.
+#:
+#: ⚠ AND THE PATENT'S OWN POINT IS THE SECOND-ORDER ONE. Specimen 8, which
+#: satisfies all of the invention's conditions, moves 88 % to 115 % in speed
+#: and 93 % to 105 % in gamma -- roughly HALF the control's swing on both. So
+#: process stability is itself a per-stock property, set by monodispersity and
+#: by the iodide gradient, and a single global dev-time law cannot express it.
+_EP0083377_TABLE6: tuple[
+        tuple[int, bool, str, tuple[int, int, int],
+              tuple[int, int, int]], ...] = (
+    (1, False, "2:55", ( 75,  74,  70), ( 89,  93,  90)),
+    (1, False, "3:35", (129, 129, 133), (115, 107, 114)),
+    (2, False, "2:55", ( 77,  76,  69), ( 89,  94,  90)),
+    (2, False, "3:35", (130, 127, 132), (114, 106, 113)),
+    (3, True,  "2:55", ( 77,  84,  69), ( 89,  96,  90)),
+    (3, True,  "3:35", (130, 117, 133), (115, 105, 113)),
+    (4, True,  "2:55", ( 76,  85,  70), ( 89,  96,  90)),
+    (4, True,  "3:35", (131, 116, 132), (115, 103, 113)),
+    (5, True,  "2:55", ( 76,  86,  71), ( 89,  96,  90)),
+    (5, True,  "3:35", (130, 116, 130), (115, 103, 114)),
+    (6, True,  "2:55", ( 76,  86,  69), ( 90,  97,  90)),
+    (6, True,  "3:35", (131, 117, 131), (115, 103, 113)),
+    (7, True,  "2:55", ( 77,  86,  84), ( 89,  98,  96)),
+    (7, True,  "3:35", (131, 117, 118), (114, 102, 107)),
+    (8, True,  "2:55", ( 88,  88,  86), ( 93,  98,  97)),
+    (8, True,  "3:35", (115, 116, 118), (105, 102, 106)))
+#: The three development times of TABLE 6 in seconds, nominal in the middle.
+_EP0083377_DEV_TIMES_S: tuple[int, int, int] = (175, 195, 215)
+
+#: EP 0 083 377 A1 -- the multilayer construction rules, as stated ranges.
+#: Every one is a claimed window rather than a measurement, and they are kept
+#: together so that nothing takes one for a per-stock value.
+#:
+#: ⚠ THE CENTRAL CLAIM IS A SUB-LAYER STRUCTURE THIS SCHEMA CANNOT EXPRESS.
+#: The patent's whole subject is that ONE colour record is coated as two or
+#: three emulsion layers of different speed, and that the latitude of the
+#: record comes from summing their offset curves. This database stores ONE
+#: `ToneCurve` per record. That is not a gap in the harvest, it is a
+#: structural limit of the model, and it is recorded as queue P41 rather than
+#: patched with an unpopulated field: adding a `SubLayerSpec` would put an
+#: empty carrier on all 184 stocks and change no render, which is precisely
+#: the "collect but do not enter" failure the 2026-09-11 second pass existed
+#: to stop.
+#:
+#: TABLE 2 does give the one number the structure needs, measured: the
+#: sensitivity difference between the low- and high-sensitivity green
+#: sub-layers of the eight coatings is 0.35 to 0.37 log E.
+_EP0083377_RULES: dict[str, tuple[float, float]] = {
+    # Sub-layer speed separation within one colour record, delta log E,
+    # read at a dye density of fog + 0.10.
+    "sublayer_dloge_range":            (0.2, 1.5),
+    "sublayer_dloge_preferred":        (0.3, 0.8),
+    "sublayer_dloge_measured_table2":  (0.35, 0.37),
+    # Mean crystal size by sub-layer, micrometres.
+    "crystal_um_high_speed_layer":     (0.4, 1.5),
+    "crystal_um_low_speed_layer":      (0.1, 0.8),
+    # Size difference between two monodisperse populations in one layer.
+    "crystal_um_difference":           (0.1, 1.2),
+    "crystal_um_difference_preferred": (0.2, 0.8),
+    # Iodide. The fastest sub-layer must carry MORE iodide than the second
+    # fastest; the slowest must carry at least 4 mol%.
+    "iodide_gradient_mol_pct":         (0.1, 10.0),
+    "iodide_gradient_preferred":       (0.1, 4.0),
+    "iodide_total_mol_pct":            (0.5, 15.0),
+}
+#: The floor the patent gives for the slowest sub-layer, mol% AgI, and the
+#: stated consequence of going under it -- quoted because it is a PHYSICAL
+#: RELATIONSHIP and not just a limit: "When the content of silver iodide is
+#: less than 4 mole %, developing characteristic becomes markedly rapid
+#: particularly in case of silver iodobromide with small crystal sizes,
+#: whereby it is generally difficult to enlarge latitude of exposure."
+#: Iodide retards development; the retardation is what buys latitude. That is
+#: the mechanism behind TABLE 6's process-stability result.
+_EP0083377_IODIDE_FLOOR_MOL_PCT: float = 4.0
+
+#: Same bulletins, §7: the viewing condition all of the above are aimed for.
+#: "Color Temp 5000±300K", "Avg Illumination ≥500 Lux", "Ra ≥90", to
+#: ISO 3664-2009.
+_FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
+    "cct_k": 5000.0, "cct_tolerance_k": 300.0,
+    "illuminance_lux_min": 500.0, "cri_min": 90.0,
+    "standard": "ISO 3664-2009",
+}
 
 #: Data-model schema version. Bumped to 2 by the 2026-07 domain review; see
 #: the module docstring for what was added. Mirrored into the generated C++.
@@ -859,7 +1530,148 @@ _IIE_CRITERIA = frozenset({
 #
 # INERT AND UNPOPULATED. Every render is bit-identical to a v29 one; the
 # field is emitted into no C++ struct, by the v23 precedent.
-SCHEMA_VERSION = 30
+#
+# ---------------------------------------------------------------------------
+# v31 (2026-09-11) -- the sixteen-patent + ГОСТ 9160-91 batch. Two fields.
+# ---------------------------------------------------------------------------
+# ⚠ THIS BUMP CORRECTS A CONCLUSION THIS LOG REACHED YESTERDAY, and the
+# correction matters more than the fields. The v30 entry above states that
+# "per-stock interimage coefficients are STRUCTURALLY UNOBTAINABLE from
+# manufacturer data ... No further datasheet harvesting will produce them."
+# The first half stands. THE SECOND HALF WAS TOO STRONG: a sixteen-patent
+# batch read on 2026-09-11 found measured white-versus-separation interimage
+# data in FIVE independent documents, taking the count of published,
+# mutually incompatible definitions from seven to twelve. Datasheets still
+# do not carry it -- but the patent literature carries far more of it than
+# one day's searching had found. See `InterimageSpec` and `_IIE_CRITERIA`.
+#
+# THE TWO FIELDS:
+#
+#   FilmProfile.gost_speed_class
+#       ⚠ THE FIELD THE PLAN ASKED FOR WAS THE WRONG SHAPE. §F-33 proposed
+#       `gost_speed_criterion_revision`, assuming conflict I-24 was between
+#       two EDITIONS of the standard. Reading ГОСТ 9160-91 itself settles it
+#       differently: §5.2.4 tabulates FIVE criteria keyed to the MATERIAL
+#       CLASS, and the two "conflicting" values -- Glafkides' fog+0.2 and
+#       RU 2172512 C1's fog+0.85 -- are two rows of that single 1991 table.
+#       Neither party was wrong; both were quoting one row of five. A
+#       revision field would have recorded the wrong discriminator forever.
+#       ⚠ AND THE PRACTICAL CONSEQUENCE IS SMALL: a general-purpose Soviet
+#       colour negative STILL speed is arithmetically identical to ISO 5800
+#       and reversal to ISO 2240, so only the cine and aerial classes need
+#       any conversion. `aerial_negative` is refused by `validate` outright,
+#       because propagating its 0.85/20 to an ordinary stock is precisely
+#       the error I-24 recorded.
+#
+#   PrintStock.density_geometry
+#       All eleven print stocks are motion-picture print FILM -- transmission
+#       -- and nothing said so. Harmless while the population is uniform;
+#       actively wrong the moment a colour PAPER is added, because a paper
+#       Dmax is a REFLECTION density near 2.0-2.2 against a print film's
+#       transmission ~4. Found reading three Fujicolor Crystal Archive
+#       bulletins (measured reflection aims 2.00/2.00/1.95 and
+#       2.12/2.18/2.05). ⚠ NO PAPER PROFILE WAS CREATED: those bulletins are
+#       printer-setup documents and print no characteristic curve, so there
+#       is no tone curve to build one on. Carrier before data, as at v30.
+#
+# ⚠ AND ONE MEASURED DEFECT FOUND, NOT FIXED, AND NOW GUARDED. US 6,746,834
+# tabulates four DIRECTIONAL interimage effects for eleven samples under the
+# Hanson JOSA 42:663 construction, and claims the asymmetry IIEgr > IIErg
+# and IIEbg > IIEgb -- green acting on red must exceed red acting on green.
+# Tested against this database: the blue rule holds on all 106 stocks with an
+# active stage, and the red/green rule FAILS on 70 of 106. The failure is not
+# a sign error; it is symmetry. The median (green->red) - (red->green) is
+# -0.0002 on reversal stocks, i.e. the generator produces near-identical
+# coefficients where the measurement requires a clear ordering. Recorded as
+# G-IIE-ASYMMETRY rather than silently retuned: the six coefficients are
+# estimated on all 106 stocks and changing them moves every colour render,
+# which needs its own deliberate pass.
+#
+# ⚠ CORRECTION, 2026-09-11: THE "ROUGHLY 4:1" THIS NOTE AND THE 2026-09-10
+# MANIFEST BOTH CARRIED WAS MINE, NOT THE PATENT'S, AND IT IS WRONG.
+# It was inferred from the claim WINDOWS -- IIEgr >= 0.15 against IIErg >= 0.0
+# -- by taking each bound at its worst case. Reading the patent's own TABLE 3,
+# now transcribed in `_US6746834_IIE_TABLE`, gives the ratio it actually
+# measured on the three coatings it calls inventions:
+#
+#     sample 106 (Inv.)   IIEgr 0.17 / IIErg 0.10  =  1.7 : 1
+#     sample 107 (Inv.)   IIEgr 0.17 / IIErg 0.10  =  1.7 : 1
+#     sample 108 (Inv.)   IIEgr 0.25 / IIErg 0.10  =  2.5 : 1
+#
+# So the measured target is 1.7-2.5 : 1, not 4 : 1. This matters because it
+# is the retune's magnitude: a pass built to reach 4:1 would overshoot the
+# only published measurement by about double.
+#
+# ⚠ AND THE PATENT DOES NOT SATISFY ITS OWN PREFERRED BLUE WINDOW EITHER.
+# Sample 106 is marked "Inv." with IIEbg 0.02 against IIEgb 0.10 -- the
+# reverse of the IIEbg > IIEgb rule stated at line 253 of the source, and far
+# under the "2.0 >= IIEbg >= 0.2" preference. Only sample 108 satisfies both
+# axes at once. The claim windows and the exemplified coatings are therefore
+# two different things, which is the general reason a claim bound is weak
+# evidence for a physical target and a table is strong evidence.
+#
+# Both fields INERT and unpopulated. Every render bit-identical to a v30 one;
+# neither is emitted into any C++ struct, by the v23 precedent.
+#
+# v32 (2026-09-11): ONE FIELD, AND THE FIRST BATCH IN THREE VERSIONS THAT
+# ACTUALLY PUTS NUMBERS IN RECORDS.
+#
+#   FilmProfile.gost_speed_edition -- which edition of ГОСТ 9160 a Soviet
+#       stock's own ТУ sheet names.
+#
+# ⚠ THE FIELD EXISTS SO THAT v31's FIELD COULD BE POPULATED HONESTLY. v31
+# added `gost_speed_class` and left it empty on all 184 stocks. Filling it
+# this version turned up the reason it could not simply be filled: seven of
+# the Soviet stocks cite "ГОСТ 9160-*82*", from ТУ sheets registered 1987-90,
+# and the five class criteria this project has read are from the *91* edition
+# that took force 01.01.93. Tagging a 1982 rating with a 1991 class and
+# saying nothing would have been a quiet falsehood, so the edition is now
+# recorded beside the class and the 1982 criteria are an open question
+# (queue P38) rather than an assumption.
+#
+# POPULATED THIS VERSION: `gost_speed_class` on 13 of the 18 Soviet stocks,
+# `gost_speed_edition` on the 7 that name one. Five stocks are REFUSED with
+# reasons, in `_GOST_CLASS_WITHHELD`, and `validate` enforces the refusal.
+#
+# ⚠ ALSO ADDED: the MEASURED REFERENCE DATA section near the top of this
+# module -- ГОСТ 9160-91's mask-filter, UV/IR-filter and lens curves, its
+# mean-gradient and rounding rules, US 6,746,834's eleven-sample directional
+# interimage table, US 5,262,287's seventeen-sample dlogE table,
+# US 3,672,898's spectral envelope, US 4,248,962's MTF overshoot, and the
+# Fujicolor Crystal Archive reflection Dmax aims. Every figure is
+# transcribed from a source line quoted at the table; unreadable cells are
+# absent rather than filled.
+#
+# ⚠ STILL NO RENDERED PIXEL MOVES AT v32. `gost_speed_class` and
+# `gost_speed_edition` rescale no stored speed, and the reference tables are
+# read by guards and derivations, not by either renderer. Neither field is
+# emitted into C++, by the v23 precedent.
+# v33 (2026-09-11): NO NEW FIELD. EP 0 083 377 A1 (Konishiroku) harvested into
+# the MEASURED REFERENCE DATA section -- TABLE 1's fifteen emulsions,
+# TABLE 3's eight-specimen latitude set, TABLE 6's development-time response,
+# and the construction rules -- plus one new `gamma_criterion` value,
+# "chord_fog_0.30_1.80".
+#
+# ⚠ THE VERSION MOVES WITHOUT A FIELD BECAUSE THE ENGINES MOVED. v33 is the
+# first version in this project's history whose changes are on the RENDER
+# path rather than in the record shape:
+#
+#   * AVX2 stage 14 was evaluating 10^-d with the raw Schraudolph bit-hack,
+#     wrong by up to 2.98 % -- 5.57 code values, with the white point landing
+#     at 0.9782 instead of 1.0. Replaced with an accurate degree-5 exp2,
+#     measured at 0.000326 %. That was a MODEL difference masquerading as a
+#     precision difference, and it moved where highlights clip.
+#   * `GrainSpec.anisotropy` was read by the Python reference and by NEITHER
+#     C++ engine. Both are now wired, and the reference was found to be
+#     leaking the same stretch into halation, both MTF stages, veiling flare,
+#     the DIR coupler blur and the reseau -- six stages that are not grain.
+#   * Stage 17 mapped a NaN to WHITE in the vector build and passed it through
+#     in the scalar one. Both now map it to zero.
+#
+# Every one of those changes moves rendered pixels, so a v33 render is NOT
+# bit-identical to a v32 one. That is the point of the version bump; the
+# record layout is unchanged and every stored value is untouched.
+SCHEMA_VERSION = 33
 
 
 # ---------------------------------------------------------------------------
@@ -5313,6 +6125,52 @@ class FilmProfile:
     #: Curve-abscissa position of metered mid-grey (v1 convention: 0.0).
     speed_point_x: float = 0.0
     speed_criterion: str = "manufacturer_ei"
+    # -- schema v31 (2026-09-11): WHICH ГОСТ ROW, NOT WHICH ГОСТ REVISION ----
+    # ⚠ THE FIELD THE PLAN ASKED FOR WAS THE WRONG SHAPE, and reading the
+    # standard is what showed it. §F-33 of the 2026-09-10 harvest plan
+    # proposed `gost_speed_criterion_revision`, on the assumption that the
+    # project's open conflict I-24 was between two EDITIONS of the standard.
+    # It is not. ГОСТ 9160-91 §5.2.4 tabulates five criteria keyed to the
+    # MATERIAL CLASS, and the two values that looked like a conflict --
+    # fog+0.2 and fog+0.85 -- are two rows of that one table. So the
+    # discriminator is the class, not the year, and a revision field would
+    # have recorded the wrong thing forever.
+    #
+    # See `_GOST_SPEED_CLASSES` for the five rows and their D_kr / K pairs.
+    # "" = not a ГОСТ-rated stock, which is every non-Soviet profile.
+    #
+    # ⚠ SETTING THIS DOES NOT RESCALE ANY STORED SPEED. `exposure_index` on
+    # the Soviet stocks was entered from their own ТУ sheets and stays as it
+    # is; this field records WHICH CRITERION those numbers were assigned
+    # under, so that a later conversion is possible and a wrong one is
+    # catchable. The conversion is mostly a no-op in any case: a
+    # general-purpose Soviet colour negative still speed is arithmetically
+    # identical to ISO 5800, and reversal to ISO 2240.
+    gost_speed_class: str = ""
+    # -- schema v32 (2026-09-11) --------------------------------------------
+    #: WHICH EDITION of ГОСТ 9160 the stock's own specification names, e.g.
+    #: "9160-82". Empty when the source rates the film without naming an
+    #: edition.
+    #:
+    #: ⚠ THIS FIELD EXISTS BECAUSE POPULATING `gost_speed_class` WITHOUT IT
+    #: WOULD HAVE BEEN A QUIET FALSEHOOD. That field's own note describes the
+    #: five criteria of ГОСТ 9160-*91*. But the Soviet stocks in this file do
+    #: not cite the 1991 edition: SVEMA LN-8, LN-9, LN-9S, DS-5M, CNL-32,
+    #: CO-32D and CO-90L each cite "ГОСТ 9160-82", from ТУ sheets registered
+    #: 1987-1990 -- all of them BEFORE the 1991 edition existed, which came
+    #: into force 01.01.93. Tagging those records with a 1991 class and
+    #: saying nothing would assert that the 1991 table governed a rating
+    #: made under the 1982 one.
+    #:
+    #: ⚠ AND THE HONEST POSITION IS THAT THE CLASS IS CERTAIN WHILE THE
+    #: CRITERION IS NOT. What each stock IS -- a cine negative, a still
+    #: negative, a reversal, a positive -- is stated in its own primary
+    #: source and does not depend on any edition. What the 1982 edition's
+    #: D_kr and K were for each class is UNKNOWN: only the 1991 text has been
+    #: read. So `gost_speed_class` records the material class, this field
+    #: records which book was open, and NOTHING here converts a speed.
+    #: Resolving the 1982 numbers needs ГОСТ 9160-82 itself; queue P38.
+    gost_speed_edition: str = ""
     mask_encoding: str = "none"
     callier_q: float = 1.0
     # -- schema v29 (2026-09-10): WHICH GAMMA, AND MEASURED HOW -------------
@@ -5508,6 +6366,54 @@ class FilmProfile:
             raise ValueError(
                 f"{self.name}: density_geometry {self.density_geometry!r} "
                 f"not one of {sorted(_DENSITY_GEOMETRIES)}")
+        # -- schema v31 ------------------------------------------------------
+        if self.gost_speed_class and self.gost_speed_class not in _GOST_SPEED_CLASSES:
+            raise ValueError(
+                f"{self.name}: gost_speed_class {self.gost_speed_class!r} "
+                f"not one of {sorted(_GOST_SPEED_CLASSES)}")
+        if self.gost_speed_class == "aerial_negative":
+            raise ValueError(
+                f"{self.name}: gost_speed_class 'aerial_negative' carries "
+                "ГОСТ 9160-91's D_kr = 0.85 with K = 20, which is the AERIAL "
+                "row of §5.1 and not a general criterion. RU 2172512 C1 is a "
+                "spectrozonal aerial material and that is why its table head "
+                "reads S(0.85); propagating it to an ordinary Soviet stock "
+                "was conflict I-24's original mistake. If this really is an "
+                "aerial film, the field needs its guard relaxed together "
+                "with a note naming the film")
+        # -- schema v32 (2026-09-11) ----------------------------------------
+        # ⚠ AN EDITION WITHOUT A CLASS IS MEANINGLESS AND IS REFUSED. The
+        # edition names which book was open; with no class recorded there is
+        # nothing for it to qualify, so a lone edition string is a
+        # half-finished record rather than a fact.
+        if self.gost_speed_edition and not self.gost_speed_class:
+            raise ValueError(
+                f"{self.name}: gost_speed_edition "
+                f"{self.gost_speed_edition!r} is set but gost_speed_class is "
+                "empty. The edition qualifies the class; on its own it "
+                "records nothing")
+        if (self.gost_speed_edition
+                and self.gost_speed_edition not in _GOST_EDITIONS):
+            raise ValueError(
+                f"{self.name}: gost_speed_edition "
+                f"{self.gost_speed_edition!r} not one of "
+                f"{sorted(_GOST_EDITIONS)}. Only editions whose text has "
+                "actually been read, or which a stored ТУ sheet names, may "
+                "be recorded -- an edition string nobody has seen is a "
+                "citation to a document that may not say what is assumed")
+        # ⚠ A STOCK ON THE WITHHELD LIST MUST STAY WITHHELD. Each of the four
+        # entries in `_GOST_CLASS_WITHHELD` was refused for a stated reason
+        # that no later harvest removes by itself: two are rated on the NIKFI
+        # scale and two are merged cine/still designations. Setting a class
+        # on one without first fixing that reason re-introduces exactly the
+        # invented provenance the refusal exists to prevent.
+        if self.gost_speed_class and self.name in _GOST_CLASS_WITHHELD:
+            raise ValueError(
+                f"{self.name}: gost_speed_class is set, but this stock is on "
+                f"the withheld list -- {_GOST_CLASS_WITHHELD[self.name]}. "
+                "Resolve that first (queue P39 for the NIKFI scale, P40 for "
+                "the merged designations) and remove the entry from "
+                "`_GOST_CLASS_WITHHELD` in the same change")
         if self.density_geometry == "specular" and self.callier_q > 1.0:
             raise ValueError(
                 f"{self.name}: density_geometry is 'specular' and "
@@ -5611,6 +6517,29 @@ class PrintStock:
     log_e_per_point: float = 0.025
     #: Densitometry of the curve data. Print stocks are read in Status A.
     density_metric: str = "status_a"
+    # -- schema v31 (2026-09-11): TRANSMISSION OR REFLECTION -----------------
+    # ⚠ ALL ELEVEN "PRINT STOCKS" IN THIS DATABASE ARE MOTION-PICTURE PRINT
+    # FILM, WHICH IS TRANSMISSION, AND NOTHING SAID SO. That was harmless
+    # while the population was uniform. It stops being harmless the moment a
+    # colour PAPER is added, because a paper's Dmax is a REFLECTION density
+    # of about 2.0-2.2 while a print film's is a TRANSMISSION density of
+    # about 4, and the two numbers are not on the same scale at all. Compared
+    # without this field, a paper would look like a catastrophically weak
+    # print film.
+    #
+    # The gap was found on 2026-09-11 reading three Fujicolor Crystal Archive
+    # bulletins, which give per-channel reflection Dmax aims of 2.00/2.00/1.95
+    # (Type CA and Supreme) and 2.12/2.18/2.05 (Type II). ⚠ NO PAPER PROFILE
+    # WAS CREATED FROM THEM -- those bulletins are printer-setup documents and
+    # carry no characteristic curve of any kind, so there is no tone curve to
+    # build one on. The field is added ahead of the data, for the same reason
+    # `InterimageSpec.gamma_ratio_criterion` was at v30: it costs nothing now
+    # and it is the difference between a future paper record being readable
+    # and being silently wrong.
+    #
+    # One of `_DENSITY_GEOMETRIES`. Default "diffuse" is the transmission
+    # case and is what all eleven existing stocks are.
+    density_geometry: str = "diffuse"
     # -- schema v7 (2026-08-17), INERT ---------------------------------------
     #: Spectral dye density of the print dyes. Added when the 2383 extraction
     #: produced validated curves and there was nowhere to put them: PrintStock
@@ -5707,6 +6636,20 @@ class PrintStock:
 
     def validate(self) -> None:
         self.spectral.validate(self.name)
+        # -- schema v31 ------------------------------------------------------
+        if self.density_geometry not in _DENSITY_GEOMETRIES:
+            raise ValueError(
+                f"{self.name}: density_geometry {self.density_geometry!r} "
+                f"not one of {sorted(_DENSITY_GEOMETRIES)}")
+        if self.density_geometry == "reflection" and self.curves.r.dmax > 3.0:
+            raise ValueError(
+                f"{self.name}: density_geometry is 'reflection' but the red "
+                f"curve reaches dmax {self.curves.r.dmax:.2f}. A reflection "
+                "print cannot exceed about 2.5 D -- the measured aims on the "
+                "Fujicolor Crystal Archive papers are 1.95-2.18. A value "
+                "above 3 means a TRANSMISSION curve has been stored on a "
+                "record declared reflection, which is the exact confusion "
+                "this field was added to prevent")
         _pdm = self.printing_density_matrix
         if _pdm != IDENTITY3:
             if not self.printing_matrix_source:
@@ -16148,6 +17091,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="TASMA_FN_64",
+        gost_speed_class="neg_cine",
         aliases=("tasma", "fn64t", "tasma fn64", "tasma fn 64",
                  "fn65", "fn-65", "tasma fn65", "tasma fn 65"),
         description=(
@@ -18731,6 +19675,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     # -----------------------------------------------------------------------
     FilmProfile(
         name="SVEMA_FOTO_32",
+        gost_speed_class="neg_still",
         aliases=("foto32", "foto-32", "foto 32", "svema foto 32",
                  "svema foto-32"),
         description=(
@@ -18814,6 +19759,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_FOTO_130",
+        gost_speed_class="neg_still",
         aliases=("foto130", "foto-130", "foto 130", "svema foto 130",
                  "svema foto-130"),
         description=(
@@ -18877,6 +19823,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_DS_4",
+        gost_speed_class="neg_still",
         aliases=("ds4", "ds-4", "ds 4", "svema ds4", "svema ds 4",
                  "svema ds-4"),
         description=(
@@ -18947,6 +19894,8 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_CNL_32",
+        gost_speed_class="neg_still",
+        gost_speed_edition="9160-82",
         aliases=("tsnl32", "tsnl-32", "tsnl 32", "cnl-32", "cnl 32",
                  "svema tsnl 32", "svema tsnl-32"),
         description=(
@@ -19003,6 +19952,8 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_DS_5M",
+        gost_speed_class="neg_cine",
+        gost_speed_edition="9160-82",
         aliases=("ds-5m", "ds5m", "ds 5m", "svema ds-5m", "tasma ds-5m",
                  "ds-5", "ds5"),
         description=(
@@ -19142,6 +20093,8 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_LN_8",
+        gost_speed_class="neg_cine",
+        gost_speed_edition="9160-82",
         aliases=("ln-8", "ln8", "ln 8", "svema ln-8", "tasma ln-8"),
         description=(
             "[T1-limits] Soviet MASKED colour negative CINE film for professional "
@@ -19234,6 +20187,8 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_LN_9",
+        gost_speed_class="neg_cine",
+        gost_speed_edition="9160-82",
         aliases=("ln-9", "ln9", "ln 9", "svema ln-9", "tasma ln-9"),
         description=(
             "[T1-limits] Soviet MASKED colour negative CINE film, professional, "
@@ -19309,6 +20264,8 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_LN_9S",
+        gost_speed_class="neg_cine",
+        gost_speed_edition="9160-82",
         aliases=("ln-9s", "ln9s", "ln 9s", "svema ln-9s", "tasma ln-9s"),
         description=(
             "[T1-limits] The LN-9 emulsion on a different antihalation "
@@ -19383,6 +20340,8 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_CO_32D",
+        gost_speed_class="reversal",
+        gost_speed_edition="9160-82",
         aliases=("co-32d", "co32d", "tso-32d", "tso32d", "ЦО-32Д",
                  "svema co-32d", "tasma co-32d"),
         description=(
@@ -19482,6 +20441,8 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     # stock. It is entered, and the phantom is recorded so it cannot come back.
     FilmProfile(
         name="SVEMA_CO_90L",
+        gost_speed_class="reversal",
+        gost_speed_edition="9160-82",
         aliases=("co-90l", "co90l", "tso-90l", "tso90l", "ЦО-90Л",
                  "svema co-90l", "tasma co-90l", "co-90"),
         description=(
@@ -19555,6 +20516,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_CNL_65",
+        gost_speed_class="neg_still",
         aliases=("tsnl65", "tsnl-65", "tsnl 65", "cnl-65", "cnl 65",
                  "svema tsnl 65", "svema tsnl-65"),
         description=(
@@ -19597,6 +20559,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="TASMA_OCH_45",
+        gost_speed_class="reversal",
         aliases=("och45", "och-45", "och 45", "tasma och45",
                  "tasma och 45", "tasma och-45", "oc-45", "obrashchaemaya",
                  # OCH-50 aliases -- the SAME FILM under its post-1987

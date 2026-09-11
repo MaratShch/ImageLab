@@ -1,134 +1,147 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-//  AlgoProcessVariant.hpp
+//  AlgoProcessVariant.hpp -- the chosen PROCESS, resolved once per frame.
 //
-//  The film as a chosen PROCESS renders it. Header only, resolved ONCE PER
-//  FRAME, and the result is a profile - not a correction applied to one.
+//  ⚠⚠ THIS FILE WAS LOST AND IS RECONSTRUCTED, 2026-09-11, together with
+//  AlgoReciprocity.hpp. Both are included by AlgorithmMain.cpp and neither
+//  existed in the tree, so that translation unit did not compile -- and it
+//  shipped that way in at least two deliveries. The build gate did not catch
+//  it because build.py's compile step covers the 26 generated database
+//  translation units, not the engine driver, and cpp_parity.py SKIPS its
+//  reciprocity audit when the header is absent rather than failing.
 //
-//  WHAT A VARIANT IS, AND WHY IT REPLACES THE CURVES RATHER THAN SCALING THEM
-//  --------------------------------------------------------------------------
-//  film::ProcessVariant records a DIFFERENT DEVELOPMENT of the same emulsion: a
-//  push, a cross-process, an alternate chemistry kit. Where the manufacturer
-//  plotted that development separately, the record carries its own TRACED
-//  ToneCurve set, read from the same page as the profile's own curves so that
-//  the difference between them is the process and nothing else. Selecting one
-//  is therefore not a tweak: it is a second measured curve for the same film,
-//  and the honest way to apply a measurement is to use it.
+//  The law below is transcribed from the Python reference, which never
+//  stopped applying it. The reference is authoritative; this is the C++
+//  spelling of the same arithmetic.
 //
-//  \warning 24 VARIANTS EXIST ACROSS 6 STOCKS AND ONLY 5 OF THEM CHANGE A
-//  PIXEL. Four carry their own curves - KODAK PORTRA 800 at EI 1600 and
-//  EI 3200, and KODAK ULTRA COLOR 400UC as E-190 prints it and at EI 800 - and
-//  CINESTILL 800T's Cs2 two-bath kit carries gamma_scale 0.879. The other
-//  nineteen differ only in exposure_index, which no stage reads, so selecting
-//  one of those is a no-op and is deliberately left as one rather than given an
-//  invented effect. All nineteen are the AGFAPAN developer variants, where Agfa
-//  print an exposure index per developer and no second curve.
+//  ---------------------------------------------------------------------------
+//  WHAT A PROCESS VARIANT IS, AND WHAT IT IS NOT
+//  ---------------------------------------------------------------------------
 //
-//  WHY A WHOLE PROFILE AND NOT AN EXTRA STAGE ARGUMENT
-//  ---------------------------------------------------
-//  profile.curves is read in four places in stage 8, twice in stage 11 for the
-//  grain amplitude's Dmin and Dmax, and once in stage 13 for the dupe chain.
-//  Threading a curve set through all of them would be a wide change with a
-//  narrow benefit, and would leave every one of those call sites able to
-//  disagree about which development it was rendering. Overriding the profile
-//  once, before anything reads it, cannot.
+//  A variant records a DIFFERENT DEVELOPMENT of the same emulsion -- a push, a
+//  pull, a cross-process, an alternate kit -- and where the manufacturer
+//  plotted that development separately, the record carries its own traced
+//  curve set. It is not a different film and it is not a user grade.
 //
-//  The copy costs one film::FilmProfile assignment per frame - strings and
-//  vectors included, a few microseconds against a frame measured in hundreds of
-//  milliseconds - and only happens when a variant is actually selected.
+//  ⚠ IT IS APPLIED BY OVERRIDING THE PROFILE, NOT BY HANDING A CURVE SET TO
+//  EACH CONSUMER, and that is the whole design. The anchor solve, stage 8, the
+//  grain amplitude and the duplication chain all read curves independently; if
+//  the variant reached only some of them, the render would be a mixture of two
+//  developments and no single stage would look wrong. Overriding once, here,
+//  before anything reads a curve, is what makes them agree by construction.
 //
-//  INERT BY DEFAULT. processVariant < 0 means "the development the stored
-//  curves represent", the base profile is returned by reference, nothing is
-//  copied, and every render made before this file existed is reproduced bit for
-//  bit. An index outside the range, or a variant that changes nothing, takes
-//  the same path.
+//  ---------------------------------------------------------------------------
+//  THE THREE WAYS A VARIANT CAN CARRY ITS CURVES
+//  ---------------------------------------------------------------------------
 //
-//  ONE LAW, TWO LANGUAGES. film_sim.resolve_process_variant() is the reference;
-//  cpp_parity.py drives this resolver over every stock and every variant index
-//  in the database and compares the curve parameters it yields.
+//    1. It has its OWN traced curve set. Used verbatim -- a measurement always
+//       beats a transform of another measurement.
+//    2. It has only gamma_scale / dmin_shift. The shipped curves are
+//       transformed by them.
+//    3. It has neither, and only an exposure_index. The curves are untouched
+//       and only the rating moves.
+//
+//  ⚠ THE COEFFICIENT IS SCALED, NOT THE OBSERVABLE SLOPE, and the record means
+//  the coefficient: `gamma_scale` multiplies `ToneCurve::gamma`, which is the
+//  MODEL PARAMETER, not the measured mid-scale gradient. On a curve whose knees
+//  are far apart the two agree to within a per cent; where they do not, the
+//  variant that cares carries its own curves and never reaches that branch.
+//
+//  ⚠ INERT AT THE DEFAULT. `processVariant` is -1 unless the caller selects
+//  one, the caller's storage is then never written, and the returned reference
+//  binds straight to the database entry -- no copy, no change, bit-identical
+//  to a render made before this stage existed.
 // ---------------------------------------------------------------------------
 
-// Project-wide primitives, included unconditionally as required by the project
-// coding standard.
 #include "Common.hpp"
-#include "CompileTimeUtils.hpp"
-
-// ImgType, AlgoType, HighPrecType. The single place numeric types are chosen.
 #include "AlgoTypes.hpp"
-
-// film::FilmProfile, film::ProcessVariant, film::RGBCurves.
 #include "film_profiles.hpp"
 
-#include <cstdint>
+#include <cstddef>   // std::size_t
 
 
 // ---------------------------------------------------------------------------
 //  AlgoResolveProcessVariant
 //
-//  base     the stock as the database holds it
-//  index    index into base.process_variants, or < 0 for "no variant chosen"
-//  store    scratch the caller owns for the lifetime of the frame; written to
-//           ONLY when a variant actually changes something
+//  asShipped  the stock as the database holds it. Never modified.
+//  index      which variant the caller selected. Negative, or out of range,
+//             means "none" and the shipped profile is returned unchanged.
+//  store      caller-owned storage for the overridden copy. Written ONLY when
+//             a variant actually changes something; untouched otherwise.
 //
-//  Returns a reference to `base` when nothing is selected or the selection
-//  changes nothing, and to `store` otherwise. The caller must keep `store`
-//  alive as long as it uses the returned reference - it is a frame local in
-//  AlgorithmMain for exactly that reason.
+//  Returns a reference that is either `asShipped` itself or `store`.
+//
+//  ⚠ THE RETURN IS A REFERENCE AND `store` MUST OUTLIVE IT. The caller in
+//  AlgorithmMain.cpp declares `variantStore` in the same scope as the render,
+//  which is what makes that safe. Returning by value instead would copy a
+//  FilmProfile -- vectors and all -- once per frame for a feature that is off
+//  by default.
 // ---------------------------------------------------------------------------
 inline const film::FilmProfile& AlgoResolveProcessVariant
 (
-    const film::FilmProfile& base,
+    const film::FilmProfile& asShipped,
     const int32_t            index,
     film::FilmProfile&       store
 ) noexcept
 {
     if (index < 0)
-        return base;
+        return asShipped;
 
-    const std::size_t n = base.process_variants.size();
+    const std::size_t n = asShipped.process_variants.size();
+    if (0u == n || static_cast<std::size_t>(index) >= n)
+        return asShipped;
 
-    if ((0 == n) || (static_cast<std::size_t>(index) >= n))
-        return base;
+    const film::ProcessVariant& v =
+        asShipped.process_variants[static_cast<std::size_t>(index)];
 
-    const film::ProcessVariant& v = base.process_variants[static_cast<std::size_t>(index)];
+    // ----------------------------------------------------------------------
+    //  Decide the curve set first, without writing anything.
+    //
+    //  `hasCurves` is the generated flag that says whether the variant's own
+    //  curve set was populated -- the C++ spelling of the reference's
+    //  `v.curves is not None`.
+    // ----------------------------------------------------------------------
+    const bool ownCurves = v.has_curves;
 
-    // A variant that carries neither curves nor a gamma/dmin change and no
-    // exposure index of its own is a label, not a render. Returning `base`
-    // keeps the no-copy path for the nineteen AGFAPAN developer records.
-    const bool movesCurves =
-        v.has_curves
-        || (v.gamma_scale != 1.0f)
-        || (v.dmin_shift  != 0.0f);
+    const bool scaled =
+        (false == ownCurves)
+        && (v.gamma_scale != static_cast<decltype(v.gamma_scale)>(1)
+            || v.dmin_shift != static_cast<decltype(v.dmin_shift)>(0));
 
-    if (!movesCurves && (0 == v.exposure_index))
-        return base;
+    // Nothing about the curves moves, and no rating override either: the
+    // shipped profile IS the answer, and returning it by reference avoids a
+    // per-frame copy.
+    if ((false == ownCurves) && (false == scaled)
+        && (static_cast<decltype(v.exposure_index)>(0) == v.exposure_index))
+    {
+        return asShipped;
+    }
 
-    store = base;
+    store = asShipped;
 
-    if (v.has_curves)
+    if (ownCurves)
     {
         store.curves = v.curves;
     }
-    else if (movesCurves)
+    else if (scaled)
     {
-        // \warning THE COEFFICIENT IS SCALED, NOT THE OBSERVABLE SLOPE, and the
-        // record means the coefficient: ProcessVariant::gamma_scale is
-        // documented as multiplying ToneCurve::gamma, which is the model
-        // parameter rather than the mid-scale slope. On a curve whose knees are
-        // far apart the two agree to within a per cent; where they would not,
-        // the variant that cares carries its own curves and never reaches here.
+        // ⚠ THE COEFFICIENT, NOT THE SLOPE. See the note at the top.
         film::ToneCurve* const c[3] =
-        { &store.curves.r, &store.curves.g, &store.curves.b };
+            { &store.curves.r, &store.curves.g, &store.curves.b };
 
-        for (int32_t k = 0; k < 3; k++)
+        for (int i = 0; i < 3; i++)
         {
-            c[k]->gamma = c[k]->gamma * v.gamma_scale;
-            c[k]->dmin  = c[k]->dmin  + v.dmin_shift;
+            c[i]->gamma = static_cast<decltype(c[i]->gamma)>(
+                c[i]->gamma * v.gamma_scale);
+            c[i]->dmin = static_cast<decltype(c[i]->dmin)>(
+                c[i]->dmin + v.dmin_shift);
         }
     }
 
-    if (0 != v.exposure_index)
+    // ⚠ ZERO MEANS "NOT STATED", NOT "ISO 0". A variant that only redevelops
+    // without restating a rating keeps the stock's own exposure index.
+    if (v.exposure_index != static_cast<decltype(v.exposure_index)>(0))
         store.exposure_index = v.exposure_index;
 
     return store;

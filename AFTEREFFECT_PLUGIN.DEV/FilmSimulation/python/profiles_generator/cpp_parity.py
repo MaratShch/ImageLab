@@ -1608,11 +1608,43 @@ def main() -> int:
     # The reciprocity law, third family. Compiled against the PLUGIN'S OWN
     # AlgoReciprocity.hpp rather than generated code -- the law lives in the
     # renderer, not in the table, so this is the only place the two definitions
-    # meet. SKIPS rather than fails when the plugin tree is not on disk, the same
-    # policy interimage_parity.py uses.
+    # meet.
+    #
+    # ⚠⚠ THIS USED TO SKIP WHENEVER THE HEADER WAS ABSENT, AND THAT SKIP HID
+    # THE HEADER'S DISAPPEARANCE FOR AT LEAST TWO DELIVERIES. The policy was
+    # borrowed from interimage_parity.py, where it is right: that audit needs a
+    # whole plugin tree that may legitimately not be checked out. Here it was
+    # wrong, and the difference is that AlgoReciprocity.hpp is not an optional
+    # neighbouring tree -- it is a FILE THIS PROJECT OWNS, named in
+    # AlgorithmMain.cpp's include list and called before stage 8. Its absence
+    # does not mean "nothing to compare against"; it means the engine does not
+    # compile.
+    #
+    # What made it invisible: one `[SKIP]` line in a long green build log reads
+    # exactly like a pass to anyone not hunting for it, and nothing else in the
+    # gate compiles AlgorithmMain.cpp -- build.py's compile step covers the 26
+    # generated database translation units only. So the guard that existed to
+    # protect this law is the reason its loss went unnoticed, and the owner
+    # found it in Visual Studio instead of here.
+    #
+    # ⚠ THE DISTINCTION THAT MATTERS: skip when a PREREQUISITE is absent, fail
+    # when the SUBJECT is absent. `--root` pointing somewhere with no engine is
+    # a prerequisite problem; an engine on disk missing one of its own headers
+    # is a defect.
     root = Path(ns.root).resolve()
-    if not (root / "AlgoReciprocity.hpp").is_file():
-        print(f"  [SKIP] reciprocity: AlgoReciprocity.hpp not present under {root}")
+    _recip_hdr = root / "AlgoReciprocity.hpp"
+    _engine_present = (root / "AlgorithmMain.cpp").is_file()
+    if not _recip_hdr.is_file():
+        if _engine_present:
+            print("[FAIL] reciprocity: AlgorithmMain.cpp is present under "
+                  f"{root} but AlgoReciprocity.hpp is NOT. That is not a "
+                  "missing prerequisite, it is a missing source file -- the "
+                  "driver includes it and calls AlgoReciprocityLogShift, so "
+                  "the engine cannot compile. This check used to SKIP here, "
+                  "which is how the file stayed lost across two deliveries.")
+            bad += 1
+        else:
+            print(f"  [SKIP] reciprocity: no engine tree under {root}")
     else:
         rrows = recip_probe_table()
         with tempfile.TemporaryDirectory() as td:

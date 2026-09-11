@@ -6,8 +6,10 @@
 //
 //  VECTORISED: density to transmittance, which is 10^-d per sample per channel and the
 //  second-largest exponential population in the engine after stage 8. Evaluated as
-//  Exp(-d * ln10) because there is no vector pow - which is what a scalar pow(10, x)
-//  does internally anyway.
+//  Exp2Accurate(-d * log2 10) because there is no vector pow - which is the same base
+//  change the scalar twin makes with std::exp2. ⚠ It called the Schraudolph Exp() until
+//  2026-09-11; that was a 2.98 % model error, not a rounding one. See the note at the
+//  call site.
 //
 //  ALIGNMENT: EVERY IMAGE ACCESS IS UNALIGNED, DELIBERATELY.
 //
@@ -56,6 +58,68 @@ namespace
     //  row padding untouched, which keeps the NaN-poison arena test meaningful.
     // ----------------------------------------------------------------------
     constexpr int32_t ALGO_AVX2_LANES_LOCAL = 8;
+
+    // ----------------------------------------------------------------------
+    //  algoExp2AccurateV: 2^x to float precision.
+    //
+    //  ⚠ IT LIVES HERE, IN THIS TRANSLATION UNIT, AND THAT PLACEMENT IS THE
+    //  FIX FOR A REAL INTEGRATION FAILURE. It was first written into
+    //  FastAriphmeticsAVX.hpp, which was the obvious home -- that is where the
+    //  other vector transcendentals are. But that header is a COMMON
+    //  component: in the owner's tree it lives in CPP\Common\include and is
+    //  shared by every project, while this file ships in the AVX2 algorithm
+    //  archive. The two archives are deliberately separate, so the updated
+    //  Common header never reached the build, the stale copy on the include
+    //  path won, and the compiler reported
+    //
+    //      error C2039: 'Exp2Accurate': is not a member of 'FastCompute::AVX2'
+    //
+    //  A stage may not depend on a change to a component it does not ship
+    //  with. One consumer, one translation unit, no cross-archive coupling.
+    //
+    //  ⚠ AND IT EXISTS AT ALL BECAUSE FastCompute::AVX2::Exp IS NOT ACCURATE
+    //  ENOUGH FOR THIS STAGE. That function is the raw Schraudolph bit-hack:
+    //  one FMA and a reinterpret, no polynomial refinement. Measured against
+    //  exact 10^-d over D = 0..4 it is wrong by up to 2.98 % relative -- 5.57
+    //  code values of 8-bit output -- and it returns 0.978161 at D = 0, so the
+    //  vector build rendered its WHITE POINT 2.2 % low. That is three orders of
+    //  magnitude past float rounding: a MODEL difference, not a precision one,
+    //  and the scalar/AVX2 split is only ever allowed to be the latter.
+    //
+    //  METHOD. Split x into a whole part n and a fraction f in [-0.5, 0.5]:
+    //  2^x = 2^n * 2^f. The 2^n factor is EXACT -- it is built by placing
+    //  n + 127 directly in the exponent field. 2^f is a degree-5 minimax
+    //  polynomial in f, which is what carries the accuracy. Measured 0.000326 %
+    //  worst relative error over the same domain, and exactly 1.0 at D = 0.
+    // ----------------------------------------------------------------------
+    inline __m256 algoExp2AccurateV (__m256 x) noexcept
+    {
+        // 2^-126 .. 2^127 is the normal-float range; clamping inside it stops
+        // the exponent assembly below from overflowing into a NaN.
+        x = _mm256_max_ps(x, _mm256_set1_ps(-126.0f));
+        x = _mm256_min_ps(x, _mm256_set1_ps( 127.0f));
+
+        // n = round-to-nearest(x), f = x - n in [-0.5, 0.5].
+        const __m256 n = _mm256_round_ps(
+            x, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+        const __m256 f = _mm256_sub_ps(x, n);
+
+        // 2^f, degree-5 minimax on [-0.5, 0.5], Horner order.
+        __m256 p = _mm256_set1_ps(1.3352819600e-3f);
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(9.6178398092e-3f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(5.5503406540e-2f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(2.4022650696e-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(6.9314718056e-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(1.0f));
+
+        // 2^n by direct exponent construction: (n + 127) << 23.
+        const __m256i bias = _mm256_add_epi32(_mm256_cvtps_epi32(n),
+                                              _mm256_set1_epi32(127));
+        const __m256  pow2n = _mm256_castsi256_ps(
+            _mm256_slli_epi32(bias, 23));
+
+        return _mm256_mul_ps(p, pow2n);
+    }
 
     inline __m256i algoTailMaskLocal (const int32_t n) noexcept
     {
@@ -141,6 +205,15 @@ void AlgoStage14_Transmittance
                            ALGO_GRAIN_PRINT_CLUMP_GAIN,
                            static_cast<AlgoType>(pPrintStock->grain_rms),
                            scanSigmaPx, pxPerMm,
+                           // ⚠ ROUND GRAIN, and the STOCK is what says so.
+                           // Anisotropy is a measured property of a coated
+                           // emulsion; film::PrintStock carries no such field,
+                           // because no print stock in the database has been
+                           // measured for coating flow. Inheriting the camera
+                           // negative's figure would attribute one emulsion's
+                           // flow direction to a different emulsion coated in a
+                           // different factory.
+                           ALGO_GRAIN_ANISOTROPY_NONE,
                            eALGO_RNG_STAGE::eRNG_PRINT_GRAIN,
                            printSeed, frameIndex);
 
@@ -211,13 +284,32 @@ void AlgoStage14_Transmittance
         {
             AlgoType* RESTRICT pRow = pD + static_cast<std::ptrdiff_t>(y) * pitch;
 
-            // 10^-d as Exp(-d * ln10). There is no vector pow, and the base change is
-            // one multiply - which is what a scalar pow(10, x) does internally.
+            // 10^-d as Exp2Accurate(-d * log2(10)), which is EXACTLY the base
+            // change the scalar twin makes at Algo_14_Sim.cpp with std::exp2.
+            // There is no vector pow, and the change of base is one multiply.
             //
-            // ln(10) written to full double precision and narrowed by the compiler, so
-            // the constant is the closest float to ln(10) rather than to a decimal.
-            const __m256 vNegLn10 = _mm256_set1_ps(
-                -static_cast<float>(2.30258509299404568401799145468436421));
+            // ⚠ THIS USED TO CALL FastCompute::AVX2::Exp AND THAT WAS A DEFECT,
+            // FIXED 2026-09-11. That function is the raw Schraudolph bit-hack:
+            // one FMA and a reinterpret, no polynomial refinement. Measured
+            // against exact 10^-d over D = 0..4 it is wrong by up to 2.98 %
+            // relative -- 5.57 code values of 8-bit output -- and it returns
+            // 0.978161 at D = 0, so the vector build rendered its WHITE POINT
+            // 2.2 % low. Two things made that worse than a bare number:
+            //
+            //   * the tMin/tMax normalisation anchors a few lines above are
+            //     computed with exact std::pow, so the vector path was
+            //     internally inconsistent -- pixel and anchor disagreed;
+            //   * stage 17 clips at 1.0, so the error MOVED WHERE HIGHLIGHTS
+            //     CLIP rather than just shifting a level.
+            //
+            // A 2.98 % model error is three orders of magnitude past float
+            // rounding. The scalar/AVX2 split is a PRECISION difference by
+            // design and must never become a MODEL difference; this was one.
+            // Exp2Accurate is a degree-5 minimax with exact exponent
+            // assembly: measured 0.000326 % worst relative error over the same
+            // domain, 0.0006 code values, and exactly 1.0 at D = 0.
+            const __m256 vNegLog2_10 = _mm256_set1_ps(
+                -static_cast<float>(3.32192809488736234787031942948939018));
             const __m256 vZeroL   = _mm256_setzero_ps();
             const __m256 vTMinA   = _mm256_set1_ps(tMinA);
             const __m256 vInvSpan = _mm256_set1_ps(invSpan);
@@ -245,7 +337,7 @@ void AlgoStage14_Transmittance
                     _mm256_max_ps(_mm256_loadu_ps(pRow + xv), vZeroL), vDMaxA);
 
                 const __m256 tv =
-                    FastCompute::AVX2::Exp(_mm256_mul_ps(dv, vNegLn10));
+                    algoExp2AccurateV(_mm256_mul_ps(dv, vNegLog2_10));
 
                 // Normalised against the stock's OWN range, and deliberately NOT capped
                 // at one: the single final clamp belongs to stage 17, and print grain
@@ -261,7 +353,7 @@ void AlgoStage14_Transmittance
                     vDMaxA);
 
                 const __m256 tv =
-                    FastCompute::AVX2::Exp(_mm256_mul_ps(dv, vNegLn10));
+                    algoExp2AccurateV(_mm256_mul_ps(dv, vNegLog2_10));
 
                 _mm256_maskstore_ps(pRow + xv, mtL, _mm256_max_ps(
                     _mm256_mul_ps(_mm256_sub_ps(tv, vTMinA), vInvSpan), vZeroL));

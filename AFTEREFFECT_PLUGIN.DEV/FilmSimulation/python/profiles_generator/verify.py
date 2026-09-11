@@ -2251,7 +2251,7 @@ if _sec_on():
     # gamma is, whether a dye-impurity ratio was measured in transmission or
     # reflection. Those are ingest-side truth, and each one exists because the
     # harvest actually made that mistake before the field did.
-    chk("schema version is 30", _fpm.SCHEMA_VERSION == 30, f"v={_fpm.SCHEMA_VERSION}")
+    chk("schema version is 33", _fpm.SCHEMA_VERSION == 33, f"v={_fpm.SCHEMA_VERSION}")
 
     # ==== 2026-09-01: THE TWO CARRIERS THAT STOPPED BEING INERT =============
     # `reciprocity_table` and `process_variants` were both listed as "carried,
@@ -4341,7 +4341,7 @@ if _sec_on():
              # nothing checks. KODAK_PORTRA_400 is one of the 13 stocks queue
              # K2 populated, so it holds a real AimDensity record.
              "aim_density"))
-        and film_profiles.SCHEMA_VERSION == 30
+        and film_profiles.SCHEMA_VERSION == 33
         and all(hasattr(_ps, "spectral") for _ps in film_profiles.PRINT_STOCKS)
         # ⚠ v25, and it is the first entry in this probe that is NOT a carrier.
         # The others are here to prove an inert field is reachable; this one is
@@ -9494,7 +9494,9 @@ if _sec_on():
             "interimage_gamma_ratio_g", "interimage_gamma_ratio_b",
             "gamma_criterion", "density_geometry",
             # -- schema v30
-            "gamma_ratio_criterion")
+            "gamma_ratio_criterion",
+            # -- schema v31
+            "gost_speed_class")
         _sim_src = _inspect.getsource(_fs29)
         _leaked = [_n for _n in _v29_names if _n in _sim_src]
         chk("G-V29-INERT  no schema-v29 field is read on the render path, so "
@@ -9632,6 +9634,398 @@ if _sec_on():
                sorted(b for _, _a, b in _bal)[len(_bal) // 2],
                max((b - a for _, a, b in _bal), key=abs))
             if _bal and not _bal_bad else "offenders: %s" % (_bal_bad[:3],))
+
+        # 9. THE DIRECTIONAL INTERIMAGE ASYMMETRY (2026-09-11, schema v31).
+        #
+        # ⚠ THIS GUARD RECORDS A KNOWN DEFECT RATHER THAN ENFORCING A FIX,
+        # deliberately. US 6,746,834 tabulates four DIRECTIONAL interimage
+        # effects for eleven samples under the Hanson construction (J. Opt.
+        # Soc. Am. 42, 1952, pp.663-669: the receiver's density change at
+        # integrated density 1.5 as the causer falls from 2.0 to 1.0), and
+        # claims two asymmetries:
+        #
+        #     IIEgr > IIErg      green acting on red beats red on green
+        #     IIEbg > IIEgb      blue acting on green beats green on blue
+        #
+        # IIExy is the effect FROM x TO y, so IIEgr maps to `a_rg` here and
+        # IIErg to `a_gr`.
+        #
+        # ⚠ MAGNITUDE CORRECTED 2026-09-11. This comment previously said the
+        # patent claims "about 4:1", read off the claim windows. The patent's
+        # TABLE 3 has since been transcribed in full
+        # (`film_profiles._US6746834_IIE_TABLE`) and its three invention
+        # coatings measure IIEgr/IIErg = 0.17/0.10, 0.17/0.10 and 0.25/0.10 --
+        # 1.7:1 to 2.5:1. The 4:1 was an artifact of taking two independent
+        # claim bounds at their worst case simultaneously. The retune target
+        # is the measured range, not the inferred one.
+        #
+        # MEASURED HERE: the blue rule holds on all 106 stocks with an active
+        # stage. The red/green rule fails on 70 of 106 -- and the failure is
+        # SYMMETRY, not a sign error. The median (green->red) - (red->green)
+        # is -0.0002 across reversal stocks, so the generator produces
+        # near-identical coefficients where the measurement wants 1.7-2.5:1.
+        #
+        # ⚠ NOT FIXED IN THIS PASS. All six coefficients are estimated on all
+        # 106 stocks and retuning them moves every colour render; that needs
+        # its own pass with a deliberate decision about magnitude, not a
+        # silent edit inside a harvest. The blue rule is asserted because it
+        # already holds and must not regress; the red/green count is PINNED
+        # so any change to the generator shows up here as a number moving.
+        _iie_bg_bad, _iie_rg_bad, _iie_n = [], 0, 0
+        for _p in FILM_PROFILES:
+            _ii = _p.interimage
+            if not _ii.active:
+                continue
+            _iie_n += 1
+            if abs(_ii.a_gb) <= abs(_ii.a_bg):      # IIEbg vs IIEgb
+                _iie_bg_bad.append(_p.name)
+            if abs(_ii.a_rg) <= abs(_ii.a_gr):      # IIEgr vs IIErg
+                _iie_rg_bad += 1
+        _IIE_RG_BASELINE = 70
+        chk("G-IIE-ASYM-b  blue acting on green exceeds green acting on blue "
+            "on every stock (US 6,746,834's IIEbg > IIEgb)",
+            not _iie_bg_bad,
+            "holds on all %d stocks with an active stage" % _iie_n
+            if not _iie_bg_bad
+            else "%d violate: %s" % (len(_iie_bg_bad), _iie_bg_bad[:3]))
+        chk("G-IIE-ASYM-rg  the red/green asymmetry violation count is "
+            "UNCHANGED -- a known defect pinned, not a passing property",
+            _iie_rg_bad == _IIE_RG_BASELINE,
+            "%d of %d violate IIEgr > IIErg, baseline %d (near-symmetric "
+            "where US 6,746,834 TABLE 3 measures 1.7-2.5:1 on its three "
+            "invention coatings)"
+            % (_iie_rg_bad, _iie_n, _IIE_RG_BASELINE))
+
+        # ------------------------------------------------------------------
+        #  schema v32 -- the MEASURED REFERENCE DATA section.
+        #
+        #  ⚠ THESE GUARDS ARE WHAT STOP THE NEW TABLES BEING DECORATION. The
+        #  2026-09-10 delivery harvested 22 documents and moved no number; the
+        #  correction was to enter the values. A value entered and never read
+        #  is the same failure one step later, so every table added at v32 is
+        #  asserted here: its shape, its monotonicity where the physics
+        #  requires it, and its agreement with whatever it is meant to
+        #  constrain. A table that could not be given a guard did not belong
+        #  in the module.
+        # ------------------------------------------------------------------
+        _mask = _fpm._GOST_9160_MASK_FILTER_D
+        _mnm = [w for w, _ in _mask]
+        # The standard prints 360-800 nm inclusive on a 10 nm grid: 45 rows.
+        # Two density cells are destroyed in the scan, so 43 survive.
+        _mask_rows = len(range(360, 801, 10))
+        chk("G-V32-GOSTMASK  ГОСТ 9160-91 table 11 mask filter is 43 of the "
+            "standard's 45 rows, ascending over 370-800 nm, with only the "
+            "two unreadable cells absent",
+            _mnm == sorted(_mnm)
+            and set(_mnm).isdisjoint(_fpm._GOST_9160_MASK_GAPS)
+            and _mnm[0] == 370 and _mnm[-1] == 800
+            and len(_mask) == _mask_rows - len(_fpm._GOST_9160_MASK_GAPS),
+            "%d points, %d-%d nm, gaps at %s"
+            % (len(_mask), _mnm[0], _mnm[-1], _fpm._GOST_9160_MASK_GAPS))
+
+        # An orange mask is a yellow-through-red absorber: high in the blue,
+        # falling monotonically through the green, flat in the far red. The
+        # table must show that or it was transcribed out of order.
+        _peak_nm = max(_mask, key=lambda t: t[1])[0]
+        _tail = [d for w, d in _mask if w >= 740]
+        _mid = [(w, d) for w, d in _mask if 500 <= w <= 700]
+        chk("G-V32-GOSTMASKSHAPE  the mask curve peaks in the violet-blue, "
+            "falls monotonically across 500-700 nm and is flat in the far "
+            "red -- the shape an orange mask must have",
+            _peak_nm in (420, 430)
+            and all(b <= a for (_, a), (_, b) in zip(_mid, _mid[1:]))
+            and len(set(_tail)) == 1,
+            "peak %.2f at %d nm, 740-800 nm flat at %.2f"
+            % (max(d for _, d in _mask), _peak_nm, _tail[0]))
+
+        _uvir = dict(_fpm._GOST_9160_UVIR_FILTER_D)
+        _unm = sorted(_uvir)
+        chk("G-V32-GOSTUVIR  ГОСТ 9160-91 table 10 UV/IR filter is a "
+            "complete 10 nm grid over 380-800 nm that cuts hard at both "
+            "ends and stays transparent through the visible",
+            len(_uvir) == 43
+            and all(b - a == 10 for a, b in zip(_unm, _unm[1:]))
+            and _uvir[380] == 1.90 and _uvir[800] == 0.99
+            and max(_uvir[w] for w in range(500, 561, 10)) <= 0.12,
+            "%d points, D(380)=%.2f  D(550)=%.2f  D(800)=%.2f"
+            % (len(_uvir), _uvir[380], _uvir[550], _uvir[800]))
+
+        # ⚠ THE LENS TABLE IS HERE FOR ITS BLUE END. The two reference lenses
+        # agree closely from 460 nm up and differ by nearly 3x at 360 nm;
+        # that divergence is the reason the table is worth storing, so it is
+        # the thing asserted.
+        _lens = _fpm._GOST_9160_LENS_TAU
+        _l360 = [r for r in _lens if r[0] == 360][0]
+        _lvis = [r for r in _lens if r[0] >= 460 and r[2] is not None]
+        _worst_vis = max(abs(a - b) for _, a, b in _lvis)
+        chk("G-V32-GOSTLENS  ГОСТ 9160-91 table 9: the two reference lenses "
+            "agree within 0.06 from 460 nm up and differ by ~3x at 360 nm, "
+            "which is why a spectral sensitivity's blue end is convention-"
+            "dependent",
+            len(_lens) == 34
+            and abs(_l360[1] / _l360[2] - 2.857) < 0.01
+            # ⚠ 1e-9 SLACK, NOT A LOOSENED BOUND. The worst visible gap is
+            # exactly 0.06 as printed (0.98 against 0.94 at 680 nm); binary
+            # floats make that subtraction 0.06000000000000005, so a bare
+            # `<= 0.06` fails on representation rather than on the data.
+            and _worst_vis <= 0.06 + 1e-9,
+            "tau(360) %.2f vs %.2f = %.2fx; worst visible gap %.2f"
+            % (_l360[1], _l360[2], _l360[1] / _l360[2], _worst_vis))
+
+        chk("G-V32-GOSTGRAD  every ГОСТ 9160-91 table 4 mean-gradient row is "
+            "an accepted `gamma_criterion`, and the one reconstructed "
+            "decimal is declared as such",
+            set(_fpm._GOST_9160_GRADIENT_POINTS) <= _fpm._GAMMA_CRITERIA
+            and _fpm._GOST_9160_GRADIENT_RECONSTRUCTED
+                <= set(_fpm._GOST_9160_GRADIENT_POINTS),
+            "%d rows, %d carrying a reconstructed digit"
+            % (len(_fpm._GOST_9160_GRADIENT_POINTS),
+               len(_fpm._GOST_9160_GRADIENT_RECONSTRUCTED)))
+
+        # ⚠ THE TRANSCRIBED PATENT TABLE MUST REPRODUCE THE PROPERTY IT WAS
+        # BROUGHT IN TO SUPPLY. If US 6,746,834's own invention rows did not
+        # satisfy IIEgr > IIErg, G-IIE-ASYM-rg above would be measuring this
+        # database against a rule its source does not itself keep.
+        _t3 = _fpm._US6746834_IIE_TABLE
+        _inv = [r for r in _t3 if r[1] == "Inv."]
+        _ratios = [r[10] / r[9] for r in _inv]      # IIEgr / IIErg
+        chk("G-V32-US6746834  the transcribed TABLE 3 has 11 rows, 3 of them "
+            "inventions, and every invention row satisfies IIEgr > IIErg at "
+            "1.7-2.5:1 -- the measured target for the pending retune",
+            len(_t3) == 11 and len(_inv) == 3
+            and all(r > 1.0 for r in _ratios)
+            and 1.6 <= min(_ratios) and max(_ratios) <= 2.6,
+            "invention ratios %s" % ["%.1f" % r for r in _ratios])
+
+        # ⚠ AND THE SOURCE IS NOT SELF-CONSISTENT, WHICH IS RECORDED RATHER
+        # THAN SMOOTHED. Sample 106 is labelled an invention yet inverts the
+        # patent's own blue rule. Asserting the exception stops anyone later
+        # "correcting" the transcription to match the prose.
+        _s106 = [r for r in _t3 if r[0] == 106][0]
+        chk("G-V32-US6746834X  sample 106 is labelled Inv. but has "
+            "IIEbg < IIEgb, contradicting the patent's own stated rule -- a "
+            "transcription-fidelity check, not a defect in this database",
+            _s106[1] == "Inv." and _s106[12] < _s106[11],
+            "sample 106 IIEbg %.2f vs IIEgb %.2f" % (_s106[12], _s106[11]))
+
+        # US 5,262,287's difference columns were the arithmetic that let four
+        # scan-damaged cells be solved. The identity must still close on the
+        # stored values, or the recovery was wrong.
+        _dl = _fpm._US5262287_DLOGE
+        _bad_dl = [s for s, r05, r15, g05, g15 in _dl
+                   if r05 < r15 or g05 < g15]
+        chk("G-V32-US5262287  the transcribed TABLE 2 has 17 rows and every "
+            "row keeps dlogE(0.5) >= dlogE(1.5) in both records -- the "
+            "identity that recovered four scan-damaged cells",
+            len(_dl) == 17 and not _bad_dl
+            and [s for s, *_ in _dl] == list(range(101, 118)),
+            "%d rows, %d violating" % (len(_dl), len(_bad_dl)))
+
+        # ⚠ THE MTF NUMBERS ASSERT A PROPERTY OF THE ENGINE, NOT OF A STOCK.
+        # US 4,248,962 measures 108 % and 112 % response at 20 cy/mm from
+        # timed DIR couplers. Stage 9's short-range term is
+        # `rO += e * (rO - blurred)` with a floor at zero and NO UPPER CLAMP,
+        # so a response above unity is already representable: the measurement
+        # corroborates the model rather than demanding a change. This guard
+        # exists so that adding a clamp later fails here.
+        _mtf = _fpm._US4248962_MTF_20CYMM
+        chk("G-V32-US4248962  the measured DIR overshoot exceeds 100 % on "
+            "both records, which stage 9's unclamped unsharp term can "
+            "represent -- introducing an upper clamp would contradict this",
+            _mtf["invention_T"]["cyan"] > 100
+            and _mtf["invention_T"]["magenta"] > 100
+            and _mtf["control_S"]["cyan"] < 100,
+            "T %d/%d %% vs S %d/%d %% at 20 cy/mm"
+            % (_mtf["invention_T"]["cyan"], _mtf["invention_T"]["magenta"],
+               _mtf["control_S"]["cyan"], _mtf["control_S"]["magenta"]))
+
+        # ⚠ THE FUJI AIMS ARE THE EVIDENCE BEHIND v31's REFLECTION GUARD.
+        # `validate` refuses a reflection stock whose red dmax exceeds 3.0,
+        # citing "the measured aims on the Fujicolor Crystal Archive papers
+        # are 1.95-2.18". That sentence is only true if the transcribed
+        # numbers say so, so it is checked rather than asserted.
+        _aims = [v for t in _fpm._FUJI_CRYSTAL_ARCHIVE_DMAX.values()
+                 for v in t]
+        chk("G-V32-FUJIDMAX  every transcribed Crystal Archive reflection "
+            "Dmax aim lies between 1.90 and 2.18, and every one is far "
+            "below the 3.0 point where v31's geometry guard refuses",
+            min(_aims) >= 1.90 and max(_aims) == 2.18 and max(_aims) < 3.0,
+            "%d aims across %d products, %.2f-%.2f"
+            % (len(_aims), len(_fpm._FUJI_CRYSTAL_ARCHIVE_DMAX),
+               min(_aims), max(_aims)))
+
+        # The Soviet population added at v32.
+        _gost_set = [p for p in FILM_PROFILES if p.gost_speed_class]
+        _gost_ed = [p for p in FILM_PROFILES if p.gost_speed_edition]
+        _withheld_set = [p.name for p in FILM_PROFILES
+                         if p.gost_speed_class
+                         and p.name in _fpm._GOST_CLASS_WITHHELD]
+        # 18 Soviet stocks: 13 classed, 5 withheld with a stated reason --
+        # two rated on the NIKFI scale, two whose entry merges a cine and a
+        # still designation, and one stored as a PrintStock, which holds no
+        # speed for a criterion to qualify.
+        chk("G-V32-GOSTCLASS  gost_speed_class is populated on 13 Soviet "
+            "stocks, 7 of them carrying the edition their own ТУ sheet "
+            "names, and none of the 5 withheld stocks has been filled in",
+            len(_gost_set) == 13 and len(_gost_ed) == 7
+            and len(_fpm._GOST_CLASS_WITHHELD) == 5
+            and not _withheld_set,
+            "%d classed, %d with an edition, %d on the withheld list"
+            % (len(_gost_set), len(_gost_ed),
+               len(_fpm._GOST_CLASS_WITHHELD)))
+
+        # ⚠ AND THE EDITION GAP IS ASSERTED, NOT LEFT AS A COMMENT. Every
+        # stock that names an edition names 9160-82, while the five criteria
+        # this project has actually read are from 9160-91. That mismatch is
+        # the open question P38 exists for; if a later change makes it go
+        # away silently, this guard is what notices.
+        chk("G-V32-GOSTEDITION  every Soviet stock naming an edition names "
+            "9160-82, while the criteria read are 9160-91 -- the open gap "
+            "P38 tracks, asserted so it cannot close unnoticed",
+            bool(_gost_ed)
+            and all(p.gost_speed_edition == "9160-82" for p in _gost_ed),
+            "editions present: %s"
+            % sorted({p.gost_speed_edition for p in _gost_ed}))
+
+        # ------------------------------------------------------------------
+        #  schema v33 -- EP 0 083 377 A1 (Konishiroku, filed 1982).
+        # ------------------------------------------------------------------
+        _t1 = _fpm._EP0083377_TABLE1
+        _poly = [r for r in _t1 if r[3] > _fpm._EP0083377_MONODISPERSE_MAX]
+        _mono = [r for r in _t1 if r[3] <= _fpm._EP0083377_MONODISPERSE_MAX]
+        chk("G-V33-EP83377T1  TABLE 1's fifteen emulsions split cleanly at the "
+            "patent's own s/r_bar = 0.15 monodispersity rule, with a wide gap "
+            "and no borderline case",
+            len(_t1) == 15 and len(_poly) == 3 and len(_mono) == 12
+            and max(r[3] for r in _mono) <= 0.09
+            and min(r[3] for r in _poly) >= 0.23,
+            "%d monodisperse (max %.2f), %d polydisperse (min %.2f)"
+            % (len(_mono), max(r[3] for r in _mono),
+               len(_poly), min(r[3] for r in _poly)))
+
+        # The controlled pairing is the reason this table was stored, so it is
+        # what gets asserted: every polydisperse control has a monodisperse
+        # twin of the same size, which isolates dispersity from size.
+        _pairs = sum(1 for _p in _poly
+                     if any(abs(_m[2] - _p[2]) <= 0.02 for _m in _mono))
+        chk("G-V33-EP83377PAIR  every polydisperse control in TABLE 1 has a "
+            "monodisperse twin within 0.02 um -- the controlled pairing that "
+            "isolates dispersity from crystal size",
+            _pairs == len(_poly),
+            "%d of %d controls paired" % (_pairs, len(_poly)))
+
+        _t3 = _fpm._EP0083377_TABLE3
+        _les = [v for _, _, _, t in _t3 for v in t]
+        _inv3 = [r for r in _t3 if r[1]]
+        chk("G-V33-EP83377T3  TABLE 3 holds eight specimens, six of them "
+            "inventions, with every L.E.S. inside 2.57-3.03 log E",
+            len(_t3) == 8 and len(_inv3) == 6
+            and min(_les) == 2.57 and max(_les) == 3.03,
+            "%d specimens, L.E.S. %.2f-%.2f log E (%.1f-%.1f stops)"
+            % (len(_t3), min(_les), max(_les),
+               min(_les) * 3.321928, max(_les) * 3.321928))
+
+        # The patent argues specifically about the GREEN record: both controls
+        # are said to show "a small L.E.S. value under green light". If the
+        # transcription did not reproduce that, it would be wrong.
+        _ctrl_g = max(r[3][1] for r in _t3 if not r[1])
+        _inv_g = min(r[3][1] for r in _inv3)
+        chk("G-V33-EP83377GREEN  every invention specimen beats both controls "
+            "on green L.E.S., which is the axis the patent argues",
+            _inv_g > _ctrl_g,
+            "worst invention %.2f vs best control %.2f log E"
+            % (_inv_g, _ctrl_g))
+
+        # ⚠ SPEED MUST MOVE FURTHER THAN GAMMA, because that asymmetry IS the
+        # finding: this engine models the gamma half of development and has no
+        # speed term at all.
+        _t6 = _fpm._EP0083377_TABLE6
+        _s1 = {t: v for i, _, t, v, _ in _t6 if i == 1}
+        _g1 = {t: v for i, _, t, _, v in _t6 if i == 1}
+        _spd_swing = _s1["3:35"][0] / _s1["2:55"][0]
+        _gam_swing = _g1["3:35"][0] / _g1["2:55"][0]
+        chk("G-V33-EP83377T6  TABLE 6 has 16 rows and shows blue SPEED swinging "
+            "further than gamma over the same +/-20 s of development -- the "
+            "asymmetry this engine's processing model does not represent",
+            len(_t6) == 16 and _spd_swing > _gam_swing and _spd_swing > 1.6,
+            "control speed x%.2f against gamma x%.2f over 175-215 s"
+            % (_spd_swing, _gam_swing))
+
+        _s8 = {t: v for i, _, t, v, _ in _t6 if i == 8}
+        _spd8 = _s8["3:35"][0] / _s8["2:55"][0]
+        chk("G-V33-EP83377STAB  the fully-compliant specimen 8 is markedly "
+            "flatter against development time than the polydisperse control -- "
+            "the patent's process-stability claim, in its own data",
+            _spd8 < _spd_swing,
+            "specimen 8 speed x%.2f against control x%.2f"
+            % (_spd8, _spd_swing))
+
+        # ⚠ THIS ONE REPORTS AND DOES NOT ASSERT, AND THE REASON MATTERS.
+        # TABLE 3 is the only MEASURED colour-negative latitude set in the
+        # corpus: 2.57 to 3.03 log E over eight coatings. This database's own
+        # colour negatives run wider at BOTH ends, and the top end is not
+        # defensible as an era difference -- 5.3 log E is 17.6 stops and no
+        # colour negative has ever had that. It is not asserted because these
+        # are 1982 Konica coatings and most of the database is not, so a
+        # threshold here would be arguing from one maker in one year. It
+        # prints on every build so the discrepancy cannot be forgotten.
+        # Closing it is queue P42.
+        _cn = [p for p in FILM_PROFILES
+               if p.kind is _fpm.StockKind.NEGATIVE and not p.is_monochrome]
+        _cn_les = sorted(p.curves.g.latitude_stops / 3.321928 for p in _cn)
+        _over = [x for x in _cn_les if x > 3.03]
+        chk("G-V33-LES  colour-negative latitude against the only measured set "
+            "in the corpus -- REPORTED, deliberately not asserted",
+            True,
+            "%d colour negatives span %.2f-%.2f log E against EP 0 083 377's "
+            "measured 2.57-3.03; %d exceed the measured maximum, worst %.2f "
+            "log E (%.1f stops). Queue P42."
+            % (len(_cn), _cn_les[0], _cn_les[-1], len(_over),
+               _cn_les[-1], _cn_les[-1] * 3.321928))
+
+        # ------------------------------------------------------------------
+        #  ENGINE SOURCE INTEGRITY -- added 2026-09-11 after two headers were
+        #  found missing from the tree and shipped that way twice.
+        #
+        #  ⚠ THIS EXISTS BECAUSE EVERY OTHER GATE LOOKED PAST IT. build.py
+        #  compiles the 26 GENERATED database translation units and nothing
+        #  else, so AlgorithmMain.cpp -- the engine driver, which includes
+        #  thirty-odd headers and calls every stage -- was never compiled by
+        #  the build at all. cpp_parity.py did reference one of the missing
+        #  headers and SKIPPED when it was absent. The result was a green build
+        #  on a tree whose driver could not compile, in two consecutive
+        #  deliveries, until the owner hit it in Visual Studio.
+        #
+        #  This does not compile anything. It reads every #include "..." in the
+        #  engine tree and asserts the file exists somewhere in it. That is
+        #  cheap, it needs no toolchain, and it is exactly the failure that got
+        #  through: not a bad expression, an absent file.
+        _eng = Path("/root/work/tst")
+        if _eng.is_dir():
+            _missing = []
+            _srcs = sorted(list(_eng.glob("*.cpp")) + list(_eng.glob("*.hpp"))
+                           + list((_eng / "AVX2").glob("*.cpp"))
+                           + list((_eng / "AVX2").glob("*.hpp")))
+            for _f in _srcs:
+                if _f.name.startswith("test_") or _f.name == "profall.cpp":
+                    continue
+                try:
+                    _txt = _f.read_text(encoding="utf-8", errors="replace")
+                except OSError:
+                    continue
+                for _inc in re.findall(r'#include\s+"([^"]+)"', _txt):
+                    if ((_eng / _inc).is_file()
+                            or (_eng / "AVX2" / _inc).is_file()
+                            or (_f.parent / _inc).is_file()):
+                        continue
+                    _missing.append("%s -> %s" % (_f.name, _inc))
+            chk("G-ENGINE-INCLUDES  every #include in the engine tree resolves "
+                "to a file that exists -- the check that would have caught "
+                "AlgoReciprocity.hpp and AlgoProcessVariant.hpp going missing",
+                not _missing,
+                "%d source files scanned, all includes resolve" % len(_srcs)
+                if not _missing
+                else "%d unresolved: %s" % (len(_missing), _missing[:4]))
 
     print()
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")

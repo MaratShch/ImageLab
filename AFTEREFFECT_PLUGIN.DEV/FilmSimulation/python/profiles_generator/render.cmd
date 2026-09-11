@@ -1,3 +1,3 @@
 @echo off
 
-python film_sim.py Lady.png -p all
+python film_sim.py Lady.png -p all -8bpp

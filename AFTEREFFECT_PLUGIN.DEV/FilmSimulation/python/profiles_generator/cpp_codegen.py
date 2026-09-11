@@ -141,6 +141,17 @@ HPP_TEMPLATE = COPYRIGHT_NOTICE + """\
 // their first value rather than after it. Not emitted here either; the
 // render path does not read it.
 //
+// SCHEMA v31 (2026-09-11) adds two more on the same terms:
+// FilmProfile::gost_speed_class and PrintStock::density_geometry. The first
+// records WHICH of ГОСТ 9160-91 §5.1's five class-keyed speed criteria a
+// Soviet stock was rated under -- the standard has five rows, not one, which
+// is what settled a long-open conflict over "the" Soviet criterion. The
+// second says whether a print stock's densities are TRANSMISSION or
+// REFLECTION: all eleven current print stocks are motion-picture print film
+// and nothing said so, which becomes actively wrong the moment a colour
+// paper is added, since a paper Dmax near 2.1 is not comparable with a print
+// film's ~4. Neither is emitted here; neither is read on the render path.
+//
 // FEATURE FLAGS ARE DERIVED AND NON-AUTHORITATIVE (DM-20). The Feature
 // bitmask is a convenience summary of the numeric fields for UI and tooling.
 // A renderer must key its behaviour on the numeric fields themselves

@@ -142,10 +142,16 @@ namespace
         //  THE FAST APPROXIMATE SOFTPLUS IS RETAINED HERE, DELIBERATELY, AND
         //  THE DECISION WAS MEASURED RATHER THAN ASSUMED (2026-08-28).
         //
-        //  The scalar twin of this stage now evaluates the print curve from a
-        //  4096-entry table (AlgoCurveLut.hpp), because in the double path a
-        //  table replaces two genuine log1p/exp calls per sample and is a large
-        //  win. The obvious move was to do the same here.
+        //  ⚠ THIS PARAGRAPH ASSERTED SOMETHING FALSE UNTIL 2026-09-11. It read
+        //  "the scalar twin of this stage now evaluates the print curve from a
+        //  4096-entry table (AlgoCurveLut.hpp)". It does not, and it never did:
+        //  the scalar Algo_13_Sim.cpp calls the exact AlgoSoftplus, and
+        //  AlgoCurveLut.hpp is included by AVX2/Algo_08_Sim.cpp alone.
+        //
+        //  The measurement below still stands on its own -- a table WAS tried
+        //  here and WAS slower, and those timings are real. What was wrong was
+        //  the premise that it was being compared against a table already in
+        //  use on the other side. It was not; the scalar side is exact.
         //
         //  It was tried, and it is SLOWER. Measured at 1024 px, best of three,
         //  stage 13 alone:
@@ -464,6 +470,16 @@ void AlgoStage13_Duplication
                                    ALGO_GRAIN_DUPE_CLUMP_GAIN,
                                    static_cast<AlgoType>(pDupeStock->grain_rms),
                                    scanSigmaPx, pxPerMm,
+                                   // ⚠ ROUND GRAIN, and the STOCK is what says
+                                   // so. Anisotropy is a measured property of a
+                                   // coated emulsion; film::PrintStock carries
+                                   // no such field, because no duplicating
+                                   // stock in the database has been measured
+                                   // for coating flow. Inheriting the camera
+                                   // negative's figure would attribute one
+                                   // emulsion's flow direction to a different
+                                   // emulsion coated in a different factory.
+                                   ALGO_GRAIN_ANISOTROPY_NONE,
                                    eALGO_RNG_STAGE::eRNG_DUPE_GRAIN,
                                    dupeSeed,
                                    frameIndex * (ALGO_DUPE_MAX_GENERATIONS * 2 + 1)

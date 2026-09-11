@@ -150,6 +150,33 @@ constexpr AlgoType ALGO_GRAIN_DUPE_FOG = static_cast<AlgoType>(0.15);
 constexpr AlgoType ALGO_GRAIN_DUPE_CLUMP_GAIN  = static_cast<AlgoType>(0.30);
 constexpr AlgoType ALGO_GRAIN_PRINT_CLUMP_GAIN = static_cast<AlgoType>(0.25);
 
+// ---------------------------------------------------------------------------
+//  Anisotropy of an emulsion with no measured elongation.
+//
+//  1.0 is round grain, and it is what every stock without a figure carries. A
+//  named constant rather than a bare literal because three call sites outside
+//  the camera negative - the dupe generations at 13 and the print emulsion at
+//  14 - pass it deliberately, and a naked 1.0 at those sites reads like a
+//  placeholder rather than a statement about the stock.
+// ---------------------------------------------------------------------------
+constexpr AlgoType ALGO_GRAIN_ANISOTROPY_NONE = static_cast<AlgoType>(1.0);
+
+// ---------------------------------------------------------------------------
+//  Positive floor on the anisotropy, matching the reference EXACTLY.
+//
+//  The reference writes max(anisotropy, 1e-6) before it multiplies the vertical
+//  frequency axis by it, so that a zero or negative figure in the database
+//  cannot collapse that axis. The same number is applied here, on the same side
+//  of the same operation, so a malformed profile renders identically in both
+//  engines rather than merely failing to crash in both.
+//
+//  ⚠ 1e-6 IS NOT A ROUND-NUMBER GUESS AND MUST NOT BE TIDIED. It is a literal
+//  in the reference (film_sim.py:1085, FreqGrid.__init__); changing it here
+//  would reintroduce, in miniature, the divergence this parameter exists to
+//  close.
+// ---------------------------------------------------------------------------
+constexpr AlgoType ALGO_GRAIN_ANISOTROPY_MIN = static_cast<AlgoType>(1e-6);
+
 
 // ---------------------------------------------------------------------------
 //  Build one zero-mean, spectrally shaped, granularity-calibrated grain field.
@@ -169,6 +196,12 @@ constexpr AlgoType ALGO_GRAIN_PRINT_CLUMP_GAIN = static_cast<AlgoType>(0.25);
 //  rmsGranularity  target RMS granularity, in the standard metric
 //  scanSigmaPx   band limit from the scan optics, as a sigma in pixels
 //  pxPerMm       render resolution
+//  anisotropy    vertical/horizontal correlation ratio of the emulsion, from
+//                GrainSpec::anisotropy. 1.0 is round grain; above 1.0 the grain
+//                is stretched DOWN the frame, along the coating flow direction.
+//                Floored at ALGO_GRAIN_ANISOTROPY_MIN inside, as the reference
+//                floors it. Emulsions that carry no figure - dupe and print
+//                stocks - pass ALGO_GRAIN_ANISOTROPY_NONE.
 //  rngStage      which generator stream to draw from
 //  seed          combined seed
 //  frameIndex    clip-relative frame number
@@ -189,6 +222,7 @@ void AlgoMakeGrainField
     const AlgoType              rmsGranularity,
     const AlgoType              scanSigmaPx,
     const AlgoType              pxPerMm,
+    const AlgoType              anisotropy,
     const eALGO_RNG_STAGE       rngStage,
     const uint32_t              seed,
     const int32_t               frameIndex

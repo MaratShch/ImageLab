@@ -1,8 +1,26 @@
 #pragma once
 
 // ---------------------------------------------------------------------------
-//  AlgoCurveLut.hpp -- the tabulated characteristic curve, SHARED by both
-//  instruction-set paths and by every stage that evaluates a curve.
+//  AlgoCurveLut.hpp -- the tabulated characteristic curve.
+//
+//  ⚠ THE HEADER OF THIS FILE CLAIMED IT WAS "SHARED by both instruction-set
+//  paths and by every stage that evaluates a curve" UNTIL 2026-09-11. IT IS
+//  NOT, AND IT NEVER HAS BEEN. The only translation unit that includes it is
+//  AVX2/Algo_08_Sim.cpp; AlgoCurveLutEval below, the scalar evaluator, has
+//  ZERO callers anywhere in either tree. The scalar stage 08 evaluates the
+//  curve in closed form with the exact AlgoSoftplus, and stage 13 does the
+//  same in both builds.
+//
+//  The claim mattered because the paragraph below concluded from it that
+//  "agreement is then structural ... there is no longer a second copy that
+//  could drift". Nothing structural was in place: there are still two
+//  spellings of the curve, an exact one in the scalar build and this table in
+//  the vector build, and the only thing keeping them together is the measured
+//  bound quoted further down (4.24e-06 D interpolation, 3.12e-07 D clamp),
+//  which is small enough that the arrangement is fine on its merits. What is
+//  not fine is a comment asserting a guarantee that does not exist -- it is
+//  the reason a 2.98 % error in stage 14 went unexamined for as long as it
+//  did, in a file whose stated purpose is to prevent exactly that.
 //
 //  ---------------------------------------------------------------------------
 //  WHY THIS FILE EXISTS, AND WHY IT IS A HEADER RATHER THAN FOUR COPIES
@@ -30,10 +48,13 @@
 //  used an exact one -- the same defect the blur had, and the same defect
 //  stage 08 had, in a third place.
 //
-//  Putting the table here, once, means every stage and both paths tabulate the
-//  SAME function with the SAME domain and the SAME interpolation. Agreement is
-//  then structural. It is not something to re-measure after every change,
-//  because there is no longer a second copy that could drift.
+//  Putting the table here, once, means every stage that DOES tabulate the
+//  curve tabulates the SAME function with the SAME domain and the SAME
+//  interpolation. ⚠ That is one consumer today, not "both paths" -- see the
+//  correction at the top of this file. Agreement between the tabulated and
+//  the closed-form spelling rests on the measured bound below, not on there
+//  being a single copy, so it DOES have to be re-measured when either side
+//  changes.
 //
 //  ---------------------------------------------------------------------------
 //  WHAT IS AND IS NOT PATH-DEPENDENT

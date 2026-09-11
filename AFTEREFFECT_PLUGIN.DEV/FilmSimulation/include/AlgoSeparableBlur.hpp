@@ -298,7 +298,10 @@ namespace AlgoBlurDetail
     //  k            decimation factor, integer, shared by both paths.
     //  loW / loH    reduced extents, ceil(n / k). NOT n/k: the last cell is
     //               partial and the rational geometry handles it exactly.
-    //  sigmaLo      sigma to apply ON the reduced grid.
+    //  sigmaLoX     horizontal sigma to apply ON the reduced grid.
+    //  sigmaLoY     vertical sigma to apply ON the reduced grid. Equal to
+    //               sigmaLoX for every isotropic call, which is all of them
+    //               except the grain stage - see AlgoGaussianBlurPlaneWrapXY.
     //
     //  VARIANCE COMPENSATION -- all THREE filters in the cascade, and the third
     //  is the one that was missing:
@@ -314,6 +317,11 @@ namespace AlgoBlurDetail
     //  does not average away over stocks, and it is invisible to any test that
     //  only compares the two paths against each other, because both were wrong
     //  by the same amount.
+    //
+    //  The relation is applied ONCE PER AXIS with that axis's own sigma. The
+    //  two subtracted terms are shared between the axes because the resampling
+    //  is: one k, one pair of extents, so one box variance and one
+    //  reconstruction variance. Only the requested sigma differs.
     // -----------------------------------------------------------------------
     struct BlurPlan
     {
@@ -321,12 +329,34 @@ namespace AlgoBlurDetail
         int32_t   k;
         int32_t   loW;
         int32_t   loH;
-        AlgoType  sigmaLo;
+        AlgoType  sigmaLoX;
+        AlgoType  sigmaLoY;
     };
 
-    inline BlurPlan planBlur
+    // -----------------------------------------------------------------------
+    //  planBlurXY -- the plan for a possibly ANISOTROPIC Gaussian.
+    //
+    //  This is the ONE implementation of the rule; planBlur below is the
+    //  isotropic call spelled sigmaX == sigmaY, and reduces to exactly the
+    //  arithmetic that was here before, operation for operation, so no render
+    //  that used the isotropic entry point can move by a single bit.
+    //
+    //  WHICH SIGMA CHOOSES k. The LARGER of the two. k is the decimation
+    //  factor, and the reduced-grid sigma of an axis is roughly sigma_axis / k;
+    //  picking k from the larger sigma keeps THAT axis near the target width
+    //  and leaves the narrower one merely narrower, which the direct kernel
+    //  handles exactly. Picking it from the smaller would leave the wider axis
+    //  above the exact-max on the reduced grid, which is the one outcome the
+    //  pyramid exists to avoid.
+    //
+    //  The variance compensation subtracts the SAME box and reconstruction
+    //  terms from both axes, because both axes are resampled by the same
+    //  geometry. Only the requested variance differs.
+    // -----------------------------------------------------------------------
+    inline BlurPlan planBlurXY
     (
-        const AlgoType sigmaPx,
+        const AlgoType sigmaXPx,
+        const AlgoType sigmaYPx,
         const int32_t  sizeX,
         const int32_t  sizeY,
         const AlgoType engageAbove
@@ -337,18 +367,21 @@ namespace AlgoBlurDetail
         p.k          = 1;
         p.loW        = sizeX;
         p.loH        = sizeY;
-        p.sigmaLo    = sigmaPx;
+        p.sigmaLoX   = sigmaXPx;
+        p.sigmaLoY   = sigmaYPx;
+
+        const AlgoType sigmaRef = MAX_VALUE(sigmaXPx, sigmaYPx);
 
         // Strictly greater than: AT the exact-max the direct kernel is still
         // exact, and the exact method wins wherever it is available. Using >=
         // here would push sigma exactly 16 onto the approximate path for no
         // reason, and that off-by-one is precisely how the two paths came to
         // disagree at the threshold.
-        if (sigmaPx <= engageAbove)
+        if (sigmaRef <= engageAbove)
             return p;
 
         int32_t k = static_cast<int32_t>(
-            sigmaPx / ALGO_BLUR_PYRAMID_TARGET_SIGMA + static_cast<AlgoType>(0.5));
+            sigmaRef / ALGO_BLUR_PYRAMID_TARGET_SIGMA + static_cast<AlgoType>(0.5));
 
         k = CLAMP_VALUE(k, 2, ALGO_BLUR_PYRAMID_MAX_K);
 
@@ -360,8 +393,8 @@ namespace AlgoBlurDetail
 
         // The two axes have slightly different rational cell widths whenever
         // the extents are not both exact multiples of k. The compensation uses
-        // the geometric mean of the two, because the blur that follows is
-        // isotropic and applies one sigma to both.
+        // the geometric mean of the two, because the RESAMPLING is isotropic --
+        // one k for both axes -- even when the Gaussian that follows is not.
         const HighPrecType Rx = static_cast<HighPrecType>(sizeX)
                               / static_cast<HighPrecType>(loW);
         const HighPrecType Ry = static_cast<HighPrecType>(sizeY)
@@ -369,23 +402,44 @@ namespace AlgoBlurDetail
 
         const HighPrecType R2 = Rx * Ry;              // (geometric mean)^2
 
-        const HighPrecType s  = static_cast<HighPrecType>(sigmaPx);
+        const HighPrecType sx = static_cast<HighPrecType>(sigmaXPx);
+        const HighPrecType sy = static_cast<HighPrecType>(sigmaYPx);
 
         const HighPrecType boxVar   = (R2 - 1.0) / 12.0;
         const HighPrecType reconVar = R2 / 6.0;
 
-        const HighPrecType targetVar = s * s - boxVar - reconVar;
+        const HighPrecType targetVarX = sx * sx - boxVar - reconVar;
+        const HighPrecType targetVarY = sy * sy - boxVar - reconVar;
 
-        if (targetVar <= 0.0)
+        // Either axis too narrow to survive the resampling cascade sends the
+        // WHOLE call to the direct kernel. Blurring one axis on the pyramid and
+        // the other directly would mean two different approximations inside one
+        // operator, and the error of the pair would be nobody's stated error.
+        if (targetVarX <= 0.0 || targetVarY <= 0.0)
             return p;
 
         p.usePyramid = true;
         p.k          = k;
         p.loW        = loW;
         p.loH        = loH;
-        p.sigmaLo    = static_cast<AlgoType>(std::sqrt(targetVar / R2));
+        p.sigmaLoX   = static_cast<AlgoType>(std::sqrt(targetVarX / R2));
+        p.sigmaLoY   = static_cast<AlgoType>(std::sqrt(targetVarY / R2));
 
         return p;
+    }
+
+    // The isotropic plan, which is the anisotropic one with both axes equal.
+    // Kept as a name because that is what every caller but the grain stage
+    // means, not because it is a second rule.
+    inline BlurPlan planBlur
+    (
+        const AlgoType sigmaPx,
+        const int32_t  sizeX,
+        const int32_t  sizeY,
+        const AlgoType engageAbove
+    ) noexcept
+    {
+        return planBlurXY(sigmaPx, sigmaPx, sizeX, sizeY, engageAbove);
     }
 
 }   // namespace AlgoBlurDetail
@@ -413,6 +467,9 @@ namespace AlgoBlurDetail
 //  Two passes: horizontal pSrc -> pScratch, then vertical pScratch -> pDst. Both
 //  wrap. Complexity is O(sizeX * sizeY * taps) with taps = 2*ceil(4*sigma)+1,
 //  against O(sizeX * sizeY * taps^2) for a naive two-dimensional kernel.
+//
+//  This is the ANISOTROPIC form below called with both sigmas equal. There is
+//  one implementation of the law, and this is the name almost everything uses.
 // ---------------------------------------------------------------------------
 void AlgoGaussianBlurPlaneWrap
 (
@@ -423,6 +480,64 @@ void AlgoGaussianBlurPlaneWrap
     const int32_t            sizeY,
     const int32_t            pitch,
     const AlgoType           sigmaPx
+) noexcept;
+
+
+// ---------------------------------------------------------------------------
+//  AlgoGaussianBlurPlaneWrapXY
+//
+//  The same operator with a SEPARATE standard deviation per axis: sigmaXPx
+//  across the row, sigmaYPx down the column. Everything else - the wrap, the
+//  truncation radius, the pyramid above ALGO_BLUR_SIGMA_EXACT_MAX - is
+//  unchanged, because the separable Gaussian was already two independent
+//  one-dimensional passes and only ever built its two kernels from one number.
+//
+//  WHY IT EXISTS: THE GRAIN OF A REAL EMULSION IS NOT ISOTROPIC.
+//
+//  Coating flow leaves the developed clumps slightly elongated along the
+//  direction the emulsion was poured, and the database records that per stock
+//  as GrainSpec::anisotropy - 1.0 for a stock with no measured elongation,
+//  1.02 to 1.10 for the 32 stocks that carry one.
+//
+//  THE REFERENCE APPLIES IT IN THE FREQUENCY DOMAIN AND THIS ENGINE APPLIES IT
+//  IN THE SPATIAL DOMAIN, AND THEY ARE THE SAME LAW. The reference builds the
+//  grain spectrum on a frequency grid whose VERTICAL axis is pre-multiplied by
+//  the anisotropy a:
+//
+//      f^2 = fx^2 + (a * fy)^2      then      H(f) = exp(-(f / f_c)^2)
+//
+//  Because the shape is Gaussian that product separates exactly:
+//
+//      H = exp(-(fx / f_c)^2) * exp(-(fy / (f_c / a))^2)
+//
+//  so the vertical axis sees a rolloff frequency a times LOWER. Matching
+//  exp(-(f/f_c)^2) against the transfer of a spatial Gaussian,
+//  exp(-2 pi^2 s^2 f^2), gives s = 1 / (pi sqrt(2) f_c), which is inversely
+//  proportional to f_c. A vertical rolloff a times lower is therefore a
+//  vertical spatial sigma a times LARGER:
+//
+//      sigma_y = a * sigma_x
+//
+//  and that is the whole of the translation. The sense matters and is easy to
+//  invert: scaling fy UP attenuates vertical detail MORE, which LENGTHENS the
+//  vertical correlation length. a > 1 means grain smeared down the frame, not
+//  squashed.
+//
+//  sigmaXPx / sigmaYPx  standard deviations in pixels, one per axis. Either at
+//                       or below zero makes that axis the identity, which is
+//                       the correct limit of a Gaussian of zero width; both at
+//                       or below zero copies pSrc to pDst.
+// ---------------------------------------------------------------------------
+void AlgoGaussianBlurPlaneWrapXY
+(
+    const AlgoType* RESTRICT pSrc,
+    AlgoType* RESTRICT       pDst,
+    AlgoType* RESTRICT       pScratch,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const AlgoType           sigmaXPx,
+    const AlgoType           sigmaYPx
 ) noexcept;
 
 

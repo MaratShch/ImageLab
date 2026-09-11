@@ -710,6 +710,9 @@
     <None Include="python\profiles_generator\superia_2026.py">
       <Filter>python\profiles_generator</Filter>
     </None>
+    <None Include="python\png_compare.py">
+      <Filter>python</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\profiles_generator\Readme!.txt">

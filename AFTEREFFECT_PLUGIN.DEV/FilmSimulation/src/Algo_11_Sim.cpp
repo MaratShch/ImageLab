@@ -397,6 +397,7 @@ void AlgoMakeGrainField
     const AlgoType              rmsGranularity,
     const AlgoType              scanSigmaPx,
     const AlgoType              pxPerMm,
+    const AlgoType              anisotropy,
     const eALGO_RNG_STAGE       rngStage,
     const uint32_t              seed,
     const int32_t               frameIndex
@@ -467,6 +468,47 @@ void AlgoMakeGrainField
         std::sqrt(sHiPx * sHiPx + sLoPx * sLoPx + sScan * sScan));
 
     // ----------------------------------------------------------------------
+    //  ANISOTROPY -- and this closes a PYTHON/C++ DIVERGENCE FOUND 2026-09-11.
+    //
+    //  ⚠ WHAT WAS WRONG. `GrainSpec::anisotropy` has been emitted into
+    //  film_profiles.hpp all along and NO C++ STAGE READ IT. The reference
+    //  model does read it, so for the 32 of 184 stocks that carry a figure -
+    //  values 1.02 to 1.10 - Python rendered stretched grain and both C++
+    //  engines rendered round grain. Nothing failed and nothing looked broken;
+    //  the two engines simply modelled different emulsions, on the stocks whose
+    //  coating flow was actually measured.
+    //
+    //  WHAT IT MEANS PHYSICALLY. Emulsion is poured, and the developed clumps
+    //  end up slightly elongated along the direction of that flow. So the grain
+    //  of a real negative has a longer correlation length down the frame than
+    //  across it, by the ratio stored here.
+    //
+    //  WHY A SIGMA RATIO IS THE SAME LAW AS THE REFERENCE'S FREQUENCY STRETCH.
+    //  The reference multiplies the VERTICAL frequency axis by the anisotropy
+    //  before evaluating the radial transfer H(f). For a Gaussian shape that
+    //  factorises exactly into a horizontal transfer and a vertical one whose
+    //  rolloff frequency is a times LOWER, and a spatial sigma is inversely
+    //  proportional to its rolloff frequency - so a times lower in frequency is
+    //  a times WIDER in space:
+    //
+    //      sigma_y = anisotropy * sigma_x
+    //
+    //  The full derivation is at AlgoGaussianBlurPlaneWrapXY in
+    //  AlgoSeparableBlur.hpp. The direction is the part worth checking twice:
+    //  a > 1 stretches the grain DOWN the frame. Getting the sense backwards
+    //  squashes it instead, and looks plausible either way on a still frame.
+    //
+    //  WHY IT MULTIPLIES THE COMBINED SIGMA AND NOT JUST THE CRYSTAL TERM. The
+    //  reference builds ONE frequency grid and evaluates the grain shape AND
+    //  the scan band limit on it, so the stretch applies to their product. Here
+    //  the two are already combined by adding variances into sigmaNarrow and
+    //  sigmaWide, and scaling a total sigma by a scales every variance in it by
+    //  a^2 - which is the same thing. Applying it to sHiPx alone would stretch
+    //  the crystals but not the scanner, which the reference does not do.
+    // ----------------------------------------------------------------------
+    const AlgoType aniso = MAX_VALUE(anisotropy, ALGO_GRAIN_ANISOTROPY_MIN);
+
+    // ----------------------------------------------------------------------
     //  Amplitude calibration.
     //
     //      scale = (rms / 1000) * px_per_mm / sqrt(E)
@@ -476,6 +518,15 @@ void AlgoMakeGrainField
     //  variance of unit white noise on this grid to the continuous integral: unit
     //  white noise has flat spectral density 1 per grid cell, and a grid cell is
     //  1/px_per_mm millimetres on a side.
+    //
+    //  ⚠ THE ENERGY INTEGRAL IS ISOTROPIC AND STAYS THAT WAY. Stretching one
+    //  axis by a really does change the field's true variance, by 1/a, so a
+    //  reader could reasonably expect a sqrt(a) correction here. There is none,
+    //  because the reference has none either: it calibrates against the same
+    //  radial integral of the UNSTRETCHED shape. Adding the correction would be
+    //  more defensible physics and an immediate divergence from the model of
+    //  record, so it is left out and the reason recorded rather than left to be
+    //  rediscovered as an apparent omission.
     // ----------------------------------------------------------------------
     const HighPrecType energy = grainReferenceEnergy(
         static_cast<HighPrecType>(clumpUm),
@@ -583,9 +634,11 @@ void AlgoMakeGrainField
         }
     }
 
-    // Narrow lobe: the crystal rolloff alone.
-    AlgoGaussianBlurPlaneWrap(pScrNoise, pScrLobe, pScrWork,
-                              sizeX, sizeY, pitch, sigmaNarrow);
+    // Narrow lobe: the crystal rolloff alone. Anisotropic: the vertical sigma
+    // carries the coating-flow stretch, the horizontal one does not.
+    AlgoGaussianBlurPlaneWrapXY(pScrNoise, pScrLobe, pScrWork,
+                                sizeX, sizeY, pitch,
+                                sigmaNarrow, sigmaNarrow * aniso);
 
     const AlgoType g = MAX_VALUE(clumpGain, ALGO_ZERO);
 
@@ -599,8 +652,14 @@ void AlgoMakeGrainField
         // source completely before it can be overwritten, so the source and
         // destination must differ. pScrWork is the intermediate, so the noise plane
         // cannot be both.
-        AlgoGaussianBlurPlaneWrap(pScrNoise, pDst, pScrWork,
-                                  sizeX, sizeY, pitch, sigmaWide);
+        //
+        // The SAME anisotropy as the narrow lobe. Both terms come from one
+        // transfer evaluated on one stretched frequency grid in the reference,
+        // so stretching only one of them would tilt the balance between crystal
+        // rolloff and clustering along the vertical axis alone.
+        AlgoGaussianBlurPlaneWrapXY(pScrNoise, pDst, pScrWork,
+                                    sizeX, sizeY, pitch,
+                                    sigmaWide, sigmaWide * aniso);
 
         for (int32_t y = 0; y < sizeY; y++)
         {
@@ -946,6 +1005,7 @@ void AlgoStage11_Grain
                            clumpGain,
                            static_cast<AlgoType>(gs.rms_granularity),
                            scanSigmaPx, pxPerMm,
+                           static_cast<AlgoType>(gs.anisotropy),
                            eALGO_RNG_STAGE::eRNG_GRAIN_G,
                            grainSeed, frameIndex);
 
@@ -997,6 +1057,7 @@ void AlgoStage11_Grain
                                sizeX, sizeY, pitch,
                                clump[c], clumpGain, rms[c],
                                scanSigmaPx, pxPerMm,
+                               static_cast<AlgoType>(gs.anisotropy),
                                stream[c], grainSeed, frameIndex);
 
         AlgoAddGrain(pDstR, pDstG, pDstB,

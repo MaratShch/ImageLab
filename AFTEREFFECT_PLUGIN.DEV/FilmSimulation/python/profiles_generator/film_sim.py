@@ -2232,13 +2232,26 @@ def _png_chunk(tag: bytes, data: bytes) -> bytes:
     )
 
 
-def write_png(path: Path, rgb: np.ndarray, bit_depth: int = 16) -> None:
-    """Write an RGB PNG at 8 or 16 bits per channel.
+def write_png(path: Path, rgb: np.ndarray, bit_depth: int = 16,
+              alpha: bool = False) -> None:
+    """Write an RGB or RGBA PNG at 8 or 16 bits per channel.
 
     Pillow cannot write 16-bit RGB PNG, and 8 bits visibly bands in the smooth
     halation bloom and in deep shadow. Rather than pull in a dependency, this
     emits the file directly: signature, IHDR, one zlib-compressed IDAT with
     filter type 0 per scanline, IEND.
+
+    ``alpha`` appends a fully opaque channel and switches the PNG colour type
+    from 2 (truecolour) to 6 (truecolour with alpha).
+
+    ⚠ THE ALPHA IS CONSTANT 255 AND CARRIES NO INFORMATION. Nothing in this
+    renderer produces transparency -- film is opaque, and every stage works in
+    density or in linear light with no coverage term anywhere. The channel
+    exists because some comparison and compositing tools expect four channels
+    and will not open a three-channel file, so writing it is a convenience for
+    the reader, not a property of the image. Anyone computing with it should
+    ignore it; anyone diffing two of our renders will find it identical in
+    both and contributing nothing to the difference.
     """
     if rgb.ndim != 3 or rgb.shape[2] != 3:
         raise ValueError("expected an (h, w, 3) array")
@@ -2246,18 +2259,31 @@ def write_png(path: Path, rgb: np.ndarray, bit_depth: int = 16) -> None:
         raise ValueError("bit_depth must be 8 or 16")
 
     h, w = rgb.shape[:2]
+    nchan = 4 if alpha else 3
+
+    if alpha:
+        # Opaque, at whatever depth the rest of the image is written in --
+        # 255 for 8-bit, 65535 for 16-bit. Writing 255 into a 16-bit alpha
+        # would be very nearly transparent, which is the obvious way to get
+        # this wrong.
+        opaque = (1 << bit_depth) - 1
+        rgb = np.concatenate(
+            (rgb, np.full((h, w, 1), opaque, dtype=rgb.dtype)), axis=2)
+
     if bit_depth == 16:
         payload = rgb.astype(">u2").tobytes()
-        stride = w * 3 * 2
+        stride = w * nchan * 2
     else:
         payload = rgb.astype(np.uint8).tobytes()
-        stride = w * 3
+        stride = w * nchan
 
     # Prepend the per-scanline filter byte (0 = None) without a Python loop.
     raw = np.zeros((h, stride + 1), dtype=np.uint8)
     raw[:, 1:] = np.frombuffer(payload, dtype=np.uint8).reshape(h, stride)
 
-    ihdr = struct.pack(">IIBBBBB", w, h, bit_depth, 2, 0, 0, 0)
+    # Colour type 6 is truecolour with alpha, 2 is truecolour.
+    ihdr = struct.pack(">IIBBBBB", w, h, bit_depth,
+                       6 if alpha else 2, 0, 0, 0)
     body = (
         b"\x89PNG\r\n\x1a\n"
         + _png_chunk(b"IHDR", ihdr)
@@ -2745,7 +2771,43 @@ def simulate(
             dye_matrix=IDENTITY3,
         )
 
-    grid = FreqGrid(h, w, px_per_mm, profile.grain.anisotropy)
+    # ⚠ TWO GRIDS, AND UNTIL 2026-09-11 THERE WAS ONLY ONE. This line used to
+    # read `FreqGrid(h, w, px_per_mm, profile.grain.anisotropy)`, and that one
+    # object was then handed to EVERY frequency-domain stage in the renderer.
+    #
+    # `GrainSpec.anisotropy` is a property of the GRAIN: it models emulsion
+    # coating flow, which lengthens the vertical correlation of the developed
+    # crystal field. Sharing the stretched grid meant that on the 32 stocks
+    # carrying a non-default value (1.02 to 1.10) the same vertical stretch was
+    # silently applied to veiling flare, HALATION scatter, EMULSION MTF, the
+    # DIR coupler blur, SCAN MTF, the duplication MTF and the reseau
+    # reconstruction. None of those is grain, and none has any physical reason
+    # to inherit a coating-flow figure -- halation is light scattering in the
+    # base, and an MTF is a lens-and-emulsion transfer.
+    #
+    # It was found on 2026-09-11 while closing the OPPOSITE defect in the C++
+    # engines, which read the field nowhere at all. Both were wrong, in
+    # opposite directions: C++ applied it to nothing, the reference applied it
+    # to everything. The agreed model is that it applies to the camera
+    # negative's grain field and to nothing else.
+    #
+    # `grid` is therefore isotropic, and is what every optical stage uses.
+    grid = FreqGrid(h, w, px_per_mm)
+
+    # `grain_grid` carries the stretch and is used ONLY by the camera
+    # negative's grain field.
+    #
+    # ⚠ IT IS DELIBERATELY NOT USED FOR DUPE OR PRINT GRAIN. Those are
+    # different emulsions coated in different factories; the print stock and
+    # the duplication stock carry no anisotropy of their own, and attributing
+    # the camera negative's coating flow to them would be inventing a
+    # measurement. The C++ twins pass ALGO_GRAIN_ANISOTROPY_NONE at exactly
+    # those two call sites, for exactly this reason.
+    #
+    # When the stock is isotropic the two names are the same object, so the
+    # common case allocates nothing extra.
+    grain_grid = (grid if profile.grain.anisotropy == 1.0
+                  else FreqGrid(h, w, px_per_mm, profile.grain.anisotropy))
 
     # -- 2. relative exposure ------------------------------------------------
     exposure = (linear_rgb / np.float32(MID_GREY)).astype(np.float32)
@@ -3137,7 +3199,8 @@ def simulate(
             # colour stocks too: a reseau stock has a single panchromatic
             # emulsion behind the filter grid, so it cannot have per-layer grain.
             field = make_grain_field(
-                grid, rng, clumps[1], gs.clump_gain, gs.rms_granularity, scan_t
+                grain_grid, rng, clumps[1], gs.clump_gain,
+                gs.rms_granularity, scan_t
             )
             fields = (field, field, field)
         else:
@@ -3150,7 +3213,8 @@ def simulate(
             rms_c = gs.rms_rgb()
             fields = tuple(
                 make_grain_field(
-                    grid, rng, clumps[c], gs.clump_gain, rms_c[c], scan_t
+                    grain_grid, rng, clumps[c], gs.clump_gain, rms_c[c],
+                    scan_t
                 )
                 for c in range(3)
             )
@@ -3435,7 +3499,8 @@ def load_linear(path: Path, max_dim: int = 0) -> np.ndarray:
     return srgb_to_linear(arr.astype(np.float32) / 255.0)
 
 
-def save_linear(path: Path, linear: np.ndarray, bit_depth: int, rng) -> None:
+def save_linear(path: Path, linear: np.ndarray, bit_depth: int, rng,
+                alpha: bool = False) -> None:
     """Encode linear light to sRGB, dither, quantise and write a PNG."""
     enc = linear_to_srgb(linear)
     peak = float((1 << bit_depth) - 1)
@@ -3447,7 +3512,7 @@ def save_linear(path: Path, linear: np.ndarray, bit_depth: int, rng) -> None:
     q = np.clip((enc + dither) * peak + 0.5, 0.0, peak).astype(
         np.uint16 if bit_depth == 16 else np.uint8
     )
-    write_png(path, q, bit_depth)
+    write_png(path, q, bit_depth, alpha)
 
 
 # ===========================================================================
@@ -3563,6 +3628,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="disable the additive colour grid on mosaic stocks (Dufaycolor)",
     )
     p.add_argument("--bits", type=int, default=16, choices=(8, 16))
+    # ⚠ -8bpp IS NOT A SYNONYM FOR `--bits 8`, AND THE DIFFERENCE IS THE ALPHA.
+    # `--bits 8` writes an 8-bit THREE-channel PNG. This writes an 8-bit FOUR-
+    # channel one with a constant opaque alpha, because that is what the
+    # comparison tools want: a 16-bit render cannot be diffed against an 8-bit
+    # source without a requantisation step that invents differences of its own,
+    # and several viewers refuse a three-channel file outright.
+    #
+    # It OVERRIDES --bits rather than conflicting with it, so `-8bpp --bits 16`
+    # is 8-bit and not an error -- the flag is the more specific request and
+    # silently honouring the more specific one is friendlier than refusing the
+    # combination.
+    p.add_argument(
+        "-8bpp", "--8bpp", dest="eight_bpp", action="store_true",
+        help="write 8-bit RGBA PNG with a constant opaque alpha, overriding "
+             "--bits; use this when the output must be compared against an "
+             "8-bit input",
+    )
     p.add_argument("--seed", type=int, default=12345)
     p.add_argument("--max-dim", type=int, default=0, help="downscale input, 0=off")
     p.add_argument("--emit-cpp", action="store_true", help="also write C++ tables")
@@ -3602,6 +3684,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"[ERROR] {exc}", file=sys.stderr)
             return 2
 
+    # ⚠ THE OUTPUT ENCODING IS DECIDED ONCE, HERE, AND NOWHERE ELSE.
+    # Until 2026-09-11 the two `save_linear` call sites each read `args.bits`
+    # directly while `RenderSettings.bit_depth` was set from the same value a
+    # few lines below -- three readings of one decision, which is exactly how a
+    # new flag gets honoured in one place and silently ignored in the other
+    # two. `-8bpp` overrides `--bits`; see the flag's own note in the parser.
+    OUT_BITS = 8 if args.eight_bpp else args.bits
+    OUT_ALPHA = bool(args.eight_bpp)
+
     settings = RenderSettings(
         film_format=args.film_format or "super35",
         print_stock=args.print_stock,
@@ -3622,7 +3713,8 @@ def main(argv: list[str] | None = None) -> int:
         generations=args.generations,
         dupe_stock=args.dupe_stock,
         reseau=not args.no_reseau,
-        bit_depth=args.bits,
+        # -8bpp wins over --bits; see the flag's own note.
+        bit_depth=OUT_BITS,
         seed=args.seed,
         max_dim=args.max_dim,
     )
@@ -3664,7 +3756,7 @@ def main(argv: list[str] | None = None) -> int:
               f"{ppmm:.0f}px/mm{note}", flush=True)
         result = simulate(linear, stock, settings)
         dest = args.outdir / f"{stem}_{stock.name}.png"
-        save_linear(dest, result, args.bits, out_rng)
+        save_linear(dest, result, OUT_BITS, out_rng, OUT_ALPHA)
 
     # A print stock is not something you can expose in a camera, so it has no
     # profile of its own and `-p all` used to skip it entirely -- which is why
@@ -3686,7 +3778,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  -> PRINT {ps.name:26s} [on {ref}]", flush=True)
             res = simulate(linear, neg, st)
             save_linear(args.outdir / f"{stem}_PRINT_{ps.name}.png",
-                        res, args.bits, out_rng)
+                        res, OUT_BITS, out_rng, OUT_ALPHA)
             n_prints += 1
 
     if args.emit_cpp:

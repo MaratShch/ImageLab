@@ -116,6 +116,25 @@ namespace
     inline int32_t buildGaussianKernel (const AlgoType sigmaPx,
                                         AlgoType taps[ALGO_BLUR_MAX_TAPS]) noexcept
     {
+        // ⚠ A ZERO SIGMA MUST NOT REACH THE EXPONENT. inv2s2 below would be
+        // infinite and the centre tap would evaluate exp(-0 * inf) = NaN, which
+        // renormalisation then spreads over the whole kernel and the kernel over
+        // the whole plane. The isotropic entry point has always screened this
+        // out before calling, but the per-axis form can be asked for a zero on
+        // ONE axis while the other is finite, so the guard belongs here where
+        // the division is rather than at every caller.
+        //
+        // The identity kernel is the correct answer, not merely a safe one: a
+        // Gaussian of zero width IS a delta. Three taps rather than one because
+        // the half-width is clamped to at least one below anyway.
+        if (sigmaPx <= ALGO_ZERO)
+        {
+            taps[0] = ALGO_ZERO;
+            taps[1] = ALGO_ONE;
+            taps[2] = ALGO_ZERO;
+            return 1;
+        }
+
         int32_t half = static_cast<int32_t>(
             std::ceil(static_cast<HighPrecType>(sigmaPx * ALGO_BLUR_SIGMA_CUTOFF)));
 
@@ -195,9 +214,9 @@ namespace
     //
     //  They were duplicated here, and that duplication WAS the last measured
     //  scalar/AVX2 blur divergence. Two copies of a threshold drift; one copy
-    //  cannot. The planner AlgoBlurDetail::planBlur now decides for both paths,
-    //  so they choose the same k, the same reduced extent and the same sigmaLo
-    //  by construction rather than by agreement.
+    //  cannot. The planner AlgoBlurDetail::planBlurXY now decides for both
+    //  paths, so they choose the same k, the same reduced extent and the same
+    //  reduced sigmas by construction rather than by agreement.
     //
     //  The threshold this path uses is ALGO_BLUR_SIGMA_EXACT_MAX, not the old
     //  local 3.5. The reasoning changed: 3.5 was a PERFORMANCE crossover, valid
@@ -948,7 +967,8 @@ namespace
         const int32_t            sizeX,
         const int32_t            sizeY,
         const int32_t            pitch,
-        const AlgoType           sigmaPx,
+        const AlgoType           sigmaXPx,
+        const AlgoType           sigmaYPx,
         const AlgoType           wAcc
     ) noexcept
 {
@@ -957,7 +977,12 @@ namespace
     // A Gaussian of zero or negative width is the identity - and so, to any
     // representable precision, is one narrower than ALGO_BLUR_NEGLIGIBLE_SIGMA.
     // See that constant for the arithmetic; the saving is one of the two passes.
-    if (sigmaPx < ALGO_BLUR_NEGLIGIBLE_SIGMA)
+    //
+    // BOTH axes must be negligible for the whole operator to be the identity.
+    // With only one of them negligible the other pass still has work to do, and
+    // taking this exit would silently drop it - the kind of shortcut that is
+    // right for every isotropic caller and wrong for the one anisotropic one.
+    if (sigmaXPx < ALGO_BLUR_NEGLIGIBLE_SIGMA && sigmaYPx < ALGO_BLUR_NEGLIGIBLE_SIGMA)
     {
         blurEmitPlane<ACC>(pSrc, pDst, sizeX, sizeY, pitch, wAcc);
         return;
@@ -994,8 +1019,8 @@ namespace
     // ----------------------------------------------------------------------
     {
         const AlgoBlurDetail::BlurPlan plan =
-            AlgoBlurDetail::planBlur(sigmaPx, sizeX, sizeY,
-                                     ALGO_BLUR_SIGMA_EXACT_MAX);
+            AlgoBlurDetail::planBlurXY(sigmaXPx, sigmaYPx, sizeX, sizeY,
+                                       ALGO_BLUR_SIGMA_EXACT_MAX);
 
         if (plan.usePyramid)
         {
@@ -1032,8 +1057,14 @@ namespace
                 // point. It NEVER accumulates: it produces the low-resolution
                 // lobe in its own plane, and the accumulation happens once, in
                 // the upsample that writes the full-resolution destination.
+                //
+                // The anisotropy rides through unchanged: the resampling is the
+                // same in both axes, so the ratio of the two reduced sigmas is
+                // the ratio of the two requested ones up to the shared variance
+                // compensation.
                 blurPlaneWrapT<false>(loSrc, loOut, loTmp,
-                                      loW, loH, loPitch, plan.sigmaLo, ALGO_ONE);
+                                      loW, loH, loPitch,
+                                      plan.sigmaLoX, plan.sigmaLoY, ALGO_ONE);
 
                 pyramidUpsample<ACC>(loOut, loW, loH, loPitch,
                                      pDst, sizeX, sizeY, pitch, wAcc);
@@ -1047,10 +1078,23 @@ namespace
         // correct in every case, only slower.
     }
 
-    AVX2_ALIGN AlgoType taps[ALGO_BLUR_MAX_TAPS];
+    // ----------------------------------------------------------------------
+    //  ONE KERNEL PER AXIS.
+    //
+    //  tapsX drives the horizontal pass and tapsY the vertical, and for every
+    //  isotropic call the two arrays hold the same numbers because
+    //  buildGaussianKernel is a pure function of its sigma. That is what makes
+    //  the isotropic entry point bit-identical to the single-kernel code this
+    //  replaced rather than merely equivalent: same taps, same order, same FMAs.
+    // ----------------------------------------------------------------------
+    AVX2_ALIGN AlgoType tapsX[ALGO_BLUR_MAX_TAPS];
+    AVX2_ALIGN AlgoType tapsY[ALGO_BLUR_MAX_TAPS];
 
-    const int32_t half = buildGaussianKernel(sigmaPx, taps);
-    const int32_t n    = 2 * half + 1;
+    const int32_t halfX = buildGaussianKernel(sigmaXPx, tapsX);
+    const int32_t nX    = 2 * halfX + 1;
+
+    const int32_t halfY = buildGaussianKernel(sigmaYPx, tapsY);
+    const int32_t nY    = 2 * halfY + 1;
 
     // ----------------------------------------------------------------------
     //  Interior bounds for the horizontal pass, shared by both paths below.
@@ -1060,8 +1104,8 @@ namespace
     //  scalar wrapped path. Clamped rather than assumed non-empty, because a
     //  negative count would run the vector loop backwards.
     // ----------------------------------------------------------------------
-    const int32_t hiStart = MIN_VALUE(half, sizeX);
-    const int32_t hiEnd   = MAX_VALUE(sizeX - half, hiStart);
+    const int32_t hiStart = MIN_VALUE(halfX, sizeX);
+    const int32_t hiEnd   = MAX_VALUE(sizeX - halfX, hiStart);
 
     const int32_t hiVecs = (hiEnd - hiStart) / ALGO_AVX2_LANES;
     const int32_t hiTail = (hiEnd - hiStart) - (hiVecs * ALGO_AVX2_LANES);
@@ -1083,10 +1127,17 @@ namespace
     //  holds distinct source rows, and if the plane had fewer rows than the
     //  window the same row would occupy two slots and be counted twice. The
     //  two-pass path handles that case correctly, so it takes it.
+    //
+    //  BOTH TESTS ARE ON halfY, NOT halfX, and that is not an oversight. The
+    //  window is a stack of ROWS: its height is the vertical half-width and its
+    //  cache footprint and the tallness constraint both follow from that alone.
+    //  The horizontal kernel is applied one row at a time by blurRowHorizontal
+    //  and costs the window nothing however wide it is. For every isotropic
+    //  call halfY == halfX, so the choice cannot change any existing decision.
     // ----------------------------------------------------------------------
-    const int32_t win = n;   // 2*half + 1 rows
+    const int32_t win = nY;   // 2*halfY + 1 rows
 
-    if ((half <= ALGO_BLUR_FUSED_MAX_HALF) && (win <= sizeY))
+    if ((halfY <= ALGO_BLUR_FUSED_MAX_HALF) && (win <= sizeY))
     {
         // Row slots inside the scratch plane.
         AlgoType* RESTRICT rows[2 * ALGO_BLUR_FUSED_MAX_HALF + 1];
@@ -1095,23 +1146,23 @@ namespace
             rows[s] = pScratch + static_cast<std::ptrdiff_t>(s) * pitch;
 
         // ------------------------------------------------------------------
-        //  Prime the window with source rows -half .. +half, wrapped.
+        //  Prime the window with source rows -halfY .. +halfY, wrapped.
         //
-        //  Slot s holds source row (s - half), so after priming slot 0 is the
+        //  Slot s holds source row (s - halfY), so after priming slot 0 is the
         //  topmost row the first output needs.
         // ------------------------------------------------------------------
         for (int32_t s = 0; s < win; s++)
         {
-            const int32_t sy = wrapIndex(s - half, sizeY);
+            const int32_t sy = wrapIndex(s - halfY, sizeY);
 
             blurRowHorizontal(pSrc + static_cast<std::ptrdiff_t>(sy) * pitch,
-                              rows[s], sizeX, half, n, taps,
+                              rows[s], sizeX, halfX, nX, tapsX,
                               hiStart, hiVecs, hiTail, vHiTail);
         }
 
-        // Slot holding the OLDEST row in the window, i.e. row y-half. Rotates by
-        // one per output row, which is what makes this O(1) per row rather than
-        // a refill.
+        // Slot holding the OLDEST row in the window, i.e. row y-halfY. Rotates
+        // by one per output row, which is what makes this O(1) per row rather
+        // than a refill.
         int32_t base = 0;
 
         const int32_t vecCount = sizeX / ALGO_AVX2_LANES;
@@ -1127,7 +1178,7 @@ namespace
             // --------------------------------------------------------------
             //  Vertical accumulation across the window.
             //
-            //  Tap t applies to source row y - half + t, which sits in slot
+            //  Tap t applies to source row y - halfY + t, which sits in slot
             //  (base + t) mod win. No wrapIndex here: the wrap was resolved when
             //  the row was loaded into the window.
             // --------------------------------------------------------------
@@ -1147,7 +1198,7 @@ namespace
                 const int32_t s = (base + t < win) ? (base + t) : (base + t - win);
 
                 ordered[t] = rows[s];
-                wTap   [t] = taps[t];
+                wTap   [t] = tapsY[t];
             }
 
             int32_t x = 0;
@@ -1185,10 +1236,10 @@ namespace
             // --------------------------------------------------------------
             if (y + 1 < sizeY)
             {
-                const int32_t sy = wrapIndex(y + 1 + half, sizeY);
+                const int32_t sy = wrapIndex(y + 1 + halfY, sizeY);
 
                 blurRowHorizontal(pSrc + static_cast<std::ptrdiff_t>(sy) * pitch,
-                                  rows[base], sizeX, half, n, taps,
+                                  rows[base], sizeX, halfX, nX, tapsX,
                                   hiStart, hiVecs, hiTail, vHiTail);
 
                 base = (base + 1 < win) ? (base + 1) : 0;
@@ -1201,7 +1252,7 @@ namespace
     // ----------------------------------------------------------------------
     //  TWO-PASS PATH: wide kernels, and any plane too short for a window.
     //
-    //  Horizontal pass: pSrc -> pScratch.
+    //  Horizontal pass: pSrc -> pScratch, tapsX.
     // ----------------------------------------------------------------------
 
     for (int32_t y = 0; y < sizeY; y++)
@@ -1216,8 +1267,8 @@ namespace
         {
             AlgoType acc = ALGO_ZERO;
 
-            for (int32_t t = -half; t <= half; t++)
-                acc += taps[t + half] * pInRow[wrapIndex(x + t, sizeX)];
+            for (int32_t t = -halfX; t <= halfX; t++)
+                acc += tapsX[t + halfX] * pInRow[wrapIndex(x + t, sizeX)];
 
             pOutRow[x] = acc;
         }
@@ -1229,13 +1280,13 @@ namespace
         {
             __m256 acc = _mm256_setzero_ps();
 
-            // Tap t reads the window starting at x - half + (t + half), which is
-            // x + t. Unaligned because the window slides by one sample per tap.
-            const AlgoType* RESTRICT pw = pInRow + x - half;
+            // Tap t reads the window starting at x - halfX + (t + halfX), which
+            // is x + t. Unaligned because the window slides one sample per tap.
+            const AlgoType* RESTRICT pw = pInRow + x - halfX;
 
-            for (int32_t k = 0; k < n; k++)
+            for (int32_t k = 0; k < nX; k++)
                 acc = _mm256_fmadd_ps(_mm256_loadu_ps(pw + k),
-                                      _mm256_broadcast_ss(&taps[k]), acc);
+                                      _mm256_broadcast_ss(&tapsX[k]), acc);
 
             // UNALIGNED store, and this is not laziness. The interior begins at
             // x = half, which is the kernel half-width - an arbitrary integer, not a
@@ -1248,13 +1299,13 @@ namespace
         {
             __m256 acc = _mm256_setzero_ps();
 
-            const AlgoType* RESTRICT pw = pInRow + x - half;
+            const AlgoType* RESTRICT pw = pInRow + x - halfX;
 
             // Masked loads, so the tail cannot read past the interior into the
             // region the right-edge scalar loop owns.
-            for (int32_t k = 0; k < n; k++)
+            for (int32_t k = 0; k < nX; k++)
                 acc = _mm256_fmadd_ps(_mm256_maskload_ps(pw + k, vHiTail),
-                                      _mm256_broadcast_ss(&taps[k]), acc);
+                                      _mm256_broadcast_ss(&tapsX[k]), acc);
 
             _mm256_maskstore_ps(pOutRow + x, vHiTail, acc);
 
@@ -1266,19 +1317,24 @@ namespace
         {
             AlgoType acc = ALGO_ZERO;
 
-            for (int32_t t = -half; t <= half; t++)
-                acc += taps[t + half] * pInRow[wrapIndex(x + t, sizeX)];
+            for (int32_t t = -halfX; t <= halfX; t++)
+                acc += tapsX[t + halfX] * pInRow[wrapIndex(x + t, sizeX)];
 
             pOutRow[x] = acc;
         }
     }
 
     // ----------------------------------------------------------------------
-    //  Vertical pass: pScratch -> pDst.
+    //  Vertical pass: pScratch -> pDst, tapsY.
     //
     //  The wrap is on Y and is hoisted entirely out of the x loop: each tap
     //  contributes one whole row, whose base address is resolved once. What remains
     //  inside is pure streaming FMA.
+    //
+    //  This pass and the fused window above are the only places the two axes can
+    //  differ, which is why a per-axis sigma costs one extra kernel and no
+    //  restructuring: the separable Gaussian was always two independent
+    //  one-dimensional filters that merely happened to share a number.
     // ----------------------------------------------------------------------
     const int32_t vVecs = sizeX / ALGO_AVX2_LANES;
     const int32_t vTailN = sizeX - (vVecs * ALGO_AVX2_LANES);
@@ -1295,15 +1351,15 @@ namespace
         {
             __m256 acc = _mm256_setzero_ps();
 
-            for (int32_t k = 0; k < n; k++)
+            for (int32_t k = 0; k < nY; k++)
             {
-                const int32_t ys = wrapIndex(y + k - half, sizeY);
+                const int32_t ys = wrapIndex(y + k - halfY, sizeY);
 
                 const AlgoType* RESTRICT pRow =
                     pScratch + static_cast<std::ptrdiff_t>(ys) * pitch;
 
                 acc = _mm256_fmadd_ps(_mm256_loadu_ps(pRow + x),
-                                      _mm256_broadcast_ss(&taps[k]), acc);
+                                      _mm256_broadcast_ss(&tapsY[k]), acc);
             }
 
             blurEmit<ACC>(pOutRow + x, acc, vWAcc);
@@ -1313,15 +1369,15 @@ namespace
         {
             __m256 acc = _mm256_setzero_ps();
 
-            for (int32_t k = 0; k < n; k++)
+            for (int32_t k = 0; k < nY; k++)
             {
-                const int32_t ys = wrapIndex(y + k - half, sizeY);
+                const int32_t ys = wrapIndex(y + k - halfY, sizeY);
 
                 const AlgoType* RESTRICT pRow =
                     pScratch + static_cast<std::ptrdiff_t>(ys) * pitch;
 
                 acc = _mm256_fmadd_ps(_mm256_maskload_ps(pRow + x, vTail),
-                                      _mm256_broadcast_ss(&taps[k]), acc);
+                                      _mm256_broadcast_ss(&tapsY[k]), acc);
             }
 
             blurEmitMasked<ACC>(pOutRow + x, acc, vWAcc, vTail);
@@ -1340,6 +1396,10 @@ namespace
 //  instantiation of the template above, which multiplies by 1.0f. That multiply
 //  is exact in IEEE-754, so this path is bit-identical to the code before the
 //  accumulate mode was added rather than merely equivalent.
+//
+//  The same sigma on both axes. buildGaussianKernel is a pure function of its
+//  sigma, so the template's two kernels come out identical tap for tap and the
+//  isotropic result is unchanged to the last bit by the per-axis rework.
 // ---------------------------------------------------------------------------
 void AlgoGaussianBlurPlaneWrap
 (
@@ -1353,7 +1413,32 @@ void AlgoGaussianBlurPlaneWrap
 ) noexcept
 {
     blurPlaneWrapT<false>(pSrc, pDst, pScratch,
-                          sizeX, sizeY, pitch, sigmaPx, ALGO_ONE);
+                          sizeX, sizeY, pitch, sigmaPx, sigmaPx, ALGO_ONE);
+    return;
+}
+
+
+// ---------------------------------------------------------------------------
+//  Public entry point: ANISOTROPIC blur, no accumulation, unit weight.
+//
+//  See AlgoSeparableBlur.hpp for why the grain stage needs one sigma per axis,
+//  and why sigma_y = anisotropy * sigma_x is the spatial-domain spelling of the
+//  reference model's frequency-domain stretch of the vertical axis.
+// ---------------------------------------------------------------------------
+void AlgoGaussianBlurPlaneWrapXY
+(
+    const AlgoType* RESTRICT pSrc,
+    AlgoType* RESTRICT       pDst,
+    AlgoType* RESTRICT       pScratch,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const AlgoType           sigmaXPx,
+    const AlgoType           sigmaYPx
+) noexcept
+{
+    blurPlaneWrapT<false>(pSrc, pDst, pScratch,
+                          sizeX, sizeY, pitch, sigmaXPx, sigmaYPx, ALGO_ONE);
     return;
 }
 
@@ -1430,12 +1515,14 @@ void AlgoMultiGaussianBlurPlaneWrap
     {
         const AlgoType w = weight[k] * invWsum;
 
+        // Isotropic: the multi-lobe form models a radially symmetric scatter
+        // kernel, so the same sigma goes down both axes.
         if (0 == k)
             blurPlaneWrapT<false>(pSrc, pDst, pScratchA,
-                                  sizeX, sizeY, pitch, sigmaPx[k], w);
+                                  sizeX, sizeY, pitch, sigmaPx[k], sigmaPx[k], w);
         else
             blurPlaneWrapT<true>(pSrc, pDst, pScratchA,
-                                 sizeX, sizeY, pitch, sigmaPx[k], w);
+                                 sizeX, sizeY, pitch, sigmaPx[k], sigmaPx[k], w);
     }
 
     return;
