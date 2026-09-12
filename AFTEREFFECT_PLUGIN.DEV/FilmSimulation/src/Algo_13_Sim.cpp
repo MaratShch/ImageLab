@@ -78,6 +78,102 @@ namespace
     //  representable bit while the exponential heads for overflow. Selected with a
     //  blend rather than branched, so all eight lanes stay on one path.
     // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    //  ACCURATE exp AND log FOR THE PRINT CURVE, 2026-09-11.
+    //
+    //  ⚠ THESE REPLACE FastCompute::AVX2::Exp AND ::Log IN THIS STAGE, AND THE
+    //  REASON IS A MEASUREMENT, NOT A PREFERENCE. Those two are the Schraudolph
+    //  bit-hack and a short log approximation. The comment further down this
+    //  file priced the resulting fidelity cost at "2.4e-03 to 3.2e-03 in plane
+    //  MEAN" and accepted it as a documented mode difference.
+    //
+    //  The new 27-stage twin audit measured it PER PIXEL for the first time:
+    //  1.03e-02 to 1.37e-02 D, four to five times the quoted figure. A mean is
+    //  an integral and the error is signed, so averaging hid most of it. On
+    //  every stock that prints it reached the screen as 7.4e-03 to 7.7e-03 of
+    //  transmittance -- about TWO EIGHT-BIT CODE VALUES -- and stages 14 to 17
+    //  inherited it while adding nothing of their own, which the two reversal
+    //  stocks proved by sitting at the float32 floor through the same range.
+    //
+    //  That is the same class of defect as the stage-14 Schraudolph error fixed
+    //  the same day: a PRECISION difference between the twins had quietly
+    //  become a MODEL difference. Measured after this change: 5.90e-06 D worst
+    //  over the whole (x, k) domain the print curve uses, a factor of 2300.
+    //
+    //  ⚠ THEY LIVE IN THIS TRANSLATION UNIT, NOT IN THE SHARED MATH HEADER, and
+    //  that is deliberate. FastAriphmeticsAVX.hpp is a COMMON component shipped
+    //  in a different archive from this stage; putting Exp2Accurate there on
+    //  2026-09-11 meant the updated header never reached the owner's build and
+    //  the stale copy on the include path won. A stage may not depend on a
+    //  change to a component it does not ship with.
+    //
+    //  ⚠ AND THE MANTISSA RANGE IN THE LOG IS THE PART TO LEAVE ALONE. The
+    //  polynomial is a minimax fit for log(1+f) on f in [-0.293, 0.414]; the
+    //  decomposition must therefore put the mantissa in [0.707, 1.414], not the
+    //  [1, 2) that the raw exponent field gives. A first version that skipped
+    //  that step measured 1.38e-02 absolute instead of 2.84e-07.
+    // ----------------------------------------------------------------------
+    FORCE_INLINE __m256 algoExp2AccV (__m256 x) noexcept
+    {
+        x = _mm256_max_ps(x, _mm256_set1_ps(-126.0f));
+        x = _mm256_min_ps(x, _mm256_set1_ps( 127.0f));
+        const __m256 n = _mm256_round_ps(
+            x, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+        const __m256 f = _mm256_sub_ps(x, n);
+        __m256 p = _mm256_set1_ps(1.3352819600e-3f);
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(9.6178398092e-3f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(5.5503406540e-2f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(2.4022650696e-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(6.9314718056e-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(1.0f));
+        const __m256i bias = _mm256_add_epi32(_mm256_cvtps_epi32(n),
+                                              _mm256_set1_epi32(127));
+        return _mm256_mul_ps(p, _mm256_castsi256_ps(
+            _mm256_slli_epi32(bias, 23)));
+    }
+
+    FORCE_INLINE __m256 algoExpAccV (const __m256 x) noexcept
+    {
+        return algoExp2AccV(_mm256_mul_ps(x, _mm256_set1_ps(1.44269504088896341f)));
+    }
+
+    FORCE_INLINE __m256 algoLogAccV (__m256 x) noexcept
+    {
+        x = _mm256_max_ps(x, _mm256_set1_ps(1.17549435e-38f));
+        const __m256i xi = _mm256_castps_si256(x);
+        __m256i e = _mm256_sub_epi32(_mm256_srli_epi32(xi, 23),
+                                     _mm256_set1_epi32(127));
+        __m256 m = _mm256_castsi256_ps(_mm256_or_si256(
+            _mm256_and_si256(xi, _mm256_set1_epi32(0x007FFFFF)),
+            _mm256_set1_epi32(0x3F800000)));
+        // ⚠ THE MANTISSA MUST LAND IN [0.707, 1.414], NOT [1, 2). The
+        // polynomial below is a minimax fit for log(1+f) on f in
+        // [-0.293, 0.414] and degrades badly outside it -- a first attempt
+        // that left m in [1, 2) measured 1.38e-02 absolute error instead of
+        // 1e-07. When m is at or above sqrt(2), halve it and carry the factor
+        // in the exponent instead.
+        const __m256 hi = _mm256_cmp_ps(m, _mm256_set1_ps(1.41421356237309505f),
+                                        _CMP_GE_OQ);
+        m = _mm256_blendv_ps(m, _mm256_mul_ps(m, _mm256_set1_ps(0.5f)), hi);
+        e = _mm256_add_epi32(e, _mm256_and_si256(
+            _mm256_castps_si256(hi), _mm256_set1_epi32(1)));
+        const __m256 f = _mm256_sub_ps(m, _mm256_set1_ps(1.0f));
+        __m256 p = _mm256_set1_ps(7.0376836292E-2f);
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(-1.1514610310E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps( 1.1676998740E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(-1.2420140846E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps( 1.4249322787E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(-1.6668057665E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps( 2.0000714765E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(-2.4999993993E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps( 3.3333331174E-1f));
+        const __m256 ff = _mm256_mul_ps(f, f);
+        p = _mm256_mul_ps(p, _mm256_mul_ps(ff, f));
+        __m256 r = _mm256_add_ps(_mm256_fnmadd_ps(_mm256_set1_ps(0.5f), ff, f), p);
+        return _mm256_fmadd_ps(_mm256_cvtepi32_ps(e),
+                               _mm256_set1_ps(0.693147180559945309f), r);
+    }
+
     FORCE_INLINE __m256 algoSoftplusV (const __m256 x,
                                        const __m256 k,
                                        const __m256 invK) noexcept
@@ -91,10 +187,10 @@ namespace
         // raising.
         const __m256 useLinear = _mm256_cmp_ps(z, vLimit, _CMP_GT_OQ);
 
-        const __m256 u = FastCompute::AVX2::Exp(z);
+        const __m256 u = algoExpAccV(z);
 
         const __m256 lg =
-            FastCompute::AVX2::Log(_mm256_add_ps(u, _mm256_set1_ps(1.0f)));
+            algoLogAccV(_mm256_add_ps(u, _mm256_set1_ps(1.0f)));
 
         return _mm256_blendv_ps(_mm256_mul_ps(k, lg), x, useLinear);
     }
@@ -169,13 +265,31 @@ namespace
         //  fixed point, so it wins there. This stage evaluates it once per
         //  sample, so it loses here.
         //
-        //  WHAT THAT COSTS IN FIDELITY, measured on the deterministic chain at
-        //  128 px: the scalar and vector paths differ at this stage by about
-        //  2.4e-03 to 3.2e-03 in plane mean. That is below one part in 255, so
-        //  it is under the quantisation of eight-bit output and cannot be seen.
+        //  ⚠⚠ WHAT IT COST IN FIDELITY -- AND THE FIGURE THIS PARAGRAPH USED
+        //  TO QUOTE WAS THE WRONG STATISTIC. It read: "the scalar and vector
+        //  paths differ at this stage by about 2.4e-03 to 3.2e-03 in plane
+        //  mean. That is below one part in 255, so it is under the
+        //  quantisation of eight-bit output and cannot be seen."
+        //
+        //  A PLANE MEAN IS AN INTEGRAL AND THE ERROR IS SIGNED, so most of it
+        //  cancelled before it was ever looked at. The 27-stage twin audit
+        //  measured the same difference PER PIXEL on 2026-09-11 and found
+        //  1.03e-02 to 1.37e-02 D -- four to five times the quoted number --
+        //  arriving at the screen as about TWO EIGHT-BIT CODE VALUES on every
+        //  stock that prints. It could be seen, and the conclusion drawn from
+        //  the mean was wrong.
+        //
+        //  ⚠ THE TIMING ARGUMENT ABOVE STILL STANDS AND IS NOT WITHDRAWN. A
+        //  table really was tried here and really was slower; those numbers
+        //  are real. What is withdrawn is the claim that the fast softplus
+        //  cost nothing visible. The stage now uses an ACCURATE exp and log
+        //  defined at the top of this file, which keeps the once-per-sample
+        //  evaluation the timing argument favours while removing the error:
+        //  measured 5.90e-06 D worst over the whole operating domain.
+        //
         //  The vector path stays monotonic and produces no discontinuity or
-        //  invalid value -- the approximation is well behaved across the whole
-        //  operating range of the curve argument.
+        //  invalid value across the whole operating range of the curve
+        //  argument -- that part was always true and remains so.
         //
         //  This is therefore a DOCUMENTED MODE DIFFERENCE, not an accidental
         //  divergence: the scalar path is the higher-precision reference, and

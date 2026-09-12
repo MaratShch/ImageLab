@@ -6,7 +6,6 @@
 // parameter reaches the engine through this structure, and the film selection is
 // an algorithm parameter, so it lives here rather than in the call signature.
 #include "film_enum.hpp"
-#include "AlgoControlEnums.hpp"
 
 /**
  * @file AlgoControl.hpp
@@ -136,16 +135,21 @@
  * Physical film damage, gated by AlgoControls::filmDamageEnabled.
  *
  * CONSUMPTION STATUS, MEASURED AGAINST THIS TREE
- *   Consumed (9): damageStrength, damageSeed, dustLevel, debrisLevel,
- *                 fibreLevel, dirtClumping  -> stage 09b
- *                 weaveAmount               -> stage 15
- *                 gateDirt, damageEvents    -> stage 16
- *   Unconsumed (8): scratchTransport, scratchHandling, processingQuality,
- *                 dryingMarks, storageSeverity, colourVeil, flickerStops,
- *                 scannerArtifacts
- *   The unconsumed eight remain in the layout deliberately, so the panel and
+ *   Consumed (11): damageStrength, damageSeed, dustLevel, debrisLevel,
+ *                 fibreLevel, dirtClumping, scratchTransport,
+ *                 scratchHandling            -> stage 09b
+ *                 weaveAmount                -> stage 15
+ *                 gateDirt, damageEvents     -> stage 16
+ *   Unconsumed (6): processingQuality, dryingMarks, storageSeverity,
+ *                 colourVeil, flickerStops, scannerArtifacts
+ *   The unconsumed six remain in the layout deliberately, so the panel and
  *   any serialised preset can be built once against a stable structure. Each
  *   says so in its own item 9.
+ *
+ *   ⚠ THE TWO SCRATCH FIELDS MOVED FROM UNCONSUMED TO CONSUMED, and the layout
+ *   did not change with them - they were always here, in this order, and only
+ *   their behaviour is new. Anything that serialised this structure while they
+ *   were inert still deserialises, and the presets it wrote now do something.
  *
  * TWO FAMILIES, DELIBERATELY SPLIT FROM FILM PROPERTIES
  *   These are POST-HOC events on a developed strip and are emulsion
@@ -184,6 +188,11 @@
  *   3.5 per cent contrast amplitude, the weave X:Y ratio and its 0.8 Hz corner,
  *   the T1/T2/T3 population shares. Exposing them would be 200 sliders nobody
  *   touches.
+ *
+ *   The four scratch figures in that list now live where the paragraph says
+ *   they should - ALGO_SCRATCH_WIDTH_UM, ALGO_SCRATCH_STRAIGHTNESS,
+ *   ALGO_SCRATCH_ORIENT_RATIO and ALGO_SCRATCH_CONTRAST_MEDIAN in
+ *   AlgoNegativeDefects.hpp, each with its value and where it came from.
  *
  * ZERO DISABLES, AND IT COSTS NOTHING
  *   Every scale below follows the engine's existing convention: 0 switches the
@@ -447,31 +456,59 @@ struct FilmDamage
      *  1  NAME           scratchTransport
      *  2  TYPE           double
      *  3  AE CONTROL     slider
-     *  4  UNIT           intended dimensionless multiplier on a per-metre
-     *                    scratch rate. UNVERIFIABLE - no arithmetic consumes
-     *                    the field, so no unit can be derived from the code
-     *  5  MIN            none enforced - the field has no reader
-     *  6  MAX            4.0 advisory - NOT ENFORCED, no reader
+     *  4  UNIT           dimensionless multiplier on the EXPECTED NUMBER OF
+     *                    TRAMLINES RUNNING ON THE WEB AT ONCE. It multiplies
+     *                    ALGO_SCRATCH_TRANSPORT_COUNT = 1.0, so 1.0 means "one
+     *                    running scratch on the web, on average, at any
+     *                    instant".
+     *                    ⚠ THAT ANCHOR IS A DEFINITION, NOT A MEASUREMENT. A
+     *                    per-metre rate is what this would properly multiply,
+     *                    and AgingSpec.scratch_rate_base_per_m is where such a
+     *                    rate belongs - but it ships zero on all 184 stocks, so
+     *                    there is nothing to derive an anchor from and the
+     *                    control is defined instead of pretended. See the
+     *                    constant's own comment in AlgoNegativeDefects.hpp.
+     *  5  MIN            0.0, ENFORCED (MAX_VALUE floor at stage 09b)
+     *  6  MAX            4.0 advisory - NOT ENFORCED. The arrival window
+     *                    (ALGO_SCRATCH_RUN_WINDOW = 32 ordinals) covers 8 mean
+     *                    runs at 4.0 and fewer above it, so far past the
+     *                    advisory maximum the oldest survivors start to be
+     *                    missed rather than the render breaking.
      *  7  DEFAULT        0.40   (AlgoControl.cpp, getFilmDamageDefault)
      *  8  STEP           0.01 [proposed], consistent with the other levels
-     *  9  PURPOSE        UNCONSUMED IN THIS BUILD. Intended: longitudinal
-     *                    transport scratches - long, straight, parallel to film
-     *                    travel, continuing across frame boundaries. The
-     *                    defining motion-picture defect ("rain", "tramlines"),
-     *                    and machine-fixed: it holds a fixed position on screen
-     *                    for a whole reel while the image moves past it.
-     * 10  OUTPUT EFFECT  NONE TODAY. No stage reads this field; setting it has
-     *                    no effect on the rendered image at any value.
-     *                    Intended orientation, when implemented: horizontal on
-     *                    a still frame and vertical on every common cine
-     *                    format, because film travels along the long axis of a
-     *                    still frame and the short axis of a cine one - derived
-     *                    from the format, never authored.
-     * 11  STAGES         none currently. Intended stage 09b.
-     * 12  INTERACTIONS   None in force. Intended: multiplied by damageStrength
-     *                    like the other levels.
-     * 13  SCALAR/AVX2    No difference - unconsumed in both trees.
-     * 14  FULL/LITE      PENDING and moot until the field is consumed.
+     *  9  PURPOSE        Longitudinal transport scratches - long, straight,
+     *                    parallel to film travel, continuing across frame
+     *                    boundaries. The defining motion-picture defect
+     *                    ("rain", "tramlines"), and machine-fixed: it holds a
+     *                    fixed position on screen while the image moves past
+     *                    it.
+     * 10  OUTPUT EFFECT  Draws straight 26 um strokes locked to the transport
+     *                    axis at a fixed position across the web, each present
+     *                    for a run of frames whose mean is the stock's own
+     *                    TemporalSpec::scratch_persistence_frames. Orientation
+     *                    is horizontal on a still frame and vertical on every
+     *                    common cine format, because film travels along the
+     *                    long axis of a still and the short axis of a cine
+     *                    frame - derived from the format by AlgoFilmCoord,
+     *                    never authored. Each mark is DARK OR LIGHT on the
+     *                    negative depending on whether it cuts the emulsion or
+     *                    burnishes the base.
+     *                    ⚠ INERT ON SHEET AND PACK FORMATS. They report a frame
+     *                    pitch of zero and no transport axis, so there is no
+     *                    web for an abrader to run against; the handling class
+     *                    still applies to them.
+     * 11  STAGES         09b
+     * 12  INTERACTIONS   Multiplied by damageStrength. NOT distributed by
+     *                    dirtClumping - the clumping field is a property of the
+     *                    FILM and a transport scratch belongs to the MACHINE.
+     *                    Shares the class early-out with the other four levels.
+     *                    Reads TemporalSpec::scratch_persistence_frames, which
+     *                    is the only per-stock input to the class.
+     * 13  SCALAR/AVX2    Same semantics, and stronger than that: the whole
+     *                    class is HighPrecType in both trees and its source is
+     *                    character-for-character identical between them, so the
+     *                    two builds differ only by the float32 store.
+     * 14  FULL/LITE      PENDING. Expected Full only (stage 09b).
      */
     double scratchTransport;
 
@@ -479,22 +516,45 @@ struct FilmDamage
      *  1  NAME           scratchHandling
      *  2  TYPE           double
      *  3  AE CONTROL     slider
-     *  4  UNIT           intended dimensionless multiplier on a burst rate.
-     *                    UNVERIFIABLE - no reader
-     *  5  MIN            none enforced - no reader
-     *  6  MAX            4.0 advisory - NOT ENFORCED, no reader
+     *  4  UNIT           dimensionless multiplier on an AREAL DENSITY in marks
+     *                    per square millimetre of film; it multiplies
+     *                    ALGO_SCRATCH_HANDLING_PER_MM2 = 0.01 /mm2, which is
+     *                    about 4.6 marks on a super35 frame and 8.6 on a 35 mm
+     *                    still frame.
+     *                    ⚠ THE 0.01 IS A DEFINITIONAL ANCHOR, NOT A
+     *                    MEASUREMENT, for the same reason scratchTransport's
+     *                    is: AgingSpec.scratch_rate_base_per_m is zero on every
+     *                    stock, so there is no measured rate to scale.
+     *  5  MIN            0.0, ENFORCED (MAX_VALUE floor at stage 09b)
+     *  6  MAX            4.0 advisory - NOT ENFORCED, no downstream saturation
      *  7  DEFAULT        0.30   (AlgoControl.cpp, getFilmDamageDefault)
      *  8  STEP           0.01 [proposed]
-     *  9  PURPOSE        UNCONSUMED IN THIS BUILD. Intended: random handling
-     *                    scratches - short, curved, 0.3-4 mm, individually very
-     *                    faint but numerous, generated in bursts because a
-     *                    single wipe leaves several roughly parallel marks.
-     *                    Locked to the film, not to the machine.
-     * 10  OUTPUT EFFECT  NONE TODAY.
-     * 11  STAGES         none currently. Intended stage 09b.
-     * 12  INTERACTIONS   None in force.
-     * 13  SCALAR/AVX2    No difference - unconsumed in both trees.
-     * 14  FULL/LITE      PENDING and moot until the field is consumed.
+     *  9  PURPOSE        Random handling scratches - short, curved, 0.3-4 mm,
+     *                    individually very faint but numerous. Locked to the
+     *                    film, not to the machine, so they travel with the web
+     *                    exactly as the particulate classes do and have no
+     *                    persistence: a handling scratch is a single event and
+     *                    then a permanent part of the emulsion.
+     * 10  OUTPUT EFFECT  Places stroked 26 um marks of 0.3-4 mm, curved to the
+     *                    measured 0.98 chord-over-arc straightness that
+     *                    separates a scratch from a fibre, oriented with the
+     *                    measured 3.5:1 preference for the transport axis, and
+     *                    dark or light according to cut against burnish.
+     *                    ⚠ NOT GENERATED IN BURSTS, which the description above
+     *                    calls for and which is a known gap: a burst needs a
+     *                    size and an inter-mark spacing, and nothing in the
+     *                    tree measures either. The clumping field puts marks in
+     *                    patches, which is part of the effect but not the
+     *                    parallelism.
+     * 11  STAGES         09b
+     * 12  INTERACTIONS   Multiplied by damageStrength. Distributed by
+     *                    dirtClumping, unlike the transport class - a wipe
+     *                    damages a patch of FILM, so it belongs in the same
+     *                    Cox process as the particulate. Shares the class
+     *                    early-out with the other four levels.
+     * 13  SCALAR/AVX2    Same semantics; derivation and rasterisation are
+     *                    HighPrecType in both builds.
+     * 14  FULL/LITE      PENDING. Expected Full only (stage 09b).
      */
     double scratchHandling;
 
@@ -1135,7 +1195,6 @@ struct AlgoControls
      *                    quality, and must not differ between modes or the two
      *                    would not be comparable.
      */
-    // FilmFormatCtrl filmFormat;
     char filmFormat[ALGO_FILM_FORMAT_CAP];
 
     /**

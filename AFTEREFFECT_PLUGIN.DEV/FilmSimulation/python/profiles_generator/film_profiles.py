@@ -2189,6 +2189,80 @@ class GrainSpec:
             micrometres. 0.0 for B&W silver images; ~1.5-2.5 for colour
             stocks per tier-2 practice.
 
+            ⚠⚠ DO NOT WIRE THIS INTO STAGE 11 AS AN EXTRA LOW-PASS. IT WOULD
+            DOUBLE-COUNT, and the field audit of 2026-09-11 ranked it the best
+            unused candidate in the database precisely because that trap is not
+            obvious: it is populated on 115 stocks, it is already in the same
+            units as `clump_um_*`, and the arithmetic to add it is one line
+            (variances add, so sigma_total = sqrt(sigma_clump^2 + sigma_dye^2)
+            beside the scan term that is combined exactly that way).
+
+            THE REASON IT IS WRONG IS PROVENANCE, NOT ARITHMETIC. `clump_um_*`
+            is not an independent measurement of the silver clump: see its own
+            note above -- every estimated value was divided by 3.1 corpus-wide
+            under queue C45 to make the RENDERED grain match observation, and
+            the five exceptions are the ones traced to BBC T-101. So for a
+            colour stock the fitted clump already reproduces whatever the dye
+            cloud contributes to the appearance it was fitted against. Adding a
+            second spreading term would attenuate grain that has already been
+            accounted for, on 115 stocks, with no measurement supporting the
+            new total.
+
+            ⚠ AND THE STORED VALUES ARE CONSISTENT WITH THAT READING. Median
+            clump is 3.98 um on the colour stocks carrying a dye cloud against
+            4.84 um on the monochrome set -- colour is FINER, when a real extra
+            dye spread would make it coarser. The two populations differ in era
+            and speed so this is corroboration rather than proof, but it points
+            the same way as the provenance does.
+
+            ⚠⚠ SETTLED 2026-09-11, AND THE ANSWER IS STRONGER THAN THE
+            DOUBLE-COUNT ARGUMENT ABOVE. Queue P43 asked for a silver-only
+            clump measurement, on the reasoning that the dye cloud needs
+            something to add TO. That measurement is not needed, because the
+            silver-only expectation can be DERIVED from the database itself:
+            the monochrome stocks carry `dye_cloud_um` = 0 by definition, so
+            their clump IS silver-only, and fitting it against their crystal
+            size gives
+
+                clump = 3.93 x grain_um        (65 monochrome stocks)
+
+            ⚠ THE TEST IS NOT CIRCULAR. `clump_um_*` is not derived from
+            `grain_um` anywhere in this file -- the 170 stocks carrying both
+            produce 130 distinct ratios, so the two were set independently.
+
+            THREE RESULTS, AND THEY AGREE:
+
+              1. The colour stocks sit at the SAME ratio as the monochrome
+                 ones. log(clump/grain) is 1.369 on 65 monochrome against
+                 1.297 on 103 colour -- t = -0.65, indistinguishable. If the
+                 dye cloud were a real spread ON TOP of the silver clump,
+                 colour would sit systematically HIGHER. It sits 0.93x, if
+                 anything slightly lower.
+
+              2. Adding the dye term is a COIN FLIP. Predicting each colour
+                 stock's clump as sqrt((3.93*grain)^2 + dye^2) against the
+                 silver-only 3.93*grain: the dye term improves the fit on 51
+                 stocks and worsens it on 52. It carries no information.
+
+              3. The two stocks with the LARGEST dye cloud contradict it
+                 hardest. KODAK_BW400CN and KODAK_T400CN are chromogenic
+                 black-and-white -- their image really is dye and nothing else,
+                 which is why they carry 9.0 um. Their clump/grain is 2.5,
+                 the LOWEST in the set, where the hypothesis demands the
+                 highest.
+
+            ⚠ AND THE FIELD ITSELF IS NOT A MEASUREMENT. It takes FOUR distinct
+            values across 115 stocks -- 1.5, 2.0, 2.5 and the two chromogenic
+            9.0s -- with no per-stock provenance anywhere. It is an era/class
+            band, not a measured diameter, so pairing it with a real silver-only
+            measurement would still be pairing a measurement with a guess.
+
+            CONCLUSION: this field must not enter the grain scale, and no new
+            document changes that -- the test the missing measurement was wanted
+            for can be run today, and it comes out null. P43 is CLOSED on the
+            analysis rather than left open for a source that would not settle
+            it. `G-DYECLOUD-INERT` in verify.py asserts the field stays unread.
+
             ⚠ THE COUPLER DROPLET IT FORMS AROUND IS AN ORDER OF MAGNITUDE
             SMALLER, and two patents disagree by an order of magnitude about
             what that costs. Recorded as a conflict, not averaged

@@ -30,7 +30,7 @@ CPP = Path("/root/work/tst")           # the live, editable engine tree
 OUT = Path("/root/work/deliver9")
 #: ⚠ SUFFIXED. A second delivery was cut on the same day at schema v30,
 #: and two archives named for one date cannot be told apart on disk.
-STAMP = date.today().isoformat() + 'b'
+STAMP = date.today().isoformat() + 'd'
 
 #: Generator sources: everything needed to REGENERATE the database.
 #: ⚠ NOT everything needed to run every audit. Until 2026-09-10d this tuple's
@@ -62,119 +62,129 @@ MANIFEST = """\
 FIVE ARCHIVES -- {stamp}
 ========================
 
-⚠⚠ THIS SUPERSEDES 2026-09-11a. THAT SET DID NOT BUILD IN VISUAL STUDIO.
-=========================================================================
+Schema v33 unchanged. Verify 696 PASS / 1 baselined FAIL, build clean, all
+four engine parity audits green.
 
-Three build breaks, all found by the owner compiling the previous set. Two of
-them were LONG-STANDING and had shipped silently more than once; one was mine
-from the same day.
+⚠⚠ THE QUEUE WENT DOWN FOR THE FIRST TIME IN FIVE PASSES: 30 LIVE -> 28
+=======================================================================
 
-1. AlgoReciprocity.hpp AND AlgoProcessVariant.hpp WERE MISSING FROM THE TREE.
-   AlgorithmMain.cpp includes both and calls both -- AlgoReciprocityLogShift
-   before stage 8, AlgoResolveProcessVariant before anything reads a curve --
-   and neither file existed. The driver therefore did not compile, in this
-   tree or in the last two deliveries cut from it. Both are RECONSTRUCTED here
-   from the Python reference, which never stopped applying either law, and
-   both are verified numerically rather than by inspection:
+P41 through P44 were all opened on 2026-09-11 and the instruction the same day
+was blunt: stop adding rows, start resolving them. P43 and P44 are CLOSED, and
+⚠ NEITHER CLOSED THE WAY ITS OWN ROW PREDICTED. Both were blocked on their own
+wrong premise rather than on the thing they named, which is the argument for
+re-reading a blocker before going out and sourcing it.
 
-       reciprocity      6624 probes, 184 stocks x 12 exposure times,
-                        worst disagreement 1.01e-07 decades
-       process variant  worst curve-parameter disagreement 4.53e-07
+P43 -- SETTLED FROM WITHIN THE DATABASE, AND THE DOCUMENT IT ASKED FOR WOULD
+NOT HAVE SETTLED IT
+============================================================================
 
-   ⚠ WHY IT WAS SILENT, WHICH MATTERS MORE THAN THE FILES. build.py's compile
-   step covers the 26 GENERATED database translation units and nothing else,
-   so AlgorithmMain.cpp -- the one file that includes thirty-odd headers and
-   calls every stage -- was never compiled by the gate at all. And
-   cpp_parity.py DID reference AlgoReciprocity.hpp, but SKIPPED when it was
-   absent. One [SKIP] line in a long green log reads exactly like a pass. The
-   guard that existed to protect the law is the reason its loss went unnoticed.
+The row wanted a SILVER-ONLY CLUMP MEASUREMENT so that `dye_cloud_um` would
+have something to add to. That measurement is not needed: the silver-only law
+can be derived here, because ⚠ the monochrome stocks carry dye_cloud_um = 0 BY
+DEFINITION, so their clump IS silver-only. Fitting it against crystal size over
+65 monochrome stocks gives
 
-   Both holes are now closed: cpp_parity FAILS instead of skipping when the
-   engine is present but the header is not, and a new verify guard,
-   G-ENGINE-INCLUDES, reads every #include in all 122 engine sources and
-   asserts the target exists. It needs no toolchain, and it is exactly the
-   failure that got through -- not a bad expression, an absent file.
+    clump = 3.93 x grain_um
 
-2. Exp2Accurate WAS PUT IN THE WRONG COMPONENT, AND THAT ONE IS MINE.
-   The accurate exp2 that fixes the stage-14 defect went into
-   FastAriphmeticsAVX.hpp, which is the obvious home -- it is where the other
-   vector transcendentals live. But that header is a COMMON component: in your
-   tree it is CPP\Common\include and it is shared by every project, while
-   stage 14 ships in the AVX2 algorithm archive. The archives are deliberately
-   separate, so the updated Common header never arrived, the stale copy on the
-   include path won, and the compiler said
+⚠ THE TEST IS NOT CIRCULAR: clump_um is not derived from grain_um anywhere in
+the generator, and the 170 stocks carrying both produce 130 distinct ratios.
 
-       error C2039: 'Exp2Accurate': is not a member of 'FastCompute::AVX2'
+THREE RESULTS, ALL AGREEING:
 
-   The function now lives in AVX2/Algo_14_Sim.cpp itself, in the anonymous
-   namespace. One consumer, one translation unit, no cross-archive coupling.
-   FastAriphmeticsAVX.hpp is back to its original content and this delivery
-   does not require you to touch Common at all. The measured accuracy is
-   unchanged: 0.000326 % worst relative error against exact 10^-d, and exactly
-   1.0 at D = 0, against the Schraudolph version's 2.98 % and 0.978161.
+  1. Colour sits at the SAME ratio as monochrome. log(clump/grain) is 1.369 on
+     65 monochrome against 1.297 on 103 colour -- t = -0.65, indistinguishable.
+     A real extra dye spread demands colour sit systematically HIGHER.
+  2. Adding the dye term is a COIN FLIP. Predicting each colour clump as
+     sqrt((3.93*grain)^2 + dye^2) against the silver-only 3.93*grain improves
+     51 stocks and worsens 52. It carries no information.
+  3. ⚠ The two stocks with the LARGEST dye cloud contradict it hardest.
+     KODAK_BW400CN and KODAK_T400CN are chromogenic black-and-white -- their
+     image really is dye and nothing else, which is why they carry 9.0 um --
+     and their clump/grain is 2.5, the LOWEST in the set, where the hypothesis
+     needs the highest.
 
-   ⚠ THE GENERAL LESSON IS IN THE TREE NOW: a stage may not depend on a change
-   to a component it does not ship with.
+⚠⚠ AND THE FIELD IS NOT A MEASUREMENT ANYWAY: four distinct values across 115
+stocks (1.5 / 2.0 / 2.5 and the two chromogenic 9.0s) with no per-stock
+provenance. It is an era band. Pairing a real silver-only measurement with a
+three-level guess would still be pairing a measurement with a guess.
 
-NEW IN THE PYTHON RENDERER: -8bpp
-==================================
+So the answer is not "acquire a document" but "the test that document was
+wanted for runs today and comes out null". G-DYECLOUD-INERT asserts the field
+stays unread, and exists because the next reader will have the same good idea.
 
-`film_sim.py` gains `-8bpp` (also spelled `--8bpp`). It writes an 8-BIT RGBA
-PNG with a constant opaque alpha.
+P44 -- A SCRATCH IS NOT BORN AND DOES NOT DIE, SO NO BIRTH/DEATH MODEL WAS
+NEEDED. WHAT WAS MISSING WAS THE SCRATCH CLASS ITSELF
+==========================================================================
 
-⚠ IT IS NOT A SYNONYM FOR `--bits 8`. That option already existed and writes
-an 8-bit THREE-channel file. The new flag adds the fourth channel, because
-that is what the comparison tools want: a 16-bit render cannot be diffed
-against an 8-bit source without a requantisation step that invents differences
-of its own, and several viewers refuse a three-channel file outright. The
-alpha is constant 255 and carries no information -- film is opaque and no
-stage in the renderer produces coverage -- so anyone computing with it should
-ignore it.
+The row assumed persistence had to be a lifetime on a static population. ⚠ The
+field's own docstring says "mean lifetime of a RUNNING scratch" -- abraded by
+continuous contact as the film passes, so it is a RUN LENGTH ALONG THE WEB, and
+stage 9b already translates defects with the web. The coordinate was there.
 
-`-8bpp` OVERRIDES `--bits` rather than conflicting with it, so `-8bpp
---bits 16` is 8-bit and not an error. Without the flag nothing changes: the
-default is still 16-bit RGB, byte for byte as before.
+⚠⚠ WHAT WAS ACTUALLY MISSING: stage 9b modelled three PARTICULATE classes --
+dust, debris, fibres -- and there was NO SCRATCH GENERATOR ANYWHERE IN EITHER
+ENGINE. The field had nothing to attach to, which the row read as a missing
+model when it was a missing class.
 
-⚠ AND FIXING IT EXPOSED A SMALLER DEFECT WORTH KNOWING ABOUT. The output
-encoding was being read in THREE places -- both `save_linear` call sites read
-`args.bits` directly while `RenderSettings.bit_depth` was set from the same
-value a few lines away. That is how a new flag gets honoured in one place and
-silently ignored in the other two. It is now decided once and used
-everywhere.
+NOW IMPLEMENTED IN BOTH TWINS, using only figures already measured and recorded
+in the tree: width 26 um, straightness 0.98, the 3.5:1 longitudinal bias, median
+contrast 3.5 %. Two populations, on the two controls that were already in the
+layout and unconsumed:
 
-WHAT IS UNCHANGED FROM 2026-09-11a
-====================================
+    scratchTransport   a TRAMLINE locked to the transport axis that holds its
+                       across-web position while the picture moves past it, for
+                       scratch_persistence_frames frames
+    scratchHandling    shorter unlocked single-event marks, no persistence
 
-Everything else in that manifest still stands and is not repeated here: schema
-v33, the EP 0 083 377 A1 harvest, the AVX2 stage-14 accuracy fix, the grain
-anisotropy wiring in all three implementations, the stage-17 NaN alignment,
-the two false comments corrected, and the 349-field audit. Verify is now
-691 PASS / 1 baselined FAIL -- one higher than the last set, which is
-G-ENGINE-INCLUDES. Build clean, 0 warnings. cpp_parity green across grain,
-MTF, reciprocity, process variant and Callier.
+⚠ THE STRAIGHTNESS FIGURE VALIDATED THE EXISTING FIBRE CLASS ON THE WAY PAST.
+Deriving the walk's persistence length from 0.98 as a 2-D worm-like chain gives
+Lp = 2.5 mm, and a median 4 mm fibre then comes out at 0.87 -- mid-range of the
+0.7-0.95 that `defectFibres` claims for itself. The two classes are now
+separated by the one measured quantity rather than by assertion.
 
-⚠ A v33 RENDER IS STILL NOT BIT-IDENTICAL TO A v32 ONE. Three engine defects
-were fixed on the render path.
+Controls consumed 9 -> 11, unconsumed 8 -> 6. Four guards:
+G-SCRATCH-CONSTANTS / -GATE / -TRAMLINE / -POLARITY, the tramline one asserting
+a run holds one column set for 41 consecutive frames.
+
+⚠ SEVEN MODELLING CHOICES THE SOURCES DO NOT SETTLE are each named AS choices
+at the constant rather than presented as fact -- among them that the transport
+scratch is drawn exactly straight (0.98 over a multi-frame run implies a lateral
+excursion wider than the web), that the cut-versus-burnish share is a
+maximum-entropy 0.5 because nothing measures it, and that the 3.5 % contrast is
+used unsolved in the negative-density domain because no scratch amplitude
+distribution exists to solve against. The likely direction of that last error --
+too strong, by roughly the print gamma -- is stated at the constant rather than
+hidden.
+
+VERIFICATION
+=============
+
+    verify.py            696 PASS / 1 baselined FAIL   (691 before; +5 guards)
+    stage_parity.py      125/125 planes, 0 pinned exceptions
+    interimage_parity    2 flavours, worst 5.221e-05
+    bromide_parity       both builds, both directions, both scales
+    spectral_mono_parity 69/69 monochrome stocks exact
+    compile              all 26 TUs, exit 0 and zero bytes of output
+
+⚠ The scratch class is LIVE at the default control values, so stage 9b renders
+differently from the previous set on every stock. That is the point of the
+change, but it is a visible difference and not a silent one.
 
 ARCHIVE CONTENTS
 =================
 
   1  python_generator     the generator, its audits and its docs at root
-                          level. NO C++. Includes png_compare.py and the
-                          film_sim.py that now understands -8bpp.
+                          level. NO C++. Carries stage_parity.py,
+                          png_compare.py and the film_sim.py with -8bpp.
   2  generated_database   the 26 generated C++/HPP files plus the name,
                           display-order and migration tables.
-  3  algorithm_scalar     include/ + src/, the double build. Now carries
-                          AlgoReciprocity.hpp and AlgoProcessVariant.hpp.
-  4  algorithm_avx2       include/ + src/, the float build. Same two headers,
-                          plus the self-contained Exp2Accurate.
+  3  algorithm_scalar     include/ + src/, the double build.
+  4  algorithm_avx2       include/ + src/, the float build.
   5  documentation_md     the whole doc/ tree.
 
-⚠ NO TEST SOURCE APPEARS IN ANY OF THE FIVE. The thirteen test translation
-units, and profall.cpp -- a profiling harness with its own main, which would
-put a second entry point in the build -- are in the separate optional archive.
-The .txt files ship inside include/ in archives 3 and 4, where the generated
-database headers that read them at run time also live.
+⚠ NO TEST SOURCE IN ANY OF THE FIVE -- the test translation units, profall.cpp
+and the two harnesses are in the separate optional archive. The .txt files ship
+inside include/ in archives 3 and 4.
 """
 
 

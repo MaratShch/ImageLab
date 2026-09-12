@@ -9,6 +9,17 @@
 //  bounding boxes, a 20 um speck being one to three pixels, so there is nothing to
 //  fill a register with, and together they are under two per cent of the frame.
 //
+//  ⚠ THE SCRATCH CLASS IS SCALAR TOO, AND ITS SOURCE IS CHARACTER-FOR-CHARACTER
+//  THE SCALAR TREE'S. A scratch is a stroked polyline a pixel or two wide, so it
+//  is a thin diagonal band of work with nothing to pack either - and the shared
+//  defectRasteriseFibre it draws through is HighPrecType in BOTH trees, so the
+//  mark's geometry, coverage and density increment are computed in double on
+//  both sides and only the STORE into the AlgoType plane rounds. Measured on the
+//  test_scratch_guard probe: the two builds agree to 3e-08 on the scratch cases,
+//  which is float32 storage rounding and nothing else. The one place the two
+//  flavours genuinely differ inside 9b is defectRasterise, the compact-blob path
+//  that dust and debris use, whose inner loop is float32 here by rule D1.
+//
 //  ALIGNMENT: EVERY IMAGE ACCESS IS UNALIGNED, DELIBERATELY.
 //
 //  loadu/storeu on all plane data. The arena base comes from the host's memory pool,
@@ -21,7 +32,7 @@
 //  Pipeline stage 9 and its sub-stage 9b, in the density domain:
 //
 //      AlgoStage09_DirCoupler        lateral inhibitor diffusion, two scales
-//      AlgoStage09b_NegativeDefects  embedded particulate: dust, debris, fibres
+//      AlgoStage09b_NegativeDefects  dust, debris, fibres and scratches
 //      AlgoStage09c_BromideDrag      the machine's directional restraint
 //
 //  Both belong to the same numbered pipeline stage and share this translation
@@ -204,7 +215,7 @@ namespace
 
 
     // ----------------------------------------------------------------------
-    //  Orientation for an elongated particle, in the IMAGE frame.
+    //  Orientation for an elongated defect, in the IMAGE frame.
     //
     //  The measured population favours the transport axis roughly three to one.
     //  The bias is expressed in FILM coordinates - along the film against across
@@ -213,11 +224,20 @@ namespace
     //  coordinate system exists: this function contains no per-format code, and
     //  the same draw comes out horizontal on a 35 mm still and vertical on every
     //  cine gauge.
+    //
+    //  ⚠ THE SHARE IS A PARAMETER BECAUSE THERE ARE TWO MEASUREMENTS, NOT ONE.
+    //  The particulate classes pass ALGO_DEFECT_ORIENT_ALONG_SHARE (0.76, from a
+    //  54-against-17 per cent split); handling scratches pass
+    //  ALGO_SCRATCH_ORIENT_ALONG_SHARE (0.78, from the measured 3.5:1 bias). They
+    //  are close, which is exactly why they must not be merged - collapsing them
+    //  to one constant would silently substitute one measurement for the other
+    //  and nothing would look wrong.
     // ----------------------------------------------------------------------
     inline HighPrecType defectOrientation
     (
         const AlgoFilmWindow& window,
-        const uint64_t        counter
+        const uint64_t        counter,
+        const HighPrecType    alongShare
     ) noexcept
     {
         const HighPrecType uPick   = AlgoRngUniform01(counter);
@@ -226,7 +246,7 @@ namespace
 
         // Anisotropy is zero for sheet film, which has no transport direction, so
         // its orientation is drawn isotropically and the bias never applies.
-        const HighPrecType bias = ALGO_DEFECT_ORIENT_ALONG_SHARE
+        const HighPrecType bias = alongShare
                                 * static_cast<HighPrecType>(window.anisotropy);
 
         if (uPick >= bias)
@@ -415,7 +435,7 @@ namespace
 
 
     // ----------------------------------------------------------------------
-    //  Rasterise a fibre: a polyline stroked at constant width.
+    //  Rasterise a stroked polyline at constant width: a fibre, or a scratch.
     //
     //  Coverage comes from the distance to the NEAREST point on the whole
     //  centreline, not from stamping each segment in turn. Stamping would add
@@ -426,6 +446,24 @@ namespace
     //  and produces a genuinely constant-width stroke - which is the mechanical
     //  signature of a foreign object lying on the film, and the one thing that
     //  must not be got wrong here.
+    //
+    //  ⚠ SHARED WITH THE SCRATCH CLASS, WHICH IS WHY `polarity` EXISTS. A fibre
+    //  can only ever ADD density: it is an object sitting on the film blocking
+    //  printing light. A scratch can do either - a burnish scatters light out of
+    //  the printing beam and adds density, while a cut removes emulsion and takes
+    //  density away - so the stroke has to be able to subtract. polarity is +1 or
+    //  -1 and multiplies the density increment; every other property of the mark
+    //  is unchanged, which is the point of sharing this function rather than
+    //  writing a near-duplicate of it.
+    //
+    //  ⚠ AND THAT IS WHY THE WRITE IS FLOORED AT ZERO. A subtractive mark on a
+    //  low-density area could otherwise drive the negative below zero density,
+    //  which is a material that emits light, and stage 14 raises ten to its
+    //  negative and would produce a transmittance above one. This is a physical
+    //  floor exactly like stage 9's, not a display clamp. It changes nothing on
+    //  the additive path: this stage's input is stage 9's output, which stage 9
+    //  has already floored at zero, so no pixel a fibre touches can be negative
+    //  before a fibre adds to it.
     // ----------------------------------------------------------------------
     void defectRasteriseFibre
     (
@@ -435,6 +473,7 @@ namespace
         const HighPrecType           halfWidthPx,
         const HighPrecType           alpha,
         const HighPrecType           chroma[3],
+        const HighPrecType           polarity,
         AlgoType* RESTRICT           pDstR,
         AlgoType* RESTRICT           pDstG,
         AlgoType* RESTRICT           pDstB,
@@ -559,9 +598,16 @@ namespace
                 const HighPrecType aB = MIN_VALUE(alpha * cov * chroma[2],
                                                   ALGO_DEFECT_ALPHA_CAP);
 
-                rR[x] += static_cast<AlgoType>(-std::log10(1.0 - aR));
-                rG[x] += static_cast<AlgoType>(-std::log10(1.0 - aG));
-                rB[x] += static_cast<AlgoType>(-std::log10(1.0 - aB));
+                const AlgoType dR = static_cast<AlgoType>(
+                    polarity * -std::log10(1.0 - aR));
+                const AlgoType dG = static_cast<AlgoType>(
+                    polarity * -std::log10(1.0 - aG));
+                const AlgoType dB = static_cast<AlgoType>(
+                    polarity * -std::log10(1.0 - aB));
+
+                rR[x] = MAX_VALUE(rR[x] + dR, ALGO_ZERO);
+                rG[x] = MAX_VALUE(rG[x] + dG, ALGO_ZERO);
+                rB[x] = MAX_VALUE(rB[x] + dB, ALGO_ZERO);
             }
         }
 
@@ -656,6 +702,33 @@ namespace
     ) noexcept
     {
         return median * std::exp(sigmaLn * AlgoRngNormal(counter));
+    }
+
+
+    // ----------------------------------------------------------------------
+    //  Exponential draw with a given mean, for a transport scratch's run length.
+    //
+    //  Inverted in closed form, and written the same way stage 16's
+    //  gateExponential is - the two are the same distribution serving the same
+    //  purpose in the same determinism contract, and they should look alike.
+    //
+    //  Exponential rather than a fixed length because
+    //  TemporalSpec::scratch_persistence_frames is documented as a MEAN. A fixed
+    //  run of exactly the mean would make every scratch on a stock last precisely
+    //  as long as every other, which is a signature no physical process has.
+    //
+    //  The uniform is floored away from zero: log(0) is not finite and one
+    //  unlucky draw in 2^53 would give a scratch an infinite run.
+    // ----------------------------------------------------------------------
+    inline HighPrecType defectExponential
+    (
+        const uint64_t     counter,
+        const HighPrecType mean
+    ) noexcept
+    {
+        const HighPrecType u = MAX_VALUE(AlgoRngUniform01(counter), 1.0e-12);
+
+        return -mean * std::log(u);
     }
 
 
@@ -835,7 +908,8 @@ namespace
             p.aspect = 1.0 + (ALGO_DUST_ASPECT_MAX - 1.0)
                      * AlgoRngUniform01(pc + 12u);
 
-            p.angleRad = defectOrientation(window, pc + 16u);
+            p.angleRad = defectOrientation(window, pc + 16u,
+                                           ALGO_DEFECT_ORIENT_ALONG_SHARE);
 
             p.lobeDepth = ALGO_DUST_LOBE_DEPTH;
 
@@ -900,7 +974,8 @@ namespace
             // Less elongated than dust: debris is lobed rather than stretched.
             p.aspect = 1.0 + 0.6 * AlgoRngUniform01(pc + 10u);
 
-            p.angleRad = defectOrientation(window, pc + 14u);
+            p.angleRad = defectOrientation(window, pc + 14u,
+                                           ALGO_DEFECT_ORIENT_ALONG_SHARE);
 
             // Deep harmonics give the irregular, concave outline of a lint ball.
             p.lobeDepth = ALGO_DEBRIS_LOBE_DEPTH;
@@ -1046,11 +1121,340 @@ namespace
                 * (widthUm / ALGO_DEFECT_UM_PER_MM)
                 * static_cast<HighPrecType>(window.pxPerMm);
 
+            // A fibre lies ON the film and blocks printing light, so it can only
+            // ever ADD density. Polarity +1 always; the parameter exists for the
+            // scratch class, which is the only one here that can subtract.
             defectRasteriseFibre(ptsX, ptsY, drawCount, halfWidthPx,
-                                 alpha, chroma,
+                                 alpha, chroma, 1.0,
                                  pDstR, pDstG, pDstB,
                                  sizeX, sizeY, pitch, edgePx);
         });
+
+        return;
+    }
+
+
+    // ----------------------------------------------------------------------
+    //  Scratches: abrasion IN the film.
+    //
+    //  Two populations behind two existing controls, sharing one mark primitive.
+    //  Everything they have in common - the 26 micrometre width, the 3.5 per cent
+    //  contrast, the cut-or-burnish polarity, the neutral rendering - is drawn
+    //  once here; what differs is placement, orientation and time.
+    //
+    //  ⚠ SCRATCHES ARE RENDERED NEUTRAL, UNLIKE EVERY OTHER CLASS IN THIS FILE,
+    //  AND THAT IS DELIBERATE. defectChroma exists because a PARTICLE is coloured
+    //  - lint is not grey, and a speck sitting in one emulsion layer blocks that
+    //  layer more than the others. A scratch's colour is a different quantity
+    //  with a different cause: how deep the abrader went decides which dye layers
+    //  survive under it, so it is a property of the TRIPACK. AlgoControl.hpp says
+    //  so explicitly - scratch COLOUR "needs the tripack", belongs in AgingSpec
+    //  and CoatingSpec, and is listed there as something that does NOT belong in
+    //  the damage controls. Those structures ship all-zero on every stock, so the
+    //  depth-to-layer mapping is not available, and a neutral scratch is the
+    //  honest placeholder rather than the particulate colour model borrowed for a
+    //  mechanism it does not describe.
+    // ----------------------------------------------------------------------
+    void defectScratches
+    (
+        const AlgoFilmWindow& window,
+        const HighPrecType    transportLevel,
+        const HighPrecType    handlingLevel,
+        const HighPrecType    clumping,
+        const uint32_t        fieldSeed,
+        const int32_t         frameIndex,
+        const HighPrecType    persistFrames,
+        const HighPrecType    framePitchMm,
+        AlgoType* RESTRICT    pDstR,
+        AlgoType* RESTRICT    pDstG,
+        AlgoType* RESTRICT    pDstB,
+        const int32_t         sizeX,
+        const int32_t         sizeY,
+        const int32_t         pitch,
+        const HighPrecType    edgePx
+    ) noexcept
+    {
+        // Both populations are the same physical mark, so the width and the
+        // amplitude are formed once, outside either loop.
+        const HighPrecType halfWidthPx = 0.5
+            * (ALGO_SCRATCH_WIDTH_UM / ALGO_DEFECT_UM_PER_MM)
+            * static_cast<HighPrecType>(window.pxPerMm);
+
+        // Neutral, for the reason in the block comment above.
+        const HighPrecType chroma[3] = { 1.0, 1.0, 1.0 };
+
+        // ------------------------------------------------------------------
+        //  TRANSPORT SCRATCHES - the tramline, and the only thing in this stage
+        //  with a start and an end.
+        //
+        //  ⚠ THE POPULATION IS DERIVED, NEVER ACCUMULATED. The obvious
+        //  implementation keeps a list of running scratches and steps it once per
+        //  frame; this engine cannot, because Algorithm_Main is a pure function
+        //  and a host may render frame 900 without ever having rendered 899. So
+        //  each arrival ORDINAL along the web draws its own start frame, its own
+        //  run length and its own across-web position from its own counter
+        //  stream, and is present at frame f exactly when
+        //
+        //      start <= f < start + run
+        //
+        //  which is two draws and a compare, with no history. Scrubbing the
+        //  timeline, rendering backwards and rendering one frame alone all give
+        //  the same tramlines. Stage 16 does the same thing for gate dirt; the
+        //  construction is deliberately recognisable as the same one.
+        //
+        //  ⚠ AND THE ACROSS-WEB POSITION IS DRAWN ONCE PER ORDINAL, NOT PER
+        //  FRAME. That single fact is the whole visible character of the class:
+        //  the abrader does not move, so the scratch holds the same position on
+        //  screen while the picture travels past it. Drawing the position from a
+        //  stream that included the frame index would produce a mark that jumps
+        //  about, which reads as noise rather than as a machine fault.
+        // ------------------------------------------------------------------
+        if (transportLevel > 0.0)
+        {
+            // ⚠ SHEET AND PACK FILM HAVE NO TRANSPORT AND THEREFORE NO
+            // TRAMLINES. AlgoFilmCoord reports anisotropy zero for them, which
+            // is the same flag the orientation bias uses; a frame pitch of zero
+            // would also make a run length in frames meaningless, since the web
+            // does not advance. The handling population below still applies -
+            // a sheet is handled like anything else.
+            const bool transported =
+                (static_cast<HighPrecType>(window.anisotropy) > 0.0)
+                && (framePitchMm > 0.0);
+
+            // No mean run length, no run. The field is populated on all 184
+            // stocks, so this is a guard against a hand-built profile rather
+            // than a path the database takes.
+            if (transported && persistFrames > 0.0)
+            {
+                const HighPrecType f = static_cast<HighPrecType>(frameIndex);
+
+                // Expected simultaneous count, and the arrival spacing that
+                // delivers it. A population of N with a mean run of L frames
+                // needs one arrival every L/N frames, because N = rate * L.
+                const HighPrecType count =
+                    transportLevel * ALGO_SCRATCH_TRANSPORT_COUNT;
+
+                const HighPrecType gapFrames = persistFrames / count;
+
+                const HighPrecType acrossExtent = AlgoFilmAcrossExtentMm(window);
+                const HighPrecType alongExtent  = AlgoFilmAlongExtentMm(window);
+
+                // The newest arrival that can have happened by now, and the
+                // window back from it. Negative ordinals are examined: a roll of
+                // film has no head, unlike stage 16's reel.
+                const int32_t kNewest =
+                    static_cast<int32_t>(std::floor(f / gapFrames));
+
+                const int32_t kOldest = kNewest - (ALGO_SCRATCH_RUN_WINDOW - 1);
+
+                for (int32_t k = kOldest; k <= kNewest; k++)
+                {
+                    // Keyed on the ordinal only, so the same scratch is the same
+                    // scratch on every frame it appears in. The first index is
+                    // zero because a transport scratch has no cell - it belongs
+                    // to the machine, and its only coordinate is when it started.
+                    const uint64_t sc = AlgoDefectHash(
+                        fieldSeed, 0, k, ALGO_DEFECT_TAG_SCRATCH_RUN);
+
+                    // Jittered regular arrivals, exactly as stage 16 places its
+                    // accretion ordinals and for the same reason: a cumulative
+                    // sum of exponential gaps is the exact Poisson construction
+                    // but needs a walk from the head of the roll, and there is no
+                    // head to walk from.
+                    const HighPrecType start =
+                        (static_cast<HighPrecType>(k) + AlgoRngUniform01(sc))
+                        * gapFrames;
+
+                    if (start > f)
+                        continue;
+
+                    const HighPrecType run =
+                        defectExponential(sc + 16u, persistFrames);
+
+                    // The abrader has already let go.
+                    if ((start + run) <= f)
+                        continue;
+
+                    // Fixed across the web, and centred coordinates mean this is
+                    // also a fixed position in the frame.
+                    const HighPrecType across = window.acrossMin
+                        + AlgoRngUniform01(sc + 32u) * acrossExtent;
+
+                    // Cut or burnish. See ALGO_SCRATCH_CUT_SHARE: the share is a
+                    // modelling choice, not a measurement.
+                    const HighPrecType polarity =
+                        (AlgoRngUniform01(sc + 48u) < ALGO_SCRATCH_CUT_SHARE)
+                            ? -1.0 : 1.0;
+
+                    // ----------------------------------------------------------
+                    //  The stretch of WEB this abrader actually touched.
+                    //
+                    //  A run of `run` frames starting at frame `start` is a
+                    //  length of film run * framePitchMm long, and the scratch
+                    //  exists over exactly that stretch and nowhere else. Clipping
+                    //  the stroke to it costs two comparisons and buys the one
+                    //  thing an on/off presence test cannot give: on the frame
+                    //  where the abrader lets go, the tramline ENDS part way up
+                    //  the picture instead of vanishing between frames.
+                    //
+                    //  The clip is against the window plus one along-extent so
+                    //  that an end which is outside the frame is comfortably
+                    //  outside it; the rasteriser clamps to the raster anyway.
+                    // ----------------------------------------------------------
+                    const HighPrecType runFrom = start * framePitchMm;
+                    const HighPrecType runTo   = (start + run) * framePitchMm;
+
+                    const HighPrecType a0 = MAX_VALUE(
+                        runFrom, window.alongMin - alongExtent);
+                    const HighPrecType a1 = MIN_VALUE(
+                        runTo,   window.alongMax + alongExtent);
+
+                    if (a1 <= a0)
+                        continue;
+
+                    // Two points: locked to the transport axis means exactly
+                    // straight along the film, so there is nothing to walk. The
+                    // 90 degree rotation between stills and cine is entirely
+                    // AlgoFilmToPixel's business.
+                    HighPrecType ptsX[2];
+                    HighPrecType ptsY[2];
+
+                    AlgoFilmToPixel(window, a0, across, ptsX[0], ptsY[0]);
+                    AlgoFilmToPixel(window, a1, across, ptsX[1], ptsY[1]);
+
+                    defectRasteriseFibre(ptsX, ptsY, 2, halfWidthPx,
+                                         ALGO_SCRATCH_CONTRAST_MEDIAN,
+                                         chroma, polarity,
+                                         pDstR, pDstG, pDstB,
+                                         sizeX, sizeY, pitch, edgePx);
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        //  HANDLING SCRATCHES - single events, locked to the film.
+        //
+        //  Placed by the same clumped Cox process as the particulate classes,
+        //  because a wipe damages a patch of film rather than a frame, and the
+        //  patch travels with the web. That is not persistence in the sense
+        //  above: nothing starts and nothing stops. The mark is in the emulsion
+        //  for good, and it enters and leaves the picture only because the film
+        //  moves - which is precisely the behaviour every other class here has.
+        //
+        //  ⚠ NOT GENERATED IN BURSTS, AND THAT IS A KNOWN GAP. AlgoControl.hpp
+        //  describes the class as arriving in bursts, "because a single wipe
+        //  leaves several roughly parallel marks", and that is certainly right.
+        //  Implementing it needs a burst size and an inter-mark spacing, and
+        //  nothing in the tree measures either, so marks are placed
+        //  independently and the burst structure is left for whoever has the
+        //  numbers. The clumping field already gives some of the visual effect,
+        //  since it puts marks in patches; it does not give the parallelism.
+        // ------------------------------------------------------------------
+        if (handlingLevel > 0.0)
+        {
+            const HighPrecType lambda =
+                handlingLevel * ALGO_SCRATCH_HANDLING_PER_MM2;
+
+            defectWalkCells(window, ALGO_SCRATCH_MARGIN_MM, lambda, clumping,
+                            fieldSeed, ALGO_DEFECT_TAG_SCRATCH_CELL,
+                [&](const HighPrecType along,
+                    const HighPrecType across,
+                    const uint64_t     pc) noexcept
+            {
+                // Uniform over the documented 0.3 - 4 mm range: the source gives
+                // a range and no shape.
+                const HighPrecType lenMm = ALGO_SCRATCH_HANDLING_LEN_MIN_MM
+                    + (ALGO_SCRATCH_HANDLING_LEN_MAX_MM
+                       - ALGO_SCRATCH_HANDLING_LEN_MIN_MM)
+                    * AlgoRngUniform01(pc + 2u);
+
+                const HighPrecType polarity =
+                    (AlgoRngUniform01(pc + 4u) < ALGO_SCRATCH_CUT_SHARE)
+                        ? -1.0 : 1.0;
+
+                // Step count from the length, bounded by the fixed point store.
+                const HighPrecType stepMm =
+                    1.0 / static_cast<HighPrecType>(ALGO_SCRATCH_STEPS_PER_MM);
+
+                int32_t steps = static_cast<int32_t>(
+                    lenMm * static_cast<HighPrecType>(
+                        ALGO_SCRATCH_STEPS_PER_MM));
+
+                steps = CLAMP_VALUE(steps, 1, ALGO_SCRATCH_MAX_POINTS - 1);
+
+                const int32_t pointCount = steps + 1;
+
+                // ------------------------------------------------------------
+                //  The straightness, turned into a walk.
+                //
+                //  Lp = L / (12 (1 - straightness)) - the worm-like chain
+                //  inversion derived at ALGO_SCRATCH_STRAIGHTNESS - and then the
+                //  same per-step angular diffusion the fibre walk uses, so the
+                //  two classes differ by this number and by nothing else.
+                //
+                //  The persistence length is taken from the mark's OWN length,
+                //  which is what makes 0.98 mean the same thing for a 0.3 mm mark
+                //  and a 4 mm one: straightness is a ratio, so the curvature has
+                //  to scale with the length that produced it.
+                // ------------------------------------------------------------
+                const HighPrecType persistMm =
+                    lenMm / (12.0 * (1.0 - ALGO_SCRATCH_STRAIGHTNESS));
+
+                const HighPrecType turnSigma = std::sqrt(stepMm / persistMm);
+
+                // No transport lock: a handling mark is made by hand, at whatever
+                // angle the hand was. The measured 3.5:1 preference still applies
+                // as a BIAS, because film is handled along its length far more
+                // often than across it.
+                //
+                // ⚠ defectOrientation ANSWERS IN THE IMAGE FRAME and this walk
+                // steps in FILM coordinates, so the transport rotation has to
+                // come back out. It is the same rotation AlgoFilmToPixel applies
+                // and it is subtracted rather than re-derived, so the two cannot
+                // disagree. Reusing the function this way keeps the measured bias
+                // in exactly one place; writing a second film-frame copy of it is
+                // how the two would drift apart.
+                HighPrecType heading = defectOrientation(
+                    window, pc + 8u, ALGO_SCRATCH_ORIENT_ALONG_SHARE)
+                    - (window.transportAlongWidth
+                        ? 0.0 : (0.25 * ALGO_DEFECT_TWO_PI));
+
+                HighPrecType alongCur  = along;
+                HighPrecType acrossCur = across;
+
+                HighPrecType ctlX[ALGO_SCRATCH_MAX_POINTS];
+                HighPrecType ctlY[ALGO_SCRATCH_MAX_POINTS];
+
+                AlgoFilmToPixel(window, alongCur, acrossCur, ctlX[0], ctlY[0]);
+
+                for (int32_t i = 1; i < pointCount; i++)
+                {
+                    heading += turnSigma * AlgoRngNormal(
+                        pc + 64u + static_cast<uint64_t>(i));
+
+                    alongCur  += stepMm * std::cos(heading);
+                    acrossCur += stepMm * std::sin(heading);
+
+                    AlgoFilmToPixel(window, alongCur, acrossCur,
+                                    ctlX[i], ctlY[i]);
+                }
+
+                // Same subdivision as the fibres: the walk is the physics and the
+                // subdivision is the drawing, and only the second may be changed
+                // to fix an appearance.
+                HighPrecType ptsX[ALGO_SCRATCH_MAX_DRAW];
+                HighPrecType ptsY[ALGO_SCRATCH_MAX_DRAW];
+
+                const int32_t drawCount = defectSubdivide(ctlX, ctlY, pointCount,
+                                                          ptsX, ptsY);
+
+                defectRasteriseFibre(ptsX, ptsY, drawCount, halfWidthPx,
+                                     ALGO_SCRATCH_CONTRAST_MEDIAN,
+                                     chroma, polarity,
+                                     pDstR, pDstG, pDstB,
+                                     sizeX, sizeY, pitch, edgePx);
+            });
+        }
 
         return;
     }
@@ -1251,13 +1655,13 @@ void AlgoStage09_DirCoupler
 // ---------------------------------------------------------------------------
 //  Sub-stage 9b: negative-side defects.
 //
-//  Three particulate classes, all embedded in the emulsion and therefore part of
-//  the negative: fine dust, coarse debris, hair and fibres.
+//  Three particulate classes and one abrasion class, all part of the negative:
+//  fine dust, coarse debris, hair and fibres, and scratches.
 //
 //  The copy comes first and unconditionally. The retained-buffer policy gives
 //  every stage its own destination, so returning without writing would leave stale
-//  contents for every stage after this one; and the particles are then accumulated
-//  in place, which is what lets three independent generators share one output
+//  contents for every stage after this one; and the marks are then accumulated
+//  in place, which is what lets four independent generators share one output
 //  without any of them knowing about the others.
 // ---------------------------------------------------------------------------
 void AlgoStage09b_NegativeDefects
@@ -1319,11 +1723,20 @@ void AlgoStage09b_NegativeDefects
     const HighPrecType fibreLevel =
         MAX_VALUE(static_cast<HighPrecType>(dmg.fibreLevel),  0.0) * strength;
 
-    // Nothing requested, nothing to do. Worth its own test: the three loops below
-    // each walk a cell grid over the whole window before discovering their rate is
-    // zero, and for fibres that grid extends 25 mm past the frame in every
+    // The two scratch controls, which until now were in AlgoControl.hpp's
+    // "Unconsumed" list and read by nothing. Same treatment as the three above:
+    // floored, then scaled by the master strength.
+    const HighPrecType scratchTransportLevel =
+        MAX_VALUE(static_cast<HighPrecType>(dmg.scratchTransport), 0.0) * strength;
+    const HighPrecType scratchHandlingLevel =
+        MAX_VALUE(static_cast<HighPrecType>(dmg.scratchHandling),  0.0) * strength;
+
+    // Nothing requested, nothing to do. Worth its own test: the cell-walking loops
+    // below each walk a grid over the whole window before discovering their rate
+    // is zero, and for fibres that grid extends 25 mm past the frame in every
     // direction.
-    if (dustLevel <= 0.0 && debrisLevel <= 0.0 && fibreLevel <= 0.0)
+    if (dustLevel <= 0.0 && debrisLevel <= 0.0 && fibreLevel <= 0.0
+        && scratchTransportLevel <= 0.0 && scratchHandlingLevel <= 0.0)
         return;
 
     // ----------------------------------------------------------------------
@@ -1443,20 +1856,55 @@ void AlgoStage09b_NegativeDefects
                      pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx);
 
     // ----------------------------------------------------------------------
+    //  The abrasion class.
+    //
+    //  One generator for both populations, because they are the same mark drawn
+    //  by two different mechanisms, and the gate is the same one every other
+    //  class here has: at zero the generator is not entered at all, so a user
+    //  who wants no scratches pays one comparison. Each population is then gated
+    //  again on its own control inside, so raising one does not start the other.
+    //
+    //  ⚠ THE RUN LENGTH COMES FROM THE STOCK, NOT FROM A CONTROL.
+    //  TemporalSpec::scratch_persistence_frames is the mean run of a running
+    //  scratch in frames, populated on all 184 stocks, and this is its only
+    //  reader. It is an ERA property - how long a machine fault lasted on the
+    //  equipment of the day - so it belongs beside the weave amplitude and the
+    //  dirt rate rather than on a slider, and the control expresses only how many
+    //  such scratches there are.
+    // ----------------------------------------------------------------------
+    if (scratchTransportLevel > 0.0 || scratchHandlingLevel > 0.0)
+        defectScratches(window, scratchTransportLevel, scratchHandlingLevel,
+                        clumping, fieldSeed, frameIndex,
+                        static_cast<HighPrecType>(
+                            profile.temporal.scratch_persistence_frames),
+                        static_cast<HighPrecType>(framePitchMm),
+                        pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx);
+
+    // ----------------------------------------------------------------------
     //  Read by nothing in this stage, and that is the honest state of it.
     //
-    //  profile IS read now, for is_monochrome, but its AgingSpec is not. That
-    //  structure's dust_area_ppm, mottle_amplitude and
-    //  scratch rates are the era baseline these levels were meant to multiply -
-    //  but every one of the 142 stocks currently ships that structure all zero,
-    //  documented as "fresh". Multiplying by it would therefore silence the whole
-    //  defect layer on every stock, so the levels are absolute for now: dustLevel
-    //  1.0 means the measured central density, whatever the stock. When AgingSpec
-    //  is populated it becomes an additive era term rather than a multiplier, so
-    //  that a fresh stock keeps behaving exactly as it does today.
+    //  profile is read for is_monochrome and, since the scratch class landed,
+    //  for TemporalSpec::scratch_persistence_frames. Its AgingSpec is still not.
+    //  That structure's dust_area_ppm, mottle_amplitude and
+    //  scratch_rate_base_per_m are the era baseline these levels were meant to
+    //  multiply - but every one of the stocks currently ships that structure all
+    //  zero, documented as "fresh". Multiplying by it would therefore silence the
+    //  whole defect layer on every stock, so the levels are absolute for now:
+    //  dustLevel 1.0 means the measured central density, whatever the stock. When
+    //  AgingSpec is populated it becomes an additive era term rather than a
+    //  multiplier, so that a fresh stock keeps behaving exactly as it does today.
+    //
+    //  ⚠ THE SCRATCH CLASS IS THE FIRST HERE WITH AN ERA TERM ALREADY IN FORCE,
+    //  and it is in force only because it reads TemporalSpec, which IS populated
+    //  on all 184 stocks - unlike AgingSpec. So the mean run length of a tramline
+    //  genuinely differs between a 1930s nitrate print and a modern negative
+    //  today, while the amount of dust does not yet. That asymmetry is real and
+    //  is a property of which structure got populated, not a design.
     //
     //  frameRate belongs to the classes with a per-second rate - the one-frame
-    //  sparkle population and the event classes - and none of those is here.
+    //  sparkle population and the event classes - and none of those is here. The
+    //  scratch run length is in FRAMES OF FILM and reaches the web through the
+    //  frame pitch, so it needs the pitch and not the rate.
     //  negWidthMm and negHeightMm are consumed through the window; pxPerMm
     //  likewise, and directly for the edge width.
     // ----------------------------------------------------------------------

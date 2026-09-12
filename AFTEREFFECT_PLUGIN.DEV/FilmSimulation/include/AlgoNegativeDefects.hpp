@@ -5,14 +5,28 @@
 //
 //  Sub-stage 9b of the film simulation pipeline: negative-side defects.
 //
-//  THREE PARTICULATE CLASSES ARE NOW MODELLED
+//  THREE PARTICULATE CLASSES AND ONE ABRASION CLASS ARE NOW MODELLED
 //
 //      fine dust           the dominant class, and the one that carries the look
 //      coarse debris       rare, large, opaque, hard-edged
 //      hair and fibres     long, constant width, curved, with free ends
+//      scratches           damage IN the film rather than on it: a transport
+//                          tramline with a run length along the web, and single
+//                          handling marks locked to the film
 //
 //  The remaining negative-side classes - processing mottle, drying marks, storage
 //  fade, colour veil - are separate controls and are not applied here yet.
+//
+//  ⚠ THE SCRATCH CLASS IS THE ONE PLACE THIS STAGE HAS A TIME AXIS, and the rest
+//  of this header's insistence that it has none is still correct. Dust, debris
+//  and fibres are baked into the film and only TRANSLATE with the web; nothing is
+//  born and nothing dies. A transport scratch is different in kind: it is abraded
+//  by continuous contact while the film runs past a fixed object, so it exists
+//  over a RUN of web - a length, expressed in frames through the frame pitch -
+//  and outside that run the film is clean. That run length is what
+//  TemporalSpec::scratch_persistence_frames is, and it is the only field in this
+//  stage that reads the frame index for anything but the window position.
+//  See the frameIndex note on the prototype below.
 //
 //  WHAT "NEGATIVE SIDE" MEANS, AND WHY IT IS A SEPARATE STAGE FROM 16
 //
@@ -497,6 +511,258 @@ constexpr int32_t ALGO_FIBRE_MAX_POINTS = 128;
 constexpr int32_t ALGO_FIBRE_MAX_DRAW =
     ((ALGO_FIBRE_MAX_POINTS - 1) * ALGO_FIBRE_SUBDIV) + 1;
 
+// ===========================================================================
+//  SCRATCHES - the fourth class, and the only one that is DAMAGE TO the film
+//  rather than something lying on it.
+//
+//  WHY IT IS NOT A SECOND FIBRE, EVEN THOUGH IT SHARES THE STROKE PRIMITIVE
+//
+//  defectFibres already draws long, constant-width, curved marks, and its own
+//  comment names the discriminator: end-to-end chord over traced arc length is
+//  0.7 - 0.95 for a fibre and about 0.98 for a scratch. So a scratch is that
+//  generator at a much higher straightness, with a transport-axis lock on one of
+//  its two populations, a different width, a different amplitude and - for the
+//  transport population - a RUN LENGTH along the web. The centreline walk, the
+//  Catmull-Rom subdivision and the nearest-point stroke are therefore reused
+//  rather than copied; only the statistics differ, which is the whole claim
+//  being made about the two classes.
+//
+//  TWO POPULATIONS, ONE PER EXISTING CONTROL
+//
+//    scratchTransport   a TRAMLINE. A fixed abrader - a guide rail, a chip of
+//                       dirt in a roller - touching the moving web. Locked to
+//                       the transport axis, at a fixed position ACROSS the web,
+//                       present for a run of frames and then gone.
+//    scratchHandling    a single event. A wipe, a fingernail, a careless splice.
+//                       Short, randomly placed and oriented, locked to the film
+//                       and therefore permanent in it - which is not persistence
+//                       in the sense below.
+//
+//  THE POLARITY QUESTION, AND WHY IT IS BOTH SIGNS
+//
+//  Stage 16's header states this stage's polarity convention: a negative-side
+//  defect that BLOCKS printing light is added as DENSITY here, and comes out
+//  bright on the finished positive. A scratch has two mechanisms and they sit on
+//  opposite sides of that convention:
+//
+//    cut       the abrader removes emulsion, so less dye or silver survives, so
+//              the negative is LESS dense there - a density DECREMENT.
+//    burnish   the abrader polishes the base or the supercoat without reaching
+//              the image, so the mark scatters light out of the printing beam
+//              exactly as a particle would - a density INCREMENT.
+//
+//  Both are rendered, and the sign is what makes them different. ⚠ The stroke
+//  therefore has to be able to SUBTRACT, which no other class here does, and the
+//  result has to be floored at zero density - see defectRasteriseFibre.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+//  Scratch width, micrometres on the film.
+//
+//  26. A measured fact, listed in AlgoControl.hpp's "deliberately NOT here"
+//  paragraph beside the dust size exponent and the clumping spectral slope, as
+//  one of the ~185 parameters that are properties of film rather than user
+//  choices.
+//
+//  ⚠ CONSTANT ALONG THE RUN HERE, AND THAT IS A SIMPLIFICATION THIS FILE
+//  ALREADY ARGUED AGAINST. The fibre width comment says a scratch's width
+//  "varies along its run", which is true and is one of the things that separates
+//  a scratch from a hair by eye. Nothing in the tree measures that variation -
+//  there is one number, 26 um - so inventing a modulation depth for it would be
+//  inventing the very kind of figure this header refuses to invent elsewhere.
+//  The single measured width is used, and the variation is left for whoever
+//  measures it.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SCRATCH_WIDTH_UM = 26.0;
+
+// ---------------------------------------------------------------------------
+//  Scratch straightness: end-to-end chord over traced arc length.
+//
+//  0.98, from AlgoControl.hpp's measured-constant list, and corroborated inside
+//  this subsystem by defectFibres' own comment - "fibres come out at 0.7 to
+//  0.95, scratches at 0.98 to 0.99". It is the single number that separates the
+//  two classes, so it is what the scratch centreline is generated FROM rather
+//  than something checked afterwards.
+//
+//  HOW A STRAIGHTNESS BECOMES A PERSISTENCE LENGTH
+//
+//  The fibre walk is a two-dimensional worm-like chain, whose mean square
+//  end-to-end distance over a contour length L with persistence length Lp is
+//
+//      <R^2> = 4 Lp L [ 1 - (2 Lp / L)(1 - exp(-L / 2 Lp)) ]
+//
+//  Expanding for L much smaller than Lp gives <R^2> / L^2 = 1 - L / (6 Lp), so
+//
+//      straightness = sqrt(<R^2>) / L  =  1 - L / (12 Lp)
+//      Lp = L / (12 (1 - straightness))
+//
+//  which at 0.98 is Lp = L / 0.24, i.e. a persistence length about 4.2 times the
+//  scratch's own length. The expansion is first order and L/Lp is 0.24 here, so
+//  it is good to about one per cent - well inside the precision of a straightness
+//  quoted to two decimals.
+//
+//  ⚠ THE SAME FORMULA VALIDATES THE FIBRE CLASS, which is why it is trusted
+//  here: ALGO_FIBRE_PERSISTENCE_MM is 2.5 and the median fibre is 4 mm long, so
+//  1 - 4 / (12 x 2.5) = 0.87 - in the middle of the 0.7 - 0.95 that defectFibres
+//  claims to produce. The two classes are therefore separated by the one measured
+//  quantity and nothing else.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SCRATCH_STRAIGHTNESS = 0.98;
+
+// ---------------------------------------------------------------------------
+//  Longitudinal orientation bias of scratches, as a ratio.
+//
+//  3.5:1 in favour of the transport axis. AlgoFilmCoord.hpp says exactly where
+//  this belongs - "the measured bias itself - a 3.5:1 preference for the
+//  transport axis among light-polarity curvilinear features - lives as a
+//  constant in the scratch generator, not here" - so this is that constant,
+//  finally in the place its own comment reserved for it.
+//
+//  Expressed as a SHARE for the draw, the same form the particulate classes use.
+//  ⚠ It is NOT the same number as ALGO_DEFECT_ORIENT_ALONG_SHARE: that is 0.76,
+//  from the particulate split of 54 per cent along against 17 per cent across,
+//  which is 3.2:1. Two populations, two measurements, two constants - merging
+//  them would silently replace one measurement with the other.
+//
+//  ⚠ AND IT APPLIES ONLY TO THE HANDLING POPULATION. A transport scratch is not
+//  biased towards the transport axis, it IS the transport axis - it is drawn by a
+//  stationary abrader on a moving web and cannot be at any other angle. Applying
+//  a statistical bias to it would be modelling the machine as if it wobbled.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SCRATCH_ORIENT_RATIO = 3.5;
+
+constexpr HighPrecType ALGO_SCRATCH_ORIENT_ALONG_SHARE =
+    ALGO_SCRATCH_ORIENT_RATIO / (ALGO_SCRATCH_ORIENT_RATIO + 1.0);
+
+// ---------------------------------------------------------------------------
+//  Median scratch contrast amplitude, as a fraction.
+//
+//  0.035 - the "median 3.5 per cent contrast amplitude" from AlgoControl.hpp's
+//  measured-constant list. Used directly as the peak opacity of the mark, which
+//  is a density of -log10(1 - 0.035) = 0.0155 D added or removed.
+//
+//  ⚠⚠ THE DOMAIN CAVEAT THE DUST CONSTANTS HAD TO BE SOLVED FOR APPLIES HERE
+//  AND HAS NOT BEEN SOLVED. Read ALGO_DUST_ALPHA_MID's block: a measured
+//  amplitude is a deviation in the FINISHED POSITIVE SCAN, while this constant
+//  acts in the NEGATIVE DENSITY domain, and the print gamma between them
+//  AMPLIFIES a density difference rather than passing it through. For dust that
+//  mismatch made the first implementation three times too strong at the median.
+//  The same solve has NOT been run for scratches - there is no measured scratch
+//  amplitude distribution in the tree to solve against, only this one median - so
+//  the measured figure is used unchanged and the expected direction of the error
+//  is stated instead of being hidden: if it is wrong, it is too STRONG, by
+//  something of the order of the print gamma. Solving it needs a scratch
+//  amplitude measurement, not a different constant here.
+//
+//  Only a MEDIAN was measured, so no dispersion is drawn and every scratch
+//  carries the same amplitude. That is visibly less varied than real damage and
+//  is deliberate: a dispersion here would be a number nobody measured.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SCRATCH_CONTRAST_MEDIAN = 0.035;
+
+// ---------------------------------------------------------------------------
+//  Share of scratches that CUT rather than burnish - i.e. that subtract density.
+//
+//  ⚠ 0.5, AND IT IS A MODELLING CHOICE WITH NO SOURCE BEHIND IT. Nothing in this
+//  tree measures how often an abrasion reaches the image layer and how often it
+//  only polishes the base. Both mechanisms are real and both are common, and with
+//  no information at all the even split is the only defensible statement; it is
+//  written here as a named constant precisely so that it is one line to change
+//  when somebody measures it, rather than a 0.5 buried in a comparison.
+//
+//  It is stated as a choice and not as a fact. Do not cite it as measured.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SCRATCH_CUT_SHARE = 0.5;
+
+// ---------------------------------------------------------------------------
+//  Expected number of transport scratches running on the web at once, at
+//  scratchTransport = 1.0.
+//
+//  ⚠ 1.0 IS A DEFINITIONAL ANCHOR, NOT A MEASUREMENT, and the difference matters.
+//  AgingSpec carries scratch_rate_base_per_m, which is what a real per-metre rate
+//  would multiply - and every one of the 184 stocks ships that structure entirely
+//  zero, documented as "fresh". So there is nothing to anchor a rate against, and
+//  the honest thing is to define the control instead of pretending to derive it:
+//  scratchTransport = 1.0 means ONE running tramline on the web, on average, at
+//  any instant. The default of 0.40 therefore means "a tramline about forty per
+//  cent of the time", which is what the control's own documentation describes.
+//
+//  When AgingSpec is populated this becomes the era baseline's multiplicand,
+//  exactly as the dust density will.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SCRATCH_TRANSPORT_COUNT = 1.0;
+
+// ---------------------------------------------------------------------------
+//  Arrival ordinals examined per frame for the transport population.
+//
+//  32. Same construction as stage 16's ALGO_GATE_WINDOW and for the same reason:
+//  the population must be DERIVED from a bounded closed-form scan rather than
+//  accumulated, because Algorithm_Main is a pure function and a host may ask for
+//  frame 900 without ever having rendered 899.
+//
+//  The window has to cover the exponential run-length tail. Arrivals are spaced
+//  one mean run length apart per unit of level, so 32 ordinals is 32 mean runs at
+//  level 1.0 and still 8 at the advisory maximum of 4 - and exp(-8) is 3.4e-04 of
+//  the population outside the window. Thirty-two closed-form presence tests per
+//  frame, two draws each.
+//
+//  ⚠ NEGATIVE ORDINALS ARE EXAMINED, UNLIKE STAGE 16, and that is not an
+//  oversight. A reel has a head, so an arrival before frame zero never happened
+//  and stage 16 rightly skips it. A ROLL OF FILM DOES NOT: frame 0 of a clip is
+//  an arbitrary point on the web, frameIndex may be negative, and skipping the
+//  negative ordinals would make the head of every clip mysteriously clean.
+// ---------------------------------------------------------------------------
+constexpr int32_t ALGO_SCRATCH_RUN_WINDOW = 32;
+
+// ---------------------------------------------------------------------------
+//  Handling scratch areal density, marks per square millimetre, at
+//  scratchHandling = 1.0.
+//
+//  ⚠ 0.01 IS THE SAME KIND OF DEFINITIONAL ANCHOR as the transport count above,
+//  and for the same reason - AgingSpec is zero on every stock, so there is no
+//  measured rate to scale. What it delivers is stated rather than claimed: 0.01
+//  per square millimetre is about 4.6 marks on a super35 frame (464 mm2) and 8.6
+//  on a 35 mm still frame (864 mm2), which is the "numerous, individually very
+//  faint" population AlgoControl.hpp describes. As with every other class here
+//  the figure is per square millimetre OF FILM, so a 16 mm frame gets
+//  proportionally fewer without any per-format code.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SCRATCH_HANDLING_PER_MM2 = 0.01;
+
+// ---------------------------------------------------------------------------
+//  Handling scratch length, millimetres: 0.3 to 4.
+//
+//  The range AlgoControl.hpp gives for the class - "short, curved, 0.3-4 mm".
+//  Drawn UNIFORMLY over it, because the source states a range and no shape; a
+//  log-normal here would be borrowing the fibre class's distribution and
+//  presenting it as this class's.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SCRATCH_HANDLING_LEN_MIN_MM = 0.3;
+constexpr HighPrecType ALGO_SCRATCH_HANDLING_LEN_MAX_MM = 4.0;
+
+// ---------------------------------------------------------------------------
+//  Control points per millimetre of handling scratch, and the point stores.
+//
+//  8 per millimetre, a 125 micrometre step. The persistence length a straightness
+//  of 0.98 implies is 4.2 times the mark's own length - at least 1.25 mm even for
+//  the shortest mark - so the step is an order of magnitude below it and the
+//  curvature statistics are properly sampled. Like ALGO_FIBRE_STEPS_PER_MM this
+//  is the PHYSICS rate and not the drawing rate; raising it would change the walk
+//  itself. Smoothing between the control points is ALGO_FIBRE_SUBDIV's job, and
+//  defectSubdivide is shared.
+//
+//  The stores are sized from the length clamp rather than written as literals, so
+//  that changing either constant cannot silently overflow them.
+// ---------------------------------------------------------------------------
+constexpr int32_t ALGO_SCRATCH_STEPS_PER_MM = 8;
+
+constexpr int32_t ALGO_SCRATCH_MAX_POINTS =
+    (static_cast<int32_t>(ALGO_SCRATCH_HANDLING_LEN_MAX_MM)
+     * ALGO_SCRATCH_STEPS_PER_MM) + 1;
+
+constexpr int32_t ALGO_SCRATCH_MAX_DRAW =
+    ((ALGO_SCRATCH_MAX_POINTS - 1) * ALGO_FIBRE_SUBDIV) + 1;
+
 // ---------------------------------------------------------------------------
 //  Share of elongated particles oriented along the transport axis.
 //
@@ -586,9 +852,16 @@ constexpr HighPrecType ALGO_DEFECT_ALPHA_CAP = 0.999;
 //  above the 1.5 mm size clamp. Fibres: 25 mm, the full length clamp, because a
 //  fibre's centre can sit a whole length away from the window and still cross it.
 // ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_DUST_MARGIN_MM   = 0.2;
-constexpr HighPrecType ALGO_DEBRIS_MARGIN_MM = 1.6;
-constexpr HighPrecType ALGO_FIBRE_MARGIN_MM  = 25.0;
+//  Handling scratches: 4 mm, the full length clamp, by the same argument as the
+//  fibres - a mark's placement point can sit a whole length outside the window
+//  and still cross it. The transport population needs no margin constant: it
+//  spans the window by construction and its extent is clipped to the window plus
+//  one along-extent, which is geometry rather than a tunable.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_DUST_MARGIN_MM     = 0.2;
+constexpr HighPrecType ALGO_DEBRIS_MARGIN_MM   = 1.6;
+constexpr HighPrecType ALGO_FIBRE_MARGIN_MM    = 25.0;
+constexpr HighPrecType ALGO_SCRATCH_MARGIN_MM  = ALGO_SCRATCH_HANDLING_LEN_MAX_MM;
 
 // ---------------------------------------------------------------------------
 //  Generator stream tags.
@@ -596,10 +869,16 @@ constexpr HighPrecType ALGO_FIBRE_MARGIN_MM  = 25.0;
 //  Each class gets its own tag so that changing the amount of one class does not
 //  re-roll another. Turning the debris level up must not move the dust.
 // ---------------------------------------------------------------------------
-constexpr uint32_t ALGO_DEFECT_TAG_DUST_FIELD  = 0x00D05701u;
-constexpr uint32_t ALGO_DEFECT_TAG_DUST_CELL   = 0x00D05702u;
-constexpr uint32_t ALGO_DEFECT_TAG_DEBRIS_CELL = 0x00DEB101u;
-constexpr uint32_t ALGO_DEFECT_TAG_FIBRE_CELL  = 0x00F1B201u;
+//  The two scratch populations get one tag each for the same reason: the
+//  transport tag keys an ORDINAL along the web, the handling tag keys a placement
+//  CELL on the film, and moving one control must not disturb the other.
+// ---------------------------------------------------------------------------
+constexpr uint32_t ALGO_DEFECT_TAG_DUST_FIELD    = 0x00D05701u;
+constexpr uint32_t ALGO_DEFECT_TAG_DUST_CELL     = 0x00D05702u;
+constexpr uint32_t ALGO_DEFECT_TAG_DEBRIS_CELL   = 0x00DEB101u;
+constexpr uint32_t ALGO_DEFECT_TAG_FIBRE_CELL    = 0x00F1B201u;
+constexpr uint32_t ALGO_DEFECT_TAG_SCRATCH_RUN   = 0x005C4A01u;
+constexpr uint32_t ALGO_DEFECT_TAG_SCRATCH_CELL  = 0x005C4A02u;
 
 
 // ---------------------------------------------------------------------------
@@ -615,7 +894,36 @@ constexpr uint32_t ALGO_DEFECT_TAG_FIBRE_CELL  = 0x00F1B201u;
 //  negHeightMm    frame height on the film
 //  framePitchMm   web advance per frame, for defects that drift along the film
 //  pxPerMm        render resolution
-//  frameIndex     clip-relative frame number; defects have lifetimes
+//  frameIndex     clip-relative frame number, used to DRIFT defects along the
+//                 web (frameIndex * framePitchMm)
+//
+//                 ⚠ THIS LINE ONCE READ "defects have lifetimes", WHICH WAS
+//                 FALSE OF THE PARTICULATE CLASSES AND STILL IS. Corrected
+//                 2026-09-11. Dust, debris and fibres have no birth and no
+//                 death: each is baked into the film and translates with the
+//                 web, which is exactly why this stage takes the FILM frame
+//                 rate rather than the projection one.
+//
+//                 ⚠ QUEUE P44 IS NOW CLOSED, AND NOT BY WIRING THE FIELD INTO
+//                 THE OLD SENTENCE. The claim cost something concrete: a
+//                 2026-09-11 field audit read that comment and listed
+//                 `TemporalSpec::scratch_persistence_frames` - populated on all
+//                 184 stocks - as a field the stage "can use directly". It
+//                 could not, because the particulate classes have no lifetime
+//                 for it to set, and P44 said correctly that giving it one is a
+//                 modelling decision rather than a wiring job.
+//
+//                 The decision taken is that the field is NOT a birth/death
+//                 lifetime for a particle. Its docstring calls it the "mean
+//                 lifetime of a RUNNING SCRATCH", and a running scratch is
+//                 abraded by continuous contact as the web passes a fixed
+//                 object - so it is a RUN LENGTH ALONG THE FILM, which the
+//                 frame pitch turns into a length in millimetres. A new
+//                 SCRATCH class consumes it that way: each transport scratch
+//                 has a start frame and a run, is present while
+//                 start <= frameIndex < start + run, and marks exactly the
+//                 stretch of web its abrader touched. The particulate classes
+//                 are untouched and remain lifetime-free.
 //  frameRate      frames per second OF FILM - correct here, because this damage
 //                 is baked into the film rather than happening at projection
 //  seed           per-call seed, combined with params.damageSeed by the generator

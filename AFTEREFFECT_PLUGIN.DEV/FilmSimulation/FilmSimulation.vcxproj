@@ -365,6 +365,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\mtf_vector.py" />
     <None Include="python\profiles_generator\ooue_1959_granularity.py" />
     <None Include="python\profiles_generator\plot_inventory.py" />
+    <None Include="python\profiles_generator\png_compare.py" />
     <None Include="python\profiles_generator\polaroid_spectral.py" />
     <None Include="python\profiles_generator\pse_jones_1958.py" />
     <None Include="python\profiles_generator\README.md" />
@@ -382,6 +383,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\spectral_vector.py" />
     <None Include="python\profiles_generator\spectral_weight_provenance.py" />
     <None Include="python\profiles_generator\stage_delivery.py" />
+    <None Include="python\profiles_generator\stage_parity.py" />
     <None Include="python\profiles_generator\superia_2026.py" />
     <None Include="python\profiles_generator\takano_1968_mottle.py" />
     <None Include="python\profiles_generator\takano_1969_granularity.py" />

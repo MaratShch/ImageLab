@@ -10027,6 +10027,303 @@ if _sec_on():
                 if not _missing
                 else "%d unresolved: %s" % (len(_missing), _missing[:4]))
 
+        # ------------------------------------------------------------------
+        #  G-DYECLOUD-INERT -- P43's answer, kept enforced.
+        #
+        #  ⚠ THIS GUARD ASSERTS A NEGATIVE, WHICH IS UNUSUAL HERE, AND THE
+        #  REASON IS THAT THE FIELD LOOKS EXACTLY LIKE A GOOD IDEA. It is
+        #  populated on 115 stocks, it is already in the same units as
+        #  `clump_um_*`, and the arithmetic to fold it in is one line. A
+        #  2026-09-11 field audit duly ranked it the best unused parameter in
+        #  the database. It is not: the monochrome stocks give a silver-only
+        #  law of clump = 3.93 * grain_um, the colour stocks sit at the same
+        #  ratio (t = -0.65), and adding a dye term improves 51 stocks while
+        #  worsening 52. It carries no information, and the two chromogenic
+        #  black-and-white stocks -- the largest dye clouds in the set at
+        #  9.0 um -- have the LOWEST clump/grain ratio of all, which is the
+        #  opposite of what the hypothesis needs.
+        #
+        #  So the next person to read the field list will have the same good
+        #  idea, and this is what tells them it was already tried.
+        _dc = [p for p in FILM_PROFILES if p.grain.dye_cloud_um > 0.0]
+        _dc_vals = sorted({p.grain.dye_cloud_um for p in _dc})
+        import inspect as _insp_dc
+        import film_sim as _fs_dc
+        _dc_read = ("dye_cloud_um" in _insp_dc.getsource(_fs_dc))
+        chk("G-DYECLOUD-INERT  dye_cloud_um is populated but UNREAD, which is "
+            "P43's settled answer and not an oversight -- it is a 4-value era "
+            "band with no provenance and no predictive power over the fitted "
+            "clump",
+            not _dc_read and len(_dc_vals) <= 4,
+            "%d stocks carry it, %d distinct values %s; renderer reads it: %s"
+            % (len(_dc), len(_dc_vals),
+               ["%.1f" % v for v in _dc_vals], _dc_read))
+
+        # ------------------------------------------------------------------
+        #  G-SCRATCH -- the abrasion class at stage 9b. Added 2026-09-11 with
+        #  queue row P44.
+        #
+        #  ⚠ THIS IS THE FIRST GUARD IN THIS FILE THAT COMPILES AND RUNS THE
+        #  ENGINE, AND THE REASON IS THAT NOTHING ELSE CAN SEE THIS CLASS.
+        #  `film_sim` has no defect layer at all, so the Python reference every
+        #  other guard here measures against does not contain a scratch to
+        #  compare with; `stage_parity` renders 9b in both twins but only asks
+        #  whether they AGREE, which two identically dead generators also do;
+        #  and a source grep cannot tell a class that draws from a class that
+        #  is called and returns. The three properties this class is supposed
+        #  to have are properties of its OUTPUT, so the output is what is
+        #  measured.
+        #
+        #  ⚠ AND IT EXISTS BECAUSE THE FIELD IT CONSUMES WAS INERT FOR MONTHS
+        #  WITHOUT ANYTHING NOTICING. `TemporalSpec.scratch_persistence_frames`
+        #  is populated on all 184 stocks and was read by nothing; the two
+        #  controls in front of it sat in AlgoControl.hpp's "Unconsumed" list.
+        #  A guard that only checked the constants were present would pass just
+        #  as happily on a generator whose every mark falls outside the raster.
+        #
+        #  WHAT IS ASSERTED, AND WHY EACH ONE
+        #    off      at zero controls the stage writes its copy and changes
+        #             NOTHING. The probe poisons the destination first, so a
+        #             stage that returned without writing would fail this too -
+        #             the retained-buffer policy makes that difference real.
+        #    on       at a non-zero control the stage changes pixels, both
+        #             populations, independently of each other.
+        #    locked   a transport scratch is one nearly-full-height stroke in a
+        #             handful of columns on a format whose film runs
+        #             vertically. This is the 90 degree rotation the whole film
+        #             coordinate system exists for; getting it backwards is the
+        #             most conspicuous error the class can make.
+        #    holds    the same scratch keeps the SAME across-web column over
+        #             consecutive frames - the defining visible property of a
+        #             tramline, and the thing `scratch_persistence_frames` now
+        #             sets the length of.
+        #    ends     and the run ENDS, with a new one starting elsewhere. A
+        #             scratch that never went away would pass "holds" perfectly
+        #             and would be a permanent mark on the glass, which is the
+        #             failure the 2026-09-04 gate-dirt retune was about.
+        #    both     marks appear with BOTH polarities. A cut removes emulsion
+        #             and a burnish adds scatter, so a population with one sign
+        #             means the polarity draw never reached the rasteriser.
+        #
+        #  ⚠ NO COMPILER IS A FAILURE, NOT A SKIP, when the tree is on disk.
+        #  `stage_parity`'s header records what a green [SKIP] line cost this
+        #  project once already. The tree being absent is a different thing and
+        #  is the only condition under which this block does not run.
+        _eng_sc = Path("/root/work/tst")
+
+        if _eng_sc.is_dir():
+            import shutil as _sh_sc
+            import subprocess as _sp_sc
+            import tempfile as _tf_sc
+
+            # ---- the four measured figures, and both twins carrying the class
+            #
+            # Cheap, and it catches the two mistakes a render test cannot: a
+            # constant quietly retuned away from the figure AlgoControl.hpp
+            # lists as measured, and a class added to one twin only. The AVX2
+            # tree's 9b defect namespace is meant to be the scalar one verbatim
+            # apart from the compact-blob rasteriser, so "the name is in both
+            # files" is exactly the right strength of check here -
+            # `stage_parity` measures whether the numbers then match.
+            def _rd_sc(_p):
+                return _p.read_text(encoding="utf-8", errors="replace")
+
+            _hdr_sc = _rd_sc(_eng_sc / "AlgoNegativeDefects.hpp")
+            _twins_sc = {
+                "scalar": _rd_sc(_eng_sc / "Algo_09_Sim.cpp"),
+                "AVX2":   _rd_sc(_eng_sc / "AVX2" / "Algo_09_Sim.cpp"),
+            }
+
+            _want_sc = {
+                "ALGO_SCRATCH_WIDTH_UM = 26.0":         "26 um width",
+                "ALGO_SCRATCH_STRAIGHTNESS = 0.98":     "0.98 chord/arc",
+                "ALGO_SCRATCH_ORIENT_RATIO = 3.5":      "3.5:1 bias",
+                "ALGO_SCRATCH_CONTRAST_MEDIAN = 0.035": "3.5% contrast",
+            }
+            _missing_sc = [_v for _k, _v in _want_sc.items()
+                           if _k not in _hdr_sc]
+
+            _halftwin_sc = [_n for _n, _t in _twins_sc.items()
+                            if ("defectScratches" not in _t
+                                or "dmg.scratchTransport" not in _t
+                                or "dmg.scratchHandling" not in _t)]
+
+            chk("G-SCRATCH-CONSTANTS  the four measured scratch figures are "
+                "named constants at their measured values, and both twins "
+                "carry the class and read both controls",
+                not _missing_sc and not _halftwin_sc,
+                "26 um / 0.98 / 3.5:1 / 3.5%% all present; class in %s"
+                % ", ".join(sorted(_twins_sc))
+                if not _missing_sc and not _halftwin_sc
+                else "missing constants %s; twins without the class %s"
+                % (_missing_sc, _halftwin_sc))
+
+            # ---- compile the probe and read its output ---------------------
+            #
+            # Three engine TUs and no database: stage 9b reads two fields of
+            # FilmProfile and the probe hands it a value-initialised one, so
+            # the twenty-six generated data TUs - which are the whole cost of
+            # `stage_parity`'s build - are not needed. About a second.
+            _SCR_N, _SCR_F = 96, 120
+
+            _cxx_sc = _os.environ.get("CXX") or _sh_sc.which("g++") \
+                or _sh_sc.which("clang++")
+
+            _out_sc = None
+            _why_sc = ""
+
+            if not _cxx_sc:
+                _why_sc = ("no g++/clang++ on PATH and the engine tree IS "
+                           "present -- this guard cannot be skipped quietly")
+            else:
+                _tus_sc = ("test_scratch_guard.cpp", "Algo_09_Sim.cpp",
+                           "AlgoDefectField.cpp", "AlgoSeparableBlur.cpp")
+
+                with _tf_sc.TemporaryDirectory() as _td_sc:
+                    _exe_sc = _os.path.join(_td_sc, "scratchprobe")
+                    _cmd_sc = ([_cxx_sc, "-std=c++14", "-O1",
+                                "-I", str(_eng_sc), "-o", _exe_sc]
+                               + [str(_eng_sc / _t) for _t in _tus_sc])
+                    _r_sc = _sp_sc.run(_cmd_sc, capture_output=True, text=True)
+
+                    if _r_sc.returncode != 0:
+                        _why_sc = ("probe did not compile: "
+                                   + (_r_sc.stderr or _r_sc.stdout
+                                      ).strip().splitlines()[-1][:160])
+                    else:
+                        _r_sc = _sp_sc.run(
+                            [_exe_sc, str(_SCR_N), str(_SCR_F)],
+                            capture_output=True, text=True)
+
+                        if _r_sc.returncode != 0 or "END" not in _r_sc.stdout:
+                            _why_sc = "probe did not run to completion"
+                        else:
+                            _out_sc = _r_sc.stdout
+
+            # ---- parse -----------------------------------------------------
+            # CASE <name> FRAME <f> SIZE <n> TOUCHED <k> MAXABS <v>
+            #                                            MIND <v> MAXD <v>
+            # COL <x> <sum |dst-src| down that column>
+            _cases_sc = {}
+            _key_sc = None
+
+            for _ln_sc in (_out_sc or "").splitlines():
+                _p_sc = _ln_sc.split()
+                if not _p_sc:
+                    continue
+                if _p_sc[0] == "CASE":
+                    _key_sc = (_p_sc[1], int(_p_sc[3]))
+                    _cases_sc[_key_sc] = {
+                        "touched": int(_p_sc[7]),
+                        "maxabs":  float(_p_sc[9]),
+                        "mind":    float(_p_sc[11]),
+                        "maxd":    float(_p_sc[13]),
+                        "cols":    [],
+                    }
+                elif _p_sc[0] == "COL" and _key_sc is not None:
+                    _cases_sc[_key_sc]["cols"].append(float(_p_sc[2]))
+
+            def _series_sc(_name):
+                return [_cases_sc[(_name, _f)] for _f in range(_SCR_F)
+                        if (_name, _f) in _cases_sc]
+
+            _zero_sc = _series_sc("allzero")
+            _tran_sc = _series_sc("transport")
+            _hand_sc = _series_sc("handling")
+            _part_sc = _series_sc("particles")
+
+            _have_sc = (len(_zero_sc) == _SCR_F and len(_tran_sc) == _SCR_F
+                        and len(_hand_sc) == _SCR_F
+                        and len(_part_sc) == _SCR_F)
+
+            # ---- G-SCRATCH-GATE  zero off, non-zero on ---------------------
+            _off_ok_sc = _have_sc and all(_c["touched"] == 0
+                                          for _c in _zero_sc)
+            _on_t_sc = max((_c["touched"] for _c in _tran_sc), default=0)
+            _on_h_sc = max((_c["touched"] for _c in _hand_sc), default=0)
+            _on_p_sc = max((_c["touched"] for _c in _part_sc), default=0)
+
+            chk("G-SCRATCH-GATE  stage 9b changes no pixel at zero scratch "
+                "controls and does change pixels at non-zero ones, for each "
+                "population separately",
+                _have_sc and _off_ok_sc and _on_t_sc > 0 and _on_h_sc > 0,
+                "all-zero touched 0 px on %d frames; transport peaks at %d px, "
+                "handling at %d px, particulate control case at %d px"
+                % (_SCR_F, _on_t_sc, _on_h_sc, _on_p_sc)
+                if _have_sc
+                else ("probe unusable -- %s" % (_why_sc or "no output")))
+
+            # ---- G-SCRATCH-TRAMLINE  locked, holds, ends -------------------
+            #
+            # The probe renders super35, whose frame pitch is smaller than its
+            # height, so AlgoFilmCoord derives the film as running along image
+            # Y and a transport scratch is a VERTICAL stroke at a fixed image
+            # X. Segmenting the sequence of touched-column sets into maximal
+            # identical runs measures both remaining properties at once: the
+            # longest segment is how long a tramline holds its position, and
+            # the number of segments is whether runs end at all.
+            _segs_sc = []
+            _prev_sc = None
+
+            for _c in _tran_sc:
+                _cols = tuple(_x for _x, _v in enumerate(_c["cols"])
+                              if _v > 0.0)
+                if _cols != _prev_sc:
+                    _segs_sc.append([_cols, 0])
+                    _prev_sc = _cols
+                _segs_sc[-1][1] += 1
+
+            _live_sc = [_s for _s in _segs_sc if _s[0]]
+            _hold_sc = max((_s[1] for _s in _live_sc), default=0)
+            _wide_sc = max((len(_s[0]) for _s in _live_sc), default=0)
+
+            # Full-height on the frames in the body of a run.
+            #
+            # ⚠ NOT ON EVERY FRAME, AND THE EXCEPTION IS THE FEATURE. The stroke
+            # is clipped to the stretch of web the abrader actually touched -
+            # start*pitch to (start+run)*pitch - so on the frame where it lets
+            # go the tramline ENDS PART WAY UP THE PICTURE instead of vanishing
+            # between two frames. Measured here: the short frames are a handful
+            # out of the whole sequence, one per run, which is exactly that
+            # boundary and not a stroke that fails to span the window.
+            _livef_sc = [_c for _c in _tran_sc if _c["touched"] > 0]
+            _tallf_sc = [_c for _c in _livef_sc
+                         if _c["touched"] >= int(0.75 * _SCR_N)]
+
+            _tallshare_sc = (float(len(_tallf_sc)) / float(len(_livef_sc))
+                             if _livef_sc else 0.0)
+
+            _short_sc = min((_c["touched"] for _c in _livef_sc), default=0)
+
+            chk("G-SCRATCH-TRAMLINE  a transport scratch is a full-height "
+                "stroke locked to the transport axis that HOLDS its across-web "
+                "column over consecutive frames, and whose run then ENDS",
+                _have_sc and _hold_sc >= 8 and len(_live_sc) >= 2
+                and _wide_sc <= 4 and _tallshare_sc >= 0.8,
+                "%d distinct runs over %d frames, longest holds one column set "
+                "for %d consecutive frames, at most %d column(s) wide; "
+                "%.0f%% of the %d frames carrying a scratch are full height "
+                "(shortest %d px of %d rows, the frame a run ends on)"
+                % (len(_live_sc), _SCR_F, _hold_sc, _wide_sc,
+                   100.0 * _tallshare_sc, len(_livef_sc), _short_sc, _SCR_N)
+                if _have_sc
+                else ("probe unusable -- %s" % (_why_sc or "no output")))
+
+            # ---- G-SCRATCH-POLARITY  cut and burnish both render -----------
+            _dark_sc = min((_c["mind"] for _c in _hand_sc), default=0.0)
+            _lite_sc = max((_c["maxd"] for _c in _hand_sc), default=0.0)
+
+            chk("G-SCRATCH-POLARITY  scratches render with BOTH signs on the "
+                "negative -- a cut removes density, a burnish adds it -- which "
+                "no other class in stage 9b can do",
+                _have_sc and _dark_sc < 0.0 and _lite_sc > 0.0,
+                "handling population spans %.3e to %+.3e D against a "
+                "single-mark amplitude of %.3e D"
+                % (_dark_sc, _lite_sc, -math.log10(1.0 - 0.035))
+                if _have_sc
+                else ("probe unusable -- %s" % (_why_sc or "no output")))
+
+
     print()
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")
     sys.exit(0 if ok else 1)

@@ -338,8 +338,23 @@ def build(root: Path) -> tuple[str, list[str]]:
       "it through in the scalar build. All three are fixed. The rule above is "
       "an INVARIANT TO BE ENFORCED, not a description of what the tree was "
       "already doing -- and the reason all three survived is that numeric "
-      "scalar-vs-AVX2 twin checking covers only stages 08b, 09 and 09c. The "
-      "other 24 stages have no automated numeric twin check.")
+      "scalar-vs-AVX2 twin checking then covered only stages 08b, 09 and 09c, "
+      "leaving the other 24 with no automated numeric comparison at all.")
+    a("- ⚠ THAT GAP IS NOW CLOSED, and closing it immediately found a fourth "
+      "defect of the same kind. `stage_parity.py` compiles both trees, dumps "
+      "all 25 retained planes -- which cover all 27 stages, since 9c writes "
+      "S09b in place and 12b writes S12 in place -- and compares them PER "
+      "PIXEL across five stocks chosen to exercise different paths. It found "
+      "the AVX2 print curve at stage 13 running a fast approximate softplus "
+      "against the scalar twin's exact one, wrong by 1.03e-02 to 1.37e-02 D. "
+      "Its own source had called that an acceptable documented mode "
+      "difference and priced it at \"2.4e-03 to 3.2e-03 in plane MEAN\" -- but "
+      "a mean is an integral and the error is signed, so averaging hid four "
+      "fifths of it. It reached the screen as about two eight-bit code values "
+      "on every stock that prints. Fixed with an accurate exp and log in that "
+      "translation unit: 5.90e-06 D. ALL 125 PLANES ACROSS FIVE STOCKS NOW "
+      "AGREE INSIDE THE STRICT FLOAT32 BUDGET WITH ZERO PINNED EXCEPTIONS, "
+      "worst 3.189e-05 where both twins run the same algorithm.")
     a("")
     a("## 6. Live queue")
     a("")

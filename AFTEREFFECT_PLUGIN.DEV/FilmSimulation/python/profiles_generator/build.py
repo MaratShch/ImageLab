@@ -177,7 +177,47 @@ GENERATED = ("film_profiles.hpp", "film_profiles.cpp",
 #: thing that was missing, and it is why a new extraction script now becomes
 #: part of the build instead of an orphan.
 #:   script, argv, the input it needs, what it guards
+#: Where the ENGINE tree lives, which is NOT necessarily the generator root.
+#:
+#: ⚠⚠ THIS EXISTS BECAUSE ALL THREE TWIN AUDITS WERE SILENTLY SKIPPING IN
+#: THE ORDINARY BUILD, which is a worse version of the defect they were written
+#: to prevent. `interimage_parity`, `bromide_parity` and `stage_parity` were
+#: each registered with `root / "Algo_..._Sim.cpp"` as their needs-file, where
+#: `root` is FILMSIM_ROOT -- the GENERATOR directory. The engine sources live
+#: elsewhere, so the needs-file was never present and a plain build printed:
+#:
+#:     [SKIP] interimage_parity.py  --  source not present: Algo_08_Sim.cpp
+#:     [SKIP] bromide_parity.py     --  source not present: Algo_09_Sim.cpp
+#:     [SKIP] stage_parity.py       --  source not present: AlgorithmMain.cpp
+#:
+#: ⚠ SO THE DEFAULT BUILD HAD NUMERIC TWIN COVERAGE OF ZERO STAGES, not the
+#: three that every document in this project claimed. They only ran when
+#: someone passed `--root` at an engine tree by hand, which the gate never
+#: does. That is how the stage-14 Schraudolph error and the stage-13
+#: print-curve error both reached a delivery.
+#:
+#: Resolution order, first hit wins: FILMSIM_ENGINE, the generator root itself
+#: (a combined checkout), then the conventional sibling tree. If none holds an
+#: AlgorithmMain.cpp there is genuinely no engine to audit and the needs-file
+#: gate skips as designed -- but when one IS on disk, the audits now run.
+def engine_root(root: Path) -> Path:
+    candidates = []
+    env = os.environ.get("FILMSIM_ENGINE")
+    if env:
+        candidates.append(Path(env))
+    candidates.append(root)
+    candidates.append(Path("/root/work/tst"))
+    for c in candidates:
+        try:
+            if (c / "AlgorithmMain.cpp").is_file():
+                return c
+        except OSError:
+            continue
+    return root
+
+
 def audits(root: Path):
+    eng = engine_root(root)
     return (
         ("vision3_granularity.py",
          ["--pdfdir", str(root / "PDF" / "PROFILES" / "KODAK")],
@@ -1310,14 +1350,57 @@ def audits(root: Path):
         # they exist twice, in two languages, with nothing comparing them.
         # cpp_parity covers the grain and MTF laws only.
         ("interimage_parity.py",
-         ["--root", str(root), "--assert"],
-         root / "Algo_08_Sim.cpp",
+         ["--root", str(eng), "--assert"],
+         eng / "Algo_08_Sim.cpp",
          "Python apply_interimage()/apply_dir_couplers() vs the plugin's own "
          "AlgoStage08b_Interimage()/AlgoStage09_DirCoupler(): 5 stocks covering "
          "both interimage mechanisms plus a monochrome control, flat and ramp "
          "fields, at two pixel scales. Reads sizeof(AlgoType) from the compiled "
          "probe and picks its tolerance from it, so the switchable double/float "
          "typedef stays switchable"),
+        # ⚠ THE FOURTH CODE AUDIT, ADDED 2026-09-11, AND IT EXISTS BECAUSE THE
+        # THREE ABOVE COVER THREE STAGES OUT OF TWENTY-SEVEN. interimage_parity
+        # runs 8b and 9 in both flavours, bromide_parity runs 9c in both, and
+        # cpp_parity's only look at the vector twins is a textual token grep,
+        # which cannot see a number. The other twenty-four stages had NO
+        # automated numeric comparison between the scalar and AVX2 builds.
+        # ⚠ THAT GAP LET A DEFECT SHIP: AVX2 stage 14 evaluated 10^-d with a raw
+        # Schraudolph bit-hack -- 2.98 % relative, 5.57 eight-bit code values,
+        # the white point at 0.9782 instead of 1.0 -- and it was found by the
+        # owner looking at a rendered frame, which is the slowest instrument in
+        # the project. test_stage_parity.cpp existed the whole time and would
+        # not have caught it either: it prints per-stage MEANS, and a mean is an
+        # integral, so a signed divergence that cancels across the frame leaves
+        # no trace in it. This audit compares the raw retained planes pixel by
+        # pixel instead, and reports the coordinate.
+        # ⚠ IT SKIPS ON EXACTLY ONE CONDITION -- no AVX2 tree on disk -- and
+        # FAILS on everything else, including the case where both builds report
+        # the same sizeof(AlgoType), which means the vector tree never shadowed
+        # the scalar one and the run proved nothing. A [SKIP] in a green log is
+        # how the missing-header defect stayed hidden once already.
+        ("stage_parity.py",
+         ["--root", str(eng), "--assert"],
+         eng / "AlgorithmMain.cpp",
+         "the scalar (double) and AVX2 (float) builds against each other on ALL "
+         "27 pipeline stages: both engines compiled from the same sources, one "
+         "frame rendered per stock in each, and every retained stage plane "
+         "compared PER PIXEL -- max |scalar - avx2| over 3 channels with the "
+         "coordinate where it occurs, never a mean. 5 stocks chosen for the "
+         "paths they take: a colour negative that prints, a reversal that does "
+         "not, a monochrome, the only stock with a reseau, and a cine negative. "
+         "Tolerance is 512 float32 ULPs of each plane's own magnitude, times "
+         "ln10 on the transmittance stages because T = 10^-d amplifies a "
+         "density error by that much; the measured floor is 3.2e-05. ⚠ IT "
+         "FOUND A REAL DIVERGENCE ON ITS FIRST RUN, AND THAT DIVERGENCE IS NOW "
+         "FIXED: the vector stage 13 print curve kept a fast approximate "
+         "softplus where the scalar twin called the exact one, costing 1.03e-02 "
+         "to 1.37e-02 D per pixel -- four to five times the 2.4e-03 to 3.2e-03 "
+         "that stage's own comment quoted, because the quoted figure was a "
+         "plane MEAN and a mean is an integral that cancels a signed error. It "
+         "reached the screen as about 2 code values on every stock that prints. "
+         "Stage 13 now uses an accurate exp and log and comes back at 5.90e-06 "
+         "D, so ALL 125 PLANES ACROSS 5 STOCKS AGREE INSIDE THE STRICT FLOAT32 "
+         "BUDGET WITH ZERO PINNED EXCEPTIONS"),
         # ⚠ QUEUE M1a, 2026-09-05d -- A MODULE AUDITING ITS OWN REFUSAL.
         # dye_matrix_from_spectra declines to adopt its derived matrices on the
         # ground that the crosstalk is already inside the stored status
@@ -1562,8 +1645,8 @@ def audits(root: Path):
         # profile and runs the shipped stage on it, so the law is tested at full
         # strength while the database stays inert.
         ("bromide_parity.py",
-         ["--root", str(root), "--assert"],
-         root / "Algo_09_Sim.cpp",
+         ["--root", str(eng), "--assert"],
+         eng / "Algo_09_Sim.cpp",
          "Python apply_bromide_drag() vs AlgoStage09c_BromideDrag() in BOTH the "
          "scalar and the AVX2 build: a negative and a reversal stock, both "
          "transport directions, two drag lengths, two pixel scales, and the "
@@ -1592,8 +1675,8 @@ def audits(root: Path):
         # the flag is what keeps it closed: a re-opened gap now fails the build
         # instead of printing a line somebody has learned to skip.
         ("spectral_mono_parity.py",
-         ["--algodir", str(root), "--assert"],
-         root / "AlgoSpectralSensitivity.cpp",
+         ["--algodir", str(eng), "--assert"],
+         eng / "AlgoSpectralSensitivity.cpp",
          "film_sim.spectral_monochrome_weights() against the plugin's own "
          "AlgoSpectralMonoWeights(), all 68 monochrome stocks walked out of "
          "the real database, to 1e-9 -- including the gamut-reach guard, which "
