@@ -32,8 +32,8 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
         h.totalMemory = totalBytes;
         h.memBlockId = blockId;
 
-        h.input_f32_interleaved  = reinterpret_cast<float*>(h.SuperBufferHead);
-        h.output_f32_interleaved = reinterpret_cast<float*>(h.SuperBufferHead + dstBufOffset);
+        h.srcRGB_f32 = reinterpret_cast<float*>(h.SuperBufferHead);
+        h.dstRGB_f32 = reinterpret_cast<float*>(h.SuperBufferHead + dstBufOffset);
     }
 
     return h;

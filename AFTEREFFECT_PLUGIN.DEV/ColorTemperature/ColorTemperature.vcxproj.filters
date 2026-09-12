@@ -113,15 +113,6 @@
     <ClInclude Include="include\Algo2Rgb2XYZ.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgoIngestAVX2.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoPrFormatEgress.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoPrFormatIngest.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgoWhiteBalance.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -132,6 +123,21 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\AlgoApplyWB.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\Algo2Rgb2XYZ_Rec2020_addendum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoReference.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoIngestAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatEgress.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatIngest.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -155,6 +161,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\AlgoMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoControl.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

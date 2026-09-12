@@ -5,6 +5,8 @@
 #include "ColorTemperatureControls.hpp"
 #include "AlgorithmMain.hpp"
 #include "AlgoPrFormatIngest.hpp"
+#include "Algo2Rgb2XYZ.hpp"
+#include "Algo2Rgb2XYZ_Rec2020_addendum.hpp"
 
 // static link with ColorEngine static library
 #ifdef _DEBUG

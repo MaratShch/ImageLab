@@ -40,6 +40,8 @@
 // host's render threading.
 // =============================================================================
 
+#ifdef __AVX2__          // include-safe: only compiles where AVX2 is enabled
+                         // (GCC/Clang -mavx2 -mfma ; MSVC /arch:AVX2)
 #include <immintrin.h>
 #include <cstdint>
 #include <cmath>
@@ -275,20 +277,33 @@ namespace avx2
         }
     };
 
-    // 8 x (4-float pixels) -> four planar channel vectors. Simple aligned
-    // temp-array deinterleave: measured net 4.2-4.3x for the full pipeline;
-    // a shuffle-based transpose is a later micro-optimization if profiling
-    // ever shows this as the bottleneck.
+    // 8 x (4-float pixels) -> four planar channel vectors.
+    // Pure-intrinsic 8x4 transpose: 4 loads, 4 unpacks (256-bit),
+    // 8 unpacks (128-bit), 4 inserts. No scalar spill, no temp array.
+    // Verified bit-exact against a scalar reference deinterleave.
     static inline void transpose8x4(const float* p, __m256& c0, __m256& c1,
                                     __m256& c2, __m256& c3)
     {
-        CACHE_ALIGN float a[8], b[8], cc[8], dd[8];
-        for (int k = 0; k < 8; ++k) {
-            a [k] = p[k*4 + 0]; b [k] = p[k*4 + 1];
-            cc[k] = p[k*4 + 2]; dd[k] = p[k*4 + 3];
-        }
-        c0 = _mm256_load_ps(a);  c1 = _mm256_load_ps(b);
-        c2 = _mm256_load_ps(cc); c3 = _mm256_load_ps(dd);
+        const __m256 r0 = _mm256_loadu_ps(p +  0);      // px0 | px1
+        const __m256 r1 = _mm256_loadu_ps(p +  8);      // px2 | px3
+        const __m256 r2 = _mm256_loadu_ps(p + 16);      // px4 | px5
+        const __m256 r3 = _mm256_loadu_ps(p + 24);      // px6 | px7
+        const __m256 t0 = _mm256_unpacklo_ps(r0, r1);
+        const __m256 t1 = _mm256_unpackhi_ps(r0, r1);
+        const __m256 t2 = _mm256_unpacklo_ps(r2, r3);
+        const __m256 t3 = _mm256_unpackhi_ps(r2, r3);
+        const __m128 t0l = _mm256_castps256_ps128(t0), t0h = _mm256_extractf128_ps(t0, 1);
+        const __m128 t1l = _mm256_castps256_ps128(t1), t1h = _mm256_extractf128_ps(t1, 1);
+        const __m128 t2l = _mm256_castps256_ps128(t2), t2h = _mm256_extractf128_ps(t2, 1);
+        const __m128 t3l = _mm256_castps256_ps128(t3), t3h = _mm256_extractf128_ps(t3, 1);
+        c0 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm_unpacklo_ps(t0l, t0h)),
+                                  _mm_unpacklo_ps(t2l, t2h), 1);
+        c1 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm_unpackhi_ps(t0l, t0h)),
+                                  _mm_unpackhi_ps(t2l, t2h), 1);
+        c2 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm_unpacklo_ps(t1l, t1h)),
+                                  _mm_unpacklo_ps(t3l, t3h), 1);
+        c3 = _mm256_insertf128_ps(_mm256_castps128_ps256(_mm_unpackhi_ps(t1l, t1h)),
+                                  _mm_unpackhi_ps(t3l, t3h), 1);
     }
 
     // channel order of the two 32f layouts (memory order of the 4 floats)
@@ -397,6 +412,30 @@ namespace avx2
         const __m256 d  = _mm256_blendv_ps(_mm256_set1_ps(1.0f), A, nz);
         R = _mm256_div_ps(R, d); G = _mm256_div_ps(G, d); B = _mm256_div_ps(B, d);
     }
+
+    // The canonical buffer as an INPUT: linear, interleaved, 3 floats per
+    // pixel, already linear (no transfer decode). Uses the same
+    // blend+permute deinterleave as the Step D loader.
+    struct LoadLinearRGB3
+    {
+        static const std::size_t kPixelBytes = 12u;      // 3 x float32
+        static const bool kLinear = true;                // already linear
+        static inline void load(const std::uint8_t* row, int32_t x,
+                                __m256& vR, __m256& vG, __m256& vB)
+        {
+            const float* s = reinterpret_cast<const float*>(
+                                 row + (std::size_t)x * kPixelBytes);
+            const __m256 a0 = _mm256_loadu_ps(s +  0);
+            const __m256 a1 = _mm256_loadu_ps(s +  8);
+            const __m256 a2 = _mm256_loadu_ps(s + 16);
+            __m256 xx = _mm256_blend_ps(a0, a1, 0x92); xx = _mm256_blend_ps(xx, a2, 0x24);
+            __m256 yy = _mm256_blend_ps(a2, a0, 0x92); yy = _mm256_blend_ps(yy, a1, 0x24);
+            __m256 zz = _mm256_blend_ps(a1, a2, 0x92); zz = _mm256_blend_ps(zz, a0, 0x24);
+            vR = _mm256_permutevar8x32_ps(xx, _mm256_setr_epi32(0,3,6,1,4,7,2,5));
+            vG = _mm256_permutevar8x32_ps(yy, _mm256_setr_epi32(1,4,7,2,5,0,3,6));
+            vB = _mm256_permutevar8x32_ps(zz, _mm256_setr_epi32(2,5,0,3,6,1,4,7));
+        }
+    };
 
     struct LoadRGB10
     {
@@ -640,7 +679,9 @@ namespace avx2
     // Same contract as the scalar ingest_and_superpixel, AVX2-fused. dst gets
     // the linear canonical buffer (or the confidence map). Build the ctx once
     // per setup with build_measure_ctx(gate, ctx).
-    inline void measure_avx2(const void* src, int32_t sizeX, int32_t sizeY,
+    // Returns FALSE if the format is not supported - the caller MUST check.
+    // A silent no-op would leave dstRGB_f32 uninitialised.
+    inline bool measure_avx2(const void* src, int32_t sizeX, int32_t sizeY,
                              int32_t srcPitchPx, ePrPixelFormat fmt,
                              const MeasureCtxAVX2& ctx,
                              float* dstRGB_f32, SuperPixel<double>& super,
@@ -700,12 +741,31 @@ namespace avx2
             case fmt_VUYX_4444_32f:     IL2_RUN(LoadVUYA32<false, false>); break;
 
             case fmt_RGB_444_10u:       IL2_RUN(LoadRGB10); break;
-            default: break;
+            default:
+                // Unsupported format (e.g. VUYA_4444_16u, which is out of the
+                // required 37 and intentionally not wired). Report failure.
+                #undef IL2_RUN
+                return false;
         }
         #undef IL2_RUN
+        return true;
+    }
+
+    // Measure the CANONICAL buffer directly (linear interleaved RGB f32).
+    // Used to re-measure a corrected frame during reference refinement.
+    inline void measure_linear_rgb3(const float* src, int32_t sizeX, int32_t sizeY,
+                                    const MeasureCtxAVX2& ctx,
+                                    float* dstRGB_f32, SuperPixel<double>& super,
+                                    double* keptFraction = nullptr)
+    {
+        run_measure<LoadLinearRGB3, false>(
+            reinterpret_cast<const std::uint8_t*>(src), sizeX, sizeY, sizeX,
+            ctx, dstRGB_f32, super, keptFraction);
     }
 
 } // namespace avx2
 } // namespace AlgoPrIngest
+
+#endif // __AVX2__
 
 #endif // __IMAGELAB2_MEASURE_AVX2_HPP__

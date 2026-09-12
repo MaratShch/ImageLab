@@ -171,20 +171,22 @@ namespace AlgoWB
     // pattern as the measure pass's store_rgb8 (verified there).
     namespace detail
     {
+        // AoS3 (rgbrgb...) -> SoA. Pure intrinsics: 3 unaligned loads,
+        // 6 blends, 3 permutes - no scalar spill, no temp array. This is the
+        // exact inverse of store_rgb8 below (same blend masks, inverse
+        // permute indices); both verified bit-exact against a scalar
+        // reference deinterleave.
         static inline void load_rgb8 (const float* s, __m256& R, __m256& G, __m256& B)
         {
-            const __m256 a0 = _mm256_loadu_ps(s +  0);   // r0 g0 b0 r1 g1 b1 r2 g2
-            const __m256 a1 = _mm256_loadu_ps(s +  8);   // b2 r3 g3 b3 r4 g4 b4 r5
-            const __m256 a2 = _mm256_loadu_ps(s + 16);   // g5 b5 r6 g6 b6 r7 g7 b7
-            CACHE_ALIGN float t[24];
-            _mm256_store_ps(t +  0, a0);
-            _mm256_store_ps(t +  8, a1);
-            _mm256_store_ps(t + 16, a2);
-            CACHE_ALIGN float rr[8], gg[8], bb[8];
-            for (int k = 0; k < 8; ++k) {
-                rr[k] = t[k*3 + 0]; gg[k] = t[k*3 + 1]; bb[k] = t[k*3 + 2];
-            }
-            R = _mm256_load_ps(rr); G = _mm256_load_ps(gg); B = _mm256_load_ps(bb);
+            const __m256 a0 = _mm256_loadu_ps(s +  0);  // r0 g0 b0 r1 g1 b1 r2 g2
+            const __m256 a1 = _mm256_loadu_ps(s +  8);  // b2 r3 g3 b3 r4 g4 b4 r5
+            const __m256 a2 = _mm256_loadu_ps(s + 16);  // g5 b5 r6 g6 b6 r7 g7 b7
+            __m256 x = _mm256_blend_ps(a0, a1, 0x92); x = _mm256_blend_ps(x, a2, 0x24);
+            __m256 y = _mm256_blend_ps(a2, a0, 0x92); y = _mm256_blend_ps(y, a1, 0x24);
+            __m256 z = _mm256_blend_ps(a1, a2, 0x92); z = _mm256_blend_ps(z, a0, 0x24);
+            R = _mm256_permutevar8x32_ps(x, _mm256_setr_epi32(0,3,6,1,4,7,2,5));
+            G = _mm256_permutevar8x32_ps(y, _mm256_setr_epi32(1,4,7,2,5,0,3,6));
+            B = _mm256_permutevar8x32_ps(z, _mm256_setr_epi32(2,5,0,3,6,1,4,7));
         }
 
         static inline void store_rgb8 (float* dst, __m256 R, __m256 G, __m256 B)

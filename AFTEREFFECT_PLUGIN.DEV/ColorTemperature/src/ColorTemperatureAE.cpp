@@ -53,7 +53,7 @@ PF_Err ColorTemperature_InAE_8bits
             AlgoPrIngest::fmt_ARGB_4444_8u,
             lut8, lut16, lut10,
             locusGate,
-            algoMemHandler.input_f32_interleaved,
+            algoMemHandler.srcRGB_f32,
             super,
             algoCtrl.confidenceMap
         );
@@ -62,7 +62,7 @@ PF_Err ColorTemperature_InAE_8bits
 
         AlgoPrIngest::egress_from_linear_f32
         (
-            (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+            (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
             sizeX,
             sizeY,
             localDst,
@@ -127,7 +127,7 @@ PF_Err ColorTemperature_InAE_16bits
             AlgoPrIngest::fmt_ARGB_4444_16u,
             lut8, lut16, lut10,
             locusGate,
-            algoMemHandler.input_f32_interleaved,
+            algoMemHandler.srcRGB_f32,
             super,
             algoCtrl.confidenceMap
         );
@@ -136,7 +136,7 @@ PF_Err ColorTemperature_InAE_16bits
 
         AlgoPrIngest::egress_from_linear_f32
         (
-            (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+            (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
             sizeX,
             sizeY,
             localDst,
@@ -201,7 +201,7 @@ PF_Err ColorTemperature_InAE_32bits
             AlgoPrIngest::fmt_ARGB_4444_32f,
             lut8, lut16, lut10,
             locusGate,
-            algoMemHandler.input_f32_interleaved,
+            algoMemHandler.srcRGB_f32,
             super,
             algoCtrl.confidenceMap
         );
@@ -210,7 +210,7 @@ PF_Err ColorTemperature_InAE_32bits
 
         AlgoPrIngest::egress_from_linear_f32
         (
-            (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+            (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
             sizeX,
             sizeY,
             localDst,

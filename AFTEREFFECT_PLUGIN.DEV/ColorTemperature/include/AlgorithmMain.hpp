@@ -1,21 +1,24 @@
-#pragma once
+#ifndef __IMAGELAB2_ALGORITHM_MAIN_HPP__
+#define __IMAGELAB2_ALGORITHM_MAIN_HPP__
+
+// Declaration ONLY. AlgoControls and MemHandler are YOUR types and are
+// defined in your own headers - this file must never redefine them.
 
 #include <cstdint>
-#include "AlgoControl.hpp"
-#include "AlgoMemHandler.hpp"
-#include "super_pixel.hpp"
-#include "color_utils.hpp"
-#include "cct_uv_to_xyz.hpp"   // AlgoCCT::uv_to_XYZ (reverse path)
+#include "AlgoControl.hpp"          // YOUR AlgoControls
+#include "AlgoMemHandler.hpp"           // YOUR MemHandler  <-- adjust this include
+                                    //     to whatever your header is called
+#include "cct_interface.hpp"        // AlgoCCT::CctHandle
+#include "super_pixel.hpp"          // SuperPixel<>, CctDuv<>
+#include "AlgoReference.hpp"        // AlgoWB::WbReference
 
-#include "Algo2Rgb2XYZ.hpp"
+void Algorithm_Main (AlgoCCT::CctHandle<double>& cctHdnl,
+                     const SuperPixel<double>&   superPixel,
+                     const MemHandler&           memHandler,
+                     const int32_t               sizeX,
+                     const int32_t               sizeY,
+                     const AlgoControls&         params,
+                     CctDuv<double>&             cct_duv,
+                     const AlgoWB::WbReference*  reference = nullptr) noexcept;
 
-void Algorithm_Main
-(
-    AlgoCCT::CctHandle<double>& cctHdnl,    
-    const SuperPixel<double>& superPixel, // Previously computed SuperPixel	
-    const MemHandler&     memHandler, 	// contains linearized input and output RGB buffers, and buffers for intermediate processing/compute
-    const int32_t         sizeX,	// horizontal linearized image size in pixels	
-    const int32_t         sizeY,	// vertical linearized image size in pixels
-    const AlgoControls&   params,	// Algorithm Control parameters
-    CctDuv<double>&       cct_duv   // Computed CCT and Duv/Tint values    
-) ;
+#endif // __IMAGELAB2_ALGORITHM_MAIN_HPP__

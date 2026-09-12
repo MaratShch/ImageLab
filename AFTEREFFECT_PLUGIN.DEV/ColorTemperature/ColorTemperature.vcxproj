@@ -188,6 +188,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\Algo2Rgb2XYZ.hpp" />
+    <ClInclude Include="include\Algo2Rgb2XYZ_Rec2020_addendum.hpp" />
     <ClInclude Include="include\AlgoApplyWB.hpp" />
     <ClInclude Include="include\AlgoControl.hpp" />
     <ClInclude Include="include\AlgoFormatIngest.hpp" />
@@ -196,6 +197,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgoPrFormatEgress.hpp" />
     <ClInclude Include="include\AlgoPrFormatIngest.hpp" />
+    <ClInclude Include="include\AlgoReference.hpp" />
     <ClInclude Include="include\AlgorithmMain.hpp" />
     <ClInclude Include="include\AlgoSuperPixel.hpp" />
     <ClInclude Include="include\AlgoWhiteBalance.hpp" />
@@ -207,6 +209,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoControl.cpp" />
     <ClCompile Include="src\AlgoMemHandler.cpp" />
     <ClCompile Include="src\AlgorithmMain.cpp" />
     <ClCompile Include="src\ColorTemperature.cpp" />

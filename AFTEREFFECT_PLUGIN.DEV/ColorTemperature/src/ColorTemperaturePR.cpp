@@ -67,7 +67,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRA_4444_8u, 
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved, 
+                        algoMemHandler.srcRGB_f32, 
                         super, 
                         algoCtrl.confidenceMap
                     );
@@ -76,7 +76,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -106,7 +106,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRA_4444_16u, 
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super, 
                         algoCtrl.confidenceMap
                     );
@@ -115,7 +115,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -145,7 +145,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRA_4444_32f, 
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -154,7 +154,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -184,7 +184,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRA_4444_32f_Linear, 
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved, 
+                        algoMemHandler.srcRGB_f32, 
                         super, 
                         algoCtrl.confidenceMap
                     );
@@ -193,7 +193,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -223,7 +223,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRP_4444_8u, 
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -232,7 +232,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -262,7 +262,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRP_4444_16u, 
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -271,7 +271,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -301,7 +301,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRP_4444_32f,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -310,7 +310,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -340,7 +340,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRP_4444_32f_Linear,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -349,7 +349,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -379,7 +379,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRX_4444_8u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -388,7 +388,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -418,7 +418,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRX_4444_16u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -427,7 +427,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -457,7 +457,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRX_4444_32f,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -466,7 +466,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -496,7 +496,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_BGRX_4444_32f_Linear,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -505,7 +505,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -536,7 +536,7 @@ PF_Err ProcessImgInPR
                         destinationPixelFormat == PrPixelFormat_VUYA_4444_8u_709 ? AlgoPrIngest::fmt_VUYA_4444_8u_709 : AlgoPrIngest::fmt_VUYA_4444_8u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -545,7 +545,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -576,7 +576,7 @@ PF_Err ProcessImgInPR
                         destinationPixelFormat == PrPixelFormat_VUYA_4444_32f_709 ? AlgoPrIngest::fmt_VUYA_4444_32f_709 : AlgoPrIngest::fmt_VUYA_4444_32f,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -585,7 +585,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -616,7 +616,7 @@ PF_Err ProcessImgInPR
                         destinationPixelFormat == PrPixelFormat_VUYP_4444_8u_709 ? AlgoPrIngest::fmt_VUYP_4444_8u_709 : AlgoPrIngest::fmt_VUYP_4444_8u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -625,7 +625,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -656,7 +656,7 @@ PF_Err ProcessImgInPR
                         destinationPixelFormat == PrPixelFormat_VUYP_4444_32f_709 ? AlgoPrIngest::fmt_VUYP_4444_32f_709 : AlgoPrIngest::fmt_VUYP_4444_32f,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -665,7 +665,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -696,7 +696,7 @@ PF_Err ProcessImgInPR
                         destinationPixelFormat == PrPixelFormat_VUYX_4444_8u_709 ? AlgoPrIngest::fmt_VUYX_4444_8u_709 : AlgoPrIngest::fmt_VUYX_4444_8u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -705,7 +705,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -736,7 +736,7 @@ PF_Err ProcessImgInPR
                         destinationPixelFormat == PrPixelFormat_VUYX_4444_32f_709 ? AlgoPrIngest::fmt_VUYX_4444_32f_709 : AlgoPrIngest::fmt_VUYX_4444_32f,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -745,7 +745,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -775,7 +775,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_ARGB_4444_8u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -784,7 +784,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -814,7 +814,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_PRGB_4444_8u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -823,7 +823,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -853,7 +853,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_XRGB_4444_8u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -862,7 +862,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -892,7 +892,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_ARGB_4444_16u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -901,7 +901,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -931,7 +931,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_PRGB_4444_16u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -940,7 +940,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -970,7 +970,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_XRGB_4444_16u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -979,7 +979,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1009,7 +1009,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_ARGB_4444_32f,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -1018,7 +1018,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1048,7 +1048,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_PRGB_4444_32f,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -1057,7 +1057,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1087,7 +1087,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_XRGB_4444_32f,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -1096,7 +1096,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1126,7 +1126,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_ARGB_4444_32f_Linear,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -1135,7 +1135,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1165,7 +1165,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_PRGB_4444_32f_Linear,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -1174,7 +1174,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1204,7 +1204,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_XRGB_4444_32f_Linear,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -1213,7 +1213,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
@@ -1243,7 +1243,7 @@ PF_Err ProcessImgInPR
                         AlgoPrIngest::fmt_RGB_444_10u,
                         lut8, lut16, lut10,
                         locusGate,
-                        algoMemHandler.input_f32_interleaved,
+                        algoMemHandler.srcRGB_f32,
                         super,
                         algoCtrl.confidenceMap
                     );
@@ -1252,7 +1252,7 @@ PF_Err ProcessImgInPR
 
                     AlgoPrIngest::egress_from_linear_f32
                     (
-                        (0 == algoCtrl.confidenceMap ? algoMemHandler.output_f32_interleaved : algoMemHandler.input_f32_interleaved),
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
                         sizeX,
                         sizeY,
                         localDst,
