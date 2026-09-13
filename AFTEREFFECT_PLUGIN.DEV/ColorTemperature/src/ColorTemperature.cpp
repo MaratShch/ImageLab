@@ -68,7 +68,7 @@ GlobalSetup(
         AlgoPrIngest::build_locus_gate(lut1931.first, lut1931.second, sRGBtoXYZ_f64, 0.010, 0.020, locusGate1931);
 
         const auto lut1964 = cctHdnl.getLut_CIE_1964();
-        AlgoPrIngest::build_locus_gate(lut1964.first, lut1964.second, sRGBtoXYZ_f64, 0.010, 0.020, locusGate1931);
+        AlgoPrIngest::build_locus_gate(lut1964.first, lut1964.second, sRGBtoXYZ_f64, 0.010, 0.020, locusGate1964);
     }
 
 	constexpr PF_OutFlags out_flags1 =
@@ -80,8 +80,8 @@ GlobalSetup(
 
     constexpr PF_OutFlags out_flags2 =
         PF_OutFlag2_PARAM_GROUP_START_COLLAPSED_FLAG |
-        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS |
-        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT |
+        PF_OutFlag2_DOESNT_NEED_EMPTY_PIXELS         |
+        PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT        |
         PF_OutFlag2_SUPPORTS_SMART_RENDER;
 
     PF_OutFlag2_AUTOMATIC_WIDE_TIME_INPUT;

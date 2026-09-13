@@ -62,18 +62,18 @@ namespace
     // Add the fields when you want them exposed, then replace each constant
     // with params.<field>. Nothing else changes.
     // ------------------------------------------------------------------
-    const double  kStrength      = 1.0;    // 100 %  (no 'strength' field yet)
-    const bool    kHighlightSafe = false;  // internal option, default off
-    const int32_t kWarmthMired   = 0;      // Look: no offset  (no fields yet)
-    const double  kTintShiftDuv  = 0.0;    // Look: no offset
-    const double  kTargetCct     = 6504.0; // v1 fixed D65, per your Step B note
-    const double  kTargetDuv     = 0.0;
+    constexpr double  kStrength      = 1.0;    // 100 %  (no 'strength' field yet)
+    constexpr bool    kHighlightSafe = false;  // internal option, default off
+    constexpr int32_t kWarmthMired   = 0;      // Look: no offset  (no fields yet)
+    constexpr double  kTintShiftDuv  = 0.0;    // Look: no offset
+    constexpr double  kTargetCct     = 6504.0; // v1 fixed D65, per your Step B note
+    constexpr double  kTargetDuv     = 0.0;
 
     // UI tint (+-100, magenta-positive) -> CIE Duv. ONE NUMBER TO CONFIRM:
     // this maps the full +-100 slider onto +-0.020 Duv, which covers real
     // illuminants with headroom (validated extremes: -0.0112 Sunset,
     // +0.0137). Change the constant if you want a different span.
-    const double kTintToDuv = 2.0e-4;
+    constexpr double kTintToDuv = 2.0e-4;
     // UI mired  ->  Kelvin.  The UI works in mireds because a fixed Kelvin
     // step is not perceptually uniform (dUv per Kelvin varies ~460x over
     // 2000..40000 K; per mired only ~1.3x). The ALGORITHM works in Kelvin
