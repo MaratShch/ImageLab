@@ -1,5 +1,6 @@
 #include "Common.hpp"
 #include "AlgoControlEnums.hpp"
+#include "AlgoAdobeControlEnums.hpp"
 #include "FilmSimulation.hpp"
 #include "film_enum.hpp"
 

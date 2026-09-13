@@ -1,5 +1,6 @@
 #include "FilmSimulation.hpp"
 #include "AlgoControlEnums.hpp"
+#include "AlgoAdobeControlEnums.hpp"
 
 
 PF_Err FilmSimulation_InAE_8bits

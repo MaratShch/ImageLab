@@ -1,5 +1,6 @@
 #include "FilmSimulation.hpp"
 #include "AlgoControl.hpp"
+#include "AlgoAdobeControlEnums.hpp"
 #include "ImageLabMemInterface.hpp"
 #include "LoadFilmDataBase.h"
 #include "PrSDKAESupport.h"

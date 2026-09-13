@@ -2,6 +2,7 @@
 #include "CompileTimeUtils.hpp"
 #include "AlgoControl.hpp"
 #include "AlgoControlEnums.hpp"
+#include "AlgoAdobeControlEnums.hpp"
 #include "AE_Effect.h"
 
 

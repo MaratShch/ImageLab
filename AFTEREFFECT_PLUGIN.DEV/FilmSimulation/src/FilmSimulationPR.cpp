@@ -5,6 +5,7 @@
 #include "AlgoPrFormatIngest.hpp"
 #include "AlgoPrFormatEgress.hpp"
 #include "AlgorithmMain.hpp"
+#include "AlgoAdobeControlEnums.hpp"
 
 using namespace AlgoPrIngest;
 
