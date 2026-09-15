@@ -65,6 +65,7 @@ enum class FilmFormatCtrl : int32_t
 
 // Display names, pipe separated, index aligned with FilmFormatCtrl.
 constexpr char FilmFormatCtrlStr[] =
+{
     "8 mm|"
     "Super 8|"
     "16 mm|"
@@ -78,7 +79,8 @@ constexpr char FilmFormatCtrlStr[] =
     "IMAX 15-perf|"
     "Polaroid SX-70|"
     "Polaroid pack|"
-    "Large format 4x5";
+    "Large format 4x5"
+};
 
 // Database keys, index aligned with FilmFormatCtrl. These are the exact
 // FORMAT_GEOM keys. The engine resolves a format through this table rather

@@ -17,11 +17,6 @@
 #include "AlgoControl.hpp"
 
 
-namespace {
-
-}  // anonymous namespace
-
-
 // ---------------------------------------------------------------------------
 //  getFilmDamageDefault
 //

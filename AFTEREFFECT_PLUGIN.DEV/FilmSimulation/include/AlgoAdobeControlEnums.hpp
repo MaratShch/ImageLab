@@ -12,7 +12,12 @@ enum class FilmSimulationCtrl : int32_t
     FILM_FORMAT,
     PROCESS_VARIANT,
     GROUP_STOP_FILM_PROPERTIES,
-    GENERATIONS,
+    GROUP_START_EXPOSURE_AND_TONE,
+    EXPOSURE,
+    EXPOSURE_TIME,
+    MID_GRAY_TARGET,
+    BLACK_POINT_STRETCH,
+    GROUP_STOP_EXPOSURE_AND_TONE,
     TOTAL_PARAMS
 };
 
@@ -21,7 +26,12 @@ constexpr char itemNames[][32] = {
     "Film Stock",
     "Film Stock",
     "Film Format",
-    "Process Variant"
+    "Process Variant",
+    "Exposure & Tone",
+    "Exposure",
+    "Exposure Time",
+    "Mid-Gray Target",
+    "Black Point Stretch"
 };
 
 #endif // __IMAGE_LAB2_ALGO_ADOBE_CONTROL_ENUMERATORS__
