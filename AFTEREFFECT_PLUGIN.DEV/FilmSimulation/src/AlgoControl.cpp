@@ -16,32 +16,8 @@
 
 #include "AlgoControl.hpp"
 
-#include <cstring>
 
 namespace {
-
-//  ⚠ NUL-TERMINATION IS THE WHOLE POINT OF THIS HELPER. `strncpy(dst, src, n)`
-//  does NOT terminate when src is n or more characters long, so the idiomatic
-//  one-liner leaves an unterminated buffer exactly in the case a bound is
-//  supposed to protect. Copying n-1 and writing the terminator by hand is
-//  unconditional. A truncated key resolves to the profile default and then
-//  looks like a working setting, which is why the header tells the host to
-//  REJECT an over-long value rather than rely on this.
-void algoSetKey (char* dst, int cap, const char* src) noexcept
-{
-    if ((nullptr == dst) || (cap <= 0))
-        return;
-
-    if (nullptr == src)
-    {
-        dst[0] = '\0';
-        return;
-    }
-
-    std::strncpy (dst, src, static_cast<std::size_t>(cap) - 1u);
-    dst[cap - 1] = '\0';
-    return;
-}
 
 }  // anonymous namespace
 
@@ -124,36 +100,49 @@ FilmDamage getFilmDamageDefault (void) noexcept
     //
     //  WHICH OF THESE DO SOMETHING TODAY
     //
-    //  !! RE-AUDITED 2026-08-28. This section said "three ... the other eleven"
-    //  and had gone stale: three more classes went live and nobody came back
-    //  here. The count is now NINE live and EIGHT inert, verified by a
-    //  tree-wide grep of all seventeen identifiers across both instruction-set
-    //  trees.
+    //  !! RE-AUDITED 2026-09-11. This section said NINE live and EIGHT inert;
+    //  the two scratch controls went live at stage 9b with queue row P44 and
+    //  the count is now ELEVEN live and SIX inert, verified by a tree-wide grep
+    //  of all seventeen identifiers across both instruction-set trees. The
+    //  previous re-audit's own lesson was that a class went live and nobody
+    //  came back here, so this is the same walk done again rather than a patch
+    //  to the sentence.
     //
-    //  LIVE (9):
+    //  LIVE (11):
     //     damageStrength, damageSeed          the master pair, all three stages
     //     dustLevel, debrisLevel, fibreLevel  stage 9b, the particulate classes
     //     dirtClumping                        stage 9b, their spatial process
+    //     scratchTransport, scratchHandling   stage 9b, the abrasion classes
     //     weaveAmount                         stage 15
     //     gateDirt, damageEvents              stage 16
     //
-    //  INERT (8) - no reader anywhere in the engine:
-    //     scratchTransport, scratchHandling, processingQuality, dryingMarks,
-    //     storageSeverity, colourVeil, flickerStops, scannerArtifacts
+    //  INERT (6) - no reader anywhere in the engine:
+    //     processingQuality, dryingMarks, storageSeverity, colourVeil,
+    //     flickerStops, scannerArtifacts
     //
     //  flickerStops is the one worth calling out: its intended consumer, stage
     //  3c, is a genuine pass-through that voids all five of its arguments, so
     //  that control has nowhere to act even in principle today.
     //
-    //  The inert eight are populated anyway, and deliberately, for two reasons:
+    //  The inert six are populated anyway, and deliberately, for two reasons:
     //  the value is the correct one for this grade of film, so when each stage
     //  lands it is immediately right rather than needing a second pass over
     //  this file; and a zero here would be indistinguishable from a considered
-    //  decision that this grade of film has no scratches, which is false.
+    //  decision that this grade of film has no drying marks, which is false.
     //
-    //  So a render with these defaults shows dust, debris, fibres, gate dirt,
-    //  gate events and weave, and nothing else. That is the honest current
-    //  state of the pipeline rather than a fault in these numbers.
+    //  ⚠ THE TWO SCRATCH VALUES DID NOT CHANGE WHEN THEY WENT LIVE, AND THAT IS
+    //  WORTH KNOWING RATHER THAN ASSUMING. 0.40 and 0.30 were written here on
+    //  the argument below, against a stage that did not exist; the stage was
+    //  then built to consume them in the units that argument implies - an
+    //  expected simultaneous tramline count and an areal density of handling
+    //  marks - rather than the numbers being retuned to suit an implementation.
+    //  If they turn out wrong it will be because the anchors in
+    //  AlgoNegativeDefects.hpp are definitions and not measurements, which
+    //  those constants say plainly.
+    //
+    //  So a render with these defaults shows dust, debris, fibres, scratches,
+    //  gate dirt, gate events and weave, and nothing else. That is the honest
+    //  current state of the pipeline rather than a fault in these numbers.
     // ----------------------------------------------------------------------
 
     // ---- Particulate: LIVE, rendered by stage 9b --------------------------
@@ -178,7 +167,7 @@ FilmDamage getFilmDamageDefault (void) noexcept
     // raising to "see it work".
     damage.fibreLevel        = 1.0;
 
-    // ---- Scratches: INERT, stage not yet written --------------------------
+    // ---- Scratches: LIVE, rendered by stage 9b ----------------------------
 
     // Transport scratches - the continuous longitudinal grooves a fixed burr
     // ploughs along moving film. Below 1.0 because a full measured rate implies a
@@ -284,19 +273,17 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     // defect figure in the damage group would be tuned against.
     controls.frameRate   = 24.0;
 
-    // ⚠ BOUNDED COPIES, NOT POINTER ASSIGNMENT, SINCE 2026-09-09. These three
-    // are fixed-size char arrays now (see the ownership note in
-    // AlgoControl.hpp): a pointer cannot be serialised into an After Effects
-    // project, and the old `= "super35"` no longer compiles.
-    // `algoSetKey` NUL-terminates unconditionally -- `strncpy` alone does not
-    // on truncation, which is the classic way this fix goes wrong.
-    algoSetKey(controls.filmFormat, ALGO_FILM_FORMAT_CAP, "super35");
+    // These three are strongly typed enumerators, defined once in
+    // AlgoControlEnums.hpp and shared by the scalar build, the AVX2 build and
+    // the host. An enumerator serialises into an After Effects or Premiere
+    // project as a stable integer and needs no runtime string comparison to
+    // resolve, which is why the earlier character-array form was replaced.
+    controls.filmFormat = FilmFormatCtrlDef;   // super35
 
-    // film_sim: print_stock = ""  -- empty means the stock's own default_print.
-    algoSetKey(controls.printStock, ALGO_PRINT_STOCK_CAP, "");
+    // The sentinel, not a stock: use the selected film's own default_print.
+    controls.printStock = PrintStockCtrlDef;
 
-    // film_sim: dupe_stock = "DUPE_FINE_GRAIN"
-    algoSetKey(controls.dupeStock, ALGO_PRINT_STOCK_CAP, "DUPE_FINE_GRAIN");
+    controls.dupeStock = DupeStockCtrlDef;     // DUPE_FINE_GRAIN
 
     // ----------------------------------------------------------------------
     //  ⚠⚠ THREE SENTINELS THAT WERE NEVER ASSIGNED, ADDED 2026-09-09.

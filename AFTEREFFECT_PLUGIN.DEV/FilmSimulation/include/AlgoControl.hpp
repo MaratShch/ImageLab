@@ -932,14 +932,12 @@ struct FilmDamage
 // 25/27 on 2026-09-08, 26/28 now. The two unconsumed fields are still
 // developmentMinutes and developmentCelsius.
 // ===========================================================================
-//: Capacities for the three NAME-KEY controls. ⚠ MEASURED FROM THE LONGEST
-//: LEGAL VALUE, not chosen: filmFormat's is "polaroid_pack" at 13 characters,
-//: printStock's is "EASTMANCOLOR_5382_1953" at 22. Each leaves room for a NUL
-//: and a little growth; a host must REJECT anything longer rather than
-//: truncate, because a truncated key silently resolves to the profile default
-//: and then looks like a working setting.
-constexpr int ALGO_FILM_FORMAT_CAP  = 16;
-constexpr int ALGO_PRINT_STOCK_CAP  = 24;
+//: The three catalogue controls -- filmFormat, printStock and dupeStock -- are
+//: strongly typed enumerators defined in AlgoControlEnums.hpp. They were
+//: fixed-size character arrays until the enumeration migration; the capacity
+//: constants that sized those arrays are gone with them, along with the
+//: truncation hazard where an over-long key silently resolved to the profile
+//: default and then looked like a working setting.
 
 struct AlgoControls
 {
@@ -1132,7 +1130,7 @@ struct AlgoControls
 
     /**
      *  1  NAME           filmFormat
-     *  2  TYPE           char[ALGO_FILM_FORMAT_CAP]  (16 bytes, NUL-terminated)
+     *  2  TYPE           FilmFormatCtrl (AlgoControlEnums.hpp)
      *                    ⚠ WAS `const char*` until 2026-09-09 -- see the
      *                    ownership note above this block
      *  3  AE CONTROL     dropdown, populated from FORMAT_GEOM. ⚠ THE COMPLETE
@@ -1196,11 +1194,11 @@ struct AlgoControls
      *                    quality, and must not differ between modes or the two
      *                    would not be comparable.
      */
-    char filmFormat[ALGO_FILM_FORMAT_CAP];
+    FilmFormatCtrl filmFormat;
 
     /**
      *  1  NAME           printStock
-     *  2  TYPE           char[ALGO_PRINT_STOCK_CAP]  (24 bytes, NUL-terminated)
+     *  2  TYPE           PrintStockCtrl (AlgoControlEnums.hpp)
      *                    ⚠ WAS `const char*` until 2026-09-09 -- see the
      *                    ownership note above the filmFormat block
      *  3  AE CONTROL     dropdown
@@ -1259,11 +1257,11 @@ struct AlgoControls
      *                    identity - tone scale and dmin/dmax - which the Lite
      *                    design explicitly keeps at full quality.
      */
-    char printStock[ALGO_PRINT_STOCK_CAP];
+    PrintStockCtrl printStock;
 
     /**
      *  1  NAME           dupeStock
-     *  2  TYPE           char[ALGO_PRINT_STOCK_CAP]  (24 bytes, NUL-terminated)
+     *  2  TYPE           PrintStockCtrl (AlgoControlEnums.hpp)
      *                    ⚠ WAS `const char*` until 2026-09-09 -- see the
      *                    ownership note above the filmFormat block. Shares
      *                    printStock's capacity because it draws on the SAME
@@ -1303,7 +1301,7 @@ struct AlgoControls
      *                    this control's influence is reduced rather than the
      *                    control being ignored.
      */
-    char dupeStock[ALGO_PRINT_STOCK_CAP];
+    DupeStockCtrl dupeStock;
 
     /**
      *  1  NAME           generations

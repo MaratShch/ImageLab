@@ -30,7 +30,7 @@ CPP = Path("/root/work/tst")           # the live, editable engine tree
 OUT = Path("/root/work/deliver9")
 #: ⚠ SUFFIXED. A second delivery was cut on the same day at schema v30,
 #: and two archives named for one date cannot be told apart on disk.
-STAMP = date.today().isoformat() + 'd'
+STAMP = date.today().isoformat() + 'a'
 
 #: Generator sources: everything needed to REGENERATE the database.
 #: ⚠ NOT everything needed to run every audit. Until 2026-09-10d this tuple's

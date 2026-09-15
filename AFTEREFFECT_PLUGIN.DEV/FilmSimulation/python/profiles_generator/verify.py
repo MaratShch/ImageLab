@@ -2251,7 +2251,7 @@ if _sec_on():
     # gamma is, whether a dye-impurity ratio was measured in transmission or
     # reflection. Those are ingest-side truth, and each one exists because the
     # harvest actually made that mistake before the field did.
-    chk("schema version is 33", _fpm.SCHEMA_VERSION == 33, f"v={_fpm.SCHEMA_VERSION}")
+    chk("schema version is 34", _fpm.SCHEMA_VERSION == 34, f"v={_fpm.SCHEMA_VERSION}")
 
     # ==== 2026-09-01: THE TWO CARRIERS THAT STOPPED BEING INERT =============
     # `reciprocity_table` and `process_variants` were both listed as "carried,
@@ -4341,7 +4341,7 @@ if _sec_on():
              # nothing checks. KODAK_PORTRA_400 is one of the 13 stocks queue
              # K2 populated, so it holds a real AimDensity record.
              "aim_density"))
-        and film_profiles.SCHEMA_VERSION == 33
+        and film_profiles.SCHEMA_VERSION == 34
         and all(hasattr(_ps, "spectral") for _ps in film_profiles.PRINT_STOCKS)
         # ⚠ v25, and it is the first entry in this probe that is NOT a carrier.
         # The others are here to prove an inert field is reachable; this one is
@@ -10028,6 +10028,102 @@ if _sec_on():
                 else "%d unresolved: %s" % (len(_missing), _missing[:4]))
 
         # ------------------------------------------------------------------
+        #  G-CTLENUM -- the control vocabulary matches the database.
+        #
+        #  AlgoControlEnums.hpp is what the host populates its dropdowns from,
+        #  and the engine resolves those selections against FORMAT_GEOM and
+        #  PRINT_STOCKS. If the two lists drift, a user picks a format or a
+        #  print stock that silently degrades to a default instead of doing
+        #  what the panel said it would -- the failure mode is a wrong render,
+        #  not an error, which is why it is checked here rather than trusted.
+        #
+        #  The first draft of that header did drift in exactly these ways:
+        #  it spelled the Soviet positive stocks CP where the database spells
+        #  them TSP, and it omitted KODAK_5302 entirely, which would have made
+        #  one shipped print stock unreachable from the interface.
+        _ce_path = _eng / "AlgoControlEnums.hpp"
+        if not _ce_path.is_file():
+            chk("G-CTLENUM  AlgoControlEnums.hpp is present in the engine tree",
+                False, "not found at %s" % _ce_path)
+        else:
+            _ce = _ce_path.read_text(encoding="utf-8", errors="replace")
+
+            def _ce_keys(marker):
+                _m = re.search(marker + r"\[\]\s*=\s*\{(.*?)\}", _ce, re.S)
+                if not _m:
+                    return None
+                return [s for s in re.findall(r'"([^"]*)"', _m.group(1))]
+
+            _fmt_keys = _ce_keys("FilmFormatCtrlKey")
+            _prn_keys = _ce_keys("PrintStockCtrlKey")
+
+            _fmt_db = set(_fpm.FORMAT_GEOM)
+            _fmt_hd = set(_fmt_keys or [])
+            chk("G-CTLENUM-FORMAT  every film format the control header offers "
+                "exists in FORMAT_GEOM, and every format the database defines "
+                "is offered -- a panel entry the engine cannot resolve renders "
+                "the wrong geometry rather than failing",
+                _fmt_hd == _fmt_db,
+                "header %d, database %d; header-only %s; database-only %s"
+                % (len(_fmt_hd), len(_fmt_db),
+                   sorted(_fmt_hd - _fmt_db) or "none",
+                   sorted(_fmt_db - _fmt_hd) or "none"))
+
+            # Index 0 is the "use the stock's own default" sentinel and carries
+            # an empty key by design, so it is excluded from the comparison.
+            _prn_hd = set(k for k in (_prn_keys or []) if k)
+            _prn_db = set(p.name for p in PRINT_STOCKS)
+            chk("G-CTLENUM-PRINT  the print stock vocabulary matches "
+                "PRINT_STOCKS exactly, so no shipped stock is unreachable from "
+                "the interface and no offered stock is missing from the "
+                "database",
+                _prn_hd == _prn_db,
+                "header %d + sentinel, database %d; header-only %s; "
+                "database-only %s"
+                % (len(_prn_hd), len(_prn_db),
+                   sorted(_prn_hd - _prn_db) or "none",
+                   sorted(_prn_db - _prn_hd) or "none"))
+
+            # The display strings are pipe separated and index aligned with the
+            # enumerators, so a mismatched count silently shifts every label
+            # past the missing one onto the wrong value.
+            def _ce_bars(marker):
+                _m = re.search(marker + r"\[\]\s*=\s*((?:\s*\"[^\"]*\")+)\s*;",
+                                _ce, re.S)
+                if not _m:
+                    return None
+                return "".join(re.findall(r'"([^"]*)"', _m.group(1))).count("|") + 1
+
+            _fmt_lbl = _ce_bars("FilmFormatCtrlStr")
+            _prn_lbl = _ce_bars("PrintStockCtrlStr")
+            chk("G-CTLENUM-LABELS  the pipe-separated display names are index "
+                "aligned with the enumerators; a short list shifts every label "
+                "after the gap onto the wrong control value",
+                _fmt_lbl == len(_fmt_keys or []) and _prn_lbl == len(_prn_keys or []),
+                "format labels %s vs %d keys; print labels %s vs %d keys"
+                % (_fmt_lbl, len(_fmt_keys or []), _prn_lbl, len(_prn_keys or [])))
+
+            # Every numeric control documented in AlgoControl.hpp should have a
+            # constant here, or the host has no range to enforce.
+            _ac = (_eng / "AlgoControl.hpp").read_text(
+                encoding="utf-8", errors="replace")
+            _num_fields = [m for m in re.findall(
+                r'\*\s+1\s+NAME\s+(\w+)[\s\S]{0,400}?\*\s+2\s+TYPE\s+(double|int32_t)',
+                _ac)]
+            _missing_const = []
+            for _fname, _ftype in _num_fields:
+                _cap = _fname[0].upper() + _fname[1:]
+                if (_cap + "Def") not in _ce:
+                    _missing_const.append(_fname)
+            chk("G-CTLENUM-NUMERIC  every numeric control in AlgoControl.hpp "
+                "carries a default constant in the control header, so the UI "
+                "and the algorithm cannot disagree about a range",
+                not _missing_const,
+                "%d numeric controls, %d without a constant%s"
+                % (len(_num_fields), len(_missing_const),
+                   (": " + ", ".join(_missing_const)) if _missing_const else ""))
+
+        # ------------------------------------------------------------------
         #  G-DYECLOUD-INERT -- P43's answer, kept enforced.
         #
         #  ⚠ THIS GUARD ASSERTS A NEGATIVE, WHICH IS UNUSUAL HERE, AND THE
@@ -10058,6 +10154,94 @@ if _sec_on():
             "%d stocks carry it, %d distinct values %s; renderer reads it: %s"
             % (len(_dc), len(_dc_vals),
                ["%.1f" % v for v in _dc_vals], _dc_read))
+
+        # ------------------------------------------------------------------
+        #  G-HALATION-GEOM -- the halo is support geometry, not a second gain.
+        #
+        #  Halation is light reflected from the far surface of the support, so
+        #  no part of it can be concentrated inside the critical-angle annulus
+        #  whose inner edge sits at r_c = 2t / sqrt(n^2 - 1). Before v34 the
+        #  radii were an unsourced project estimate that had drifted into a
+        #  second amplitude control -- correlated with gain at +0.68 across
+        #  113 stocks whose support thickness is the same 127 um class default
+        #  -- and twelve stocks had been scaled below that floor, a shape no
+        #  support reflection can make.
+        #
+        #  What is asserted, and why each one:
+        #    floor    the principal lobe clears r_c on every stock that has a
+        #             thickness. This is the geometric impossibility itself.
+        #    derived  radii equal the coefficient table times the thickness,
+        #             so a hand edit to one stock's triple fails here rather
+        #             than quietly reintroducing per-stock width.
+        #    energy   the weights sum to one, so the pass stays
+        #             amplitude-neutral and the gains keep their meaning.
+        #    split    acetate and polyester really do differ. If the material
+        #             key ever stopped being read, every stock would collapse
+        #             onto one coefficient set and this would catch it.
+        _hg = [p for p in FILM_PROFILES
+               if p.halation is not None and p.emulsion.base_um > 0.0]
+        _hg_bad_floor, _hg_bad_derived, _hg_bad_energy = [], [], []
+        _hg_keys = set()
+        for _p in _hg:
+            _k = _fpm._v34_support_key(_p.emulsion.base_material)
+            _hg_keys.add(_k)
+            _n, _per_t, _w, _ = _fpm._V34_BASE_OPTICS[_k]
+            _t = _p.emulsion.base_um
+            _rc = _fpm._v34_critical_radius_per_t(_n) * _t
+            if _p.halation.radii_um[0] < _rc:
+                _hg_bad_floor.append(_p.name)
+            if _p.halation.radii_um != tuple(round(_s * _t, 1) for _s in _per_t):
+                _hg_bad_derived.append(_p.name)
+            if abs(sum(_p.halation.weights) - 1.0) > 1e-9:
+                _hg_bad_energy.append(_p.name)
+
+        chk("G-HALATION-GEOM-FLOOR  no stock's principal halation lobe falls "
+            "inside its own critical-angle radius r_c = 2t/sqrt(n^2-1), the "
+            "inner edge of the annulus support reflection can reach",
+            not _hg_bad_floor,
+            "%d stocks checked, %d below floor%s"
+            % (len(_hg), len(_hg_bad_floor),
+               (": " + ", ".join(_hg_bad_floor[:6])) if _hg_bad_floor else ""))
+
+        chk("G-HALATION-GEOM-DERIVED  every halation triple is the v34 "
+            "coefficient set times that stock's support thickness -- width is "
+            "geometry, and amplitude belongs to the gains alone",
+            not _hg_bad_derived,
+            "%d stocks checked, %d hand-set%s"
+            % (len(_hg), len(_hg_bad_derived),
+               (": " + ", ".join(_hg_bad_derived[:6])) if _hg_bad_derived
+               else ""))
+
+        chk("G-HALATION-GEOM-ENERGY  halation lobe weights sum to one, so "
+            "deriving the radii left total halation energy untouched and the "
+            "existing gains still mean what they meant",
+            not _hg_bad_energy,
+            "%d stocks checked, %d off unity" % (len(_hg), len(_hg_bad_energy)))
+
+        _hg_ac = _fpm._V34_BASE_OPTICS["acetate"][1][0]
+        _hg_pe = _fpm._V34_BASE_OPTICS["polyester"][1][0]
+        chk("G-HALATION-GEOM-SPLIT  acetate and polyester carry different "
+            "coefficients, because ESTAR is biaxial and its through-thickness "
+            "index is 1.50 against 1.66 in plane -- a single index would put "
+            "the polyester halo 4 per cent too tight",
+            _hg_ac != _hg_pe and len(_hg_keys) >= 1,
+            "acetate sigma1/t %.3f, polyester %.3f; materials present: %s"
+            % (_hg_ac, _hg_pe, sorted(_hg_keys)))
+
+        # ⚠ The four stocks with no support thickness are outside the guard by
+        # construction, and one of them renders. AGFA_NEU_1936 carries a
+        # non-zero gain but is excluded from the base-thickness class default
+        # by a standing rule that its emulsion record hold nothing Eggert 1937
+        # printed, so its halo cannot be derived without inventing a gauge.
+        # The three Polaroids have zero gain and render no halation at all.
+        _hg_skipped = [p.name for p in FILM_PROFILES
+                       if p.halation is not None and not p.emulsion.base_um]
+        chk("G-HALATION-GEOM-SKIP  exactly the stocks with no published or "
+            "class-default support thickness are outside the derivation, and "
+            "the set has not grown",
+            sorted(_hg_skipped) == ["AGFA_NEU_1936", "POLAROID_664",
+                                    "POLAROID_667", "POLAROID_SX70"],
+            "skipped: %s" % sorted(_hg_skipped))
 
         # ------------------------------------------------------------------
         #  G-SCRATCH -- the abrasion class at stage 9b. Added 2026-09-11 with

@@ -316,6 +316,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\agfa_scala_sheet.py" />
     <None Include="python\profiles_generator\agfa_vista.py" />
     <None Include="python\profiles_generator\agfa_vista_mtf.py" />
+    <None Include="python\profiles_generator\algo_control_enums.py" />
     <None Include="python\profiles_generator\anscochrome_1957.py" />
     <None Include="python\profiles_generator\bbc_t101_2.py" />
     <None Include="python\profiles_generator\bromide_parity.py" />
@@ -340,6 +341,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\fuji_spectral4_2026.py" />
     <None Include="python\profiles_generator\fuji_t3_2026.py" />
     <None Include="python\profiles_generator\gen_active_profiles.py" />
+    <None Include="python\profiles_generator\gen_control_enums.py" />
     <None Include="python\profiles_generator\gen_film_curves_md.py" />
     <None Include="python\profiles_generator\gen_film_names.py" />
     <None Include="python\profiles_generator\gen_project_state.py" />

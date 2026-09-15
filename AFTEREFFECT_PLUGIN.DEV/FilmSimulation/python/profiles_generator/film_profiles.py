@@ -92,6 +92,7 @@ geometry at render time -- never rescale emulsion numbers per gauge.
 Requires Python 3.12+. Pure stdlib.
 """
 
+import math
 import re
 import warnings
 from dataclasses import dataclass, field, replace
@@ -167,8 +168,16 @@ _SENSITIZATIONS = frozenset({"S", "S+Au", "reduction"})
 
 #: Antihalation constructions `EmulsionSpec.antihalation` accepts (schema v29).
 #: ⚠ "none" IS A POSITIVE STATEMENT and "" is silence; see the field.
+#: ⚠ "dyed_undercoat" ADDED AT SCHEMA v34 and it closes a gap this file had
+#: already recorded as open: Kodak's anti-halation undercoat is neither
+#: "colloidal_ag" (which names a reversal construction needing a bleach step)
+#: nor "dyed_backing" (which names the BASE side), so VISION3 stocks whose
+#: sheets describe it had to keep "" until a sixth value existed. It is a
+#: gel-based layer coated beneath the emulsion, carrying silver and dye, whose
+#: density is removed during processing -- Eastman Kodak, «KODAK VISION3 AHU
+#: Camera Negative Films», talking points for filmmakers.
 _ANTIHALATIONS = frozenset({"remjet", "colloidal_ag", "dyed_base",
-                            "dyed_backing", "none"})
+                            "dyed_backing", "dyed_undercoat", "none"})
 
 #: Density geometries `FilmProfile.density_geometry` accepts (schema v29).
 #: ⚠ THESE ARE THE MEASUREMENT GEOMETRIES, NOT THE SPECTRAL RESPONSE -- that
@@ -1671,7 +1680,7 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 # Every one of those changes moves rendered pixels, so a v33 render is NOT
 # bit-identical to a v32 one. That is the point of the version bump; the
 # record layout is unchanged and every stored value is untouched.
-SCHEMA_VERSION = 33
+SCHEMA_VERSION = 34
 
 
 # ---------------------------------------------------------------------------
@@ -48163,6 +48172,297 @@ def _apply_v29_harvest(p: "FilmProfile") -> "FilmProfile":
 
 
 FILM_PROFILES = tuple(_apply_v29_harvest(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# SCHEMA v34 -- PUBLISHED SUPPORT RECORDS
+# ---------------------------------------------------------------------------
+# Per-stock support data that outranks the format class default, and the
+# anti-halation constructions that the vocabulary could not express until
+# "dyed_undercoat" existed.
+#
+# ⚠ THIS PASS RUNS BEFORE THE HALATION GEOMETRY PASS AND MUST CONTINUE TO.
+# The halation radii are derived from `base_um`, so a thickness corrected here
+# has to be in place before that derivation reads it. Reversing the two would
+# silently derive Portra 400's halo from the 127 um class default it no longer
+# carries.
+
+#: Support thickness and polymer published by the manufacturer for a specific
+#: stock, replacing the format class default.
+#:     name -> (base_um, base_material, citation)
+_V34_SUPPORT: dict[str, tuple[float, str, str]] = {
+    "KODAK_PORTRA_400": (
+        100.0, "ESTAR (PET)",
+        "Kodak Alaris Inc., «KODAK PROFESSIONAL PORTRA 400 Film -- Technical "
+        "Data / Color Negative Film», publication E-4050 (January 2025), "
+        "SIZES AVAILABLE table: 135 and 120 both '0.10 mm (3.94 mil) ESTAR "
+        "Thick Base', sheets '0.19 mm (7.5 mil) ESTAR Thick Base'. The 135 "
+        "figure is stored. ⚠ THIS STOCK LEFT THE CLASS DEFAULT: the same "
+        "product's E-4050 of February 2016 printed '0.13 mm (0.005 inch) "
+        "acetate' for 135, so the support changed polymer and gauge between "
+        "those editions. Sibling stocks still on the 2016 sheets keep the "
+        "acetate class default, which their own sheets corroborate."),
+    "KODAK_TRI_X_320TXP": (
+        177.8, "ESTAR (PET)",
+        "Kodak Alaris Inc., «KODAK PROFESSIONAL TRI-X 320 and 400 Films», "
+        "publication F-4017 (February 2016) -- 'TRI-X 320 Film (320TXP) is "
+        "available in sheets on a 7-mil KODAK ESTAR Thick Base'. 7 mil = "
+        "177.8 um and that is what is stored. ⚠ A CONFLICT IN KODAK'S OWN "
+        "SHEETS IS RECORDED RATHER THAN AVERAGED: the sizes tables of the "
+        "2016 colour-negative sheets print sheet base as '0.19 mm (0.007 "
+        "inch)', but 0.007 in is 0.178 mm, not 0.19 mm. E-4050 (2025) writes "
+        "the same row as '0.19 mm (7.5 mil)', which is self-consistent. The "
+        "millimetre and inch figures in the 2016 tables therefore disagree "
+        "by 7 per cent and only the explicit '7-mil' wording of F-4017 is "
+        "unambiguous for this stock."),
+}
+
+#: Anti-halation constructions that needed the v34 "dyed_undercoat" value.
+#:     name -> (construction, undercoat_um, citation)
+#:
+#: ⚠ ONLY TWO STOCKS QUALIFY AND THE OTHER TWO VISION3 CAMERA NEGATIVES ARE
+#: DELIBERATELY ABSENT. KODAK_VISION3_500T_5219's own sheet (H-1-5219, March
+#: 2022) prints 'acetate safety base with rem-jet backing' and it keeps
+#: "remjet"; the AHU publication announces that stock's future conversion,
+#: but this database models the sheet it holds, not an announced change.
+#: KODAK_VISION3_50D_5203's record says only 'strong anti-halation backing',
+#: which names a side and not a construction, so it keeps silence.
+_V34_ANTIHALATION: dict[str, tuple[str, float, str]] = {
+    "KODAK_VISION3_200T_5213": ("dyed_undercoat", 0.0,
+        "Eastman Kodak Company, KODAK VISION3 200T Color Negative Film "
+        "5213/7213 technical data -- 'An Anti-halation undercoat replaces "
+        "the traditional remjet backing layer', already quoted verbatim in "
+        "this profile's own provenance. The construction is characterised in "
+        "«KODAK VISION3 AHU Camera Negative Films» (talking points for "
+        "filmmakers): a gel-based layer coated beneath the emulsion layers, "
+        "containing silver and other components, whose protective density is "
+        "removed during processing. Thickness not published, so the "
+        "undercoat depth stays zero rather than being estimated."),
+    "KODAK_VISION3_250D_5207": ("dyed_undercoat", 0.0,
+        "Eastman Kodak Company, KODAK VISION3 250D Color Negative Film "
+        "5207/7207 technical data -- 'acetate safety base with NO rem-jet', "
+        "already quoted verbatim in this profile's own provenance. ⚠ THE "
+        "SHEET STATES AN ABSENCE, NOT A CONSTRUCTION; what replaces the "
+        "rem-jet is named by «KODAK VISION3 AHU Camera Negative Films», "
+        "which lists 5/7207 among the products carrying the anti-halation "
+        "undercoat. Two sources are therefore required for this entry and "
+        "both are cited. Thickness not published."),
+}
+
+
+def _apply_v34_support_records(p: "FilmProfile") -> "FilmProfile":
+    """Apply published support data and the v34 anti-halation constructions.
+
+    Unlike the v29 harvest this pass may OVERWRITE `base_um` and
+    `base_material`, because every value it writes is a manufacturer
+    publication replacing a class default -- the direction the evidence
+    hierarchy already prefers. It never overwrites a non-empty
+    `antihalation`.
+    """
+    em = p.emulsion
+    em_kw: dict = {}
+    em_src: list[str] = []
+
+    sup = _V34_SUPPORT.get(p.name)
+    if sup is not None:
+        em_kw["base_um"] = sup[0]
+        em_kw["base_material"] = sup[1]
+        em_src.append(sup[2])
+
+    ah = _V34_ANTIHALATION.get(p.name)
+    if ah is not None and not em.antihalation:
+        em_kw["antihalation"] = ah[0]
+        if ah[1]:
+            em_kw["antihalation_undercoat_um"] = ah[1]
+        em_src.append("antihalation: " + ah[2])
+
+    if not em_kw:
+        return p
+    return replace(p, emulsion=replace(
+        em, source=_v29_join_source(em.source, "  ||  ".join(em_src)),
+        **em_kw))
+
+
+FILM_PROFILES = tuple(_apply_v34_support_records(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# SCHEMA v34 -- HALATION RADII DERIVED FROM SUPPORT GEOMETRY
+# ---------------------------------------------------------------------------
+# Halation is light that crossed the emulsion, reflected from the far surface
+# of the support, and returned. Kodak states the mechanism in those terms:
+# "halation (exposure by light reflected back from the support surfaces)"
+# (Eastman Kodak, KODAK Black-and-White Print Film 2302/3302, TI2497, 1999).
+# The geometry therefore fixes the halo's SCALE, and only the anti-halation
+# construction is free to fix its AMPLITUDE.
+#
+# WHY THIS PASS OVERWRITES RATHER THAN FILLS
+#
+# Every other post-pass in this module writes only into an empty field, so a
+# published value always outranks a class default. This one is the exception
+# and the exception is deliberate: `radii_um` was never sourced. The file's
+# own record of it reads "radii_um and weights stay at the schema default and
+# remain an open gap in NotFound.md", written when the FilmLab Pro harvest was
+# refused because its radius is a fraction of the image dimension and no
+# non-circular conversion to micrometres existed. What the 79 hand-set triples
+# hold is this project's estimate, not a measurement, so replacing them with
+# geometry loses no evidence.
+#
+# THE EVIDENCE THAT THEY WERE WRONG, measured across the 113 stocks that carry
+# both a support thickness and a non-zero gain:
+#
+#     corr(sigma3, gain)       = +0.68
+#     corr(log s3, log gain)   = +0.64
+#     corr(sigma1, sigma3)     = +0.81
+#     corr(sigma3, threshold)  = -0.61
+#
+# Radius and gain moved together. They are independent quantities: radius
+# comes from support thickness and refractive index, gain from the
+# anti-halation construction. Because `base_um` is the same 127 um class
+# default on 108 of those 113 stocks, every one of them should have had
+# essentially the same halo width; instead sigma3 ranged 110 to 700 um, a
+# 6.4x spread at constant thickness. The triple was being scaled as a unit to
+# mean "more halation" -- a second amplitude control, which is exactly the
+# confusion the `radius_scale_*` docstring warns against, committed on the
+# base triple. Twelve stocks were scaled so far down that their widest lobe
+# fell below the hard geometric floor, a configuration no support reflection
+# can produce.
+#
+# THE MODEL
+#
+# A point of light scattering in the emulsion emits into the support across
+# all angles. A ray at angle theta from the normal returns displaced by
+# r = 2 * t * tan(theta), so with Fresnel reflectance R(theta) at the far
+# surface and a Lambertian source the returned energy density is
+#
+#     S(r)  proportional to  R(theta) * cos^4(theta),    r = 2 t tan(theta)
+#
+# Below the critical angle R is a few per cent; at and above it R is unity.
+# The inner edge of the totally-reflected annulus is therefore
+#
+#     r_c = 2 * t / sqrt(n^2 - 1)
+#
+# and no support-reflection energy can be concentrated inside it. The three
+# sigmas below are a least-squares fit of a Gaussian sum to the CUMULATIVE
+# energy of that profile, which is monotone and well conditioned where a fit
+# to the density is not.
+#
+# ⚠ THE THIRD LOBE IS PRESENT BUT INERT, AND BOTH FACTS MATTER. The profile
+# has an r^-4 tail that a third Gaussian at about 20 t would carry, holding
+# 1.8 per cent of the energy. It ships at zero weight for two reasons. First,
+# the tail assumes no absorption anywhere: adding the emulsion's own
+# absorption on the grazing double pass removes it, and this corpus has no
+# figure for that absorption, so the tail is the least-supported part of the
+# model. Second, at 127 um it is a 2.5 mm blur, and `planBlurXY` renders a
+# sigma correctly only up to 8 * ALGO_BLUR_SIGMA_EXACT_MAX = 128 px, which
+# that lobe exceeds above HD. The radius is retained so the number is on the
+# record; restoring the tail is a weight change and a blur-ceiling change,
+# not a re-derivation.
+#
+# WHAT WOULD REPLACE THIS DERIVATION WITH A MEASUREMENT: an edge trace across
+# a specular highlight on a scanned frame, fitted per channel for the halo
+# width of each record. That is the measurement `HalationSpec` has been
+# waiting for since v11 and it remains open in NotFound.md.
+
+#: Support refractive index and the halation coefficients that follow from it.
+#:
+#: Keyed by normalised support material. Each entry is
+#:     (n_effective, sigma_per_t triple, weight triple, citation)
+#: where the sigmas are multiples of the support thickness.
+#:
+#: ⚠ THE POLYESTER INDEX IS AN EFFECTIVE VALUE, NOT THE PUBLISHED ONE, and
+#: the difference is the whole reason this entry exists separately. ESTAR is
+#: biaxially oriented and strongly birefringent: Kodak measure 1.66 along the
+#: web, 1.64 across it and 1.50 through the thickness (TI-2598, 589 nm).
+#: Halation rays travel obliquely THROUGH the thickness, so neither in-plane
+#: figure governs them. Treating the support as a negative uniaxial medium
+#: with its optic axis normal to the web gives an ordinary critical angle of
+#: 37.31 deg and an extraordinary one of 39.12 deg; the unpolarised mean is
+#: the 1.575 recorded here. A single published 1.65 would put the halo 4 per
+#: cent too tight, and would also hide the real prediction that a polyester
+#: halo is polarisation-split by 6.7 per cent in radius where an acetate one
+#: is not.
+_V34_BASE_OPTICS: dict[str, tuple[float, tuple[float, float, float],
+                                  tuple[float, float, float], str]] = {
+    "acetate": (
+        1.48,
+        (2.547, 7.349, 20.028),
+        (0.87330, 0.12670, 0.0),
+        "Refractive index 1.48 for cellulose ester support at 550 nm: "
+        "Eastman Chemical Company, US 2012/0320313 A1 (cellulose triacetate "
+        "films with low birefringence) -- 'approximately 1.46 to 1.50 for "
+        "cellulose esters'; corroborated by Konica Minolta, JP 2005-212247 A "
+        "[0040] -- 1.45 to 1.60 at 550 nm measured to JIS K 7105, with 'about "
+        "1.5' quoted for the film itself. Acetate is optically isotropic to "
+        "within dn ~ 0.002, back-computed from the same patent's Rth <= 400 "
+        "nm on 40-80 um film. DERIVED, NOT MEASURED: the sigmas are a fit to "
+        "the Fresnel-weighted return profile, not a halo measurement."),
+    "polyester": (
+        1.575,
+        (2.355, 6.608, 18.644),
+        (0.85889, 0.14111, 0.0),
+        "Refractive index tensor at 589 nm: Eastman Kodak Company, «Physical "
+        "Properties of Polyester Film Base», publication TI-2598 (March "
+        "2010) -- 1.66 length direction in plane of sheet, 1.64 width "
+        "direction in plane of sheet, 1.50 vertical axis through thickness. "
+        "The 1.575 used here is the unpolarised effective index for oblique "
+        "propagation through the thickness, derived from that tensor; see "
+        "the note on _V34_BASE_OPTICS. DERIVED, NOT MEASURED."),
+}
+
+#: Normalise a `base_material` string onto a key of `_V34_BASE_OPTICS`.
+#:
+#: ⚠ SILENCE MEANS ACETATE, and that is an assumption this function makes
+#: explicit rather than hiding. 171 of 184 stocks leave `base_material`
+#: empty, and the class-default pass that supplied their `base_um` already
+#: assumes an acetate gauge for exactly the reason recorded at
+#: `_V29_BASE_UM_SOURCE`: no source states the polymer, so Glafkides' §429
+#: polyester reduction is not applied. Reading silence as polyester here
+#: would contradict the thickness those same stocks carry.
+def _v34_support_key(material: str) -> str:
+    m = (material or "").strip().lower()
+    if not m:
+        return "acetate"
+    if "estar" in m or "polyester" in m or "pet" in m or "terephthalate" in m:
+        return "polyester"
+    return "acetate"
+
+
+def _v34_critical_radius_per_t(n: float) -> float:
+    """Inner edge of the totally-reflected annulus, in units of thickness."""
+    return 2.0 / math.sqrt(n * n - 1.0)
+
+
+def _apply_v34_halation_geometry(p: "FilmProfile") -> "FilmProfile":
+    """Derive `HalationSpec.radii_um` and `weights` from support geometry.
+
+    Applies to every stock that carries a support thickness, including those
+    whose gains are zero: the radii describe geometry, which exists whether
+    or not the anti-halation construction lets any of it through.
+
+    Gains, `threshold_stops` and the per-channel `radius_scale_*` are NOT
+    touched. The separable blur renormalises every kernel to unit sum
+    (AlgoSeparableBlur.cpp), so total halation energy is a function of the
+    gains alone and this pass is amplitude-neutral by construction.
+    """
+    hal = p.halation
+    t = p.emulsion.base_um
+    if hal is None or not t:
+        return p
+
+    key = _v34_support_key(p.emulsion.base_material)
+    _n, per_t, weights, _cite = _V34_BASE_OPTICS[key]
+
+    radii = (round(per_t[0] * t, 1),
+             round(per_t[1] * t, 1),
+             round(per_t[2] * t, 1))
+
+    if radii == hal.radii_um and weights == hal.weights:
+        return p
+    return replace(p, halation=replace(hal, radii_um=radii, weights=weights))
+
+
+FILM_PROFILES = tuple(_apply_v34_halation_geometry(_p) for _p in FILM_PROFILES)
 
 
 PRINT_STOCKS: tuple[PrintStock, ...] = (

@@ -491,14 +491,17 @@ void Algorithm_Main
     //  know one. A name that matches nothing falls back to the same default, so a
     //  stale preset degrades to the stock's intended gauge rather than to zero.
     // -----------------------------------------------------------------------
-    // ⚠ THE `!= nullptr` TEST WAS REMOVED 2026-09-09. filmFormat is a
-    // fixed-size array now, not a pointer, so its address can never be null
-    // and the test was both dead and a -Wall warning ("the address of
-    // 'algoCtrl.filmFormat' will never be NULL"). The EMPTY-FIRST-BYTE test is
-    // the real one and is unchanged.
+    // The control is an enumerator; AlgoFilmFormatKey maps it to the database
+    // key and yields the empty string for the sentinel or for any value the
+    // current database does not define. The empty-key test below is therefore
+    // the same fallback that was applied when this field held a string, and a
+    // preset written against an older database still degrades to the stock's
+    // own gauge rather than to a wrong one.
+    const char* const formatKey = AlgoFilmFormatKey(algoCtrl.filmFormat);
+
     const char* const wantFormat =
-        (algoCtrl.filmFormat[0] != '\0')
-            ? algoCtrl.filmFormat
+        ('\0' != formatKey[0])
+            ? formatKey
             : profile.default_format.c_str();
 
     const film::FilmFormat* pFmt = nullptr;
@@ -555,14 +558,15 @@ void Algorithm_Main
     // -----------------------------------------------------------------------
     const film::PrintStock* const pPrint =
         findPrintStock(memHandler.pPrintDb, memHandler.printCount,
-                       algoCtrl.printStock, profile.default_print);
+                       AlgoPrintStockKey(algoCtrl.printStock),
+                       profile.default_print);
 
     // The dupe stock has no per-stock default, so the fallback is the release print
     // itself: printing onto the release stock is wrong for an intermediate but is a
     // far smaller error than skipping the generation chain the user asked for.
     const film::PrintStock* const pDupe =
         findPrintStock(memHandler.pPrintDb, memHandler.printCount,
-                       algoCtrl.dupeStock,
+                       AlgoPrintStockKey(algoCtrl.dupeStock),
                        (nullptr != pPrint) ? pPrint->name : profile.default_print);
 
     // -----------------------------------------------------------------------

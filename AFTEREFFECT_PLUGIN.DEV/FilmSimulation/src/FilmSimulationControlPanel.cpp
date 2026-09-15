@@ -63,16 +63,6 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         UnderlyingType(FilmSimulationCtrl::FILM_FORMAT));
     totalParams++;
 
-    // Film Process Variant ListBox
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-    PF_ADD_POPUP(
-        itemNames[4],
-        UnderlyingType(FilmProcessVariant::eFILM_PROCESS_TOTAL),
-        UnderlyingType(FilmProcessVariant::eFILM_PROCESS_EI_1600),
-        FilmProcessVariant,
-        UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT));
-    totalParams++;
-
     // Film Generation List Box
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_FILM_PROPERTIES));

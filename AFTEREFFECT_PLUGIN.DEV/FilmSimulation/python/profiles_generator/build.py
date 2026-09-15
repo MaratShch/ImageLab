@@ -1976,7 +1976,14 @@ def stage_docs(opts) -> list:
             # re-derived. This file is the structural answer, and it runs the
             # release gate (ordering identity, scope preservation, carrier and
             # provenance census) while it writes.
-            ("gen_project_state.py", ["--assert"], "doc/PROJECT_STATE.md")):
+            ("gen_project_state.py", ["--assert"], "doc/PROJECT_STATE.md"),
+            # The Python control enumerations are DERIVED from
+            # AlgoControlEnums.hpp rather than maintained beside it, so
+            # the reference pipeline and the two C++ builds cannot come
+            # to disagree about what a control value means. --check
+            # fails the build if the mirror is stale; regenerate with
+            # `python3 gen_control_enums.py`.
+            ("gen_control_enums.py", ["--check"], "algo_control_enums.py")):
         rc, so, se = run(py(script, *argv))
         if rc == 0:
             res.append(Result(script, "OK", produced))

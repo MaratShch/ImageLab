@@ -86,6 +86,13 @@ from film_profiles import (
     get_profile,
     validate_all,
 )
+from algo_control_enums import (      # generated from AlgoControlEnums.hpp
+    FilmFormatCtrl,
+    PrintStockCtrl,
+    DupeStockCtrl,
+    film_format_key,
+    print_stock_key,
+)
 
 # 18% reflectance is the photographic mid grey reference. Relative exposure is
 # normalised so that mid grey sits at exactly 1.0, i.e. logE = 0.
@@ -2312,8 +2319,12 @@ class RenderSettings:
     mtf_use_kernel: bool = False
 
 
-    film_format: str = "super35"
-    print_stock: str = ""           # "" = use the stock's own default
+    #: Accepts FilmFormatCtrl or the bare FORMAT_GEOM key. The enumerator is
+    #: the canonical form and matches the C++ control exactly; the string is
+    #: retained so existing callers and saved presets keep working.
+    film_format: FilmFormatCtrl | str = "super35"
+    #: Accepts PrintStockCtrl or the bare PRINT_STOCKS name.
+    print_stock: PrintStockCtrl | str = ""   # "" = the stock's own default
     exposure_stops: float = 0.0
     # -- C8, 2026-08-23: the exposure TIME, seconds. 0.0 = not stated, and the
     # -- reciprocity stage is then skipped entirely, so every render made before
@@ -2489,7 +2500,7 @@ class RenderSettings:
     print_grain: bool = True
     flare: float = -1.0             # <0 = use the stock's default_flare
     generations: int = 0            # intermediate interpositive/dupe-negative pairs
-    dupe_stock: str = "DUPE_FINE_GRAIN"
+    dupe_stock: DupeStockCtrl | str = "DUPE_FINE_GRAIN"
     reseau: bool = True             # allow the additive colour grid
     bit_depth: int = 16
     seed: int = 12345
@@ -2754,10 +2765,11 @@ def simulate(
     profile = resolve_process_variant(profile, settings.process_variant)
 
     h, w = linear_rgb.shape[:2]
-    negative_width_mm = FORMATS[settings.film_format]
+    negative_width_mm = FORMATS[film_format_key(settings.film_format)]
     px_per_mm = w / negative_width_mm
     rng = np.random.default_rng(settings.seed)
-    print_stock = get_print_stock(settings.print_stock or profile.default_print)
+    print_stock = get_print_stock(
+        print_stock_key(settings.print_stock) or profile.default_print)
 
     # A black and white negative goes onto black and white print stock, so the
     # print must be neutral. Printing it through a colour stock's three slightly
@@ -2913,7 +2925,7 @@ def simulate(
         cf = coating_field(
             h, w, negative_width_mm, negative_width_mm * h / max(w, 1),
             eff, settings.frame_index,
-            frame_pitch_mm(settings.film_format), settings.seed,
+            frame_pitch_mm(film_format_key(settings.film_format)), settings.seed,
         )
         field = cf if field is None else (field * cf)
     if field is not None:
@@ -3308,7 +3320,7 @@ def simulate(
         # contrast does not compound over the chain; grain and softness do.
         stages = 2 * max(0, settings.generations)
         if stages:
-            dupe = get_print_stock(settings.dupe_stock)
+            dupe = get_print_stock(print_stock_key(settings.dupe_stock))
             dcurves = dupe.curves.as_tuple()
             dupe_mtf = grid.mtf(dupe.mtf_f50, 0.0, 0.0)
             for _ in range(stages):

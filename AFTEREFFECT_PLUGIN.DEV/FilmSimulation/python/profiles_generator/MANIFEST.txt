@@ -1,19 +1,126 @@
-Python source — film simulation generator, renderer and audit suite
-===================================================================
-Schema v22.  165 film stocks, 11 print stocks, 14 gauges.
+FIVE ARCHIVES -- 2026-09-14a
+========================
 
-  build.py            the entry point: audit -> verify -> codegen -> sync -> docs -> compile
-                      python build.py --root <project root>      (--check is read-only)
-  film_profiles.py    the database and the schema. The SCHEMA_VERSION log at the top is
-                      the authority on what each version added.
-  film_sim.py         the 25-stage pipeline, 16-bit PNG writer, CLI
-  cpp_codegen.py      emits the C++ database (see the "database" archive)
-  verify.py           462 checks; 461 PASS / 1 FAIL by design (saturation hierarchy)
-  <28 audit scripts>  each re-derives adopted numbers from the source PDFs
+Schema v33 unchanged. Verify 696 PASS / 1 baselined FAIL, build clean, all
+four engine parity audits green.
 
-Dependencies: numpy and Pillow only for the RENDERER and the GENERATOR.
-The audit scripts additionally need PyMuPDF, because they re-open the source documents.
-agfa_2004_curves.py will use SciPy for one curve re-fit if present and skips that one
-check with a printed message if not.
+⚠⚠ THE QUEUE WENT DOWN FOR THE FIRST TIME IN FIVE PASSES: 30 LIVE -> 28
+=======================================================================
 
-NOT INCLUDED: PDF/PROFILES.  Five of the 28 audits SKIP without it.
+P41 through P44 were all opened on 2026-09-11 and the instruction the same day
+was blunt: stop adding rows, start resolving them. P43 and P44 are CLOSED, and
+⚠ NEITHER CLOSED THE WAY ITS OWN ROW PREDICTED. Both were blocked on their own
+wrong premise rather than on the thing they named, which is the argument for
+re-reading a blocker before going out and sourcing it.
+
+P43 -- SETTLED FROM WITHIN THE DATABASE, AND THE DOCUMENT IT ASKED FOR WOULD
+NOT HAVE SETTLED IT
+============================================================================
+
+The row wanted a SILVER-ONLY CLUMP MEASUREMENT so that `dye_cloud_um` would
+have something to add to. That measurement is not needed: the silver-only law
+can be derived here, because ⚠ the monochrome stocks carry dye_cloud_um = 0 BY
+DEFINITION, so their clump IS silver-only. Fitting it against crystal size over
+65 monochrome stocks gives
+
+    clump = 3.93 x grain_um
+
+⚠ THE TEST IS NOT CIRCULAR: clump_um is not derived from grain_um anywhere in
+the generator, and the 170 stocks carrying both produce 130 distinct ratios.
+
+THREE RESULTS, ALL AGREEING:
+
+  1. Colour sits at the SAME ratio as monochrome. log(clump/grain) is 1.369 on
+     65 monochrome against 1.297 on 103 colour -- t = -0.65, indistinguishable.
+     A real extra dye spread demands colour sit systematically HIGHER.
+  2. Adding the dye term is a COIN FLIP. Predicting each colour clump as
+     sqrt((3.93*grain)^2 + dye^2) against the silver-only 3.93*grain improves
+     51 stocks and worsens 52. It carries no information.
+  3. ⚠ The two stocks with the LARGEST dye cloud contradict it hardest.
+     KODAK_BW400CN and KODAK_T400CN are chromogenic black-and-white -- their
+     image really is dye and nothing else, which is why they carry 9.0 um --
+     and their clump/grain is 2.5, the LOWEST in the set, where the hypothesis
+     needs the highest.
+
+⚠⚠ AND THE FIELD IS NOT A MEASUREMENT ANYWAY: four distinct values across 115
+stocks (1.5 / 2.0 / 2.5 and the two chromogenic 9.0s) with no per-stock
+provenance. It is an era band. Pairing a real silver-only measurement with a
+three-level guess would still be pairing a measurement with a guess.
+
+So the answer is not "acquire a document" but "the test that document was
+wanted for runs today and comes out null". G-DYECLOUD-INERT asserts the field
+stays unread, and exists because the next reader will have the same good idea.
+
+P44 -- A SCRATCH IS NOT BORN AND DOES NOT DIE, SO NO BIRTH/DEATH MODEL WAS
+NEEDED. WHAT WAS MISSING WAS THE SCRATCH CLASS ITSELF
+==========================================================================
+
+The row assumed persistence had to be a lifetime on a static population. ⚠ The
+field's own docstring says "mean lifetime of a RUNNING scratch" -- abraded by
+continuous contact as the film passes, so it is a RUN LENGTH ALONG THE WEB, and
+stage 9b already translates defects with the web. The coordinate was there.
+
+⚠⚠ WHAT WAS ACTUALLY MISSING: stage 9b modelled three PARTICULATE classes --
+dust, debris, fibres -- and there was NO SCRATCH GENERATOR ANYWHERE IN EITHER
+ENGINE. The field had nothing to attach to, which the row read as a missing
+model when it was a missing class.
+
+NOW IMPLEMENTED IN BOTH TWINS, using only figures already measured and recorded
+in the tree: width 26 um, straightness 0.98, the 3.5:1 longitudinal bias, median
+contrast 3.5 %. Two populations, on the two controls that were already in the
+layout and unconsumed:
+
+    scratchTransport   a TRAMLINE locked to the transport axis that holds its
+                       across-web position while the picture moves past it, for
+                       scratch_persistence_frames frames
+    scratchHandling    shorter unlocked single-event marks, no persistence
+
+⚠ THE STRAIGHTNESS FIGURE VALIDATED THE EXISTING FIBRE CLASS ON THE WAY PAST.
+Deriving the walk's persistence length from 0.98 as a 2-D worm-like chain gives
+Lp = 2.5 mm, and a median 4 mm fibre then comes out at 0.87 -- mid-range of the
+0.7-0.95 that `defectFibres` claims for itself. The two classes are now
+separated by the one measured quantity rather than by assertion.
+
+Controls consumed 9 -> 11, unconsumed 8 -> 6. Four guards:
+G-SCRATCH-CONSTANTS / -GATE / -TRAMLINE / -POLARITY, the tramline one asserting
+a run holds one column set for 41 consecutive frames.
+
+⚠ SEVEN MODELLING CHOICES THE SOURCES DO NOT SETTLE are each named AS choices
+at the constant rather than presented as fact -- among them that the transport
+scratch is drawn exactly straight (0.98 over a multi-frame run implies a lateral
+excursion wider than the web), that the cut-versus-burnish share is a
+maximum-entropy 0.5 because nothing measures it, and that the 3.5 % contrast is
+used unsolved in the negative-density domain because no scratch amplitude
+distribution exists to solve against. The likely direction of that last error --
+too strong, by roughly the print gamma -- is stated at the constant rather than
+hidden.
+
+VERIFICATION
+=============
+
+    verify.py            696 PASS / 1 baselined FAIL   (691 before; +5 guards)
+    stage_parity.py      125/125 planes, 0 pinned exceptions
+    interimage_parity    2 flavours, worst 5.221e-05
+    bromide_parity       both builds, both directions, both scales
+    spectral_mono_parity 69/69 monochrome stocks exact
+    compile              all 26 TUs, exit 0 and zero bytes of output
+
+⚠ The scratch class is LIVE at the default control values, so stage 9b renders
+differently from the previous set on every stock. That is the point of the
+change, but it is a visible difference and not a silent one.
+
+ARCHIVE CONTENTS
+=================
+
+  1  python_generator     the generator, its audits and its docs at root
+                          level. NO C++. Carries stage_parity.py,
+                          png_compare.py and the film_sim.py with -8bpp.
+  2  generated_database   the 26 generated C++/HPP files plus the name,
+                          display-order and migration tables.
+  3  algorithm_scalar     include/ + src/, the double build.
+  4  algorithm_avx2       include/ + src/, the float build.
+  5  documentation_md     the whole doc/ tree.
+
+⚠ NO TEST SOURCE IN ANY OF THE FIVE -- the test translation units, profall.cpp
+and the two harnesses are in the separate optional archive. The .txt files ship
+inside include/ in archives 3 and 4.
