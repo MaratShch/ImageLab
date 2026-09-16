@@ -15,7 +15,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     CACHE_ALIGN PF_ParamDef	def;
 
     constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
-    constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+    constexpr PF_ParamUIFlags ui_flags = PF_PUI_CONTROL;
     constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
 
     constexpr char ButtonTitle[] = "ImageLab2 Interface";
@@ -154,6 +154,61 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Close group item
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_EXPOSURE_AND_TONE));
+    totalParams++;
+
+    ///////////////////////////////////////////////////////////////////
+    // GROUP START: DEVELOPMENT                                      //
+    ///////////////////////////////////////////////////////////////////
+    // Open group item
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_TOPICX(
+        itemNames[10],
+        ui_disabled_flags,
+        UnderlyingType(FilmSimulationCtrl::GROUP_START_DEVELOPMENT));
+    totalParams++;
+
+    // Development enabled check-box
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_CHECKBOXX(
+        itemNames[11],
+        FALSE, 
+        0, 
+        UnderlyingType(FilmSimulationCtrl::GROUP_START_DEVELOPMENT));
+    totalParams++;
+
+    // Development time slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[12],
+        DevelopmentMinutesMin,
+        DevelopmentMinutesMax,
+        DevelopmentMinutesMin,
+        DevelopmentMinutesMax,
+        DevelopmentMinutesMin,
+        PF_Precision_TENTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::DEVELOPMENT_TIME));
+    totalParams++;
+
+    // Development temperature slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[13],
+        DevelopmentCelsiusMin,
+        DevelopmentCelsiusMax,
+        DevelopmentCelsiusMin,
+        DevelopmentCelsiusMax,
+        DevelopmentCelsiusDef,
+        PF_Precision_TENTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::DEVELOPMENT_TEMPERATURE));
+    totalParams++;
+
+    // Close group item
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_DEVELOPMENT));
     totalParams++;
 
     out_data->num_params = totalParams;

@@ -18,6 +18,11 @@ enum class FilmSimulationCtrl : int32_t
     MID_GRAY_TARGET,
     BLACK_POINT_STRETCH,
     GROUP_STOP_EXPOSURE_AND_TONE,
+    GROUP_START_DEVELOPMENT,
+    DEVELOPMENT_ENABLE,
+    DEVELOPMENT_TIME,
+    DEVELOPMENT_TEMPERATURE,
+    GROUP_STOP_DEVELOPMENT,
     TOTAL_PARAMS
 };
 
@@ -31,7 +36,11 @@ constexpr char itemNames[][32] = {
     "Exposure",
     "Exposure Time",
     "Mid-Gray Target",
-    "Black Point Stretch"
+    "Black Point Stretch",
+    "Development",
+    "Development Enable",
+    "Development Time",
+    "Development Temperature"
 };
 
 #endif // __IMAGE_LAB2_ALGO_ADOBE_CONTROL_ENUMERATORS__
