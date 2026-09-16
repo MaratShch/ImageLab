@@ -173,7 +173,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         itemNames[11],
         FALSE, 
         0, 
-        UnderlyingType(FilmSimulationCtrl::GROUP_START_DEVELOPMENT));
+        UnderlyingType(FilmSimulationCtrl::DEVELOPMENT_ENABLE));
     totalParams++;
 
     // Development time slider
