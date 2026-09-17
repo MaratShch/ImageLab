@@ -28,6 +28,12 @@ enum class FilmSimulationCtrl : int32_t
     SCENE_COLOUR_TEMPERATURE,
     WHITE_BALANCE_STRENGTH,
     GROUP_STOP_COLOR_WHITE_BALANCE,
+    GROUP_START_PRINT_AND_DUPLICATION,
+    PRINT_STOCK,
+    DUPLICATION_GENERATION,
+    INTERMEDIATE_STOCK,
+    PRINT_GRAIN,
+    GROUP_STOP_PRINT_AND_DUPLICATION,
     TOTAL_PARAMS
 };
 
@@ -49,7 +55,12 @@ constexpr char itemNames[][32] = {
     "Years of Dark Storage",
     "Colour & White Balance",
     "Scene Colour Temperature",
-    "White Balance Strength"
+    "White Balance Strength",
+    "Print & Duplication",
+    "Print Stock",
+    "Duplication Generation",
+    "Intermediate Stock",
+    "Print Grain"
 };
 
 #endif // __IMAGE_LAB2_ALGO_ADOBE_CONTROL_ENUMERATORS__

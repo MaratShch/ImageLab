@@ -161,7 +161,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // GROUP START: DEVELOPMENT & STORAGE                           //
     ///////////////////////////////////////////////////////////////////
     // Open group item
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_TOPICX(
         itemNames[10],
         ui_disabled_flags,
@@ -225,7 +225,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     ///////////////////////////////////////////////////////////////////
     // GROUP START: DEVELOPMENT & STORAGE                           //
     ///////////////////////////////////////////////////////////////////
-    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_TOPICX(
         itemNames[15],
         ui_flags,
@@ -263,7 +263,65 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_COLOR_WHITE_BALANCE));
     totalParams++;
 
+    ///////////////////////////////////////////////////////////////////
+    // GROUP START: PRINT & DUPLICATION                              //
+    ///////////////////////////////////////////////////////////////////
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_TOPICX(
+        itemNames[18],
+        ui_flags,
+        UnderlyingType(FilmSimulationCtrl::GROUP_START_PRINT_AND_DUPLICATION));
+    totalParams++;
 
+    // Print Stock List Box
+    PF_ADD_POPUP(
+        itemNames[19],
+        UnderlyingType(PrintStockCtrl::ePRINT_STOCK_TOTAL),
+        UnderlyingType(PrintStockCtrl::eSTOCKS_OWN),
+        PrintStockCtrlStr,
+        UnderlyingType(FilmSimulationCtrl::PRINT_STOCK));
+    totalParams++;
+
+    // Duplication generation slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_SLIDER(
+        itemNames[20],
+        GenerationsMin,
+        GenerationsMax,
+        GenerationsMin,
+        GenerationsMax,
+        GenerationsDef,
+        UnderlyingType(FilmSimulationCtrl::DUPLICATION_GENERATION));
+    totalParams++;
+
+    // Intermediate stock List Box
+    PF_ADD_POPUP(
+        itemNames[21],
+        UnderlyingType(DupeStockCtrl::ePRINT_STOCK_TOTAL),
+        UnderlyingType(DupeStockCtrl::eDUPE_FINE_GRAIN) + 1,
+        DupeStockCtrlStr,
+        UnderlyingType(FilmSimulationCtrl::INTERMEDIATE_STOCK));
+    totalParams++;
+
+    // Print Grain check-box
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_CHECKBOXX(
+        itemNames[22],
+        FALSE,
+        0,
+        UnderlyingType(FilmSimulationCtrl::PRINT_GRAIN));
+    totalParams++;
+
+    // Close group item
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_PRINT_AND_DUPLICATION));
+    totalParams++;
+
+    ///////////////////////////////////////////////////////////////////
+    // GROUP START: EMULSION CHARACTER                               //
+    ///////////////////////////////////////////////////////////////////
+
+    // Assign totalnumber of control items
     out_data->num_params = totalParams;
 
     return PF_Err_NONE;
