@@ -161,7 +161,18 @@ IDENTITY3: Matrix3 = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 ZERO3: Matrix3 = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
 
 #: Crystal habits `EmulsionSpec.habit` accepts.
-_HABITS = frozenset({"cubic", "octahedral", "tabular"})
+# ⚠ "nontabular" WIDENS THIS VOCABULARY AND IT IS NOT A SYNONYM FOR "".
+# Added 2026-09-17 for EASTMAN_5293_250T_1982. Its paper states the habit in
+# the only terms that matter to the simulation -- the speed comes from "larger
+# grain silver-halide emulsions" grown by conventional ripening, a decade
+# before Kodak's tabular EXR technology -- and never says whether those
+# crystals are cubic or octahedral. "" would mean the source is silent, which
+# it is not: the tabular/non-tabular distinction is precisely what separates
+# this film from the 1992 EXR 5293 that reuses its catalogue number, and it is
+# the distinction the owner asked to have preserved. Forcing a choice between
+# two specific habits the paper does not make would invent the one fact and
+# lose the other.
+_HABITS = frozenset({"cubic", "octahedral", "tabular", "nontabular"})
 
 #: Chemical sensitization classes `EmulsionSpec.sensitization` accepts.
 _SENSITIZATIONS = frozenset({"S", "S+Au", "reduction"})
@@ -498,6 +509,100 @@ _GOST_CLASS_WITHHELD: dict[str, str] = {
 #
 # ⚠ NONE OF IT IS EMITTED INTO C++, on the v23 precedent. These are
 # generator-side reference data: they constrain and derive what IS emitted.
+
+# ---------------------------------------------------------------------------
+#  «Eastman Professional Films», 1938 -- queue P65
+# ---------------------------------------------------------------------------
+#: ⚠⚠ A SPEED SCALE THAT PREDATES THE AMERICAN STANDARD, AND THE BOOKLET
+#: NAMES IT. Printed page 8, immediately above the table: the figures "were
+#: obtained according to the standard system of speed evaluation employed in
+#: the Kodak Research Laboratories. They are for light of sunlight quality and
+#: are not valid when the materials are exposed to light of different quality,
+#: such as incandescent tungsten." The American Standard z38.2.1 is five years
+#: away in 1938, so these are not ASA numbers and must never be read as such.
+#:
+#: ⚠ NONE OF THE FIFTEEN FILMS IS IN THIS DATABASE and none becomes one from
+#: this booklet: it prints no characteristic curve, no spectral curve and no
+#: modulation transfer, and a speed with a filter factor is not a profile. The
+#: table is here because queue P65's own argument was that a number on an
+#: unconvertible scale is not adoptable -- and the scale is now convertible, so
+#: the day one of these emulsions acquires a curve from another source its 1938
+#: speed can be carried onto it.
+#:
+#: (film, sensitising class, Kodak Research Laboratories sunlight speed)
+_KODAK_1938_SPEEDS: tuple[tuple[str, str, int], ...] = (
+    ("Eastman Super Panchro-Press Safety Film", "panchromatic", 500),
+    ("Eastman Panchro-Press Safety Film", "panchromatic", 300),
+    ("Eastman Super Sensitive Panchromatic Film", "panchromatic", 200),
+    ("Eastman Portrait Panchromatic Film", "panchromatic", 200),
+    # ⚠ THE ONLY SPEED IN THE TABLE WITH A STATED DEVELOPER, and Kodak's own
+    # asterisk says so: "*With development in D-76." The other fourteen carry
+    # no development condition at all, which is a real limitation of the whole
+    # table and not an omission in this transcription.
+    ("Eastman Safety Panatomic Film", "panchromatic", 150),
+    ("Eastman Commercial Panchromatic Film", "panchromatic", 120),
+    ("Eastman Panchromatic Process Film", "panchromatic", 16),
+    ("Eastman Super Speed Ortho Portrait, Antihalation", "ortho", 220),
+    ("Eastman Super Speed Ortho Portrait Film, Regular", "ortho", 200),
+    ("Eastman Safety Ortho Press Film", "ortho", 160),
+    ("Eastman Par Speed Portrait Film", "ortho", 120),
+    ("Eastman Commercial Ortho Film", "ortho", 100),
+    ("Eastman Commercial Film", "blue", 40),
+    ("Eastman Commercial Matte Film", "blue", 40),
+    ("Eastman Process Film", "blue", 12),
+)
+
+#: ⚠ THE THREE FILMS RATED ON BOTH SCALES, WHICH IS WHAT P65 ASKED FOR AND
+#: GOT THREE OF. The seventh edition of «Kodak Films» (1956) publishes an
+#: American Standard DAYLIGHT index for three of the emulsions above -- and it
+#: must be the daylight one, because the 1938 booklet warns in the same breath
+#: that its own numbers "are for light of sunlight quality and are not valid"
+#: under tungsten.
+#: (1938 name, 1956 name, KRL sunlight, American Standard daylight)
+_KODAK_1938_BRIDGE: tuple[tuple[str, str, int, int], ...] = (
+    ("Eastman Super Panchro-Press Safety Film",
+     "KODAK SUPER PANCHRO-PRESS, TYPE B, SHEET FILM", 500, 125),
+    ("Eastman Portrait Panchromatic Film",
+     "KODAK PORTRAIT PANCHROMATIC SHEET FILM", 200, 50),
+    ("Eastman Commercial Film", "KODAK COMMERCIAL SHEET FILM", 40, 25),
+)
+
+#: The conversion, and the ONE class it is adopted for.
+#:
+#: ⚠⚠ TWO FILMS, ONE RATIO, THREE SIGNIFICANT FIGURES. 500/125 and 200/50
+#: are both exactly 4.00, and the two films have different eighteen-year
+#: histories -- the 1956 Super Panchro-Press is a «Type B» re-coating,
+#: explicitly renamed, while Portrait Panchromatic carries no type suffix at
+#: all. Two emulsion changes do not land on the same ratio by accident; a
+#: SCALE does, which is what this has to be for the 1938 table to be usable.
+#:
+#: ⚠ AND THE THIRD BRIDGE DISAGREES AND IS NOT AVERAGED IN. Commercial gives
+#: 40/25 = 1.60. It is the one non-colour-sensitive film of the three -- its
+#: 1956 daylight-to-tungsten ratio of 25/6 is the 4.2 only a blue-sensitive
+#: emulsion shows -- and nothing in this corpus decides whether the emulsion
+#: was slowed between the editions or the house scale treated blue-sensitive
+#: stock differently. So the conversion covers PANCHROMATIC sheet film and says
+#: so, rather than covering everything at a fitted 3.2 that describes nothing.
+#:
+#: ⚠ ONE ARITHMETIC OBSERVATION, RECORDED AND NOT USED: the 1956 book's page
+#: 25 states the American Standard carries "a safety factor of 2.5", and
+#: 4.00 / 2.50 = 1.60, which is numerically the Commercial ratio. Two round
+#: numbers meeting is very probably a coincidence; it is written down so that
+#: nobody has to rediscover it before dismissing it.
+_KRL_TO_AMERICAN_STANDARD = 4.00
+_KRL_CONVERSION_CLASS = "panchromatic"
+_KRL_CONVERSION_REFUSED = (
+    "Eastman Commercial Film, the one non-colour-sensitive film rated on both "
+    "scales: KRL 40 against American Standard daylight 25 is 1.60, not 4.00.")
+
+_KODAK_1938_SOURCE = (
+    "Eastman Kodak Company, \u00abEastman Professional Films\u00bb, Rochester "
+    "N.Y., 1938 -- the professional sheet-film trade booklet, 36 pages, whose "
+    "entire quantitative content is the speed table on printed page 8 and the "
+    "filter-factor matrix on printed page 7. Re-derived on every build by "
+    "kodak_1938.py, which checks every transcribed speed against the page's "
+    "own text layer and re-computes the conversion against kodak_1956.EI_1956.")
+
 
 #: ГОСТ 9160-91, Приложение 3, таблица 11 -- "Монохроматические плотности
 #: D_λ светофильтра-маски" (monochromatic densities of the MASK FILTER).
@@ -1680,7 +1785,49 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 # Every one of those changes moves rendered pixels, so a v33 render is NOT
 # bit-identical to a v32 one. That is the point of the version bump; the
 # record layout is unchanged and every stored value is untouched.
-SCHEMA_VERSION = 34
+#
+# --- v35 (2026-09-16) -------------------------------------------------------
+# `DevelopmentPoint.edition`, a free-text generation tag, and the emitted
+# record therefore grows one string. THE VERSION MOVES BECAUSE THE SHAPE DOES;
+# by the rule above, a Python-side side table or a widened enum would not have
+# moved it, and a new emitted field does.
+#
+# ⚠ WHAT MADE IT NECESSARY. The «Kodak Films» Data Book, Seventh Edition, 1956
+# prints, for twelve emulsions, a characteristic-curve family whose members
+# Kodak LABELLED IN FRAME with both the development time and the gamma -- a
+# manufacturer's printed statement about its own product, tier T1, and the
+# densest gamma-against-time material in this corpus. Seven of those twelve
+# emulsions are earlier generations of stocks whose profile holds the 1979 or
+# 2016 coating: 1956 Tri-X is American Standard 200 and modern 400TX is ISO
+# 400. Both readings are manufacturer data, so the precedence rule cannot
+# choose between them and neither may be discarded. Without a generation field
+# the only options were to overwrite one with the other or to interleave them
+# -- and interleaving is the failure `DevelopmentPoint.vessel` was added to
+# prevent in v28. The field is the third option: keep both, say which is which.
+#
+# --- v36 (2026-09-17) -------------------------------------------------------
+# `ProcessingFamily.reference_developer` and `reference_dilution`, so the
+# emitted family record grows two strings. THE VERSION MOVES BECAUSE THE SHAPE
+# DOES.
+#
+# ⚠ WHAT MADE IT NECESSARY, AND IT IS A REGRESSION RATHER THAN A GAP. The
+# same 1956 Data Book draws, beside each labelled characteristic family, a
+# TIME-GAMMA INSET plotting two to four developers as continuous curves.
+# Tracing those insets adds 189 points across four stocks -- the first
+# contrast figures this corpus holds for MQ, Versatol, Microdol or DK-50 at
+# 1:1 -- and SUPER-XX PAN came out of the harvest with seventeen points for
+# DK-50 and seventeen for DK-60a. `film_sim.development_family` refuses a tie,
+# by design, so the stock LOST a development-time control it had before the
+# data arrived. More data making the answer worse is the signature of a
+# missing discriminant.
+#
+# ⚠ AND THE DISCRIMINANT IS PRINTED ON THE PAGE. Each data sheet draws its
+# characteristic family for exactly one developer and names it in the caption.
+# That is a manufacturer's statement about which condition the sheet's own
+# curve describes; it is a property of the FAMILY, not of the profile's stored
+# ToneCurve, which on these stocks is a 1979 sheet. `ProcessingSpec.developer`
+# already claims the latter and must not be made to carry the former.
+SCHEMA_VERSION = 37
 
 
 # ---------------------------------------------------------------------------
@@ -3606,9 +3753,22 @@ class DyeStabilitySpec:
     dmin_gain_b: float = 0.0
     source: str = ""
 
+    # ⚠ `has_data` WAS `censor_years > 0.0` UNTIL v35, AND THAT CONFLATED TWO
+    # THINGS. It was written when the only dye-stability source in the corpus
+    # was H-1-2254, a manufacturer sheet whose table is mostly ">100" -- there,
+    # "has a censoring bound" and "has data" really were the same question.
+    # They are not the same question in general. Wilhelm's Table 19.1 prints
+    # four finite figures per film at four storage temperatures and censors
+    # nothing, so a record built from it has data and no bound, and the old
+    # test called it empty. The bound is now one way to have data, not the
+    # definition of having it.
     @property
     def has_data(self) -> bool:
-        return self.censor_years > 0.0
+        return (self.censor_years > 0.0
+                or self.loss_c > 0.0 or self.loss_m > 0.0 or self.loss_y > 0.0
+                or self.loss_r > 0.0 or self.loss_g > 0.0 or self.loss_b > 0.0
+                or self.dmin_gain_r > 0.0 or self.dmin_gain_g > 0.0
+                or self.dmin_gain_b > 0.0)
 
     def validate(self, label: str = "") -> None:
         if not self.has_data:
@@ -3625,7 +3785,10 @@ class DyeStabilitySpec:
             v = getattr(self, k)
             if v < 0.0:
                 raise ValueError(f"{label}: dye stability {k} is negative")
-            if v > self.censor_years:
+            # ⚠ ONLY WHEN THERE IS A BOUND TO EXCEED. An uncensored source has
+            # censor_years = 0.0, and comparing against that would refuse every
+            # finite figure it publishes.
+            if self.censor_years > 0.0 and v > self.censor_years:
                 raise ValueError(
                     f"{label}: dye stability {k} is {v}, above the censoring "
                     f"bound {self.censor_years} -- a figure above the bound "
@@ -4190,21 +4353,87 @@ class DevelopmentPoint:
     #:
     #: ⚠ INERT. Nothing on the render path reads a DevelopmentPoint at all.
     vessel: str = ""
+    # -- schema v35 (2026-09-16), INERT --------------------------------------
+    #: Which GENERATION of the stock this point measures. "" = the generation
+    #: the profile itself describes, which is the common case and the default.
+    #:
+    #: ⚠⚠ THIS FIELD EXISTS BECAUSE A PRODUCT NAME IS NOT AN EMULSION. Kodak
+    #: sold "Tri-X" from 1954 to the present and re-coated it repeatedly. The
+    #: «Kodak Films» Data Book, Seventh Edition, 1956 publishes it at American
+    #: Standard 200 with a D-76 family reaching gamma 1.26 at 25 minutes; the
+    #: 2016 F-4017 sheet publishes it at ISO 400 with a different family
+    #: entirely. Both are MANUFACTURER data about the maker's own product, so
+    #: neither can be refused on precedence and neither supersedes the other --
+    #: they answer different questions. Written into one flat `points` tuple
+    #: with no generation field they would sit beside each other as two answers
+    #: to ONE question, told apart only by "the older one is slower", which is
+    #: precisely the failure the `vessel` docstring above records the schema
+    #: learning once already.
+    #:
+    #: ⚠ AND THE SPEED MOVES WITH IT, WHICH IS WHY `exposure_index` IS PER
+    #: POINT AND NOT ONLY PER PROFILE. A 1956 point carries exposure_index=200
+    #: while KODAK_TRI_X_400TX carries 400; the two are consistent because the
+    #: point says which emulsion it measured. Note that a pre-1960 American
+    #: Standard index is NOT an ISO number: the 1956 book's own page 25 records
+    #: a safety factor of 2.5 that the 1960 revision removed, so an American
+    #: Standard 80 and an ISO 125 can describe the same coating. That is a
+    #: second reason these indexes must never be copied onto
+    #: `FilmProfile.exposure_index`.
+    #:
+    #: ⚠ FREE TEXT, NOT AN ENUM, and deliberately so. The distinction a source
+    #: draws is the source's own: "1956 roll film" and "1956 35mm" are two
+    #: separate plates in the same book for the same product name, because
+    #: Kodak coated the 35mm and 120 versions differently enough to publish
+    #: different gamma families -- Tri-X reaches 1.26 in 25 minutes as a roll
+    #: film and 1.04 in the same 25 minutes as 35mm. An enum would force a
+    #: taxonomy onto data whose whole value is that it records the maker's own
+    #: distinctions.
+    #:
+    #: ⚠ INERT. Nothing on the render path reads a DevelopmentPoint at all.
+    edition: str = ""
 
     def validate(self, label: str = "") -> None:
         if not self.developer:
             raise ValueError(f"{label}: development point needs a developer")
-        if self.vessel not in ("", "drum", "small tank, tray", "tank"):
+        # ⚠ 'small tank' AND 'large tank' ADDED 2026-09-15b, AND THE DISTINCTION
+        # IS THE POINT RATHER THAN A SPELLING. «Современные фотоматериалы и их
+        # обработка» tabulates T-MAX P3200 under «малый бак» and «большой бак»
+        # separately, and the two are not the same process: the same developer
+        # family reaches gamma 1.0 in 11 minutes in the small tank and 14 in the
+        # large one, because a large replenished tank runs slower. Folding both
+        # onto the existing 'tank' would put two answers to one question beside
+        # each other -- exactly the failure the field's own docstring above says
+        # it was added to prevent.
+        if self.vessel not in ("", "drum", "small tank, tray", "tank",
+                               "small tank", "large tank", "tray"):
             raise ValueError(
                 f"{label}: vessel {self.vessel!r} is not one of '', 'drum', "
-                f"'small tank, tray', 'tank' -- the field records the PROCESS "
+                f"'small tank, tray', 'tank', 'small tank', 'large tank', "
+                f"'tray' -- the field records the PROCESS "
                 f"a sheet tabulates under its own caption, not free prose")
         if self.minutes <= 0.0:
             raise ValueError(f"{label}: development time must be > 0")
-        if self.contrast_index <= 0.0 and self.gamma <= 0.0:
+        # ⚠ RELAXED 2026-09-15b, AND THE OLD RULE'S REASONING WAS INCOMPLETE
+        # RATHER THAN WRONG. It said "a time with no measured contrast says
+        # nothing", which is true of a point that states ONE condition -- the
+        # condition the stored curve was measured at, where setting the control
+        # to that value is a no-op. It is NOT true of a point that states a
+        # TEMPERATURE. «Современные фотоматериалы и их обработка» tabulates
+        # development time against developer and temperature for several stocks
+        # and prints no gamma anywhere near those tables; each row says "this
+        # developer reaches the aim at 4 minutes at 20 degC and 3½ at 24 degC",
+        # which is a measured statement about the temperature axis and the only
+        # source for that axis in this corpus.
+        # ⚠ SO A POINT MUST STILL SAY SOMETHING, and what it may say is now
+        # EITHER a contrast OR a temperature-bearing time. A bare time at the
+        # default temperature is still refused, exactly as before.
+        if (self.contrast_index <= 0.0 and self.gamma <= 0.0
+                and not (self.minutes > 0.0 and self.celsius > 0.0
+                         and self.developer)):
             raise ValueError(
-                f"{label}: a development point must state contrast index or "
-                f"gamma -- a time with no measured contrast says nothing")
+                f"{label}: a development point must state a contrast index, a "
+                f"gamma, or a developer and temperature for its time -- a bare "
+                f"time with none of those says nothing")
         if self.base_fog < 0.0:
             raise ValueError(f"{label}: base_fog cannot be negative")
         if self.base_fog > 2.0:
@@ -4289,6 +4518,35 @@ class ProcessingFamily:
     #: Ratio by which development rate rises per 10 degC. 0.0 = not stated.
     #: ⚠ VALID 13-24 degC ONLY; see the note above.
     temp_q10: float = 0.0
+    # -- schema v36 (2026-09-17) ---------------------------------------------
+    #: The developer, and its dilution, that the SOURCE'S OWN characteristic
+    #: curve was measured in. "" = the source does not say.
+    #:
+    #: ⚠⚠ THIS FIELD EXISTS BECAUSE A TIE IS A REFUSAL AND THE 1956 INSET
+    #: HARVEST CREATED TIES. `film_sim.development_family` picks the one group
+    #: of points the stored curve sits on, and where the profile's
+    #: `processing.developer` is empty it falls back to the largest group and
+    #: refuses when two are equally large. Tracing Kodak's time-gamma insets
+    #: put four developers on SUPER-XX PAN with seventeen points each for
+    #: DK-50 and DK-60a, and the stock lost a working development control it
+    #: had before the harvest -- more data made the answer worse, which is the
+    #: signature of a missing discriminant rather than of a bad tie-break.
+    #:
+    #: ⚠ AND THE DISCRIMINANT IS PRINTED ON THE PAGE. Every 1956 data sheet
+    #: draws its characteristic family for exactly ONE developer and letters
+    #: it in the caption -- DK-50 for Super-XX sheet, DK-60a for Royal Pan,
+    #: D-76 for the roll films. That is a manufacturer's statement about which
+    #: condition the sheet's own curve describes, so it is stored rather than
+    #: inferred, and the resolver prefers it over group size.
+    #:
+    #: ⚠ IT IS NOT `ProcessingSpec.developer`. That field claims the
+    #: condition the profile's STORED ToneCurve was measured in, and on these
+    #: stocks the stored curve is a 1979 sheet while the family is 1956; the
+    #: two must not be conflated, which is why this is a property of the
+    #: FAMILY and is left empty wherever the source does not name one.
+    reference_developer: str = ""
+    #: Dilution of `reference_developer`, in the source's own words.
+    reference_dilution: str = ""
     source: str = ""
 
     @property
@@ -4703,6 +4961,88 @@ _PROCESS_FAMILIES = frozenset({
 })
 
 
+# ---------------------------------------------------------------------------
+#  Process-variant identities -- schema v37, and the mirror of ProcessVariantCtrl
+# ---------------------------------------------------------------------------
+# ⚠⚠ THIS TABLE AND `ProcessVariantCtrl` IN AlgoControlEnums.hpp ARE ONE
+# LIST WRITTEN TWICE, AND `verify.py` REFUSES THE BUILD IF THEY DISAGREE. The
+# header is the authority -- it is what the host, the scalar build and the AVX2
+# build all compile against -- and this table is how the database says which
+# enumerator each of its developments IS. The order below is the enumerator
+# order, so index k here is `ProcessVariantCtrl` value k, and the twenty-first
+# entry is followed in the header by `TOTAL_PROCESSES` = 21.
+#
+# ⚠ WHY A GLOBAL ENUMERATION AT ALL, WHEN THE VARIANT LIST IS PER STOCK.
+# It is per stock, and that is exactly why the CONTROL cannot be a per-stock
+# index: eight stocks offer between two and five developments each, so index 2
+# means "RODINAL 1+50" on an AGFAPAN, "ECN-2 native" on CINESTILL 800T and
+# "EI 3200 (Push 2)" on PORTRA 800. One saved project file, three different
+# films, three different meanings for the same stored number -- and every one
+# of them in range, so nothing could detect the confusion. A global enumeration
+# gives each development a name that means the same thing everywhere; which
+# stock OFFERS which remains per stock and is answered by looking for the id in
+# that stock's own `process_variants`.
+#
+# ⚠ AND AN UNKNOWN ID IS "AS SHIPPED", NOT AN ERROR. A project saved against
+# a database that offered a variant this one does not simply renders the stock
+# as its stored curves represent it, which is the same inert path an unselected
+# control takes. That is a deliberate choice over clamping: clamping would
+# render a DIFFERENT development and call it the one that was asked for.
+_PROCESS_VARIANT_IDS: tuple[tuple[str, str], ...] = (
+    # (enumerator name without the leading `e`, display string)
+    # -- AGFAPAN APX 25 / 100 / 400, Agfa «Technical Data P-16-C» 08/1999 -----
+    ("AGFA_REFINAL",               "REFINAL"),
+    ("AGFA_RODINAL_1_25",          "RODINAL 1+25"),
+    ("AGFA_RODINAL_1_50",          "RODINAL 1+50"),
+    ("AGFA_RODINAL_SPECIAL",       "RODINAL SPECIAL"),
+    ("AGFA_STUDIONAL_LIQUID",      "STUDIONAL LIQUID"),
+    # -- CINESTILL 800T ------------------------------------------------------
+    ("CINESTILL_C41_AS_SHIPPED",   "C-41 cross-process, as shipped"),
+    ("CINESTILL_CS2_TWO_BATH",     "Cs2 two-bath kit"),
+    ("CINESTILL_ECN2_NATIVE",      "ECN-2, the base stock's native process"),
+    # -- GEVACHROME 605 ------------------------------------------------------
+    ("GEVACHROME_23DIN_160ASA",    "23 DIN / 160 ASA (box speed)"),
+    ("GEVACHROME_26DIN_320ASA",    "26 DIN / 320 ASA (push 1)"),
+    # -- KODAK PORTRA 800 ----------------------------------------------------
+    ("PORTRA800_EI800",            "EI 800 (box speed)"),
+    ("PORTRA800_EI1600_PUSH1",     "EI 1600 (Push 1)"),
+    ("PORTRA800_EI3200_PUSH2",     "EI 3200 (Push 2)"),
+    # -- KODAK ULTRA COLOR 400UC ---------------------------------------------
+    # ⚠ FOUR RECORDS FOR TWO DEVELOPMENTS, and they are four variants and not
+    # two because the two SHEETS disagree: E-4035 and E-190 (2003) plot the
+    # same film at the same two exposure indexes and their traces differ. The
+    # pair is kept as a cross-check rather than averaged, so each sheet's
+    # reading is separately selectable and separately attributable.
+    ("ULTRA400UC_EI400_E4035",     "EI 400 (box speed) -- E-4035"),
+    ("ULTRA400UC_EI400_E190",      "EI 400 (box speed) -- E-190 (2003)"),
+    ("ULTRA400UC_EI800_E4035",     "EI 800 (Push 1) -- E-4035"),
+    ("ULTRA400UC_EI800_E190",      "EI 800 (Push 1) -- E-190 (2003)"),
+    # -- SUPER ANSCOCHROME 1957 ----------------------------------------------
+    # ⚠ THE LETTERS ARE GIFFORD & GERHARDT'S OWN, and B is the NORMAL
+    # development rather than A; the ladder is ordered by first-developer time
+    # in the enumeration so the list reads as a ladder rather than as the
+    # paper's lettering.
+    ("ANSCOCHROME_A_14MIN_EI80",   "A -- 14 min first developer, EI 80"),
+    ("ANSCOCHROME_B_16MIN_EI100",  "B -- 16 min first developer, EI 100"),
+    ("ANSCOCHROME_C_19MIN_EI150",  "C -- 19 min first developer, EI 150"),
+    ("ANSCOCHROME_D_22MIN_EI200",  "D -- 22 min first developer, EI 200"),
+)
+
+_PROCESS_VARIANT_IDS_SET = frozenset(k for k, _d in _PROCESS_VARIANT_IDS)
+
+#: The sentinel. Negative so that "nothing selected" can never collide with a
+#: real enumerator, and named for what it renders rather than for its value.
+PROCESS_VARIANT_AS_SHIPPED = -1
+
+#: Enumerator name -> its ProcessVariantCtrl value, in declaration order.
+PROCESS_VARIANT_VALUE: dict[str, int] = {
+    _k: _i for _i, (_k, _d) in enumerate(_PROCESS_VARIANT_IDS)}
+
+#: The total number of selectable developments. Mirrors TOTAL_PROCESSES.
+PROCESS_VARIANT_TOTAL = len(_PROCESS_VARIANT_IDS)
+
+
+
 @dataclass(frozen=True, slots=True)
 class ProcessVariant:
     """The SAME emulsion under a DIFFERENT PROCESSING CONDITION (schema v18,
@@ -4792,11 +5132,45 @@ class ProcessVariant:
     #: -- schema v26 (2026-09-05): int32 -> float, see the class docstring.
     push_stops: float = 0.0
     processing: ProcessingSpec = field(default_factory=lambda: ProcessingSpec())
+    #: -- schema v37 (2026-09-17): the variant's STABLE IDENTITY.
+    #: The enumerator name, without its `e` prefix, of this development in
+    #: `ProcessVariantCtrl` -- e.g. "AGFA_REFINAL", "PORTRA800_EI1600_PUSH1".
+    #:
+    #: ⚠⚠ IT EXISTS BECAUSE THE CONTROL STOPPED BEING AN INDEX. Until
+    #: 2026-09-17 the host selected a development by its POSITION in this
+    #: stock's own `process_variants` tuple, and `AlgoControls::processVariant`
+    #: was a bare int32. Position is not an identity: inserting a variant, or
+    #: re-ordering two, silently changes what every saved project selects, and
+    #: nothing in the engine could detect it because every index in range is a
+    #: legal index. The control is now the strongly typed `ProcessVariantCtrl`
+    #: and the resolver matches THIS field, so a saved value keeps meaning the
+    #: development it meant and an unknown one resolves to "as shipped"
+    #: instead of to whatever now sits at that position.
+    #:
+    #: ⚠ THE ENUMERATION IS THE AUTHORITY AND THIS FIELD POINTS AT IT, not
+    #: the other way round. `AlgoControlEnums.hpp` defines the enumerators,
+    #: their display strings and `TOTAL_PROCESSES`; `verify.py` asserts that
+    #: the set of ids used here is exactly the set the header declares, so the
+    #: two cannot drift in either direction.
+    variant_id: str = ""
     source: str = ""
 
     def validate(self, label: str = "") -> None:
         if not self.name:
             raise ValueError(f"{label}: ProcessVariant needs a name")
+        if not self.variant_id:
+            raise ValueError(
+                f"{label}: ProcessVariant {self.name!r} has no variant_id. "
+                "Every development must carry the enumerator name that "
+                "identifies it in ProcessVariantCtrl -- see _PROCESS_VARIANT_"
+                "IDS. A variant with no id cannot be selected, because the "
+                "control is an enumeration and no longer an index.")
+        if self.variant_id not in _PROCESS_VARIANT_IDS_SET:
+            raise ValueError(
+                f"{label}: ProcessVariant {self.name!r}: variant_id "
+                f"{self.variant_id!r} is not declared in "
+                "_PROCESS_VARIANT_IDS, which mirrors ProcessVariantCtrl in "
+                "AlgoControlEnums.hpp")
         if self.process not in _PROCESS_FAMILIES:
             raise ValueError(
                 f"{label}: ProcessVariant {self.name!r}: process "
@@ -4982,7 +5356,9 @@ class EmulsionSpec:
             (US3531290, USRE28258) permit, and it is why their +/-30 % and
             +/-40 % specifications land at 0.057 and 0.073 and not at the
             0.13 and 0.17 that a one-sigma reading would give.
-        habit: "cubic" | "octahedral" | "tabular" | "" (not stated).
+        habit: "cubic" | "octahedral" | "tabular" | "nontabular"
+            (three-dimensional, specific habit not stated by the
+            source) | "" (the source says nothing at all).
         aspect_ratio: Tabular grains only -- diameter over thickness. 0.0 =
             not applicable or not stated.
         iodide_mol_pct: AgI content. Raises intrinsic (blue) absorption:
@@ -6012,6 +6388,58 @@ class CoatingSpec:
                 "fields")
 
 
+@dataclass(frozen=True)
+class MeasuredEndpoints:
+    """D-min, D-max and gamma AS TRACED, in R/G/B order (2026-09-15b, INERT).
+
+    ⚠ THIS DOES NOT MOVE `SCHEMA_VERSION`, by the rule stated at the top of this
+    file: the version constant is a claim about the SHAPE of an emitted record,
+    and a Python-side side table changes no field, no offset and no byte of any
+    emitted struct. A v34 reader reads a v34-plus-this database correctly.
+
+    ⚠ WHY THIS EXISTS: A DERIVED DMAX IS NOT A MEASURED ONE. The database has
+    never had a place for a maximum density. `ToneCurve` stores dmin, gamma and
+    a shoulder, and Dmax comes out of evaluating that curve -- which means every
+    Dmax in this project is a CONSEQUENCE of a four-parameter fit rather than a
+    reading. When a source prints the curve and the curve is traced, the top of
+    the trace is a measurement, and throwing it away because the schema was
+    built around a fit is the wrong way round: the implementation adapts to the
+    data.
+
+    ⚠ IT IS A SIDE TABLE AND NOT A `FilmProfile` FIELD, DELIBERATELY. A new
+    profile field crosses into the C++ emitter, the 24 data slots and the
+    completeness guards, and nothing on the render path reads a measured
+    endpoint yet. The side table is the pattern this file already uses for
+    exactly this case -- `_PROVENANCE_SOURCES`, `_DMIN_LADDER`, `_PROCESSING` --
+    and it preserves the measurement at full precision today without asserting
+    a wiring that does not exist.
+
+    ⚠ WHAT `dmax` MEANS HERE, PRECISELY: the median of the highest samples of
+    the traced record, at the RIGHT-HAND END of the printed exposure axis. It
+    is therefore the density the film reached AT THE MAXIMUM EXPOSURE THE PANEL
+    PLOTS, not an asymptote -- `log_e_span` records how many decades that was,
+    so nobody can mistake one for the other. `gamma` is the steepest sustained
+    slope over a 0.60-decade window, the same estimator the development
+    families use.
+    """
+
+    dmin: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    dmax: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    gamma: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: Decades of log exposure the traced record actually spans.
+    log_e_span: float = 0.0
+    #: Page of the source document the panel is printed on.
+    page: int = 0
+    #: How the numbers were obtained, so a reading is never mistaken for a fit.
+    method: str = "traced_raster"
+    #: Evidence tier, on the corpus's own scale.
+    tier: str = "T2"
+    source: str = ("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                   "обработка» -- «Характеристические кривые», traced from the "
+                   "embedded bitmap and re-derived on every build by "
+                   "sovremennye_2004.py")
+
+
 @dataclass(frozen=True, slots=True)
 class FilmProfile:
     """Complete description of one film stock.
@@ -6163,6 +6591,34 @@ class FilmProfile:
     temporal: TemporalSpec = field(default_factory=TemporalSpec)
     reciprocity: ReciprocitySpec = field(default_factory=ReciprocitySpec)
     aging: AgingSpec = field(default_factory=AgingSpec)
+    # -- schema v35 (2026-09-16), INERT --------------------------------------
+    #: Published dark-fade RATE: how long a stated dye loss takes at a stated
+    #: storage temperature. See `DyeStabilitySpec` for why this is not part of
+    #: `aging` -- that struct holds a STATE (how much fade this piece of film
+    #: has already suffered, all zeros meaning fresh) and this one a RATE, and
+    #: converting between them needs an elapsed time no renderer here has.
+    #:
+    #: ⚠⚠ THE STRUCT EXISTED SINCE v12 AND WAS REACHABLE ONLY FROM
+    #: `PrintStock`, WHICH WAS AN ACCIDENT OF WHICH SOURCE LANDED FIRST. It was
+    #: added for H-1-2254, a digital-intermediate recording film, and that
+    #: stock is modelled here as a print stock -- so the carrier was put where
+    #: that one document needed it and nowhere else. Nothing about a dark-fade
+    #: rate is specific to a positive material: a colour NEGATIVE fades in
+    #: storage too, and it is the negative's fade that decides what a scan of
+    #: a thirty-year-old roll looks like. The gap surfaced the moment a source
+    #: for camera negatives arrived (Wilhelm's Table 19.1, which tabulates
+    #: twelve Kodak colour negative films at four storage temperatures) and
+    #: there was no field on `FilmProfile` to receive it.
+    #:
+    #: ⚠ INERT, AND THE PATH TO MAKING IT OTHERWISE IS SHORT. `AgingSpec`
+    #: already carries `dye_fade_c/m/y` as fractions, and the first-order law
+    #: that connects them is one line: a stock losing 10 % of its yellow dye in
+    #: T years has lost 1 - 0.9**(t/T) of it after t years. What is missing is
+    #: not the model but the INPUT -- no render setting states a storage age --
+    #: so the rate is stored and the conversion is left to whatever eventually
+    #: asks for it.
+    dye_stability: DyeStabilitySpec = field(
+        default_factory=DyeStabilitySpec)
     # -- schema v6 (2026-08-14) ------------------------------------------
     #: Manufacturer exposure index under TUNGSTEN, where the source prints
     #: one alongside the daylight figure. 0 = not stated.
@@ -6337,6 +6793,14 @@ class FilmProfile:
     dye_density: SpectralDyeDensity = field(default_factory=SpectralDyeDensity)
     layer_stack: LayerStack = field(default_factory=LayerStack)
     processing_family: ProcessingFamily = field(default_factory=ProcessingFamily)
+    #: Directly traced D-min, D-max and gamma. ⚠ A PROFILE FIELD AND NOT A
+    #: LOOKUP TABLE: a measured endpoint belongs to ONE film, so the link is
+    #: one-to-one and the data belongs on the record it describes. It was
+    #: briefly held in a module-level dict beside `_PROVENANCE_SOURCES`;
+    #: that kept it out of the emitted database and therefore out of reach
+    #: of the engine, which is the wrong place for a measurement.
+    measured_endpoints: MeasuredEndpoints = field(
+        default_factory=MeasuredEndpoints)
     reciprocity_table: ReciprocityTable = field(default_factory=ReciprocityTable)
     # -- schema v15 (2026-08-26), INERT --------------------------------------
     print_grain_index: PrintGrainIndex = field(
@@ -7020,6 +7484,141 @@ def _rev(
 # THE STOCK DATABASE
 # All numeric values are estimates; see the CALIBRATION HONESTY NOTE above.
 # ===========================================================================
+
+
+# ===========================================================================
+#  EASTMAN COLOR HIGH-SPEED NEGATIVE FILM 5293, 1982 -- queue P67
+# ===========================================================================
+# ⚠⚠ TWO FILMS, ONE CODE, AND THEY MUST NOT BE MERGED. Eastman used 5293
+# twice: EASTMAN COLOR HIGH-SPEED NEGATIVE 5293 of 1982 at EI 250T, on
+# conventional polydisperse three-dimensional silver-halide crystals, and
+# EASTMAN EXR 200T 5293 of 1992 at EI 200T, on EXR tabular grains. Ten years
+# and one emulsion technology apart. `EASTMAN_EXR_200T_5293` holds the 1992
+# sheet and its description has warned about the code reuse since it was
+# written; this block adds the 1982 film beside it as a separate profile.
+#
+# EVERY PLOTTED NUMBER BELOW IS RE-DERIVED BY `kodak_5293_1982.py` ON EVERY
+# BUILD from the nine-page raster scan, which is what licenses tier 1 on a
+# 1982 journal half-tone. The reader has no text layer to fall back on -- the
+# file has none -- so it calibrates from tick-label centroids against axis
+# values transcribed by eye, exactly as `kodak_1956_trace.py` does.
+_K5293_1982_SOURCE = (
+    "G. L. Kennel, R. C. Sehlin, F. R. Reinking, S. W. Spakowsky and G. L. "
+    "Whittier (all Eastman Kodak Company, Rochester), \u00abEastman Color "
+    "High-Speed Negative Film 5293\u00bb, SMPTE Journal vol. 91 no. 10, October "
+    "1982, pp. 922-930. \u26a0 TIER T1: Kodak's own staff publishing Kodak's own "
+    "laboratory measurements of Kodak's own film, received by the Journal 30 "
+    "July 1982. \u26a0\u26a0 AND THE PAPER CHECKS ITS OWN TRACES. Every figure "
+    "plots 5293 beside 5247, and the body text makes three quantitative "
+    "claims about that pair: 5293 is \"one-and-one-third stops (0.40 log E) "
+    "faster\", it has \"the same contrast and latitude\", and \"the MTF's and "
+    "resolving powers of the two films are similar\". The first two are a "
+    "horizontal displacement and a slope -- independent of each other, and "
+    "exactly the two quantities a mis-calibrated axis gets wrong. The traced "
+    "displacement is 0.43-0.47 log E and the traced gammas differ by at most "
+    "0.025, so the calibration is confirmed by the source rather than "
+    "asserted by the reader; `kodak_5293_1982.py` FAILS the build if either "
+    "drifts. A third check is free: Fig. 12 redraws the normally-processed "
+    "5293 curves that Fig. 4 already showed, five pages and one axis "
+    "calibration later, and the two traces agree to 0.009 of density.")
+
+# ⚠⚠ THE OWNER'S T2/T3 BLOCK, HELD AS SUPPLIED AND MARKED WHERE THE PAPER
+# CONTRADICTS IT. It was supplied on 2026-09-17 as a temporary source while
+# official Kodak documentation for the 1982 film is still being looked for,
+# with the instruction that it must be kept with its tier rather than
+# discarded, and must not override higher-authority data. Both halves of that
+# instruction are executed here: what the paper measures wins, what the paper
+# is silent about is taken from this block, and the disagreements are recorded
+# instead of being quietly resolved.
+_K5293_1982_T3 = (
+    "OWNER-SUPPLIED COMPARISON OF THE TWO 5293 GENERATIONS, 2026-09-17, tier "
+    "T3 (undocumented secondary), held pending official Kodak documentation "
+    "for the 1982 emulsion. As supplied: 1982 EI 250T (160 D through a "
+    "Wratten 85) against 1992 EXR EI 200T (125 D); polydisperse 3-D crystals "
+    "against T-Grain tabular; diffuse RMS granularity 10.0 against 5.0; "
+    "emulsion pack ~16-18 um against ~11-12 um; MTF 50 % at 25-30 lp/mm "
+    "against 45-50; a long gentle shoulder against a steeper working slope "
+    "and a harder rolloff; blue D-min 0.90-1.05 against 0.80-0.88. "
+    "\u26a0 WHAT THE 1982 PAPER CONFIRMS: the EI of 250 (stated in words, "
+    "twice), the conventional non-tabular emulsion (the paper's whole speed "
+    "argument is \"larger grain silver-halide emulsions in the fast layers\", "
+    "and EXR tabular technology did not exist in 1982), the blue D-min "
+    "(traced 0.962, inside the quoted 0.90-1.05) and the granularity figure "
+    "of 10 (traced 10.8 at density 1.0 off Fig. 13, against 8.2 for 5247 in "
+    "the same frame). "
+    "\u26a0\u26a0 WHAT THE 1982 PAPER CONTRADICTS, AND THE PAPER WINS. The T3 "
+    "block puts the 1982 film's MTF 50 % at 25-30 lp/mm; Kodak's own Fig. 14 "
+    "traces 41.5 cycles/mm for 5293 and 43.6 for 5247, and Kodak's own "
+    "Table 2 prints the SAME resolving power for both films -- 50 lines/mm at "
+    "1.6:1 and 100 lines/mm at 1000:1 -- beside the sentence \"the MTF's and "
+    "resolving powers of the two films are similar\". The stored MTF is "
+    "therefore the traced 41.5 and NOT the T3 figure. The T3 block's "
+    "granularity ratio is likewise overstated: it reads 10.0 against 5.0, "
+    "where the paper puts 5293 and 5247 within 30 % of each other at every "
+    "density and says in words that \"the granularity of 5293 film is very "
+    "similar to that of 5247 film\". \u26a0 NEITHER DISAGREEMENT IS AVERAGED "
+    "AND NEITHER SIDE IS DELETED: the paper's numbers are stored, the T3 "
+    "figures are kept here, and if official Kodak documentation later "
+    "supports the T3 reading it can be revisited against this record. "
+    "\u26a0 WHAT THE PAPER IS SILENT ABOUT AND THIS BLOCK SUPPLIES: the "
+    "emulsion pack thickness of 16-18 um, the daylight rating of 160 through "
+    "a Wratten 85, and the qualitative shape of the shoulder -- all three are "
+    "stored with tier 3 and status 'stated' or 'estimated' in "
+    "`_K5293_1982_PARAMS`, because a gap left open is no more honest than a "
+    "sourced estimate and is less useful.")
+
+#: Fig. 5, both films where they coincide. 350 nm, 10 nm step, 36 values,
+#: EACH RECORD NORMALISED TO ITS OWN PEAK AT 0.0 as the schema requires.
+#: ⚠ THAT NORMALISATION DISCARDS THE ONE THING THE FIGURE SHOWS BETWEEN
+#: RECORDS -- their relative heights -- so it is recorded here instead of
+#: being lost: the traced peaks are blue 2.319, green 1.766 and red 1.549 on
+#: the paper's own uncalibrated ordinate, at 357, 553 and 643 nm.
+#: -4.0 is the project's floor and means the record is below the frame there,
+#: not that the layer is blind: the paper states outright that the red- and
+#: green-sensitive emulsions "retain some of their intrinsic sensitivity to
+#: blue light", which is why a yellow filter layer is coated above them.
+_K5293_SENS_R = (
+    -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4,
+    -4, -4, -4, -4, -4, -4, -0.793, -0.542, -0.414, -0.24, -0.067, 0,
+    -0.059, -0.317, -0.651, -1.552, -2.121, -4
+)
+_K5293_SENS_G = (
+    -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -0.655,
+    -0.69, -0.522, -0.307, -0.068, 0, -0.011, -0.041, -0.151, -0.778,
+    -1.738, -2.54, -4, -4, -4, -4, -4, -4, -4, -4, -4
+)
+_K5293_SENS_B = (
+    -4, 0, -0.012, -0.027, -0.045, -0.072, -0.137, -0.22, -0.278, -0.312,
+    -0.408, -0.488, -0.622, -0.816, -1.03, -1.314, -1.697, -2.215, -2.767,
+    -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4, -4
+)
+
+#: Fig. 7, the 5293 set, normalised to a peak of 1.0 as the figure's own
+#: ordinate is ("NORMALIZED DENSITY-STAIN"). 400 nm, 10 nm step, 36 values.
+#: Traced peaks: yellow 450, magenta 546, cyan 682 nm -- and the cyan peak is
+#: the one difference the paper names between the two films' dye sets, 5293's
+#: sitting "at a slightly shorter wavelength" than 5247's. A zero means the
+#: figure does not plot that dye there, not a measured zero.
+_K5293_DYE_C = (
+        (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0.0498, 0.0961,
+         0.1837, 0.299, 0.4218, 0.538, 0.6387, 0.7364, 0.8244, 0.8743,
+         0.9369, 0.9774, 0.9985, 0.9971, 0.9703, 0.9219, 0.8556, 0.7728,
+         0.6771, 0.5673)
+)
+_K5293_DYE_M = (
+        (0, 0, 0, 0, 0, 0, 0.0449, 0.1081, 0.2005, 0.3192, 0.472, 0.6418,
+         0.7974, 0.9248, 0.9913, 0.9923, 0.9313, 0.8184, 0.6527, 0.4874,
+         0.3504, 0.2396, 0.1781, 0.1329, 0.1028, 0.0789, 0.0621, 0.0495,
+         0.0411, 0.0354, 0, 0, 0, 0, 0, 0)
+)
+_K5293_DYE_Y = (
+        (0.4921, 0.6386, 0.791, 0.9253, 0.99, 1.0045, 0.9567, 0.8469,
+         0.7201, 0.5797, 0.4492, 0.3479, 0.2868, 0.248, 0.2222, 0.203,
+         0.1819, 0.1489, 0.1264, 0.0938, 0.0666, 0.0456, 0.0336, 0, 0, 0,
+         0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+)
+
+
 FILM_PROFILES: tuple[FilmProfile, ...] = (
     FilmProfile(
         name="AGFA_NEU_1936",
@@ -7223,6 +7822,20 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
                     mtf_rolloff_q=2.27, mtf_measured=True),
         spectral_weights=(0.28, 0.56, 0.16),
         misregistration_um=0.0,
+        # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
+        # 61 points, 6 developers, 18/20/22/24 degC, from
+        # «Современные фотоматериалы и их обработка» pp.133.
+        # ⚠ NO GAMMA: these tables print development TIMES and no contrast
+        # anywhere near them. They are stored regardless, because Development
+        # TEMPERATURE has no other source in this corpus -- every
+        # contrast-carrying point in the database is at a single temperature.
+        # `verify.py` counts contrast-carrying and time-only points
+        # separately so neither can be read as the other.
+        # ⚠ CROSS-CHECK, AND IT IS PHYSICS: within one printed row the time
+        # must FALL as the temperature rises and must not fall by more than a
+        # factor of four across the span. 1507 values parsed, 793 kept.
+        # The refused ones are almost all a two-film table split between its
+        # films wrongly, which shows as one temperature twice in a row.
         default_format="ff35",
         # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
         # SUPPORTS. Agfa print 'Total layer thickness (without base)'
@@ -7521,6 +8134,19 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
                 DevelopmentPoint(developer='REFINAL', dilution='stock',
                                  minutes=4.0, celsius=24.0,
                                  gamma=0.65, vessel='tank'),
+                # ⚠ «Современные фотоматериалы и их обработка» p.133 PRINTS A
+                # DEVELOPMENT TABLE FOR THIS STOCK AND NONE OF IT IS STORED HERE,
+                # WHICH IS PRECEDENCE WORKING RATHER THAN DATA BEING LOST. The
+                # Agfa rows above are the MANUFACTURER's own, they already carry
+                # the 18 / 20 / 22 / 24 degC axis, and they carry a CONTRAST with
+                # every time. The book restates the same conditions with no
+                # contrast, so adopting it would replace a higher-tier
+                # measurement with a lower-tier one and would put two times
+                # against one condition. Every parsed value is kept in
+                # doc/PROCESSING_TABLES_2004.md, marked SUPERSEDED with the
+                # reason, so the reading is recoverable without being asserted.
+                # ⚠ APX 100 IS THE ONLY STOCK IN THIS BATCH WHERE THAT APPLIES:
+                # the other six had no processing row at all.
             ),
             source=('Agfa-Gevaert, «Technical Data P-16-C -- AGFA Black and '
                     'White Chemicals, Film Processing», 08/1999 -- '
@@ -12232,6 +12858,148 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0691, adjacency_um=32.1,
         mtf=MTFSpec(95.0, 95.0, 95.0, adjacency=0.14, adjacency_um=11.0),
         spectral_weights=(0.27, 0.55, 0.18),
         misregistration_um=0.0,
+        # ⚠ TIME AGAINST DEVELOPER, TEMPERATURE **AND EXPOSURE INDEX** --
+        # 39 points from «Современные фотоматериалы и их обработка» pp.412.
+        # The only family in this database whose rows carry an EI: Fuji
+        # tabulates ACROS at EI 80/EI 100/EI 200, so each row says how long to develop
+        # for a given rating rather than only for a given temperature.
+        # ⚠ THIS TABLE WAS LOST FOR A DAY TO A ONE-LINE PARSER DEFECT, and
+        # the defect is worth recording because the cross-check is what
+        # caught it. The EI column header is matched with an anchored
+        # pattern (`^EI$`, because EI is two letters and would otherwise
+        # match inside words), and the parser was testing it against the
+        # header lines JOINED into one string, where an anchor can never
+        # fire. The column went undetected, EI 100 was read as a 100-minute
+        # development, and every temperature shifted one place. Nothing
+        # corrupt was stored: 100 falling to 9.75 is a ratio of ten against
+        # a limit of four, so the physical check refused the whole table --
+        # and a refused table is exactly what a silent corruption would
+        # NOT have looked like.
+        # Time only: these tables print no contrast.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=12.00, celsius=18.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=10.00, celsius=20.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.50, celsius=22.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=24.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.00, celsius=26.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=13.00, celsius=18.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.50, celsius=20.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.75, celsius=22.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=7.25, celsius=24.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=6.25, celsius=26.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=18.0, vessel='large tank',
+                                 exposure_index=80),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.50, celsius=20.0, vessel='large tank',
+                                 exposure_index=80),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.75, celsius=22.0, vessel='large tank',
+                                 exposure_index=80),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.25, celsius=24.0, vessel='large tank',
+                                 exposure_index=80),
+                DevelopmentPoint(developer='ID-11', dilution='stock',
+                                 minutes=8.00, celsius=18.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='ID-11', dilution='stock',
+                                 minutes=6.75, celsius=20.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='ID-11', dilution='stock',
+                                 minutes=5.75, celsius=22.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='ID-11', dilution='stock',
+                                 minutes=4.75, celsius=24.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='ID-11', dilution='stock',
+                                 minutes=4.00, celsius=26.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Microdol-X', dilution='stock',
+                                 minutes=13.50, celsius=18.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Microdol-X', dilution='stock',
+                                 minutes=11.50, celsius=20.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Microdol-X', dilution='stock',
+                                 minutes=9.75, celsius=22.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Microdol-X', dilution='stock',
+                                 minutes=8.25, celsius=24.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Microdol-X', dilution='stock',
+                                 minutes=7.00, celsius=26.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Perceptol', dilution='stock',
+                                 minutes=15.50, celsius=18.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Perceptol', dilution='stock',
+                                 minutes=12.50, celsius=20.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Perceptol', dilution='stock',
+                                 minutes=10.00, celsius=22.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Perceptol', dilution='stock',
+                                 minutes=8.00, celsius=24.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='Perceptol', dilution='stock',
+                                 minutes=6.50, celsius=26.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=9.50, celsius=18.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=8.00, celsius=20.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=4.75, celsius=26.0, vessel='large tank',
+                                 exposure_index=200),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=6.25, celsius=18.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=5.25, celsius=20.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.50, celsius=22.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.75, celsius=24.0, vessel='large tank',
+                                 exposure_index=100),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.25, celsius=26.0, vessel='large tank',
+                                 exposure_index=100),
+            ),
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», pp.412 -- «Проявление фотопленки Neopan 100 "
+                    "Acros», developer x EI x temperature. TIME ONLY."),
+        ),
         default_format="ff35",
         # Spectral curve source: Fuji Photo Film Co., Ltd., "NEOPAN 100
         # ACROS" data sheet, Ref. No. AF3-095E, section 12 "SPECTRAL
@@ -14595,8 +15363,8 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0691, adjacency_um=32.1,
     # Agfa and later ORWO. Domestic manufacture began only in 1960, when
     # Hindustan Photo Films opened at Ootacamund and began producing "Indu"
     # branded stock under Bell & Howell licence; that is just outside the
-    # window you asked about, so the three entries here are the imports that
-    # were actually threaded through Indian cameras in that period.
+    # window this group covers, so the three entries here are the imports
+    # that were actually threaded through Indian cameras in that period.
     FilmProfile(
         name="GEVACOLOR_1952",
         aliases=("gevacolor", "geva", "gevacolor 1952"),
@@ -16548,9 +17316,9 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         aliases=("lumiere", "lumichrome", "lumiere lumichrome"),
         description=(
             "[T3] Lumiere B&W negative, Lyon, around EI 40. The most speculative "
-            "profile in this database and flagged accordingly -- I have no "
-            "datasheet for it, only the general behaviour of French B&W negative "
-            "of the period. Lumiere manufactured independently until Ilford "
+            "profile in this database and flagged accordingly -- no datasheet "
+            "is known for it, and the figures follow the general behaviour of "
+            "French B&W negative of the period. Lumiere manufactured independently until Ilford "
             "absorbed the company in 1961, and their emulsions had a reputation "
             "for a soft, long-scale rendering quite unlike the contrastier "
             "German and British stocks. Treat the numbers as a plausible French "
@@ -16627,23 +17395,276 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         features=Feature.HALATION | Feature.UNEVEN_EMULSION,
     ),
     FilmProfile(
-        name="ORWOCOLOR_NC24",
-        aliases=("nc24", "nc-24", "orwocolor nc24", "orwo nc 24"),
+        name="ORWOCOLOR_NC3",
+        aliases=("nc3", "nc 3", "nc-3", "orwocolor nc3", "orwo nc 3",
+                 "orwocolor nc 3"),
         description=(
-            "[T3] ORWO colour negative, modelled as a later and faster member "
-            "of the NC family than the NC 21 already in this database. HONEST "
-            "CAVEAT: I could not confirm 'NC 24' as a shipped ORWO product "
-            "designation. The documented NC series runs NC 3, NC 5, NC 16, "
-            "NC 19, NC 21. If you have a real speed or datasheet for NC 24, "
-            "give it to me and I will refit; until then this is a family "
-            "interpolation, not a product. Built as EI 160 with the ORWO house "
-            "signature intact: heavy orange mask residue, very impure dyes (the "
-            "largest positive dye_matrix in the set after Gevacolor), weak "
-            "couplers, soft MTF and coarse grain -- but a step cleaner and "
-            "faster than NC 21, as later production generally was."
+            "[T1] ORWOCOLOR-Negativfilm NC 3, VEB Filmfabrik Wolfen, 1972. "
+            "The GDR's first masked cine colour negative and the "
+            "best-evidenced ORWO stock in this database: curves, modulation "
+            "transfer, granularity, sharpness and a development-time family "
+            "all come from the manufacturer's own paper, published the year "
+            "the film shipped. 19 DIN (ISO 64), balanced for tungsten 3200 K "
+            "like every Wolfen colour cine negative; daylight use takes the "
+            "ORWO K 14 conversion filter at a cost of 2 DIN. Replaced the "
+            "unmasked NC 1 at double its speed. Processed in ORWO "
+            "Verarbeitungsvorschrift 5186 -- colour developer ORWOCOLOR 11 "
+            "for 6-7 min at 20 degC, bleach ORWOCOLOR 55, fixer ORWOCOLOR 73."
         ),
-        era="1980s-1990s",
-        exposure_index=160,
+        # ⚠ EVERY PLOTTED NUMBER BELOW IS RE-DERIVED BY `orwo_nc3_1972.py` ON
+        #   EVERY BUILD, which is what licenses a [T1] tier on a stock whose
+        #   figures come off a 1972 half-tone rather than a modern datasheet.
+        #   Johann Tamm and Joachim Weisflog, VEB Filmfabrik Wolfen --
+        #   Fotochemisches Kombinat, «NC 3 - ein neuer Color-Negativfilm»,
+        #   BILD UND TON Heft 11/1972, 25. Jahrgang, pp. 341-344; file
+        #   PDF/PROFILES/ORWO/Tamm_Weisflog_NC3_1972.pdf.
+        #
+        #   All four pages are single embedded bitmaps with no vector paths, so
+        #   the reader calibrates geometrically off the printed ticks and
+        #   asserts four things it was not told:
+        #     - the curve D-mins order blue > green > red, which the orange
+        #       mask requires and which is what names the three unlabelled
+        #       strokes in Bild 5;
+        #     - the f50s order blue > green > red, matching Tabelle 2's k-Zahlen
+        #       of 42 / 60 / 85 um -- a SECOND, independent naming of the same
+        #       three strokes in Bild 7, by sharpness rather than by density;
+        #     - Bild 7's ordinate, fitted on its only two ticks, extrapolates to
+        #       M = 0 exactly on the abscissa stroke;
+        #     - the traced green gradation at 6.5 min is 0.559 against the
+        #       0.55 the running text prints for the 6-7 min standard
+        #       development, which ties the plot to the prose.
+        #
+        # ⚠ THE TIER IS 1 FOR WHAT IS PLOTTED AND NOT FOR WHAT IS NOT. Spectral
+        #   sensitisation (Bild 2) and image-dye density (Bild 4) are printed
+        #   and are NOT read here -- see NotFound.md. The dye matrix, coupler
+        #   and interimage figures are the ORWO house estimates this profile
+        #   inherits from its siblings and remain [T3].
+        era="1972-1990",
+        kind=StockKind.NEGATIVE,
+        # 19 DIN = ISO 64, stated in the opening paragraph and again in
+        # Kaufmann's house timeline. Tungsten, as the sheet says outright:
+        # "wie alle Colornegativ-Kinefilme, auf Kunstlicht 3200 K abgestimmt".
+        exposure_index=64,
+        balance_kelvin=3200,
+        # Bild 5, fitted to film_sim.density -- the SHIPPED curve model, not a
+        # spline, so the residual answers whether the engine can express this
+        # stock at all. rms 0.0409 / 0.0363 / 0.0376 D on a 1.6 D span.
+        #
+        # ⚠ THE FIT IS CONSTRAINED, AND THE VALIDATOR IS WHY. Left free it
+        #   reaches rms 0.002-0.007 D and `ToneCurve.validate` REFUSES the
+        #   result: it parks the shoulder at lg H 0.3, inside the plotted
+        #   range, with a shoulder_k four times the toe_k, and the curve then
+        #   dips 0.018 D below its own D-min before the toe. So shoulder_k is
+        #   tied to toe_k, the shoulder is pinned at the edge of the evidence
+        #   -- NC 3's plot ends at lg H +1.0 and draws no shoulder at all --
+        #   and D-min is held at or just under the lowest density drawn. Five
+        #   times the residual, in exchange for a curve that is monotonic.
+        #
+        # ⚠ THE STORED D-MIN IS THE MODEL ASYMPTOTE, NOT THE TRACED FLOOR.
+        #   Traced floors are 0.951 / 0.457 / 0.257 at lg H -2.5; the fitted
+        #   asymptotes sit 0.08-0.10 D under them, which is what a softplus toe
+        #   approaching its own base does. The ORDERING is what carries the
+        #   evidence, and it survives: blue > green > red, as the orange mask
+        #   requires.
+        curves=RGBCurves(
+            r=ToneCurve(0.1730, 0.5720, -2.1300, 0.3330, 1.0000, 0.3330),
+            g=ToneCurve(0.3570, 0.5200, -2.2900, 0.3390, 1.0000, 0.3390),
+            b=ToneCurve(0.8510, 0.5290, -2.4400, 0.3230, 1.0000, 0.3230),
+        ),
+        # Tabelle 1, RMS granularity at D = 1.0: blau 28, gruen 25, rot 28.
+        # ⚠ PRINTED, NOT TRACED -- the only ORWO granularity MEASUREMENT in the
+        #   corpus; every other ORWO stock carries a heuristic triple.
+        #
+        # ⚠⚠ AND IT IS RESTATED FOR THE SCHEMA'S APERTURE, WHICH IS NOT THE
+        #   PAPER'S. Section 5.1 measures through a microphotometer aperture of
+        #   0.30 with a round measuring area of 24 um DIAMETER. This schema's
+        #   `rms_granularity` is defined at 48 um, the Kodak convention all 184
+        #   other stocks use. Selwyn's law makes sigma scale as 1/sqrt(area),
+        #   so a round aperture of half the diameter reads exactly TWICE the
+        #   sigma: 28 / 25 / 28 at 24 um becomes 14.0 / 12.5 / 14.0 at 48 um.
+        #   Storing the printed figures raw would have made NC 3 look twice as
+        #   grainy as its neighbours for no physical reason.
+        #   `rms_aperture_um` stays at the schema default of 48 because the
+        #   stored numbers are now on that basis; the 24 um originals are in
+        #   this comment and in `orwo_nc3_1972.RMS_GRANULARITY`.
+        grain=GrainSpec(12.5, 4.72, 5.04, 5.98, clump_gain=1.22, fog_grain=0.26,
+                        anisotropy=1.06,
+                        rms_r=14.0, rms_g=12.5, rms_b=14.0),
+        # Bild 7 f50, and the resolving power printed in section 5.3.
+        # ⚠ f50 MUST SIT WELL BELOW THE LIMITING RESOLUTION and does: 18.8
+        #   against 85 L/mm. The reader asserts it.
+        # ⚠ THE ROLLOFF IS FITTED, NOT ASSUMED, and it is the flattest in the
+        #   database. `orwo_nc3_1972.fit_rolloff` solves q in the shipped law
+        #   1/(1+(f/f50)^q) with f50 held at the traced value, and returns
+        #   1.434 blue / 1.584 green / 1.473 red, rms 0.057 / 0.015 / 0.096.
+        #   MTFSpec holds one q, so the mean 1.50 is stored and the spread is
+        #   here. Against 2.27-2.88 on the modern traced stocks that is a much
+        #   longer tail, which is what a 1972 emulsion with a printed limiting
+        #   resolution of 85 L/mm should look like -- the softness is in the
+        #   f50 triple and the SHAPE is separately soft as well.
+        mtf=MTFSpec(7.6, 10.7, 18.8, adjacency=0.02,
+                    resolving_power_lp_mm_highc=85.0,
+                    mtf_rolloff_q=1.50, mtf_measured=True),
+        couplers=CouplerSpec(0.05, 76.0),
+        dye_matrix=_dye(0.32),
+        base_tint=(0.968, 1.000, 0.952),
+        misregistration_um=10.0,
+        # ⚠ THE PROCESSING ROW IS IN `_PROCESSING`, NOT HERE. A literal put on
+        #   this profile is DISCARDED IN SILENCE: the schema pass assigns
+        #   `processing=_PROCESSING.get(p.name, ProcessingSpec())`
+        #   unconditionally, which is the same defect class already recorded
+        #   for `aim_density`, `reciprocity` and `exposure_index_tungsten`.
+        #   Tabelle 3's row is entered in that dict instead.
+        # ⚠ THE FIRST COLOUR STOCK IN THIS DATABASE WITH A DEVELOPMENT-TIME
+        #   FAMILY. All twelve others are black-and-white, and the axis this
+        #   supplies is the one `h24_variations.py` could not deliver: of the
+        #   six H-24 Module 8 figures it digitises, the time and temperature
+        #   panels are precisely the two that fail its HD-LD identity gate.
+        #
+        # ⚠ IT STORES THE GREEN RECORD AND ONLY THE GREEN RECORD, because
+        #   `DevelopmentPoint` has no channel field. Bild 6 plots all three,
+        #   labelled in the drawing, and green is the record the paper itself
+        #   uses as the reference gradient in section 4.1. Blue runs about
+        #   0.05 steeper and red about 0.03 steeper at every time; the three
+        #   slopes are 0.098 / 0.084 / 0.081 per minute and the reader asserts
+        #   they stay parallel to within 20 per cent. Storing green alone
+        #   understates the blue record's development sensitivity, and that is
+        #   a schema limit rather than a reading.
+        #
+        # ⚠ CONTRAST_INDEX, NOT GAMMA. Bild 6's ordinate is "Gradation" as
+        #   measured by the Behrendt colour-density method, an AVERAGE
+        #   gradient. The paper prints the conversion in the same breath: 0.55
+        #   Behrendt corresponds to 0.62 under TGL-conformant densitometry, so
+        #   the two scales are not interchangeable and the stored figures are
+        #   Behrendt throughout.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="ORWOCOLOR 11", dilution="",
+                                 minutes=6.0, celsius=20.0,
+                                 contrast_index=0.518, exposure_index=64),
+                DevelopmentPoint(developer="ORWOCOLOR 11", dilution="",
+                                 minutes=6.5, celsius=20.0,
+                                 contrast_index=0.559, exposure_index=64),
+                DevelopmentPoint(developer="ORWOCOLOR 11", dilution="",
+                                 minutes=7.0, celsius=20.0,
+                                 contrast_index=0.600, exposure_index=64),
+                DevelopmentPoint(developer="ORWOCOLOR 11", dilution="",
+                                 minutes=7.5, celsius=20.0,
+                                 contrast_index=0.639, exposure_index=64),
+                DevelopmentPoint(developer="ORWOCOLOR 11", dilution="",
+                                 minutes=8.0, celsius=20.0,
+                                 contrast_index=0.681, exposure_index=64),
+                DevelopmentPoint(developer="ORWOCOLOR 11", dilution="",
+                                 minutes=8.5, celsius=20.0,
+                                 contrast_index=0.722, exposure_index=64),
+                DevelopmentPoint(developer="ORWOCOLOR 11", dilution="",
+                                 minutes=9.0, celsius=20.0,
+                                 contrast_index=0.763, exposure_index=64),
+            ),
+            source=("Tamm & Weisflog, «NC 3 - ein neuer Color-Negativfilm», "
+                    "BILD UND TON 11/1972 pp341-344, Bild 6 "
+                    "«Entwicklungskinetik», GREEN record, traced by "
+                    "orwo_nc3_1972.py. Ordinate is Behrendt colour-density "
+                    "Gradation, not TGL gamma -- the text gives 0.55 Behrendt "
+                    "= 0.62 TGL at the 6-7 min standard development of "
+                    "Verarbeitungsvorschrift 5186. The trace returns 0.559 at "
+                    "6.5 min against the printed 0.55, which is the panel's "
+                    "own validation against the running text"),
+        ),
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="ORWOCOLOR_NC19",
+        aliases=("nc19", "nc-19", "orwocolor nc19", "orwo nc 19", "orwo nc-19"),
+        description=(
+            "[T3] ORWOCOLOR-Negativfilm NC 19 Mask, VEB Filmfabrik Wolfen. "
+            "Introduced 1969 at 19/18 DIN, MASKED, and balanced for daylight "
+            "AND tungsten (T + K); an improved type followed in 1972. 19 DIN "
+            "is ISO 64. The slower of the two NC stocks in this database. "
+            "⚠ RE-DESIGNATED 2026-09-15 FROM AN INVENTED 'NC 24': the previous "
+            "designation was confirmed by no source and its EI 160 was a "
+            "family interpolation rather than a product. THE IMAGE-FORMING "
+            "PARAMETERS ARE UNCHANGED AND REMAIN [T3] -- only the name, the "
+            "two speeds, the era and the process are evidenced. Retains the "
+            "ORWO house signature: heavy orange mask residue, very impure dyes "
+            "(the largest positive dye_matrix in the set after Gevacolor), "
+            "weak couplers, soft MTF and coarse grain. Processed in C-5168, "
+            "ORWO's own colour-negative chemistry, NOT in C-41 -- developing "
+            "it in C-41 is a cross-process and is documented as giving a "
+            "different result."
+        ),
+        # ⚠ THE DESIGNATION IS THE DIN SPEED, AND A WOLFEN SOURCE PROVES IT.
+        #   Siegfried Kaufmann, «Vom ersten Farbumkehrfilm zum Orwochrom-
+        #   System», VEB Filmfabrik Wolfen, PDF/PROFILES/ORWO/Kaufmann_ORWO.pdf
+        #   p2, prints the house product timeline with a DIN rating against
+        #   every entry, and the NC series reads straight down the diagonal:
+        #
+        #       1964  Orwocolor-Negativfilm NC 16 (T + K)      16 DIN
+        #       1965  Orwocolor-Negativfilm NC 17 Mask (T + K) 17 DIN
+        #       1969  Orwocolor-Negativfilm NC 19 Mask (T + K) 19/18 DIN  GM
+        #       1972  NC 19 Mask -- verbesserter Typ
+        #       1972  Orwocolor-Negativfilm NC 3 (K)           19 DIN
+        #
+        #   Three consecutive stocks whose number IS their DIN speed settles the
+        #   convention from the manufacturer rather than from inference, and the
+        #   row was read off the PAGE IMAGE as well as the OCR because the whole
+        #   argument rests on three two-digit numbers.
+        #
+        #   NC 19 -> 19 DIN -> ISO 64; NC 21 -> 21 DIN -> ISO 100. Both land
+        #   exactly on the published figures. That correspondence is also why
+        #   ORWOCOLOR_NC21 at EI 100 is CORRECT and was deliberately NOT
+        #   renamed: moving it to NC 19 would put a 100-speed film under a
+        #   64-speed name. An 'NC 24' would have to be ISO 200, and this profile
+        #   was built at 160, so the retired designation did not even satisfy
+        #   its own series convention.
+        #
+        #   ISO 64: Nikolay Bratovanov, «Lost Playground»,
+        #   nikolaybratovanov.com/en/projects/photography/lost-playground, read
+        #   2026-09-15 -- "the original film sensitivity was ranked as ISO 64
+        #   (as is the case with the ORWO NC-19)", on 120 rolls dated from 1980.
+        #   Corroborated by Lomography magazine item 33384, «ORWO Color NC19
+        #   (120, 64 iso)». A 1987/88 roll expiring 1991 is photographed in
+        #   photoroobit, «ORWOCOLOR NC 19 -- an historic test», 2012-01-26,
+        #   which also states the film was developed to ORWO's own formula.
+        #   ⚠ ONE RESELLER LISTS NC 19 AT ISO 25. That is a derating for
+        #   decades-expired stock, not a manufacturer rating, and is not adopted.
+        #
+        #   NC 21 at ISO 100, held for the sibling profile: EMULSIVE, «5 Frames
+        #   of 30 year expired Orwocolor NC21 ISO 100 film», read 2026-09-15.
+        #
+        # ⚠ WHAT THIS RE-DESIGNATION DOES NOT DO. Every curve, grain, MTF and
+        #   dye figure below is the [T3] set the profile was built with, and
+        #   none of it is a measurement of NC 19. Fixing a fabricated NAME does
+        #   not upgrade the data behind it, and the tier stays 3.
+        #   ⚠ A blog comment claiming "NC19 and NC21 are identical" is NOT
+        #   adopted: it is unattributed and it contradicts the two published
+        #   speeds, which differ by a full DIN grade.
+        # ⚠ KAUFMANN PRINTS TWO SPEEDS AND ONLY ONE IS STORED. The table gives
+        #   "19/18 DIN" against "(T + K)" -- Tageslicht und Kunstlicht -- so the
+        #   film carries a daylight and a tungsten rating, 19 DIN (ISO 64) and
+        #   18 DIN (ISO 50), taken in the order the caption names the sources.
+        #
+        #   ⚠⚠ THE 18 DIN FIGURE IS DELIBERATELY NOT WRITTEN TO
+        #   `exposure_index_tungsten`, AND THE GUARD IS THE REASON. verify.py
+        #   asserts that every stock carrying that field is MONOCHROME, because
+        #   a colour film's second index is normally quoted THROUGH a conversion
+        #   filter and is then a filter factor rather than a film property. The
+        #   same call was already made once, against a Fuji sheet whose tungsten
+        #   index sat exactly two stops below its daylight one -- the 80A's own
+        #   factor -- and the value was written and removed in the same hour.
+        #
+        #   NC 19 may be the honest exception: it is captioned (T + K) with no
+        #   filter named, while the sibling NC 3 (K) is tungsten-only and
+        #   Tamm & Weisflog state its daylight use needs the ORWO K 14 filter at
+        #   a cost of 2 DIN. A one-DIN unfiltered spread is not a filter factor.
+        #   But the table prints no legend assigning 19 and 18 to T and to K,
+        #   every other (T + K) entry in it carries a SINGLE rating, and
+        #   loosening a guard on one inferred reading is the wrong trade. The
+        #   figure is recorded here and in NotFound.md; storing it needs either
+        #   a sheet that states the pair explicitly or an owner decision to
+        #   extend the guard to unfiltered COLOUR pairs.
+        era="1969-1991",
+        exposure_index=64,
         balance_kelvin=5500,
         curves=RGBCurves(
             r=_neg(0.29, 0.545, toe_x=-1.32, toe_k=0.36, shoulder_x=1.46),
@@ -17775,6 +18796,37 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         dye_matrix=_dye(-0.02),
         base_tint=(0.99, 0.995, 1.0),
         misregistration_um=5.0,
+        # ⚠ SPECTRAL DYE DENSITY, TRACED -- and the queue row that said this
+        # could not be stored was wrong about the schema, not about the data.
+        # DIGITIZATION_QUEUE P50 argued that `dye_matrix` is a 3x3 of coupling
+        # coefficients and no calibration turns a spectrum into one. True, and
+        # beside the point: `SpectralDyeDensity` has existed since schema v7
+        # and the NEUTRAL-PAIR shape below is exactly what schema v14 added
+        # `d_dmin` for. «Современные фотоматериалы и их обработка» p.94 prints
+        # the two traces the sheets call D-min and D-nom, the first Konica Centuria spectral record in the corpus.
+        # Assignment is by construction: the nominal density INCLUDES the base,
+        # so D-nom lies above D-min at every wavelength, and the reader refuses
+        # any panel where it does not. Resampled onto the corpus 10 nm grid,
+        # which is coarser than the trace everywhere, so this decimates the
+        # measurement rather than inventing points between them.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_dmin=(
+            1.0567, 0.9305, 0.9370, 0.9502, 0.9436, 0.9107, 0.8661, 0.8169,
+            0.7677, 0.7196, 0.6998, 0.6933, 0.6867, 0.6735, 0.6669, 0.6669,
+            0.6603, 0.6083, 0.4897, 0.3431, 0.2631, 0.2139, 0.1991, 0.1925,
+            0.1925, 0.1991, 0.1991, 0.2057, 0.2057, 0.2057, 0.2057),
+            d_neutral=(
+            1.5834, 1.5263, 1.6243, 1.7038, 1.7079, 1.6862, 1.6279, 1.5204,
+            1.3923, 1.2917, 1.2731, 1.2796, 1.3060, 1.3457, 1.3653, 1.3458,
+            1.2562, 1.1069, 0.9234, 0.7582, 0.6735, 0.6537, 0.6801, 0.7241,
+            0.7733, 0.8225, 0.8717, 0.9107, 0.9404, 0.9502, 0.9436),
+            normalisation="as_printed_status_m",
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», p.94, «Спектральная плотность красителей» -- "
+                    "traced from the embedded bitmap and re-derived on every "
+                    "build by sovremennye_2004.py"),
+        ),
         default_format="ff35",
         features=Feature.NONE,
         # Spectral curves [T1-digitised 2026-08-02, agent batch 3,
@@ -22437,6 +23489,249 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # Measured and NOT adopted, pending its own decision -- rule 23.
         mtf=MTFSpec(123.0, 123.0, 123.0, adjacency=0.10, adjacency_um=14.0,
                     mtf_rolloff_q=3.63, mtf_measured=True),
+        # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
+        # 111 points, 7 developers, 18/20/21/22/24 degC, from
+        # «Современные фотоматериалы и их обработка» pp.306, 307, 325, 326.
+        # ⚠ NO GAMMA: these tables print development TIMES and no contrast
+        # anywhere near them. They are stored regardless, because Development
+        # TEMPERATURE has no other source in this corpus -- every
+        # contrast-carrying point in the database is at a single temperature.
+        # `verify.py` counts contrast-carrying and time-only points
+        # separately so neither can be read as the other.
+        # ⚠ CROSS-CHECK, AND IT IS PHYSICS: within one printed row the time
+        # must FALL as the temperature rises and must not fall by more than a
+        # factor of four across the span. 1507 values parsed, 793 kept.
+        # The refused ones are almost all a two-film table split between its
+        # films wrongly, which shows as one temperature twice in a row.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=10.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=11.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=10.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=11.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=10.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=14.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=12.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=12.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=11.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=8.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=8.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=8.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=10.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=9.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=8.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=16.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=12.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=13.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=13.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=10.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=11.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=12.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=10.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=10.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=11.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=10.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=9.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=8.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=10.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.75, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.25, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.25, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.75, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.25, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.25, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.25, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.75, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=4.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.75, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.25, celsius=24.0, vessel='large tank'),
+            ),
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», pp.306, 307, 325, 326 -- «Режимы проявления». TIME ONLY: the "
+                    "tables print no contrast."),
+        ),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): F-4016 page 8 -- the plot is drawn as PDF VECTOR
@@ -22503,6 +23798,279 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # averaging 95.9 and 66.7 would give 81.3 and look like a measurement.
         # Reopens if Kodak's own TMY-2 sheet is found with a curve that crosses.
         mtf=MTFSpec(72.0, 72.0, 72.0, adjacency=0.10, adjacency_um=15.0),
+        # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
+        # 126 points, 9 developers, 18/20/21/22/24 degC, from
+        # «Современные фотоматериалы и их обработка» pp.306, 307, 325, 326.
+        # ⚠ NO GAMMA: these tables print development TIMES and no contrast
+        # anywhere near them. They are stored regardless, because Development
+        # TEMPERATURE has no other source in this corpus -- every
+        # contrast-carrying point in the database is at a single temperature.
+        # `verify.py` counts contrast-carrying and time-only points
+        # separately so neither can be read as the other.
+        # ⚠ CROSS-CHECK, AND IT IS PHYSICS: within one printed row the time
+        # must FALL as the temperature rises and must not fall by more than a
+        # factor of four across the span. 1507 values parsed, 793 kept.
+        # The refused ones are almost all a two-film table split between its
+        # films wrongly, which shows as one temperature twice in a row.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=10.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.25, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.75, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.25, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.75, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.25, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.75, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.75, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.25, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.75, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=14.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=11.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=12.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=11.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=7.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=6.25, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=8.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=9.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.25, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.75, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.25, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.75, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=12.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=13.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=13.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=15.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=10.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=11.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=13.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=10.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=10.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=11.25, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=10.75, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.75, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX *1', dilution='stock',
+                                 minutes=7.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX *1', dilution='stock',
+                                 minutes=7.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX *1', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=10.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=9.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=8.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS *1', dilution='stock',
+                                 minutes=7.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS *1', dilution='stock',
+                                 minutes=7.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS *1', dilution='stock',
+                                 minutes=6.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=9.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.25, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.50, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.25, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.75, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.75, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.25, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.25, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.25, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.75, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=4.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.25, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=6.00, celsius=24.0, vessel='large tank'),
+            ),
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», pp.306, 307, 325, 326 -- «Режимы проявления». TIME ONLY: the "
+                    "tables print no contrast."),
+        ),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, batch 11):
         # publication F-4043 (2016 edition) p7 "Spectral-Sensitivity Curves"
@@ -22584,6 +24152,85 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # relation, in family with T-MAX 100's 1.23. The misplaced 2018 figure
         # would have implied 1.97 -- the physical shadow of the same error.
         mtf=MTFSpec(84.3, 84.3, 84.3, adjacency=0.08, adjacency_um=16.0),
+        # ⚠ THE FIRST DEVELOPMENT FAMILY IN THIS CORPUS TRACED OFF A
+        # CHARACTERISTIC-CURVE PANEL RATHER THAN A GAMMA-TIME ONE, and the
+        # reason it exists is that the obvious source could not be used.
+        # «Современные фотоматериалы и их обработка» prints 42 «Кривые кинетики
+        # проявления» panels -- contrast against time, directly -- and their
+        # curves cannot be attributed: the developer names sit in a dashed-line
+        # legend or in labels dropped over crossing strokes, and a
+        # DevelopmentPoint carries a developer name.
+        # ⚠ THE CHARACTERISTIC PANELS GIVE THE SAME INFORMATION IN A FORM THAT
+        # ATTRIBUTES ITSELF. Each plots several curves for ONE developer at ONE
+        # temperature, names the condition inside the frame («Проявление: малый
+        # бак, T-MAX, 20°C») and lists the TIMES in a legend. Assignment is then
+        # physics: development time and contrast rise together, so the steepest
+        # curve is the longest time. sovremennye_2004.py sorts the traced curves
+        # by gamma, sorts the printed times, pairs them, and REFUSES the panel
+        # unless the pairing comes out strictly monotonic -- which is what a
+        # mis-traced or mis-read panel fails. Two of this stock's panels pass
+        # (pp. 341 and 342); several others are refused by that same test and
+        # are not here.
+        # ⚠ AND THE PANELS CARRY BASE+FOG AT EACH CONDITION, which is what
+        # `DevelopmentPoint.base_fog` was added for at schema v13 and which no
+        # source in this corpus had ever populated. It rises 0.346 -> 0.379
+        # across the T-MAX series and 0.389 -> 0.431 across T-MAX RS: small,
+        # monotonic, and exactly the behaviour the field's own docstring
+        # predicts from DOUBLE-X's sheet.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=8.0, celsius=20.0, gamma=0.729,
+                                 base_fog=0.346, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=9.0, celsius=20.0, gamma=0.837,
+                                 base_fog=0.388, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=11.0, celsius=20.0, gamma=1.021,
+                                 base_fog=0.371, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=13.0, celsius=20.0, gamma=1.085,
+                                 base_fog=0.379, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=9.0, celsius=20.0, gamma=0.549,
+                                 base_fog=0.418, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=10.0, celsius=20.0, gamma=0.604,
+                                 base_fog=0.389, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=12.0, celsius=20.0, gamma=0.771,
+                                 base_fog=0.422, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=14.0, celsius=20.0, gamma=0.886,
+                                 base_fog=0.422, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=17.0, celsius=20.0, gamma=1.038,
+                                 base_fog=0.431, vessel='large tank'),
+            ),
+            # ⚠ NO RATE LAW IS STORED, AND THE SCHEMA IS THE REASON -- IT
+            # CAUGHT THIS RATHER THAN THE OTHER WAY ROUND. Both series fit the
+            # saturating exponential of Mees and Sheppard cleanly on their own:
+            #
+            #   T-MAX, small tank     gamma_inf 1.183  k 0.3212  t0 5.056  rms 0.0100
+            #   T-MAX RS, large tank  gamma_inf 1.649  k 0.0748  t0 3.691  rms 0.0090
+            #
+            # -- a much slower approach to a much higher limit, which is what a
+            # replenished large tank should look like beside a small one. But
+            # `ProcessingFamily` carries ONE law for the whole family, and
+            # `validate()` checks every point against it: storing the small-tank
+            # constants made point 4 read 0.549 where the law predicted 0.850
+            # and the build refused it, correctly. The alternatives were to drop
+            # five measured points to keep a fitted curve, or to keep every
+            # measurement and lose a derivation that is written down here
+            # anyway. ⚠ THE MEASUREMENTS WIN: a fit can be recomputed from the
+            # points at any time and the points cannot be recomputed from the
+            # fit. Making the law developer-scoped is DIGITIZATION_QUEUE P52.
+            source=('В. И. Шеберстов et al., «Современные фотоматериалы и их '
+                    'обработка», pp. 341-342 -- «Характеристические кривые '
+                    'фотопленки Kodak Professional T-MAX P3200», two panels, '
+                    'four and five curves, traced and re-derived on every '
+                    'build by sovremennye_2004.py'),
+        ),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): F-4001 page 7 -- the plot is drawn as PDF VECTOR
@@ -22803,6 +24450,87 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # have similar characteristics. That is a documented similarity used to
         # place an estimate -- not a documented rms.
         grain=GrainSpec(10.0, 4.839, 4.839, 4.839, clump_gain=0.80, fog_grain=0.16),
+        # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
+        # 30 points, 6 developers, 18/20/21/22/24 degC, from
+        # «Современные фотоматериалы и их обработка» pp.388.
+        # ⚠ NO GAMMA: these tables print development TIMES and no contrast
+        # anywhere near them. They are stored regardless, because Development
+        # TEMPERATURE has no other source in this corpus -- every
+        # contrast-carrying point in the database is at a single temperature.
+        # `verify.py` counts contrast-carrying and time-only points
+        # separately so neither can be read as the other.
+        # ⚠ CROSS-CHECK, AND IT IS PHYSICS: within one printed row the time
+        # must FALL as the temperature rises and must not fall by more than a
+        # factor of four across the span. 1507 values parsed, 793 kept.
+        # The refused ones are almost all a two-film table split between its
+        # films wrongly, which shows as one temperature twice in a row.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=7.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=6.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=5.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=6.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='1:3',
+                                 minutes=14.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='1:3',
+                                 minutes=13.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='1:3',
+                                 minutes=12.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='1:3',
+                                 minutes=11.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='1:3',
+                                 minutes=10.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=5.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.00, celsius=24.0, vessel='tray'),
+            ),
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», pp.388 -- «Режимы проявления». TIME ONLY: the "
+                    "tables print no contrast."),
+        ),
         default_format="ff35",
         # [T3] MTF f50 ESTIMATED, RP 100 high-contrast x 0.50. The 0.50 ratio is not
         # arbitrary: KODAK_PLUS_X_125 carries a DOCUMENTED 125 lines/mm
@@ -23011,6 +24739,85 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # is +0.120 at 8.6 cycles/mm. Same reason as KODAK_TMAX_100.
         mtf=MTFSpec(52.7, 52.7, 52.7, adjacency=0.09, adjacency_um=16.0,
                     mtf_rolloff_q=4.23, mtf_measured=True),
+        # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
+        # 29 points, 5 developers, 18/20/21/22/24 degC, from
+        # «Современные фотоматериалы и их обработка» pp.392, 395.
+        # ⚠ NO GAMMA: these tables print development TIMES and no contrast
+        # anywhere near them. They are stored regardless, because Development
+        # TEMPERATURE has no other source in this corpus -- every
+        # contrast-carrying point in the database is at a single temperature.
+        # `verify.py` counts contrast-carrying and time-only points
+        # separately so neither can be read as the other.
+        # ⚠ CROSS-CHECK, AND IT IS PHYSICS: within one printed row the time
+        # must FALL as the temperature rises and must not fall by more than a
+        # factor of four across the span. 1507 values parsed, 793 kept.
+        # The refused ones are almost all a two-film table split between its
+        # films wrongly, which shows as one temperature twice in a row.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=12.50, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=10.75, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.75, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.75, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.50, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=14.25, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=12.75, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=11.75, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.75, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.25, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=8.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.00, celsius=18.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.75, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.25, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.75, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.25, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=8.75, celsius=20.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=8.00, celsius=21.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=7.50, celsius=22.0, vessel='large tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=7.00, celsius=24.0, vessel='large tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=12.50, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=11.25, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.25, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.50, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.00, celsius=24.0, vessel='small tank'),
+            ),
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», pp.392, 395 -- «Режимы проявления». TIME ONLY: the "
+                    "tables print no contrast."),
+        ),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): F-4017 page 7 -- the plot is drawn as PDF VECTOR
@@ -23150,6 +24957,459 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # manufacture agreement that Kodak never printed. Rule 18.
         # Reopens on any Kodak sheet that plots 320TXP's own transfer curve.
         mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.09, adjacency_um=16.0),
+        # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
+        # 216 points, 9 developers, 18/20/21/22/24 degC, from
+        # «Современные фотоматериалы и их обработка» pp.393, 394.
+        # ⚠ NO GAMMA: these tables print development TIMES and no contrast
+        # anywhere near them. They are stored regardless, because Development
+        # TEMPERATURE has no other source in this corpus -- every
+        # contrast-carrying point in the database is at a single temperature.
+        # `verify.py` counts contrast-carrying and time-only points
+        # separately so neither can be read as the other.
+        # ⚠ CROSS-CHECK, AND IT IS PHYSICS: within one printed row the time
+        # must FALL as the temperature rises and must not fall by more than a
+        # factor of four across the span. 1507 values parsed, 793 kept.
+        # The refused ones are almost all a two-film table split between its
+        # films wrongly, which shows as one temperature twice in a row.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.75, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=10.00, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.00, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=11.25, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.75, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.00, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.50, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.25, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.75, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=8.75, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.25, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.50, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.50, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.75, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.75, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.00, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.25, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=12.75, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.75, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=14.25, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.00, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=14.75, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=11.25, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.75, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=12.75, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.00, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=13.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=11.75, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=7.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=12.50, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=7.75, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.75, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.75, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=6.75, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=11.75, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=6.75, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=7.75, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=9.25, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=6.00, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=10.75, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=5.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=7.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=9.00, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=5.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=6.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=8.00, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=4.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=6.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=7.50, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=4.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=5.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=7.00, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=4.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=5.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='DK-50', dilution='1:1',
+                                 minutes=6.00, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.75, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.75, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.25, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.25, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=7.00, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.25, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.25, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.75, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.75, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.00, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=2.75, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=2.75, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.00, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=2.50, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=2.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.00, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.50, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=2.25, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.25, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.75, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=11.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=11.50, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.75, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.75, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.75, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=10.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=6.75, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.25, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.50, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=6.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=6.75, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.25, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.75, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=5.75, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=5.75, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.25, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.50, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=6.75, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=8.25, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=9.50, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=6.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=7.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=8.75, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=5.75, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=6.75, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=8.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=5.50, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=6.25, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=7.75, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=4.75, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=5.25, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=7.00, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.75, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.50, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=8.50, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.00, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=7.75, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.25, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.25, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.50, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=7.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.25, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=6.75, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=2.75, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=6.00, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.75, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.75, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.00, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=11.25, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.75, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=9.75, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.25, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=4.75, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.75, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.25, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.75, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=4.50, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.00, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=4.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=4.75, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.75, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=4.00, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.75, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.50, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=12.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.00, celsius=18.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=12.50, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.25, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=14.50, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.50, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.00, celsius=20.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=11.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=13.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.75, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.75, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.50, celsius=21.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=6.75, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=12.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.25, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.00, celsius=22.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=9.50, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=6.25, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=11.50, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=6.25, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.75, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.25, celsius=24.0, vessel='tray'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.00, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=5.50, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.50, celsius=24.0, vessel='drum'),
+            ),
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», pp.393, 394 -- «Режимы проявления». TIME ONLY: the "
+                    "tables print no contrast."),
+        ),
         default_format="large4x5",
         features=Feature.NONE,
     ),
@@ -23173,6 +25433,233 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # the ParamSource; the chain's control lands within 11 %.
         grain=GrainSpec(9.51, 4.839, 4.839, 4.839, clump_gain=0.80, fog_grain=0.16),
         mtf=MTFSpec(62.0, 62.0, 62.0, adjacency=0.10, adjacency_um=15.0),
+        # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
+        # 103 points, 8 developers, 18/20/21/22/24 degC, from
+        # «Современные фотоматериалы и их обработка» pp.349, 350, 380, 381, 382.
+        # ⚠ NO GAMMA: these tables print development TIMES and no contrast
+        # anywhere near them. They are stored regardless, because Development
+        # TEMPERATURE has no other source in this corpus -- every
+        # contrast-carrying point in the database is at a single temperature.
+        # `verify.py` counts contrast-carrying and time-only points
+        # separately so neither can be read as the other.
+        # ⚠ CROSS-CHECK, AND IT IS PHYSICS: within one printed row the time
+        # must FALL as the temperature rises and must not fall by more than a
+        # factor of four across the span. 1507 values parsed, 793 kept.
+        # The refused ones are almost all a two-film table split between its
+        # films wrongly, which shows as one temperature twice in a row.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.50, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.00, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.00, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.50, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=3.75, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=4.50, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.00, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=9.00, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.75, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.75, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=6.50, celsius=22.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.00, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=7.00, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=6.50, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=6.00, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=5.00, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.00, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=6.50, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.50, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.50, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=5.00, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.00, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.75, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=3.50, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='HC-110 (Dil B)', dilution='stock',
+                                 minutes=4.00, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.00, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=10.00, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.00, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=9.00, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=8.00, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=6.00, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.50, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='MICRODOL-X', dilution='stock',
+                                 minutes=7.00, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=6.75, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=5.75, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=5.25, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=4.75, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX', dilution='stock',
+                                 minutes=4.25, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=6.50, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=9.00, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=5.50, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=8.00, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.50, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=7.00, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=4.00, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=6.00, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=3.50, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=5.50, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=7.25, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=6.50, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='T-MAX RS', dilution='stock',
+                                 minutes=5.00, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=9.75, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=11.50, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=10.75, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=9.75, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=11.50, celsius=18.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.25, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=10.00, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=9.25, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=10.00, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.50, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=9.00, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.50, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.50, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=9.00, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.75, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.00, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=6.50, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=5.75, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=7.00, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=13.00, celsius=18.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=11.25, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=10.25, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='stock',
+                                 minutes=8.00, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.25, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.50, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=7.00, celsius=22.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=6.00, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=12.25, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=14.75, celsius=20.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=12.25, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=14.75, celsius=20.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=11.25, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=13.50, celsius=21.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=11.25, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=13.50, celsius=21.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.75, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.50, celsius=24.0, vessel='small tank'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=8.75, celsius=24.0, vessel='drum'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1',
+                                 minutes=10.50, celsius=24.0, vessel='drum'),
+            ),
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», pp.349, 350, 380, 381, 382 -- «Режимы проявления». TIME ONLY: the "
+                    "tables print no contrast."),
+        ),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): F-4018 page 9 -- the plot is drawn as PDF VECTOR
@@ -23225,6 +25712,37 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                         dye_cloud_um=9.0),
         mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.11, adjacency_um=16.0),
         silver_tone=0.0,
+        # ⚠ SPECTRAL DYE DENSITY, TRACED -- and the queue row that said this
+        # could not be stored was wrong about the schema, not about the data.
+        # DIGITIZATION_QUEUE P50 argued that `dye_matrix` is a 3x3 of coupling
+        # coefficients and no calibration turns a spectrum into one. True, and
+        # beside the point: `SpectralDyeDensity` has existed since schema v7
+        # and the NEUTRAL-PAIR shape below is exactly what schema v14 added
+        # `d_dmin` for. «Современные фотоматериалы и их обработка» p.407 prints
+        # the two traces the sheets call D-min and D-nom, a CHROMOGENIC monochrome film -- its image is dye, not silver, so a spectral dye density is meaningful for it in a way it is not for a silver emulsion.
+        # Assignment is by construction: the nominal density INCLUDES the base,
+        # so D-nom lies above D-min at every wavelength, and the reader refuses
+        # any panel where it does not. Resampled onto the corpus 10 nm grid,
+        # which is coarser than the trace everywhere, so this decimates the
+        # measurement rather than inventing points between them.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_dmin=(
+            1.4024, 0.5923, 0.4220, 0.3975, 0.3903, 0.3768, 0.3634, 0.3432,
+            0.3365, 0.3297, 0.3297, 0.3572, 0.4104, 0.4046, 0.3296, 0.2894,
+            0.2894, 0.2864, 0.2484, 0.2172, 0.2061, 0.2020, 0.2087, 0.2154,
+            0.2221, 0.2329, 0.2423, 0.2490, 0.2558, 0.2625, 0.2625),
+            d_neutral=(
+            1.9606, 1.4769, 1.3856, 1.4883, 1.5408, 1.5470, 1.4976, 1.3856,
+            1.2597, 1.1545, 1.1099, 1.1317, 1.2153, 1.2906, 1.3116, 1.2870,
+            1.2087, 1.0743, 0.9411, 0.8628, 0.8468, 0.8848, 0.9452, 1.0288,
+            1.1161, 1.2014, 1.2730, 1.3338, 1.3724, 1.3856, 1.3789),
+            normalisation="as_printed_status_m",
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», p.407, «Спектральная плотность красителей» -- "
+                    "traced from the embedded bitmap and re-derived on every "
+                    "build by sovremennye_2004.py"),
+        ),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): F-2350 page 6 -- the plot is drawn as PDF VECTOR
@@ -23275,6 +25793,37 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         mtf=MTFSpec(64.0, 64.0, 64.0, adjacency=0.11, adjacency_um=16.0),
         base_tint=(1.000, 0.930, 0.820),
         silver_tone=0.0,
+        # ⚠ SPECTRAL DYE DENSITY, TRACED -- and the queue row that said this
+        # could not be stored was wrong about the schema, not about the data.
+        # DIGITIZATION_QUEUE P50 argued that `dye_matrix` is a 3x3 of coupling
+        # coefficients and no calibration turns a spectrum into one. True, and
+        # beside the point: `SpectralDyeDensity` has existed since schema v7
+        # and the NEUTRAL-PAIR shape below is exactly what schema v14 added
+        # `d_dmin` for. «Современные фотоматериалы и их обработка» p.410 prints
+        # the two traces the sheets call D-min and D-nom, the other chromogenic monochrome, and the pair of them are the only two stocks in this database where a dye spectrum and is_monochrome are both true.
+        # Assignment is by construction: the nominal density INCLUDES the base,
+        # so D-nom lies above D-min at every wavelength, and the reader refuses
+        # any panel where it does not. Resampled onto the corpus 10 nm grid,
+        # which is coarser than the trace everywhere, so this decimates the
+        # measurement rather than inventing points between them.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_dmin=(
+            2.0987, 1.5051, 1.1037, 0.9844, 0.9720, 0.9788, 0.9720, 0.9369,
+            0.8908, 0.8430, 0.7808, 0.7102, 0.7013, 0.7081, 0.7013, 0.6898,
+            0.6743, 0.6404, 0.5872, 0.5172, 0.4380, 0.3737, 0.3227, 0.2886,
+            0.2683, 0.2615, 0.2615, 0.2615, 0.2683, 0.2750, 0.2818),
+            d_neutral=(
+            2.4945, 2.1344, 1.7934, 1.7740, 1.9207, 2.0141, 2.0247, 1.9618,
+            1.8463, 1.6864, 1.5615, 1.5087, 1.5062, 1.5472, 1.6009, 1.6216,
+            1.5888, 1.4991, 1.3623, 1.1917, 1.0476, 0.9692, 0.9317, 0.9314,
+            0.9582, 1.0039, 1.0564, 1.1122, 1.1579, 1.1901, 1.2053),
+            normalisation="as_printed_status_m",
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», p.410, «Спектральная плотность красителей» -- "
+                    "traced from the embedded bitmap and re-derived on every "
+                    "build by sovremennye_2004.py"),
+        ),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): F-4036 page 5 -- the plot is drawn as PDF VECTOR
@@ -23345,8 +25894,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     # Read the stored 0.849 as "<= 0.849", never as "= 0.849".
     #
     # The nine printed values, by bleach slot:
-    #     1: 0.910   2: 1.340   3: 0.850   4: 0.958   5: 0.897
+    #     1: 0.910   2: 1.134   3: 0.850   4: 0.958   5: 0.897
     #     6: 0.903   7: 0.862   8: 0.849   9: 0.852
+    # ⚠ SLOT 2 WAS READ 1.340 UNTIL THE EUROPEAN TWIN WAS OPENED. EP 0 545 464
+    # A1 (same applicant, same Table, PDF/PROFILES/PATENTS/EP0545464A1.pdf,
+    # page 4, printed sideways) prints 1.134, and re-reading the US page image
+    # at 400 dpi confirms 1.134 there too. The US text layer systematically
+    # drops the leading digit of a four-significant-figure entry in this very
+    # table -- its Cleartime column OCRs as "10.25 / 12.36 / 14.0 / 12.4"
+    # where the page prints 110.25 / 112.36 / 114.0 / 112.4 -- so "1.34" was
+    # 1.134 with the first digit lost. The correction does not move the stored
+    # bound: slot 2 is the prior-art staining comparative and is excluded
+    # either way.
     # Slot 2 is a prior-art comparative at pH 6 that the patent includes to
     # show a bleach that stains; excluding it the other eight span 0.109 D,
     # and the FOUR the patent presents as its own optimised formulations
@@ -23742,6 +26301,17 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2260, adjacency_um=20.1,
         dye_matrix=_dye(-0.11),
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=3.5,
+        # ⚠ DIRECTLY TRACED ENDPOINTS. Every other Dmax in this project is
+        # a CONSEQUENCE of evaluating the four-parameter ToneCurve above; this
+        # one is the top of a traced curve, read off
+        # «Современные фотоматериалы и их обработка» p.160 over 3.94 decades of
+        # log E. The D-MIN column is the check on the D-MAX column beside it:
+        # it reproduces this profile's own stored base densities, which came
+        # from a manufacturer sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.2268, 0.6346, 0.8278), dmax=(1.8366, 2.3249, 2.7757),
+            gamma=(0.5630, 0.5809, 0.6345),
+            log_e_span=3.94, page=160),
         default_format="ff35",
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
@@ -23778,6 +26348,17 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2260, adjacency_um=20.1,
         dye_matrix=_dye(-0.11),
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=3.5,
+        # ⚠ DIRECTLY TRACED ENDPOINTS. Every other Dmax in this project is
+        # a CONSEQUENCE of evaluating the four-parameter ToneCurve above; this
+        # one is the top of a traced curve, read off
+        # «Современные фотоматериалы и их обработка» p.162 over 3.92 decades of
+        # log E. The D-MIN column is the check on the D-MAX column beside it:
+        # it reproduces this profile's own stored base densities, which came
+        # from a manufacturer sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.1879, 0.6055, 0.8033), dmax=(1.9846, 2.4901, 2.9736),
+            gamma=(0.6285, 0.6554, 0.7182),
+            log_e_span=3.92, page=162),
         default_format="ff35",
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
@@ -23814,6 +26395,17 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2260, adjacency_um=20.1,
         dye_matrix=_dye(-0.11),
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=4.0,
+        # ⚠ DIRECTLY TRACED ENDPOINTS. Every other Dmax in this project is
+        # a CONSEQUENCE of evaluating the four-parameter ToneCurve above; this
+        # one is the top of a traced curve, read off
+        # «Современные фотоматериалы и их обработка» p.164 over 3.94 decades of
+        # log E. The D-MIN column is the check on the D-MAX column beside it:
+        # it reproduces this profile's own stored base densities, which came
+        # from a manufacturer sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.2915, 0.6890, 0.8931), dmax=(1.9514, 2.4402, 2.8968),
+            gamma=(0.5636, 0.5815, 0.6441),
+            log_e_span=3.94, page=164),
         default_format="ff35",
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN | Feature.HALATION,
     ),
@@ -23850,6 +26442,17 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2260, adjacency_um=20.1,
         dye_matrix=_dye(-0.11),
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=4.0,
+        # ⚠ DIRECTLY TRACED ENDPOINTS. Every other Dmax in this project is
+        # a CONSEQUENCE of evaluating the four-parameter ToneCurve above; this
+        # one is the top of a traced curve, read off
+        # «Современные фотоматериалы и их обработка» p.166 over 3.95 decades of
+        # log E. The D-MIN column is the check on the D-MAX column beside it:
+        # it reproduces this profile's own stored base densities, which came
+        # from a manufacturer sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.2574, 0.6627, 0.8708), dmax=(2.1030, 2.6068, 3.0997),
+            gamma=(0.6264, 0.6445, 0.7081),
+            log_e_span=3.95, page=166),
         default_format="ff35",
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN | Feature.HALATION,
     ),
@@ -23886,6 +26489,17 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
         dye_matrix=_dye(-0.11),
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=4.0,
+        # ⚠ DIRECTLY TRACED ENDPOINTS. Every other Dmax in this project is
+        # a CONSEQUENCE of evaluating the four-parameter ToneCurve above; this
+        # one is the top of a traced curve, read off
+        # «Современные фотоматериалы и их обработка» p.170 over 3.97 decades of
+        # log E. The D-MIN column is the check on the D-MAX column beside it:
+        # it reproduces this profile's own stored base densities, which came
+        # from a manufacturer sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.3249, 0.7469, 1.0391), dmax=(2.0022, 2.5325, 3.0735),
+            gamma=(0.6005, 0.6270, 0.7153),
+            log_e_span=3.97, page=170),
         default_format="ff35",
         # [T1] SPECTRAL SENSITIVITY VECTOR-EXTRACTED (2026-08-16, NotFound.md
         # section 4 sweep): E-4040 page 4 -- the plot is drawn as PDF VECTOR
@@ -24060,6 +26674,17 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
         dye_matrix=_dye(-0.11),
         base_tint=(1.000, 0.992, 0.972),
         misregistration_um=4.0,
+        # ⚠ DIRECTLY TRACED ENDPOINTS. Every other Dmax in this project is
+        # a CONSEQUENCE of evaluating the four-parameter ToneCurve above; this
+        # one is the top of a traced curve, read off
+        # «Современные фотоматериалы и их обработка» p.148 over 3.75 decades of
+        # log E. The D-MIN column is the check on the D-MAX column beside it:
+        # it reproduces this profile's own stored base densities, which came
+        # from a manufacturer sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.1816, 0.6216, 0.8526), dmax=(1.8977, 2.5247, 2.7998),
+            gamma=(0.6132, 0.6864, 0.7047),
+            log_e_span=3.75, page=148),
         default_format="medium645",
         # [T1] SPECTRAL DYE DENSITY TRACED from E-29 p4, "Spectral-Dye-Density
         # Curves". The panel prints a MIDSCALE NEUTRAL and a MINIMUM DENSITY
@@ -24722,9 +27347,25 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         exposure_index=160,
         balance_kelvin=5500,
         curves=RGBCurves(
-            r=_neg(0.21, 0.540, toe_x=-1.90, toe_k=0.36, shoulder_x=2.20),
-            g=_neg(0.20, 0.556, toe_x=-1.84, toe_k=0.34, shoulder_x=2.14),
-            b=_neg(0.20, 0.572, toe_x=-1.74, toe_k=0.32, shoulder_x=2.04),
+            # ⚠ THE BASE DENSITIES WERE FLAT AND THIS IS A MASKED COLOUR
+            # NEGATIVE. 0.21 / 0.20 / 0.20 is not a reading of anything: it is
+            # the placeholder a profile gets when no source states the mask,
+            # and it asserted that VPS has no orange mask, which is false of
+            # every C-41 negative ever coated. «Современные фотоматериалы и их
+            # обработка» p.183 prints the characteristic curves, and the traced
+            # toe plateaus are 0.784 / 0.568 / 0.209 B/G/R -- an orange ladder
+            # of the shape the corpus's other ladder-encoded negatives have and
+            # of the level «Справочник кинооператора» §6.6 publishes as the
+            # class figure (B 1.0 / G 0.6 / R 0.2). ADOPTED BECAUSE THE E-26
+            # SHEET IS SILENT HERE, NOT IN PREFERENCE TO IT -- the book is [T2]
+            # reference data and fills an empty field, it never overwrites a
+            # manufacturer figure. Note the red record barely moves, 0.21 to
+            # 0.209, which is the placeholder having been right for the one
+            # channel where a mask is nearly absent. Re-derived on every build
+            # by sovremennye_2004.py.
+            r=_neg(0.209, 0.540, toe_x=-1.90, toe_k=0.36, shoulder_x=2.20),
+            g=_neg(0.568, 0.556, toe_x=-1.84, toe_k=0.34, shoulder_x=2.14),
+            b=_neg(0.784, 0.572, toe_x=-1.74, toe_k=0.32, shoulder_x=2.04),
         ),
         grain=GrainSpec(5.0, 2.323, 2.516, 2.968, clump_gain=0.30, fog_grain=0.17),
         mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.10, adjacency_um=18.0),
@@ -24732,6 +27373,48 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         dye_matrix=_dye(-0.10),
         base_tint=(1.000, 0.991, 0.970),
         misregistration_um=5.0,
+        # ⚠ SPECTRAL DYE DENSITY, TRACED -- and the queue row that said this
+        # could not be stored was wrong about the schema, not about the data.
+        # DIGITIZATION_QUEUE P50 argued that `dye_matrix` is a 3x3 of coupling
+        # coefficients and no calibration turns a spectrum into one. True, and
+        # beside the point: `SpectralDyeDensity` has existed since schema v7
+        # and the NEUTRAL-PAIR shape below is exactly what schema v14 added
+        # `d_dmin` for. «Современные фотоматериалы и их обработка» p.184 prints
+        # the two traces the sheets call D-min and D-nom, and it is the SAME PANEL PAIR that gave this stock its orange-mask ladder two pages earlier -- the D-min trace here is that mask measured spectrally, rising from 0.18 in the red to 1.00 at 400 nm.
+        # Assignment is by construction: the nominal density INCLUDES the base,
+        # so D-nom lies above D-min at every wavelength, and the reader refuses
+        # any panel where it does not. Resampled onto the corpus 10 nm grid,
+        # which is coarser than the trace everywhere, so this decimates the
+        # measurement rather than inventing points between them.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_dmin=(
+            1.0008, 0.7064, 0.6542, 0.6858, 0.7018, 0.7086, 0.6950, 0.6733,
+            0.6383, 0.6067, 0.5931, 0.5931, 0.5394, 0.5011, 0.5025, 0.5115,
+            0.5115, 0.4803, 0.4030, 0.3187, 0.2498, 0.2183, 0.1921, 0.1785,
+            0.1717, 0.1650, 0.1650, 0.1514, 0.1514, 0.1514, 0.1514),
+            d_neutral=(
+            1.5173, 1.4833, 1.5684, 1.6858, 1.7401, 1.7348, 1.6965, 1.6185,
+            1.5195, 1.4292, 1.3746, 1.3950, 1.3882, 1.4088, 1.4573, 1.5092,
+            1.5040, 1.4168, 1.2511, 1.0833, 0.9564, 0.9013, 0.8921, 0.9188,
+            0.9571, 1.0090, 1.0677, 1.1095, 1.1503, 1.1639, 1.1571),
+            normalisation="as_printed_status_m",
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», p.184, «Спектральная плотность красителей» -- "
+                    "traced from the embedded bitmap and re-derived on every "
+                    "build by sovremennye_2004.py"),
+        ),
+        # ⚠ DIRECTLY TRACED ENDPOINTS. Every other Dmax in this project is
+        # a CONSEQUENCE of evaluating the four-parameter ToneCurve above; this
+        # one is the top of a traced curve, read off
+        # «Современные фотоматериалы и их обработка» p.183 over 3.56 decades of
+        # log E. The D-MIN column is the check on the D-MAX column beside it:
+        # it reproduces this profile's own stored base densities, which came
+        # from a manufacturer sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.2095, 0.5680, 0.7836), dmax=(1.9508, 2.4495, 2.7837),
+            gamma=(0.6342, 0.6877, 0.7145),
+            log_e_span=3.56, page=183),
         default_format="ff35",
         features=Feature.STRONG_DIR_COUPLERS,
     ),
@@ -24748,9 +27431,19 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         exposure_index=400,
         balance_kelvin=5500,
         curves=RGBCurves(
-            r=_neg(0.22, 0.586, toe_x=-1.78, toe_k=0.32, shoulder_x=2.14),
-            g=_neg(0.21, 0.604, toe_x=-1.72, toe_k=0.31, shoulder_x=2.08),
-            b=_neg(0.21, 0.622, toe_x=-1.64, toe_k=0.29, shoulder_x=2.00),
+            # ⚠ SAME FLAT-PLACEHOLDER DEFECT AS VERICOLOR III ABOVE, AND THE
+            # SAME SOURCE CLOSES IT. E-116 prints no base densities, so this
+            # profile carried 0.22 / 0.21 / 0.21 -- no mask on a C-41 stock.
+            # «Современные фотоматериалы и их обработка» p.140 prints the PJ400
+            # characteristic curves; the traced toe plateaus are
+            # 1.020 / 0.803 / 0.382 B/G/R. That is a HEAVIER mask than
+            # Vericolor III's, which is what a 400-speed press negative built
+            # for a four-stop push should have, and it lands beside PORTRA 800
+            # (1.007 / 0.655 / 0.220) rather than beside the 160-speed stocks.
+            # Re-derived on every build by sovremennye_2004.py.
+            r=_neg(0.382, 0.586, toe_x=-1.78, toe_k=0.32, shoulder_x=2.14),
+            g=_neg(0.803, 0.604, toe_x=-1.72, toe_k=0.31, shoulder_x=2.08),
+            b=_neg(1.020, 0.622, toe_x=-1.64, toe_k=0.29, shoulder_x=2.00),
         ),
         grain=GrainSpec(6.0, 2.387, 2.581, 3.032, clump_gain=0.30, fog_grain=0.18),
         mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.11, adjacency_um=17.0),
@@ -24758,6 +27451,48 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         dye_matrix=_dye(-0.10),
         base_tint=(1.000, 0.990, 0.968),
         misregistration_um=4.5,
+        # ⚠ SPECTRAL DYE DENSITY, TRACED -- and the queue row that said this
+        # could not be stored was wrong about the schema, not about the data.
+        # DIGITIZATION_QUEUE P50 argued that `dye_matrix` is a 3x3 of coupling
+        # coefficients and no calibration turns a spectrum into one. True, and
+        # beside the point: `SpectralDyeDensity` has existed since schema v7
+        # and the NEUTRAL-PAIR shape below is exactly what schema v14 added
+        # `d_dmin` for. «Современные фотоматериалы и их обработка» p.141 prints
+        # the two traces the sheets call D-min and D-nom, the heavier mask of the two press negatives, D-min reaching 1.81 in the blue against Vericolor III's 1.00.
+        # Assignment is by construction: the nominal density INCLUDES the base,
+        # so D-nom lies above D-min at every wavelength, and the reader refuses
+        # any panel where it does not. Resampled onto the corpus 10 nm grid,
+        # which is coarser than the trace everywhere, so this decimates the
+        # measurement rather than inventing points between them.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_dmin=(
+            1.8136, 1.0473, 0.8731, 0.9275, 1.0016, 1.0355, 1.0391, 1.0280,
+            0.9932, 0.9313, 0.8694, 0.8244, 0.7862, 0.7513, 0.7310, 0.7378,
+            0.7513, 0.7445, 0.7079, 0.5252, 0.3961, 0.3433, 0.3231, 0.3250,
+            0.3318, 0.3435, 0.3453, 0.3521, 0.3521, 0.3453, 0.3453),
+            d_neutral=(
+            2.1722, 1.7111, 1.6537, 1.8312, 1.9410, 1.9827, 1.9728, 1.9021,
+            1.7848, 1.6533, 1.5663, 1.5552, 1.5136, 1.5191, 1.5674, 1.5580,
+            1.4905, 1.3619, 1.1976, 1.0032, 0.8731, 0.8436, 0.8770, 0.9433,
+            1.0169, 1.0942, 1.1649, 1.2217, 1.2633, 1.2790, 1.2790),
+            normalisation="as_printed_status_m",
+            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+                    "обработка», p.141, «Спектральная плотность красителей» -- "
+                    "traced from the embedded bitmap and re-derived on every "
+                    "build by sovremennye_2004.py"),
+        ),
+        # ⚠ DIRECTLY TRACED ENDPOINTS. Every other Dmax in this project is
+        # a CONSEQUENCE of evaluating the four-parameter ToneCurve above; this
+        # one is the top of a traced curve, read off
+        # «Современные фотоматериалы и их обработка» p.140 over 3.97 decades of
+        # log E. The D-MIN column is the check on the D-MAX column beside it:
+        # it reproduces this profile's own stored base densities, which came
+        # from a manufacturer sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.3824, 0.8035, 1.0195), dmax=(2.1722, 2.6690, 3.1684),
+            gamma=(0.6158, 0.6336, 0.7407),
+            log_e_span=3.97, page=140),
         default_format="ff35",
         features=Feature.STRONG_DIR_COUPLERS,
     ),
@@ -24882,6 +27617,17 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         dye_matrix=_dye(-0.12),
         base_tint=(1.000, 0.990, 0.968),
         misregistration_um=4.5,
+        # ⚠ DIRECTLY TRACED ENDPOINTS. Every other Dmax in this project is
+        # a CONSEQUENCE of evaluating the four-parameter ToneCurve above; this
+        # one is the top of a traced curve, read off
+        # «Современные фотоматериалы и их обработка» p.168 over 3.95 decades of
+        # log E. The D-MIN column is the check on the D-MAX column beside it:
+        # it reproduces this profile's own stored base densities, which came
+        # from a manufacturer sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.3465, 0.7668, 1.0578), dmax=(2.0197, 2.5128, 3.0571),
+            gamma=(0.5815, 0.5994, 0.6889),
+            log_e_span=3.95, page=168),
         default_format="ff35",
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
@@ -26693,10 +29439,46 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # RMS 5 documented (Technidol LC) [C1]. Finest pictorial grain in the
         # database; clump EST [C3] scaled below ACROS (RMS 7).
         grain=GrainSpec(5.0, 1.29, 1.29, 1.29, clump_gain=0.85, fog_grain=0.10),
-        # EST [C3] -- see the resolving-power caveat in the description. Set
-        # high (above ACROS at f50 104) but NOT entered in _RESOLVING_POWER,
-        # which is reserved for documented TOC pairs.
-        mtf=MTFSpec(110.0, 110.0, 110.0, adjacency=0.01, adjacency_um=12.0),
+        # ⚠ WAS 110 EST [C3], SET FROM THE GRANULARITY CLASS BECAUSE P-255
+        # PRINTS NO NUMERIC RESOLVING POWER -- the caveat the description
+        # states. «Современные фотоматериалы и их обработка» p.372 prints the
+        # modulation transfer function, and the traced curve falls through 50 %
+        # at 72.3 c/mm, a THIRD BELOW the estimate. The estimate was reasoning
+        # from grain to sharpness, which this stock defeats: RMS 5 is the
+        # finest grain in the corpus and the estimate read that as the highest
+        # f50, but Technical Pan's resolution advantage is in its extreme
+        # contrast and thin emulsion at HIGH frequencies, not in a high
+        # half-modulation point. A measurement replaces an estimate here under
+        # the precedence rule; no manufacturer figure is displaced, because
+        # there was none. Re-derived on every build by sovremennye_2004.py.
+        # Still NOT entered in _RESOLVING_POWER, which is reserved for
+        # documented TOC pairs, and the book prints no lp/mm.
+        # ⚠ AND THE SAME PANEL CARRIES THE OVERSHOOT AND THE ROLLOFF. The
+        # stored adjacency was 0.01, an EST placeholder; the traced curve peaks
+        # at 115.1 % before it falls, so the measured edge overshoot is +15.1 %
+        # and it goes in `adjacency` rather than being folded into f50 -- the
+        # convention this file already applies to its other CTF panels at
+        # +5.5 / +11.1 / +14.9 %. The rolloff is therefore fitted ABOVE the
+        # peak, as those are. q comes out 1.071, the GENTLEST exponent in the
+        # corpus, and it is adopted because the power law beats the Gaussian on
+        # this curve by better than two to one -- rms 7.5 % against 16.6 % over
+        # 188 traced samples. A slow rolloff from a high-acutance microfilm
+        # emulsion is the measurement, not a fit failure.
+        # ⚠ THE SHALLOWEST ROLLOFF IN THE CORPUS, AND IT IS STORED. Fitting
+        # above the +15.1 % peak gives q = 1.071 against a next-shallowest of
+        # 1.50, and the power law earns it: rms 7.5 % where the Gaussian gives
+        # 16.6 %, over 188 traced samples. It was briefly refused because the
+        # engine has no FFT and a stored q must cross into C++ as a separable
+        # kernel -- the best TWO-Gaussian pair for 1.071 misses by 0.0719
+        # against the 0.045 the kernel table is held to. A THIRD LOBE fixes it
+        # at 0.0267, ten times better than the single Gaussian, and
+        # `_MTF_KERNEL_TABLE3` now carries it. ⚠ An exponent this shallow needs
+        # three scales because it is shallow over three decades: two Gaussians
+        # can cover a knee and a tail, not a knee, a tail and the long shoulder
+        # between them. ALGO_BLUR_MAX_LOBES went 6 -> 9 to make room, since the
+        # adjacency band-pass multiplies each base lobe into three.
+        mtf=MTFSpec(72.3, 72.3, 72.3, adjacency=0.1506, adjacency_um=12.0,
+                    mtf_measured=True, mtf_rolloff_q=1.071),
         spectral_weights=(0.40, 0.35, 0.25),   # red-weighted collapse: the
                                 # documented 690 nm extended-red sensitisation
                                 # pulls the single record toward red [C3
@@ -27050,6 +29832,494 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         features=Feature.NONE,
     ),
 
+
+    # =======================================================================
+    # EASTMAN COLOR HIGH-SPEED NEGATIVE FILM 5293 / 7293, 1982 -- EI 250T
+    # =======================================================================
+    FilmProfile(
+        name="EASTMAN_5293_250T_1982",
+        aliases=("5293 1982", "5293 250t", "eastman 250t 5293",
+                 "eastman color high-speed negative 5293",
+                 "high speed negative 5293", "7293 1982"),
+        description=(
+            "[T1] EASTMAN COLOR HIGH-SPEED NEGATIVE FILM 5293/7293, 1982, "
+            "EI 250 tungsten -- the first Eastman camera negative above EI "
+            "100, announced to complement rather than replace 5247 and the "
+            "stock behind the low-light look of the early 1980s. Built on "
+            "CONVENTIONAL polydisperse three-dimensional silver-halide "
+            "crystals: its speed comes from larger grains in the fast layer "
+            "of each pair, and its granularity is held down by coupler "
+            "STARVING -- a fast layer carrying very little coupler, over a "
+            "slow fine-grained layer carrying enough for the latitude -- "
+            "together with DIR couplers in the magenta and cyan layers. "
+            "\u26a0 NOT the 1992 EASTMAN EXR 200T 5293, which reuses the "
+            "catalogue number on a T-grain emulsion a decade later and is "
+            "held separately as EASTMAN_EXR_200T_5293. "
+            "SOURCE Kennel, Sehlin, Reinking, Spakowsky and Whittier, SMPTE "
+            "Journal 91(10), October 1982, 922-930 -- Kodak's own paper on "
+            "its own film, every figure traced and cross-checked against the "
+            "paper's own stated numbers by kodak_5293_1982.py."
+        ),
+        era="1982-1992",
+        kind=StockKind.NEGATIVE,
+        # "On the same speed scale that establishes 5247 film as having an
+        # exposure index of 100, the new 5293 film has an EI of 250", and the
+        # film is balanced for tungsten like every Eastman colour negative
+        # since 5248. The daylight rating of 160 through a Wratten 85 is NOT
+        # in the paper; it comes from the owner's T3 block and is recorded as
+        # such in _K5293_1982_PARAMS.
+        exposure_index=250,
+        balance_kelvin=3200,
+        # Fig. 4, fitted to film_sim.density -- the SHIPPED curve model, so
+        # the residual answers whether the engine can express this stock.
+        # rms 0.018 / 0.014 / 0.015 D, worst 0.057, over a 1.2-1.4 D span.
+        #
+        # ⚠ THE ABSCISSA OF FIG. 4 IS RELATIVE, so the curve's PLACE on the
+        # log-exposure axis is a convention and not a measurement. It is set
+        # by putting the green record's ISO 5800 speed point (D-min + 0.15) a
+        # third of a stop -- log10(250/200) = 0.097 -- to the LEFT of the same
+        # point on EASTMAN_EXR_200T_5293, which is the one number that has to
+        # be right if the two generations are to be comparable on one axis.
+        # Everything the figure actually measures -- gamma, D-min, the toe,
+        # the separation of the three records, the 0.40 log E gap to 5247 --
+        # is invariant under that shift.
+        #
+        # ⚠ AND THE SHOULDER IS DECLARED, NOT FITTED. Fig. 4 stops at
+        # density 1.39 / 1.96 / 2.34, inside the straight line, so it contains
+        # no information about the shoulder at all; a six-parameter fit to it
+        # returns one anyway, placed wherever the simplex drifted. shoulder_x
+        # is therefore pinned 0.12 log E beyond the EXR twin's, which is the
+        # owner's T3 reading of the 1982 emulsion ("long, gentle rounding"
+        # against the EXR's "harder rolloff") expressed as the one degree of
+        # freedom the evidence leaves, and shoulder_k is tied to 1.4 x toe_k
+        # by the project's monotonicity rule rather than chosen.
+        curves=RGBCurves(
+            r=ToneCurve(dmin=0.1830, gamma=0.5529, toe_x=-1.7163,
+                        toe_k=0.1034, shoulder_x=1.96, shoulder_k=0.1448),
+            g=ToneCurve(dmin=0.5419, gamma=0.6549, toe_x=-1.6997,
+                        toe_k=0.1515, shoulder_x=1.90, shoulder_k=0.2121),
+            b=ToneCurve(dmin=0.9618, gamma=0.6403, toe_x=-1.6811,
+                        toe_k=0.1984, shoulder_x=1.78, shoulder_k=0.2777),
+        ),
+        # Fig. 13, and the figure is used in a way its bare abscissa would
+        # seem to forbid. It is captioned "Log E" with no numbers -- so no
+        # exposure, no speed and no latitude can come off it -- but it draws
+        # the DENSITY curve in the same frame as the two granularity curves,
+        # on its own calibrated ordinate, so log E can be ELIMINATED between
+        # them and every column becomes a point of sigma(D).
+        #
+        # ⚠ THE SHAPE IS THE POINT OF THIS STOCK. Granularity PEAKS IN THE
+        # TOE at D 0.83 and falls by more than half by D 2.0, which is the
+        # opposite of the flat-sigma assumption and is exactly why an
+        # underexposed 5293 negative looks so much grainier than a correctly
+        # exposed one -- the paper says so in words: "underexposures on 5293
+        # film appear slightly more grainy than they do on 5247 film, but
+        # normal exposures and overexposures appear to have comparable
+        # graininess".
+        # ⚠ THE CLUMP TRIPLE IS THE EASTMAN COLOUR NEGATIVE HOUSE SET, NOT A
+        # MEASUREMENT, and the paper publishes no grain size, aspect ratio or
+        # iodide figure of any kind -- its own granularity argument is made
+        # entirely in RMS. clump_gain is DERIVED rather than chosen: the EXR
+        # twin carries 0.55 and this film traces 10.8 RMS at D 1.0 against the
+        # twin's 7.4, so 0.55 x 10.8 / 7.4 = 0.80. Recorded at tier 3 in
+        # _K5293_1982_PARAMS, because a derivation from a house value is still
+        # a house value.
+        grain=GrainSpec(
+            10.8, 4.194, 4.516, 5.484, clump_gain=0.80, fog_grain=0.24,
+            rms_aperture_um=48.0,
+            sigma_shape_toe=1.002, sigma_shape_toe_at=0.732,
+            sigma_shape_mid=1.0,
+            sigma_shape_peak=1.101, sigma_shape_peak_at=0.834,
+            sigma_shape_dmax=0.473, sigma_shape_dmax_at=2.022,
+            sigma_shape_measured=True,
+        ),
+        # Fig. 14 traced, Table 2 transcribed. ⚠ THE PAPER PRINTS ONE MTF
+        # CURVE FOR THE WHOLE FILM and not one per record, so the three f50
+        # entries carry the same number and that is what the source supports;
+        # a per-record split would be invented. 5247's own curve in the same
+        # frame traces to 43.6 cycles/mm, which is the "similar" the paper
+        # claims and a check on the log-log calibration at the same time.
+        mtf=MTFSpec(
+            f50_r=41.5, f50_g=41.5, f50_b=41.5,
+            resolving_power_lp_mm_lowc=50.0,
+            resolving_power_lp_mm_highc=100.0,
+            # ⚠ THE ROLLOFF EXPONENT IS FITTED FROM THE CURVE, not
+            # defaulted: 210 traced samples above 8 cycles/mm fit
+            # 1/(1+(f/f50)^q) at q = 2.37, rms 0.024 and worst 0.051 of
+            # response. 5247's own curve in the same frame fits q = 1.92, so
+            # this film reaches f50 slightly earlier and then falls slightly
+            # faster -- which is the crossing near 60 cycles/mm the figure
+            # draws, recovered from a fit that was never told about it.
+            mtf_rolloff_q=2.37,
+            mtf_measured=True,
+        ),
+        # Fig. 1, top to bottom, in Kodak's own words. ⚠ THE ORDER IS THE
+        # ONE THING THIS FIGURE FIXES that the rest of the profile cannot:
+        # blue on top, then green, then red, with a yellow filter layer
+        # between blue and green and an interlayer between green and red,
+        # and each of the three a FAST layer over a SLOW one.
+        layer_stack=LayerStack(
+            order=("blue", "green", "red"),
+            source=(
+                "Kennel et al. 1982 Fig. 1, layer structure of 5293 film, "
+                "twelve strata top to bottom: overcoat (matte particles and "
+                "lubricants), barrier layer (traps development by-products), "
+                "fast yellow, slow yellow, YELLOW FILTER LAYER, fast magenta, "
+                "slow magenta, INTERLAYER, fast cyan, slow cyan, base, rem-jet "
+                "backing. \u26a0 THE TWO-LAYER PAIRS ARE THE FILM'S CENTRAL "
+                "DESIGN and not a detail: the fast layer of each pair is a "
+                "large-grain emulsion with very little coupler -- 'coupler "
+                "starving' -- giving high threshold speed and limited "
+                "latitude, and the slow layer is fine-grained with enough "
+                "coupler to carry the latitude. \u26a0 THE YELLOW FILTER LAYER "
+                "IS NOT DECORATION: the paper states that the red- and "
+                "green-sensitive emulsions 'retain some of their intrinsic "
+                "sensitivity to blue light', which is what that layer blocks. "
+                "No per-layer resolving power is published, so the three "
+                "numeric fields stay at zero.")),
+        # Fig. 5, both films where they coincide. The paper's own words are
+        # that the two "differ somewhat in both blue and red sensitivities",
+        # which is to say they are drawn one on top of the other everywhere
+        # else, and splitting them by line style would be arbitrary over most
+        # of the abscissa.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=350.0, lambda_step_nm=10.0,
+            log_s_r=_K5293_SENS_R, log_s_g=_K5293_SENS_G,
+            log_s_b=_K5293_SENS_B,
+            criterion="relative_log_sensitivity_as_plotted",
+            source=_K5293_1982_SOURCE + "  Fig. 5, traced. \u26a0 THE ORDINATE "
+            "IS LABELLED 'LOG SENSITIVITY' WITH NO CRITERION AND NO UNIT, so "
+            "these are relative figures on the paper's own scale and are not "
+            "comparable in absolute terms with a datasheet's "
+            "log(1/erg/cm2) at a stated density. What they do carry, and what "
+            "is worth having, is the SHAPE and the relative heights of the "
+            "three records. \u26a0 A -4.0 MEANS THE RECORD HAS LEFT THE FRAME "
+            "at that wavelength, not that the layer is blind there."),
+        # Fig. 7, the 5293 set, normalised to a peak of 1.0.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_cyan=_K5293_DYE_C, d_magenta=_K5293_DYE_M,
+            d_yellow=_K5293_DYE_Y,
+            normalisation="peak_1.0",
+            source=_K5293_1982_SOURCE + "  Fig. 7, traced; the ordinate is "
+            "the figure's own 'NORMALIZED DENSITY-STAIN', peak 1.0. Traced "
+            "peaks 450 / 546 / 682 nm for yellow / magenta / cyan. \u26a0 THE "
+            "CYAN PEAK IS THE ONE DIFFERENCE THE PAPER NAMES between the two "
+            "films' dye sets -- 5293's sits 'at a slightly shorter "
+            "wavelength' than 5247's -- and the paper immediately adds that "
+            "with print densities matched for light skin the exposure "
+            "densities of every other subject are essentially equal, so 'the "
+            "slight difference in the dye sets has little effect on color "
+            "reproduction'. \u26a0 A ZERO MEANS THE FIGURE STOPS PLOTTING THAT "
+            "DYE, not a measured zero."),
+        # Fig. 12, and it is the first push ladder in this database with
+        # numbers rather than a stops count. Kodak draw the normal and the
+        # push-1 process as two full sets of three records, so the fog
+        # penalty, the contrast gain and the realised speed are all readable
+        # instead of being inferred from a claim.
+        push=PushSpec(
+            max_push_stops=1.0,
+            base_fog_penalty_per_stop=0.078,
+            fog_penalty_stated=True,
+            gamma_gain_per_stop=0.048,
+            speed_gain_per_stop=0.970,
+            source=_K5293_1982_SOURCE + "  Fig. 12, traced: base+fog rises "
+            "0.041 / 0.085 / 0.108 in R/G/B, straight-line gamma rises 6.2 / "
+            "3.2 / 4.9 %, and the curves shift 0.311 / 0.237 / 0.327 log E "
+            "-- a mean of 0.292 against the 0.301 a full stop would be, so "
+            "97 % of the nominal stop is actually realised. \u26a0 THE CAP IS "
+            "ONE STOP AND THAT IS THE PAPER'S OWN LIMIT, not a missing "
+            "measurement: 'A Push-2-process condition increases the "
+            "graininess substantially without a significant improvement in "
+            "tone scale', so the per-stop gains above must NOT be "
+            "extrapolated to two. \u26a0 THE PROCESS CHANGE IS STATED TOO: "
+            "Push-1 is 40 seconds to 1 minute over the standard developer "
+            "time, usually obtained by slowing the film transport for the "
+            "whole process."),
+        # Fig. 15, the PREDICTED 24 degC curve only.
+        dye_stability=DyeStabilitySpec(
+            reference_temp_c=24.0,
+            loss_c=429.0,
+            source=_K5293_1982_SOURCE + "  Fig. 15, traced. \u26a0 ONLY THE "
+            "PREDICTED ROOM-TEMPERATURE CURVE IS ADOPTED, and the four "
+            "measured ones are not, because they are not measurements of "
+            "storage: the solid curves are Arrhenius incubations at 77, 85 "
+            "and 93 degC on a scale of DAYS, drawn to fit the extrapolation. "
+            "The dashed curve is that extrapolation, at 24 degC and 40 % RH "
+            "on a scale of YEARS, and it runs from density 0.990 at 16 years "
+            "to 0.957 at 172 years from a starting density of 1.0. Inverted "
+            "through the same 1 - 0.9^(t/T) law AlgoStorageAge.hpp already "
+            "implements, that is 429 years to a 10 % loss of the CYAN dye. "
+            "\u26a0 THE FIGURE'S OWN LEGEND READS '*PRELIMINARY DATA' and that "
+            "word is carried here rather than dropped. \u26a0 ONLY CYAN IS "
+            "PLOTTED; the paper adds that 'stabilities of the yellow and "
+            "magenta dyes in 5293 film are similar to those in 5247 film', "
+            "which is a statement about 5247 and not a number for either, so "
+            "loss_m and loss_y stay at zero and the resolver fades the cyan "
+            "record alone."),
+        # The paper names the base and the backing in one sentence: "Eastman
+        # color negative films are coated on a safety-film base of cellulose
+        # triacetate with a rem-jet backing", and gives the rem-jet three
+        # jobs -- halation control, antistatic and lubrication -- with
+        # removal as the first step of processing.
+        emulsion=EmulsionSpec(
+            base_material="cellulose triacetate",
+            antihalation="remjet",
+            habit="nontabular",
+            coated_um=17.0,
+            designation="5293 / 7293",
+            source=_K5293_1982_SOURCE + "  \u26a0 THE CRYSTAL HABIT IS THE "
+            "PAPER'S OWN ARGUMENT RATHER THAN A MEASUREMENT: the speed gain "
+            "is attributed to 'larger grain silver-halide emulsions in the "
+            "fast layers' with 'emulsion addenda and ripening procedures "
+            "optimized to obtain the maximum speed for the grain sizes "
+            "employed', which is conventional grain growth and not the "
+            "tabular technology Kodak introduced with EXR ten years later. "
+            "No crystal size, aspect ratio or iodide figure is published. "
+            "\u26a0 THE 17 um COATED THICKNESS IS OWNER-SUPPLIED T3 (a quoted "
+            "16-18 um), NOT from the paper, which discusses emulsion "
+            "thickness only qualitatively -- 'sharpness is optimized by "
+            "employing techniques that minimize emulsion-layer thickness' "
+            "beside a schematic, Fig. 2, showing that a thin turbid layer "
+            "and a thicker less turbid one can scatter equally. Recorded at "
+            "tier 3 in _K5293_1982_PARAMS."),
+        processing=ProcessingSpec(
+            developer="ECN-2",
+            celsius=41.1,
+        ),
+        # ⚠ THE FILTER, NOT THE FILTERED INDEX. The owner's T3 block gives
+        # a daylight rating of 160 through a Wratten No. 85, and
+        # `exposure_index_tungsten` may not hold it -- that field's rule is
+        # unfiltered pairs only, precisely so a filter factor cannot be
+        # mistaken for a sensitisation difference. 250 -> 160 is 0.65 of a
+        # stop, which is what a No. 85 costs.
+        taking_filter=TakingFilter(
+            designation="Wratten No. 85",
+            source="OWNER-SUPPLIED T3 BLOCK, 2026-09-17 (tier 3): the 1982 "
+                   "5293 rated EI 160 in daylight with a No. 85 conversion "
+                   "filter, against EI 250 tungsten. \u26a0 THE 1982 PAPER "
+                   "STATES NO DAYLIGHT RATING AND NO FILTER; this is the "
+                   "standard conversion for every tungsten-balanced Eastman "
+                   "camera negative and is stored pending official Kodak "
+                   "documentation. No transmission curve is stored, because "
+                   "none is quoted."),
+        provenance=Provenance(
+            tier=1,
+            sources=(_K5293_1982_SOURCE, _K5293_1982_T3),
+            fitted_from="datasheet_curve",
+            last_reviewed="2026-09-17",
+        ),
+    ),
+
+    # =======================================================================
+    #  P63 -- THE FIVE 1956 SHEET EMULSIONS THAT HAD EVERY NUMBER AND NO
+    #  PROFILE TO PUT THEM IN
+    # =======================================================================
+    # ⚠⚠ NOTHING HERE WAS READ TODAY EXCEPT THE CURVES. `kodak_1956` has held
+    # these five films' exposure indexes, filter factors, graininess /
+    # resolving-power / sharpness classes and a printed (time, gamma) family
+    # since 2026-09-16 in `UNHOUSED_1956`, and P62 gave them a MEASURED
+    # spectral response on 2026-09-17. The blocker was the characteristic
+    # curve, and `kodak_1956_curves.py` traces it: 26 curves off five plates,
+    # every one of them checked against the gamma Kodak letters beside it.
+    #
+    # ⚠ THE CURVE ADOPTED IS THE ONE KODAK'S OWN PROCESSING TABLE
+    # RECOMMENDS -- the "For Normal Use" row, intermittent agitation (tank),
+    # for the developer the family is drawn for -- not the one that looked
+    # tidiest. Two of the five recommendations fall between drawn curves and
+    # the nearer curve is taken; the gap is in `kodak_1956_curves.ADOPTED`.
+    #
+    # ⚠⚠ THE EXPOSURE INDEXES ARE 1956 AMERICAN STANDARD AND ARE **NOT**
+    # CONVERTED, AND THAT IS A REFUSAL WITH THE SAME SHAPE AS QUEUE P65'S.
+    # The 1956 standard carries a safety factor the 1960 revision removed, so
+    # these numbers are not post-1960 ASA -- and the conversion does not
+    # resolve. Five films are rated on both scales (the 1963 Kodak
+    # Professional Catalogue supplies the later figure): VERICHROME PAN
+    # 80 -> 125 and PLUS-X 80 -> 125 give 1.56, TRI-X 200 -> 400 and ROYAL
+    # PAN 200 -> 400 give 2.00, ROYAL-X PAN 650 -> 1250 gives 1.92. A ratio
+    # that lands on 1.56 twice and 2.00 twice is not one scale factor, so
+    # none is applied and the stored index is the book's own, said so here
+    # and in each profile's `description`.
+    #
+    # ⚠ GRAIN IS A CLASS ESTIMATE AND THE CLASS IS NOT USED NUMERICALLY.
+    # `kodak_1956` records the book's own position: the resolving-power steps
+    # are the only verbal scale it puts numbers on, and the graininess and
+    # acutance steps are ordinal. So `rms_granularity` here is the DATABASE'S
+    # OWN monochrome relation, rms = 5.21*log10(EI) + 1.10 over its 69
+    # monochrome stocks, evaluated at each film's own index -- and the
+    # printed graininess class is carried in the description rather than
+    # invented into a number.
+    #
+    # ⚠ RESOLVING POWER IS THE ONE VERBAL CLASS THAT DOES CARRY NUMBERS.
+    # `kodak_1956.RP_LPMM_1956` holds the bands the book prints on pages
+    # 19-20; f50 is the band midpoint times 0.496, the ratio KODAK_PLUS_X_125
+    # already validates between a documented 125 lines/mm and a stored f50 of
+    # 62.0.
+    FilmProfile(
+        name="KODAK_SUPER_PANCHRO_PRESS_B_1956",
+        aliases=("super panchro-press", "super panchro press",
+                 "panchro-press type b", "super panchro-press type b"),
+        description=(
+            "[T1 curve] Kodak SUPER PANCHRO-PRESS, TYPE B, Sheet Film, 1956. "
+            "Exposure index 125 daylight / 100 tungsten on the 1956 AMERICAN "
+            "STANDARD, which is not post-1960 ASA and is not converted here "
+            "-- see the block comment above. The fastest of the five press "
+            "and portrait sheet films in the Seventh Edition, and the one "
+            "whose plate draws the largest curve family: six curves from 4 "
+            "to 10 1/2 minutes in DK-50. Graininess class 'Medium', "
+            "resolving power 'Medium' (76-96 lines/mm by the book's own "
+            "page 20 definition), sharpness 'Medium', degree of enlargement "
+            "'Moderate'. Spectral response MEASURED from the sheet's own two "
+            "wedge spectrograms (queue P62); characteristic curve TRACED "
+            "from the sheet's own DK-50 family at Kodak's recommended 5 "
+            "minutes, gamma .70 (queue P63)."
+        ),
+        era="1956",
+        is_monochrome=True,
+        exposure_index=125,
+        exposure_index_tungsten=100,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.0413, 0.7038, -1.4635, 0.2903,
+                               0.6630, 0.1468)),
+        grain=GrainSpec(12.0, 5.806, 5.806, 5.806, clump_gain=0.95,
+                        fog_grain=0.15),
+        default_format="large4x5",
+        mtf=MTFSpec(42.7, 42.7, 42.7, adjacency=0.11, adjacency_um=16.0,
+                    resolving_power_lp_mm_highc=86.0),
+    ),
+    FilmProfile(
+        name="KODAK_PORTRAIT_PANCHROMATIC_1956",
+        aliases=("portrait panchromatic", "portrait pan sheet",
+                 "kodak portrait panchromatic"),
+        description=(
+            "[T1 curve] Kodak PORTRAIT PANCHROMATIC Sheet Film, 1956. "
+            "Exposure index 50 daylight / 32 tungsten on the 1956 AMERICAN "
+            "STANDARD (not converted -- see above). The slowest panchromatic "
+            "sheet film of the group and the one the book gives the longest "
+            "development family: DK-50 diluted 1:1 from 5 1/2 to 20 minutes. "
+            "Graininess 'Medium', resolving power 'Moderately Low' (61-76 "
+            "lines/mm), sharpness 'Moderately Low'. ⚠ IT IS ALSO ONE OF THE "
+            "TWO PANCHROMATIC FILMS THE 1938 BOOKLET AND THIS BOOK BOTH "
+            "RATE, which is what made queue P65's Kodak Research "
+            "Laboratories speed scale convert at exactly 4.00. Spectral "
+            "response MEASURED (P62); curve TRACED at Kodak's recommended 9 "
+            "minutes, nearest drawn curve 8 minutes, gamma .70 (P63)."
+        ),
+        era="1956",
+        is_monochrome=True,
+        exposure_index=50,
+        exposure_index_tungsten=32,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.0674, 0.7308, -1.3178, 0.3448,
+                               0.5930, 0.0895)),
+        grain=GrainSpec(9.9, 4.790, 4.790, 4.790, clump_gain=0.90,
+                        fog_grain=0.13),
+        default_format="large4x5",
+        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.12, adjacency_um=17.0,
+                    resolving_power_lp_mm_highc=68.5),
+    ),
+    FilmProfile(
+        name="KODAK_ROYAL_ORTHO_1956",
+        aliases=("royal ortho", "royal-ortho", "royal ortho sheet"),
+        description=(
+            "[T1 curve] Kodak ROYAL ORTHO Sheet Film, 1956. Exposure index "
+            "200 daylight / 125 tungsten on the 1956 AMERICAN STANDARD (not "
+            "converted -- see above). ⚠ THE FASTEST ORTHOCHROMATIC FILM IN "
+            "THIS DATABASE, and the book names the practical consequence in "
+            "its own words on page 11: a material 'sensitive only to blue-"
+            "violet, blue, and green ... may be handled without danger of "
+            "fogging by a safelight transmitting only deep red'. Its "
+            "measured cutoff is at 600 nm (queue P62), against 650-670 for "
+            "the panchromatic sheets beside it. Graininess 'Medium', "
+            "resolving power 'Medium' (76-96 lines/mm), sharpness 'Medium'. "
+            "Curve TRACED from the sheet's own DK-60a family at Kodak's "
+            "recommended 4 minutes, printed gamma .73 (P63). ⚠ The trace "
+            "reads 0.710 against that printed .73, a 2.7 % gap recorded "
+            "rather than rescaled away."
+        ),
+        era="1956",
+        is_monochrome=True,
+        exposure_index=200,
+        exposure_index_tungsten=125,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.1184, 0.7399, -1.4241, 0.2074,
+                               0.6220, 0.2903)),
+        grain=GrainSpec(13.1, 6.323, 6.323, 6.323, clump_gain=0.95,
+                        fog_grain=0.16),
+        default_format="large4x5",
+        mtf=MTFSpec(42.7, 42.7, 42.7, adjacency=0.11, adjacency_um=16.0,
+                    resolving_power_lp_mm_highc=86.0),
+    ),
+    FilmProfile(
+        name="KODAK_SUPER_SPEED_ORTHO_1956",
+        aliases=("super speed ortho", "super speed ortho portrait",
+                 "super-speed ortho"),
+        description=(
+            "[T1 curve] Kodak SUPER SPEED ORTHO PORTRAIT Sheet Film, 1956. "
+            "⚠ RATED FOR TUNGSTEN ONLY -- exposure index 25 tungsten on the "
+            "1956 AMERICAN STANDARD and NO DAYLIGHT INDEX AT ALL, which is "
+            "the book's own statement about a studio portrait material and "
+            "not a gap in the transcription. `exposure_index` therefore "
+            "carries the tungsten figure and `balance_kelvin` says so. "
+            "Graininess 'Moderately Coarse' -- the coarsest of the five -- "
+            "resolving power 'Moderately Low' (61-76 lines/mm), sharpness "
+            "'Moderately Low'. Measured cutoff 580 nm (P62). Curve TRACED "
+            "from the DK-50 1:1 family at Kodak's recommended 10 minutes, "
+            "nearest drawn curve 9 minutes, printed gamma .70 (P63). ⚠ THAT "
+            "CURVE IS ON THE TRACER'S REFUSAL LIST: it reads 0.651 against "
+            "the printed .70, a 7 % gap that is recorded here and in "
+            "`kodak_1956_curves.REFUSED` rather than scaled out."
+        ),
+        era="1956",
+        is_monochrome=True,
+        exposure_index=25,
+        exposure_index_tungsten=25,
+        balance_kelvin=2850,
+        curves=_mono(ToneCurve(0.0523, 0.7416, -1.2454, 0.4583,
+                               1.7901, 0.6415)),
+        grain=GrainSpec(8.4, 4.065, 4.065, 4.065, clump_gain=1.05,
+                        fog_grain=0.13),
+        default_format="large4x5",
+        mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.13, adjacency_um=18.0,
+                    resolving_power_lp_mm_highc=68.5),
+    ),
+    FilmProfile(
+        name="KODAK_COMMERCIAL_1956",
+        aliases=("kodak commercial", "commercial sheet film",
+                 "commercial 1956"),
+        description=(
+            "[T1 curve] Kodak COMMERCIAL Sheet Film, 1956. Exposure index 25 "
+            "daylight / 6 tungsten on the 1956 AMERICAN STANDARD (not "
+            "converted -- see above). ⚠ THE ONLY NON-COLOUR-SENSITIZED FILM "
+            "IN THIS DATABASE FROM THIS BOOK, and its wedge spectrogram "
+            "proves it: the measured response dies at 510 nm, against 580-600 "
+            "for the two orthochromatic sheets and 650-670 for the "
+            "panchromatic ones (queue P62). That is also why its daylight "
+            "and tungsten indexes are four stops apart -- a blue-sensitive "
+            "emulsion can make almost nothing of tungsten light. ⚠ IT IS THE "
+            "THIRD FILM OF QUEUE P65'S BRIDGE AND THE ONE THAT REFUSED: the "
+            "1938 Kodak Research Laboratories scale converts at 4.00 on two "
+            "panchromatic films and at 1.60 on this one, which is why that "
+            "conversion is adopted for PANCHROMATIC sheet film only. "
+            "Graininess 'Fine' -- the finest of the five -- resolving power "
+            "'Medium' (76-96 lines/mm). Curve TRACED from the DK-50 1:1 "
+            "family at 5 1/2 minutes, printed gamma .85, and it is the "
+            "longest-scale curve on any of the five plates: 2.5 density over "
+            "three decades (P63)."
+        ),
+        era="1956",
+        is_monochrome=True,
+        exposure_index=25,
+        exposure_index_tungsten=6,
+        balance_kelvin=5500,
+        curves=_mono(ToneCurve(0.0100, 0.9260, -0.9993, 0.4661,
+                               1.8124, 0.3095)),
+        grain=GrainSpec(8.4, 4.065, 4.065, 4.065, clump_gain=0.85,
+                        fog_grain=0.11),
+        default_format="large4x5",
+        mtf=MTFSpec(42.7, 42.7, 42.7, adjacency=0.10, adjacency_um=15.0,
+                    resolving_power_lp_mm_highc=86.0),
+    ),
 )
 
 # Presented in NATURAL (numeric-aware) order by name: digit runs inside a name
@@ -27158,6 +30428,19 @@ FILM_RENAMES: dict[str, str] = {
     "AGFACOLOR_NEU_1936": "AGFA_NEU_1936",
     "AGFACOLOR_NEG_TYPE_B_1943": "AGFA_NEG_TYPE_B_1943",
     "AGFACOLOR_NEG_TYPE_3": "AGFA_NEG_TYPE_3",
+    # ⚠ 2026-09-15, AND A DIFFERENT KIND OF RENAME FROM THE THREE ABOVE. Those
+    #   renamed a KEY while the product stayed what Agfa printed. This one
+    #   retires a product designation nobody ever printed: "ORWOCOLOR NC 24"
+    #   was an interpolation between real NC-series stocks, and the profile
+    #   said so in its own description. The evidenced product at that place in
+    #   the family is NC 19 at ISO 64, so the profile now carries that name and
+    #   that speed. The profile's own block holds the three sources and the
+    #   reason the sibling ORWOCOLOR_NC21 was deliberately NOT touched.
+    #   ⚠ THE LOCKED ID IS WHY THIS ROW IS NEEDED: film_ids.lock holds
+    #   ORWOCOLOR_NC24 at id 128, and without the mapping write_id_migration()
+    #   reports that stock WITHDRAWN -- which would tell the owner a film was
+    #   removed when it was renamed and is still there.
+    "ORWOCOLOR_NC24": "ORWOCOLOR_NC19",
 }
 
 # ===========================================================================
@@ -27252,7 +30535,7 @@ _TEMPORAL_OVERRIDES: dict[str, TemporalSpec] = {
     "SVEMA_FOTO_250": TemporalSpec(16.0, 11.0, 0.7, 3.0, 4.0, 0.0, 2.0, 10.0, 24.0),
     "TASMA_FN_64": TemporalSpec(13.0, 9.0, 0.7, 2.2, 4.0, 0.0, 1.2, 10.0, 24.0),
     "ORWOCOLOR_NC21": TemporalSpec(10.0, 7.0, 0.6, 1.8, 4.0, 0.0, 1.0, 8.0, 24.0),
-    "ORWOCOLOR_NC24": TemporalSpec(10.0, 7.0, 0.6, 1.6, 4.0, 0.0, 0.9, 8.0, 24.0),
+    "ORWOCOLOR_NC19": TemporalSpec(10.0, 7.0, 0.6, 1.6, 4.0, 0.0, 0.9, 8.0, 24.0),
     "KODAK_VISION3_50D_5203": TemporalSpec(2.0, 1.5, 0.4, 0.1, 1.0, 0.0, 0.05, 2.0, 24.0),
     "KODAK_VISION3_250D_5207": TemporalSpec(2.0, 1.5, 0.4, 0.1, 1.0, 0.0, 0.05, 2.0, 24.0),
     "KODAK_VISION3_200T_5213": TemporalSpec(2.0, 1.5, 0.4, 0.1, 1.0, 0.0, 0.05, 2.0, 24.0),
@@ -27436,7 +30719,149 @@ _NO_DATASHEET: tuple[str, ...] = (
 #: sheets as one product. This database holds 5285 only.
 #:
 #: See NotFound.md for the per-stock list of parameters still missing.
+_SOVREMENNYE_2004 = (
+    "В. И. Шеберстов et al., «Современные фотоматериалы и их обработка», "
+    "717 pp. -- a plot atlas of the late-film-era catalogue. [T2] "
+    "DOCUMENTED REFERENCE DATA, NOT A MANUFACTURER SHEET, so it fills a "
+    "field the vendor sheet leaves empty and never displaces a vendor "
+    "figure. Every panel is an embedded bitmap of about 480x360 with no "
+    "vector paths and no tick text, so sovremennye_2004.py cuts its own "
+    "digit template bank out of ten axes in this same PDF, fits each axis "
+    "over the largest consistent subset of decoded labels, and refuses a "
+    "characteristic-curve trace whose base densities do not come out an "
+    "orange ladder. "
+    "⚠ THE READER'S OWN CHECK IS THAT IT REPRODUCES DATA IT DID NOT "
+    "WRITE: nine of its traces land on manufacturer figures already in "
+    "this database -- PORTRA 160NC/160VC/400NC/400VC, PRO 100T PRT, "
+    "ULTRA COLOR 400UC to within 0.008-0.036 D, and APX 100, APX 400 and "
+    "SCALA 200X to within 1.3-5.6 c/mm -- and seven more colour f50 "
+    "readings fall inside the stored r/g/b bracket. Those agreements are "
+    "not stored; they are what licenses the three readings that are."
+)
+
 _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
+    # ⚠ THE 1982 5293's CITATION IS HERE AND NOT ONLY ON THE PROFILE, because
+    # `_provenance_for` REBUILDS `Provenance` from this dict and falls back to
+    # the `_NO_DATASHEET` placeholder for anything missing -- so a profile can
+    # carry a full citation in its own literal and still answer "no official
+    # manufacturer datasheet available" to every query. That is the exact gap
+    # this dict was created to close, and it closes silently if a new stock
+    # forgets to register.
+    "EASTMAN_5293_250T_1982": (
+        "G. L. Kennel, R. C. Sehlin, F. R. Reinking, S. W. Spakowsky and "
+        "G. L. Whittier (all Eastman Kodak Company), \u00abEastman Color "
+        "High-Speed Negative Film 5293\u00bb, SMPTE Journal 91(10), October "
+        "1982, pp. 922-930. Tier T1: Kodak's own staff on "
+        "Kodak's own film. Nine pages, a pure raster scan with no text layer; "
+        "six figures traced and cross-checked against the paper's own stated "
+        "numbers by kodak_5293_1982.py on every build. \u26a0 NOT the 1992 "
+        "EASTMAN EXR 200T 5293, which reuses the catalogue number on a "
+        "T-grain emulsion and is held as EASTMAN_EXR_200T_5293.",
+        "OWNER-SUPPLIED T3 COMPARISON BLOCK, 2026-09-17, held pending "
+        "official Kodak documentation for the 1982 emulsion: it corroborates "
+        "the EI of 250, the non-tabular crystal, the blue D-min and the RMS "
+        "of 10, supplies the 16-18 um emulsion pack, the daylight EI 160 with "
+        "a Wratten 85 and the shoulder's qualitative shape, and DISAGREES "
+        "with the paper on MTF (25-30 lp/mm against Kodak's traced 41.5 "
+        "cycles/mm and Kodak's own identical resolving powers for 5293 and "
+        "5247). The paper wins by the precedence rule and the disagreement is "
+        "recorded rather than resolved; see _K5293_1982_T3 and this profile's "
+        "param_sources.",
+    ),
+    # ⚠ THE ECN-2 AND ECP-2E PROCESS CYCLES, FROM KODAK'S OWN LAB MANUAL, AND
+    # THE FIRST ENTRY HERE WHOSE VALUE IS A CORROBORATION RATHER THAN A NEW
+    # NUMBER. Supplied by the owner 2026-09-16c.
+    "KODAK_KIT_CHEMICALS_H24": (
+        "Eastman Kodak Company, «Using KODAK Kit Chemicals in Motion Picture "
+        "Film Laboratories», 79 pp, text layer present -- the laboratory "
+        "manual for the ECN-2 and ECP-2E kit chemistries. ⚠ TIER T1, "
+        "manufacturer describing its own process. "
+        "⚠⚠ ITS PRINCIPAL VALUE IS THAT IT CONFIRMS A NUMBER THIS DATABASE "
+        "ALREADY RENDERS WITH. `ProcessingSpec` on nineteen ECN-2 stocks "
+        "carries developer 3.0 min at 41.1 degC, taken from Kodak's push/pull "
+        "web page with H-24 Module 7; this manual's «Mechanical "
+        "Specifications for Process ECN-2 with UL Bleach» prints 3:00 at "
+        "41.1 ± 0.1 degC (106 ± 0.2 degF) independently, so the stored "
+        "condition now rests on two Kodak publications instead of one and "
+        "nothing needs to change. "
+        "⚠ THE TOLERANCE IS NEW AND IT IS THE TIGHTEST IN THIS CORPUS: "
+        "± 0.1 degC on the developer, with the manual's own reason -- «small "
+        "deviations can lead to severe contrast mismatch». That is the "
+        "measured justification for AlgoControlEnums.hpp's note that the "
+        "development-temperature control does not apply to colour stocks, "
+        "which previously cited only C-41's ± 0.15 degC. "
+        "⚠ THE FULL ELEVEN-STEP ECN-2 CYCLE, UL bleach, 35 mm, per 100 ft "
+        "replenishment: prebath 27 ± 1 degC 0:10 / 400 mL; rem-jet removal "
+        "and rinse 27-38 degC; developer 41.1 ± 0.1 degC 3:00 / 900 mL with "
+        "recirculation, filtration and turbulation; stop 27-38 degC 0:30 / "
+        "600 mL; wash 0:30 / 1.3 L; UL bleach 27 ± 1 degC 3:00 / 200 mL; wash "
+        "1:00 / 1.3 L; fixer 38 ± 1 degC 2:00 / 600 mL; wash 2:00 / 270 mL; "
+        "final rinse 0:10 / 400 mL; dryer 32-47 degC at 30-50 % RH, 5-7 min "
+        "impingement or 30-38 degC 6-8 min non-impingement. 16 mm uses half "
+        "the 35 mm replenishment and wash rates. "
+        "⚠ AND THE NINE-STEP ECP-2E PRINT CYCLE, WHICH HAS NOWHERE TO LAND: "
+        "developer 36.7 ± 0.1 degC (98 ± 0.2 degF) 3:00 / 690 mL; stop 27 ± 1 "
+        "degC 0:40; wash 0:40; UL bleach 27 ± 1 degC 1:00 / 400 mL; wash "
+        "0:40; fixer 27 ± 1 degC 0:40; wash 1:00; final rinse 0:10; dryer 57 "
+        "degC impingement 3-5 min. `PrintStock` HAS NO `processing` FIELD AT "
+        "ALL -- it is None on all eleven print stocks -- so the print "
+        "chemistry is recorded here and cannot yet be stored as structured "
+        "data. That gap is queue P66. "
+        "⚠ ECN-2 HAS THREE BLEACH ALTERNATIVES and the kit uses one: "
+        "ferricyanide (SR-29), «UL» (SR-33) and persulfate (ST-31), with the "
+        "kit chemistry on UL. The cycles above are the UL sequence and do not "
+        "describe the other two. "
+        "⚠ CONTROL-STRIP AIM DENSITIES ARE PRINTED TWICE AND THE TWO SETS ARE "
+        "NOT THE SAME, WHICH IS NOT A CONFLICT. p54 works an example for one "
+        "reference strip and reaches D-min R 0.15 / G 0.54 / B 0.95, LD 0.33 "
+        "/ 0.72 / 1.05, MD 0.85 / 1.33 / 1.59, HD 1.19 / 1.69 / 1.98, "
+        "HD-LD 0.86 / 0.97 / 0.93; the H-24F process record form reproduced "
+        "on p56 prints, for reference strip code 7121, D-min 0.11 / 0.54 / "
+        "0.95, LD 0.34 / 0.75 / 1.32, MD 1.00 / 1.49 / 1.99, HD 1.39 / 1.88 / "
+        "2.24, HD-LD 1.05 / 1.13 / 0.92. A control-strip aim is a property of "
+        "the STRIP BATCH, not of the process -- the manual's whole «crossover» "
+        "procedure exists because the aim moves with the code number -- so "
+        "NEITHER SET IS ADOPTED into `aim_density` and they must not be "
+        "averaged. Control-band limits for the ECN-2 chart: action 0.06 and "
+        "control 0.08 on the low-density colour balance, action 0.07 and "
+        "control 0.09 on HD-LD."),
+    # ---- 2026-09-15b: the plot atlas that was nearly thrown away ------------
+    # ⚠ THESE THREE ENTRIES EXIST BECAUSE A REVIEW OF THIS BOOK GOT IT WRONG.
+    # The volume was read on 2026-09-15, searched for TABLE captions carrying
+    # the words granularity / resolving power / spectral sensitivity /
+    # characteristic curve, and written off as "a processing manual and nothing
+    # else" on thirty-five word hits and no table. The tables ARE processing
+    # tables. The sensitometry is in the FIGURES, of which there are 708 --
+    # 258 characteristic-curve panels, 81 MTF, 42 development kinetics, 232 dye
+    # spectra -- and the search never looked at a figure caption. The lesson
+    # worth keeping is not about this book: A NULL RESULT IS A PROPERTY OF THE
+    # QUERY UNTIL IT HAS BEEN SHOWN TO BE A PROPERTY OF THE DOCUMENT.
+    # ---- 2026-09-15: ORWOCOLOR NC 3, the first GDR manufacturer source ------
+    "ORWOCOLOR_NC3": (
+        "Dipl.-Chem. Johann Tamm and Dr. Joachim Weisflog, VEB Filmfabrik "
+        "Wolfen -- Fotochemisches Kombinat, «NC 3 - ein neuer "
+        "Color-Negativfilm», BILD UND TON Heft 11/1972, 25. Jahrgang, "
+        "pp. 341-344. "
+        "THE MANUFACTURER DESCRIBING ITS OWN PRODUCT THE YEAR IT SHIPPED, "
+        "which is what puts this profile a tier above every other ORWO stock "
+        "in the corpus. PRINTED AS TEXT and adopted verbatim: 19 DIN; "
+        "tungsten 3200 K balance with the ORWO K 14 conversion filter for "
+        "daylight at a cost of 2 DIN; first masked Wolfen cine negative; "
+        "double the speed of NC 1; mean green gradient 0.55 Behrendt / 0.62 "
+        "TGL; straight-line portion 1.8 log E; Tabelle 1 RMS granularity "
+        "28 / 25 / 28 at D 1.0 through a 24 um aperture; Tabelle 2 k-Zahlen "
+        "42 / 60 / 85 um; resolving power R = 85 L/mm; Tabelle 3 "
+        "Verarbeitungsvorschrift 5186 -- ORWOCOLOR 11 for 6-7 min at "
+        "20 +- 1/3 degC, bleach ORWOCOLOR 55, fixer ORWOCOLOR 73. "
+        "TRACED, and re-derived on every build by orwo_nc3_1972.py: Bild 5 "
+        "characteristic curves, Bild 6 development kinetics, Bild 7 "
+        "modulation transfer. "
+        "⚠ PRINTED AND NOT READ: Bild 2 spectral sensitisation (the text "
+        "states green maxima at 545 and 572 nm and a red maximum at 645 nm), "
+        "Bild 3 the K 14 filter transmission, and Bild 4 the image-dye "
+        "spectral density. Those three are open and are recorded in "
+        "NotFound.md, not quietly skipped.",
+    ),
     # ---- 2026-08-20: the two stocks added under C6 and the 5201 review ----
     # Both are new profiles, so neither has ever carried the placeholder; these
     # entries exist so that the tier each claims is backed by the document each
@@ -27964,7 +31389,14 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "CI 0.50 at EI 16-25 in Technidol LC through CI 2.50 at EI 200 in Dektol; diffuse RMS granularity 5 "
         "(Technidol LC) and 8 (HC-110 Dilution D) at 48 um; extended red sensitisation to 690 nm; base 4-mil "
         "ESTAR-AH with 0.1 neutral-density tint. NO numeric resolving power printed anywhere in P-255 -- the "
-        "circulating 320+ lp/mm figure is from other Kodak literature not in this corpus and is NOT used here",),
+        "circulating 320+ lp/mm figure is from other Kodak literature not in this corpus and is NOT used here",
+        _SOVREMENNYE_2004,
+        "p.372, «Функция передачи модуляции фотопленки Kodak Professional "
+        "Technical Pan». The stored f50 was 110 c/mm EST, reasoned from the "
+        "RMS 5 granularity class precisely because P-255 prints no numeric "
+        "resolving power. The traced curve falls through 50 % at 72.3 c/mm, "
+        "a third below the estimate. A measurement replaces an estimate; no "
+        "manufacturer figure is displaced, because there was none.",),
     # ---- 2026-08-15 batch: new vendor sheets landed under PDF/PROFILES ----
     "FUJICOLOR_SUPER_F500_8572": (
         "FUJICOLOR SUPER F-500 datasheet (35mm Type 8572 / 16mm Type 8672), FUJIFILM -- PDF/PROFILES/FUJI/'F500 - '."
@@ -28695,7 +32127,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     # catches: not an estimate wearing a citation, but a measurement wearing a
     # placeholder that says it has none.
     "KODAK_EKTAR_125": (
-        'Foster, Stephen and Craver, "Photographic bleach compositions and methods of photographic processing", US Patent 5,334,491, Eastman Kodak Company, filed 22 Sep 1993 (continuation of Ser. No. 797,663, 25 Nov 1991), granted 2 Aug 1994 -- PDF/PROFILES/KODAK/\'US5334491 (EKTAR-125).pdf\', the Table at col 3-4. ⚠ A BLEACH-CHEMISTRY PATENT, NOT AN EMULSION ONE. Ektar 125 is one of three Kodak colour negatives (with Gold 400 and Kodacolor II / 5035) used to score nine experimental ferric-methyliminodiacetic-acid bleaches. Its BLUE D-MIN is printed for each: 0.910 / 1.340 / 0.850 / 0.958 / 0.897 / 0.903 / 0.862 / 0.849 / 0.852 for slots 1-9. ⚠ THE COLUMN MEASURES BLEACH-INDUCED STAIN, so the film\'s own D-min is the asymptote as stain goes to zero and the lowest reading is an UPPER BOUND that still contains the best bleach\'s residual. Slot 2 is a prior-art comparative at pH 6 included to show a bleach that stains; the other eight span 0.109 D and the four optimised formulations (slots 3, 7, 8, 9) span 0.013 D about a mean of 0.8532. ⚠ Method statement in full: "The blue Dmin value was determined for Ektar 125 film in accordance with the state of the art." No densitometer status, no aperture, no illuminant is given.',
+        'Foster, Stephen and Craver, "Photographic bleach compositions and methods of photographic processing", US Patent 5,334,491, Eastman Kodak Company, filed 22 Sep 1993 (continuation of Ser. No. 797,663, 25 Nov 1991), granted 2 Aug 1994 -- PDF/PROFILES/KODAK/\'US5334491 (EKTAR-125).pdf\', the Table at col 3-4. ⚠ A BLEACH-CHEMISTRY PATENT, NOT AN EMULSION ONE. Ektar 125 is one of three Kodak colour negatives (with Gold 400 and Kodacolor II / 5035) used to score nine experimental ferric-methyliminodiacetic-acid bleaches. Its BLUE D-MIN is printed for each: 0.910 / 1.134 / 0.850 / 0.958 / 0.897 / 0.903 / 0.862 / 0.849 / 0.852 for slots 1-9. ⚠ SLOT 2 IS 1.134, NOT 1.340: the US text layer drops leading digits in this table (its Cleartime column OCRs 110.25/112.36/114.0/112.4 as "10.25/12.36/14.0/12.4"), and the European twin EP 0 545 464 A1 prints 1.134 in the same cell; the 400 dpi US page image confirms it. ⚠ THE COLUMN MEASURES BLEACH-INDUCED STAIN, so the film\'s own D-min is the asymptote as stain goes to zero and the lowest reading is an UPPER BOUND that still contains the best bleach\'s residual. Slot 2 is a prior-art comparative at pH 6 included to show a bleach that stains; the other eight span 0.109 D and the four optimised formulations (slots 3, 7, 8, 9) span 0.013 D about a mean of 0.8532. ⚠ Method statement in full: "The blue Dmin value was determined for Ektar 125 film in accordance with the state of the art." No densitometer status, no aperture, no illuminant is given.',
         'Jack and Sue Drafahl, "Ektar", PHOTOgraphic, September 1989, pp 80-82. ⚠ A MAGAZINE REVIEW WITH NO SENSITOMETRY: no rms, no gamma, no D-max, no MTF, no resolving power, no spectral data, no reciprocity, no processing table. What it does document, in terms, is the construction: ELEVEN layers; two blue layers, one fast and one slow, together slightly thicker than Ektar 25\'s single slow blue layer; an EXTRA INTERLAYER between the two green layers which "restricts color couplers from migrating into each other, thus increasing the film\'s sharpness"; a then-new magenta coupler which "has the ability to enhance the speed of the T-grain emulsion"; and two red layers carrying "the same DIAR couplers found in Ektar 25, which inhibit dye formation wherever appropriate, increasing color saturation". Also states wider exposure latitude than the 25-speed Ektars. ⚠ None of that has a numeric carrier in this schema and none of it is stored as a number.',),
     "KODAK_PORTRA_160NC": ("KODAK PROFESSIONAL PORTRA 160NC / 160VC / 400NC / 400VC and 800 Films, "
                           "publication E-190, May 2003, Eastman Kodak Company -- "
@@ -28741,8 +32173,24 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "KODAK_ULTRAMAX_400": ("KODAK ULTRA MAX 400 Film, publication E-7023, Eastman Kodak Company",
                           "⚠ THIRD-PARTY, NON-MANUFACTURER, NOT A MEASUREMENT [T3]. FilmLab Pro v2.1 «published data» browser emulator, https://filmlabpro.com/published-data, engine values read out of its application bundle /assets/index-DdvumSO0.js and archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json (harvested 2026-08-27). USED FOR ONE PARAMETER ONLY on this profile -- halation gain and threshold, which were previously at the schema default 0/0/0 with Feature.HALATION unset. The site claims its numbers are digitized from manufacturer publications but names NO instrument, operator, date or laboratory, and its rms granularity contradicts the very datasheets it cites wherever this project holds the same document (Portra 400 6.5 vs E-4050's 4, Acros 100 4.5 vs Fuji's 7, Velvia 50 3.8 vs Fuji's 9, Kodachrome 64 6 vs Kodak's 10). Treat as a reconstruction, never as manufacturer data. Full assessment: doc/NotFound.md §7.1.",),
     "KODAK_ULTRAMAX_800": ("KODAK ULTRA MAX 800 Film, publication E-7024, Eastman Kodak Company",),
-    "KODAK_VERICOLOR_III_160": ("KODAK VERICOLOR III Professional Film, publication E-26, Eastman Kodak Company",),
-    "KODAK_EKTAPRESS_PJ400": ("KODAK PROFESSIONAL EKTAPRESS Films, publication E-116, Eastman Kodak Company",),
+    "KODAK_VERICOLOR_III_160": (
+        "KODAK VERICOLOR III Professional Film, publication E-26, Eastman Kodak Company",
+        _SOVREMENNYE_2004,
+        "p.183, «Характеристические кривые фотопленки Vericolor III». The "
+        "profile carried a FLAT 0.21 / 0.20 / 0.20 base density, which "
+        "asserts that a C-41 negative has no orange mask. The traced toe "
+        "plateaus are 0.784 / 0.568 / 0.209 B/G/R. E-26 prints no base "
+        "densities, so this fills an empty field rather than displacing "
+        "one.",),
+    "KODAK_EKTAPRESS_PJ400": (
+        "KODAK PROFESSIONAL EKTAPRESS Films, publication E-116, Eastman Kodak Company",
+        _SOVREMENNYE_2004,
+        "p.140, «Характеристические кривые фотопленки PJ400». Same flat "
+        "placeholder as Vericolor III, same fill: traced 1.020 / 0.803 / "
+        "0.382 B/G/R, a heavier mask than Vericolor III's, which is what a "
+        "400-speed press negative built for a four-stop push should carry, "
+        "and it lands beside PORTRA 800 rather than beside the 160-speed "
+        "stocks. E-116 prints no base densities.",),
     "KODAK_PROFOTO_100": ("KODAK PROFOTO 100 Film, publication E-2e, Eastman Kodak Company",),
     "KODAK_ULTRA_COLOR_100UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
     "KODAK_ULTRA_COLOR_400UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
@@ -29089,6 +32537,508 @@ _PROGRESS_CONSTANTS = {
 #: project touched or verified on 2026-08-27. ABSENCE OF AN ENTRY IS NOT A
 #: CLAIM: it means only the profile-level tier applies.
 _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
+    # -- P63, 2026-09-17: the five 1956 SHEET EMULSIONS ---------------------
+    # \u26a0\u26a0 THE POINT OF THIS GROUP IS THAT THREE DIFFERENT KINDS OF
+    # KNOWLEDGE SIT IN ONE PROFILE AND A READER MUST BE ABLE TO TELL THEM
+    # APART. The characteristic curve is TRACED off Kodak's own plate and
+    # checked against Kodak's own printed gamma. The resolving power is a
+    # CLASS the book itself puts numbers on. The graininess is a class the
+    # book explicitly refuses to put numbers on, so the stored RMS is this
+    # database's own monochrome relation evaluated at the film's index -- an
+    # estimate, and marked as one.
+    'KODAK_SUPER_PANCHRO_PRESS_B_1956': (
+        ParamSource(
+            param="curves.g.gamma", tier=1, status="traced",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- this "
+                   "film's own characteristic-curve family, traced at 300 dpi "
+                   "and fitted to the 5 min curve, which is the \"For Normal "
+                   "Use\" time the same data sheet's Processing table gives "
+                   "for DK-50, intermittent agitation (tank) at 68 F. Kodak "
+                   "letters that curve gamma 0.70 and the trace never sees "
+                   "the label.",
+            note="and the fit carries Kodak's printed gamma exactly. The whole family is re-traced on every build and 23 of "
+                 "its 26 curves reproduce Kodak's printed gammas to 3.9 %.",
+            confidence="high"),
+        ParamSource(
+            param="grain.rms_granularity", tier=3, status="estimated",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's graininess as 'Medium' on a six-step verbal scale. "
+                   "\u26a0 THE BOOK PUTS NUMBERS ON ITS RESOLVING-POWER STEPS "
+                   "AND ON NO OTHER (page 20), so no RMS is read from the "
+                   "class. The stored value is this database's own monochrome "
+                   "relation, rms = 5.21*log10(EI) + 1.10 over 69 stocks, "
+                   "evaluated at this film's own 1956 index.",
+            note="the CLASS is the datum and it is in the description; the "
+                 "number is an estimate anchored on the corpus, and the two "
+                 "must not be confused",
+            confidence="low"),
+        ParamSource(
+            param="mtf.resolving_power_lp_mm_highc", tier=2, status="stated",
+            unit="lines/mm",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's resolving power as 'Medium', and pages 19-20 define the "
+                   "verbal steps in lines per millimetre against a 1000:1 "
+                   "test object. The stored figure is that band's midpoint; "
+                   "f50 is the midpoint times 0.496, the ratio "
+                   "KODAK_PLUS_X_125 already validates between a documented "
+                   "125 lines/mm and a stored f50 of 62.0.",
+            confidence="medium"),
+    ),
+    'KODAK_PORTRAIT_PANCHROMATIC_1956': (
+        ParamSource(
+            param="curves.g.gamma", tier=1, status="traced",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- this "
+                   "film's own characteristic-curve family, traced at 300 dpi "
+                   "and fitted to the 8 min curve, which is the \"For Normal "
+                   "Use\" time the same data sheet's Processing table gives "
+                   "for DK-50 diluted 1:1, intermittent agitation (tank) at 68 F. Kodak "
+                   "letters that curve gamma 0.70 and the trace never sees "
+                   "the label.",
+            note="and the fit carries Kodak's printed gamma exactly. The whole family is re-traced on every build and 23 of "
+                 "its 26 curves reproduce Kodak's printed gammas to 3.9 %.",
+            confidence="high"),
+        ParamSource(
+            param="grain.rms_granularity", tier=3, status="estimated",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's graininess as 'Medium' on a six-step verbal scale. "
+                   "\u26a0 THE BOOK PUTS NUMBERS ON ITS RESOLVING-POWER STEPS "
+                   "AND ON NO OTHER (page 20), so no RMS is read from the "
+                   "class. The stored value is this database's own monochrome "
+                   "relation, rms = 5.21*log10(EI) + 1.10 over 69 stocks, "
+                   "evaluated at this film's own 1956 index.",
+            note="the CLASS is the datum and it is in the description; the "
+                 "number is an estimate anchored on the corpus, and the two "
+                 "must not be confused",
+            confidence="low"),
+        ParamSource(
+            param="mtf.resolving_power_lp_mm_highc", tier=2, status="stated",
+            unit="lines/mm",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's resolving power as 'Moderately Low', and pages 19-20 define the "
+                   "verbal steps in lines per millimetre against a 1000:1 "
+                   "test object. The stored figure is that band's midpoint; "
+                   "f50 is the midpoint times 0.496, the ratio "
+                   "KODAK_PLUS_X_125 already validates between a documented "
+                   "125 lines/mm and a stored f50 of 62.0.",
+            confidence="medium"),
+    ),
+    'KODAK_ROYAL_ORTHO_1956': (
+        ParamSource(
+            param="curves.g.gamma", tier=1, status="traced",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- this "
+                   "film's own characteristic-curve family, traced at 300 dpi "
+                   "and fitted to the 4 min curve, which is the \"For Normal "
+                   "Use\" time the same data sheet's Processing table gives "
+                   "for DK-60a, intermittent agitation (tank) at 68 F. Kodak "
+                   "letters that curve gamma 0.73 and the trace never sees "
+                   "the label.",
+            note="and the traced contrast is stored as traced, with the gap against Kodak's printed label recorded in the description. The whole family is re-traced on every build and 23 of "
+                 "its 26 curves reproduce Kodak's printed gammas to 3.9 %.",
+            confidence="high"),
+        ParamSource(
+            param="grain.rms_granularity", tier=3, status="estimated",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's graininess as 'Medium' on a six-step verbal scale. "
+                   "\u26a0 THE BOOK PUTS NUMBERS ON ITS RESOLVING-POWER STEPS "
+                   "AND ON NO OTHER (page 20), so no RMS is read from the "
+                   "class. The stored value is this database's own monochrome "
+                   "relation, rms = 5.21*log10(EI) + 1.10 over 69 stocks, "
+                   "evaluated at this film's own 1956 index.",
+            note="the CLASS is the datum and it is in the description; the "
+                 "number is an estimate anchored on the corpus, and the two "
+                 "must not be confused",
+            confidence="low"),
+        ParamSource(
+            param="mtf.resolving_power_lp_mm_highc", tier=2, status="stated",
+            unit="lines/mm",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's resolving power as 'Medium', and pages 19-20 define the "
+                   "verbal steps in lines per millimetre against a 1000:1 "
+                   "test object. The stored figure is that band's midpoint; "
+                   "f50 is the midpoint times 0.496, the ratio "
+                   "KODAK_PLUS_X_125 already validates between a documented "
+                   "125 lines/mm and a stored f50 of 62.0.",
+            confidence="medium"),
+    ),
+    'KODAK_SUPER_SPEED_ORTHO_1956': (
+        ParamSource(
+            param="curves.g.gamma", tier=1, status="traced",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- this "
+                   "film's own characteristic-curve family, traced at 300 dpi "
+                   "and fitted to the 9 min curve, which is the \"For Normal "
+                   "Use\" time the same data sheet's Processing table gives "
+                   "for DK-50 diluted 1:1, intermittent agitation (tank) at 68 F. Kodak "
+                   "letters that curve gamma 0.70 and the trace never sees "
+                   "the label.",
+            note="and the traced contrast is stored as traced, with the gap against Kodak's printed label recorded in the description. The whole family is re-traced on every build and 23 of "
+                 "its 26 curves reproduce Kodak's printed gammas to 3.9 %.",
+            confidence="high"),
+        ParamSource(
+            param="grain.rms_granularity", tier=3, status="estimated",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's graininess as 'Moderately Coarse' on a six-step verbal scale. "
+                   "\u26a0 THE BOOK PUTS NUMBERS ON ITS RESOLVING-POWER STEPS "
+                   "AND ON NO OTHER (page 20), so no RMS is read from the "
+                   "class. The stored value is this database's own monochrome "
+                   "relation, rms = 5.21*log10(EI) + 1.10 over 69 stocks, "
+                   "evaluated at this film's own 1956 index.",
+            note="the CLASS is the datum and it is in the description; the "
+                 "number is an estimate anchored on the corpus, and the two "
+                 "must not be confused",
+            confidence="low"),
+        ParamSource(
+            param="mtf.resolving_power_lp_mm_highc", tier=2, status="stated",
+            unit="lines/mm",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's resolving power as 'Moderately Low', and pages 19-20 define the "
+                   "verbal steps in lines per millimetre against a 1000:1 "
+                   "test object. The stored figure is that band's midpoint; "
+                   "f50 is the midpoint times 0.496, the ratio "
+                   "KODAK_PLUS_X_125 already validates between a documented "
+                   "125 lines/mm and a stored f50 of 62.0.",
+            confidence="medium"),
+    ),
+    'KODAK_COMMERCIAL_1956': (
+        ParamSource(
+            param="curves.g.gamma", tier=1, status="traced",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- this "
+                   "film's own characteristic-curve family, traced at 300 dpi "
+                   "and fitted to the 5.5 min curve, which is the \"For Normal "
+                   "Use\" time the same data sheet's Processing table gives "
+                   "for DK-50 diluted 1:1, intermittent agitation (tank) at 68 F. Kodak "
+                   "letters that curve gamma 0.85 and the trace never sees "
+                   "the label.",
+            note="and the traced contrast is stored as traced, with the gap against Kodak's printed label recorded in the description. The whole family is re-traced on every build and 23 of "
+                 "its 26 curves reproduce Kodak's printed gammas to 3.9 %.",
+            confidence="high"),
+        ParamSource(
+            param="grain.rms_granularity", tier=3, status="estimated",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's graininess as 'Fine' on a six-step verbal scale. "
+                   "\u26a0 THE BOOK PUTS NUMBERS ON ITS RESOLVING-POWER STEPS "
+                   "AND ON NO OTHER (page 20), so no RMS is read from the "
+                   "class. The stored value is this database's own monochrome "
+                   "relation, rms = 5.21*log10(EI) + 1.10 over 69 stocks, "
+                   "evaluated at this film's own 1956 index.",
+            note="the CLASS is the datum and it is in the description; the "
+                 "number is an estimate anchored on the corpus, and the two "
+                 "must not be confused",
+            confidence="low"),
+        ParamSource(
+            param="mtf.resolving_power_lp_mm_highc", tier=2, status="stated",
+            unit="lines/mm",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 classes this "
+                   "film's resolving power as 'Medium', and pages 19-20 define the "
+                   "verbal steps in lines per millimetre against a 1000:1 "
+                   "test object. The stored figure is that band's midpoint; "
+                   "f50 is the midpoint times 0.496, the ratio "
+                   "KODAK_PLUS_X_125 already validates between a documented "
+                   "125 lines/mm and a stored f50 of 62.0.",
+            confidence="medium"),
+    ),
+    # -- P62, 2026-09-17: the 1956 WEDGE SPECTROGRAMS -----------------------
+    # ⚠⚠ ONE ENTRY PER STOCK AND THEY ALL SAY THE SAME THREE THINGS,
+    # because the seven curves are seven readings of one instrument and the
+    # limits are the instrument's, not the emulsion's. The WAVELENGTHS are a
+    # measurement on the plate's own printed ticks. The LOG DEPTHS are a
+    # measurement through a wedge gradient Kodak never published, recovered
+    # from a CIE function drawn on the same plate, and good to about +/-10 %.
+    # Below 400 nm the values are Kodak's own understatement, by their
+    # warning. `status` is "traced" rather than "measured" for exactly that
+    # reason: the boundary is measured, the scale under it is derived.
+    'KODAK_VERICHROME_PAN': (
+        ParamSource(
+            param="spectral.log_s_pan", tier=1, status="traced", unit="log10",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- the two "
+                   "wedge spectrograms this film's data sheet prints, read as "
+                   "a density boundary at 600 dpi and corrected for the "
+                   "spectrograph's own illuminant. The reader reproduces "
+                   "Kodak's page-12 NON-COLOR-SENSITIZED / ORTHOCHROMATIC / "
+                   "PANCHROMATIC reference stack at 490 / 587 / 655 nm and "
+                   "that plate's eye curve at 551 nm against V(lambda)'s 555 "
+                   "before any of these numbers are adopted.",
+            note="WAVELENGTH is anchored on the plate's own 400/500/600 nm "
+                 "ticks and is tier 1. The LOG DEPTH rests on a wedge "
+                 "gradient Kodak does not publish, fitted from the page-12 "
+                 "eye plate against CIE 1924 V(lambda) at r=0.979, so depths "
+                 "carry about +/-10 %; the sunlight and tungsten plates of "
+                 "this same emulsion agree to 0.266 log after correction, "
+                 "which is the harvest's own accuracy. Below 400 nm the "
+                 "values are low by Kodak's page-11 warning about the "
+                 "spectrograph's lens.",
+            confidence="medium"),
+    ),
+    'KODAK_PANATOMIC_X': (
+        ParamSource(
+            param="spectral.log_s_pan", tier=1, status="traced", unit="log10",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- the two "
+                   "wedge spectrograms this film's data sheet prints, read as "
+                   "a density boundary at 600 dpi and corrected for the "
+                   "spectrograph's own illuminant. The reader reproduces "
+                   "Kodak's page-12 NON-COLOR-SENSITIZED / ORTHOCHROMATIC / "
+                   "PANCHROMATIC reference stack at 490 / 587 / 655 nm and "
+                   "that plate's eye curve at 551 nm against V(lambda)'s 555 "
+                   "before any of these numbers are adopted.",
+            note="WAVELENGTH is anchored on the plate's own 400/500/600 nm "
+                 "ticks and is tier 1. The LOG DEPTH rests on a wedge "
+                 "gradient Kodak does not publish, fitted from the page-12 "
+                 "eye plate against CIE 1924 V(lambda) at r=0.979, so depths "
+                 "carry about +/-10 %; the sunlight and tungsten plates of "
+                 "this same emulsion agree to 0.266 log after correction, "
+                 "which is the harvest's own accuracy. Below 400 nm the "
+                 "values are low by Kodak's page-11 warning about the "
+                 "spectrograph's lens.",
+            confidence="medium"),
+    ),
+    'KODAK_ROYAL_PAN_4141': (
+        ParamSource(
+            param="spectral.log_s_pan", tier=1, status="traced", unit="log10",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- the two "
+                   "wedge spectrograms this film's data sheet prints, read as "
+                   "a density boundary at 600 dpi and corrected for the "
+                   "spectrograph's own illuminant. The reader reproduces "
+                   "Kodak's page-12 NON-COLOR-SENSITIZED / ORTHOCHROMATIC / "
+                   "PANCHROMATIC reference stack at 490 / 587 / 655 nm and "
+                   "that plate's eye curve at 551 nm against V(lambda)'s 555 "
+                   "before any of these numbers are adopted.",
+            note="WAVELENGTH is anchored on the plate's own 400/500/600 nm "
+                 "ticks and is tier 1. The LOG DEPTH rests on a wedge "
+                 "gradient Kodak does not publish, fitted from the page-12 "
+                 "eye plate against CIE 1924 V(lambda) at r=0.979, so depths "
+                 "carry about +/-10 %; the sunlight and tungsten plates of "
+                 "this same emulsion agree to 0.266 log after correction, "
+                 "which is the harvest's own accuracy. Below 400 nm the "
+                 "values are low by Kodak's page-11 warning about the "
+                 "spectrograph's lens.",
+            confidence="medium"),
+    ),
+    'KODAK_TRI_X_SHEET_1952': (
+        ParamSource(
+            param="spectral.log_s_pan", tier=1, status="traced", unit="log10",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- the two "
+                   "wedge spectrograms this film's data sheet prints, read as "
+                   "a density boundary at 600 dpi and corrected for the "
+                   "spectrograph's own illuminant. The reader reproduces "
+                   "Kodak's page-12 NON-COLOR-SENSITIZED / ORTHOCHROMATIC / "
+                   "PANCHROMATIC reference stack at 490 / 587 / 655 nm and "
+                   "that plate's eye curve at 551 nm against V(lambda)'s 555 "
+                   "before any of these numbers are adopted.",
+            note="WAVELENGTH is anchored on the plate's own 400/500/600 nm "
+                 "ticks and is tier 1. The LOG DEPTH rests on a wedge "
+                 "gradient Kodak does not publish, fitted from the page-12 "
+                 "eye plate against CIE 1924 V(lambda) at r=0.979, so depths "
+                 "carry about +/-10 %; the sunlight and tungsten plates of "
+                 "this same emulsion agree to 0.266 log after correction, "
+                 "which is the harvest's own accuracy. Below 400 nm the "
+                 "values are low by Kodak's page-11 warning about the "
+                 "spectrograph's lens.",
+            confidence="medium"),
+    ),
+    'KODAK_SUPER_XX_PAN_4142': (
+        ParamSource(
+            param="spectral.log_s_pan", tier=1, status="traced", unit="log10",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- the two "
+                   "wedge spectrograms this film's data sheet prints, read as "
+                   "a density boundary at 600 dpi and corrected for the "
+                   "spectrograph's own illuminant. The reader reproduces "
+                   "Kodak's page-12 NON-COLOR-SENSITIZED / ORTHOCHROMATIC / "
+                   "PANCHROMATIC reference stack at 490 / 587 / 655 nm and "
+                   "that plate's eye curve at 551 nm against V(lambda)'s 555 "
+                   "before any of these numbers are adopted.",
+            note="WAVELENGTH is anchored on the plate's own 400/500/600 nm "
+                 "ticks and is tier 1. The LOG DEPTH rests on a wedge "
+                 "gradient Kodak does not publish, fitted from the page-12 "
+                 "eye plate against CIE 1924 V(lambda) at r=0.979, so depths "
+                 "carry about +/-10 %; the sunlight and tungsten plates of "
+                 "this same emulsion agree to 0.266 log after correction, "
+                 "which is the harvest's own accuracy. Below 400 nm the "
+                 "values are low by Kodak's page-11 warning about the "
+                 "spectrograph's lens.",
+            confidence="medium"),
+    ),
+    'KODAK_PANATOMIC_X_SHEET_1952': (
+        ParamSource(
+            param="spectral.log_s_pan", tier=1, status="traced", unit="log10",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- the two "
+                   "wedge spectrograms this film's data sheet prints, read as "
+                   "a density boundary at 600 dpi and corrected for the "
+                   "spectrograph's own illuminant. The reader reproduces "
+                   "Kodak's page-12 NON-COLOR-SENSITIZED / ORTHOCHROMATIC / "
+                   "PANCHROMATIC reference stack at 490 / 587 / 655 nm and "
+                   "that plate's eye curve at 551 nm against V(lambda)'s 555 "
+                   "before any of these numbers are adopted.",
+            note="WAVELENGTH is anchored on the plate's own 400/500/600 nm "
+                 "ticks and is tier 1. The LOG DEPTH rests on a wedge "
+                 "gradient Kodak does not publish, fitted from the page-12 "
+                 "eye plate against CIE 1924 V(lambda) at r=0.979, so depths "
+                 "carry about +/-10 %; the sunlight and tungsten plates of "
+                 "this same emulsion agree to 0.266 log after correction, "
+                 "which is the harvest's own accuracy. Below 400 nm the "
+                 "values are low by Kodak's page-11 warning about the "
+                 "spectrograph's lens.",
+            confidence="medium"),
+    ),
+    'KODAK_ROYAL_X_PAN_4166': (
+        ParamSource(
+            param="spectral.log_s_pan", tier=1, status="traced", unit="log10",
+            source="\u00abKodak Films\u00bb Seventh Edition 1956 -- the two "
+                   "wedge spectrograms this film's data sheet prints, read as "
+                   "a density boundary at 600 dpi and corrected for the "
+                   "spectrograph's own illuminant. The reader reproduces "
+                   "Kodak's page-12 NON-COLOR-SENSITIZED / ORTHOCHROMATIC / "
+                   "PANCHROMATIC reference stack at 490 / 587 / 655 nm and "
+                   "that plate's eye curve at 551 nm against V(lambda)'s 555 "
+                   "before any of these numbers are adopted.",
+            note="WAVELENGTH is anchored on the plate's own 400/500/600 nm "
+                 "ticks and is tier 1. The LOG DEPTH rests on a wedge "
+                 "gradient Kodak does not publish, fitted from the page-12 "
+                 "eye plate against CIE 1924 V(lambda) at r=0.979, so depths "
+                 "carry about +/-10 %; the sunlight and tungsten plates of "
+                 "this same emulsion agree to 0.266 log after correction, "
+                 "which is the harvest's own accuracy. Below 400 nm the "
+                 "values are low by Kodak's page-11 warning about the "
+                 "spectrograph's lens.",
+            confidence="medium"),
+    ),
+    # -- EASTMAN 5293 (1982), 2026-09-17: what is Kodak's and what is not ---
+    # ⚠⚠ THE POINT OF THIS GROUP IS THE TIER BOUNDARY INSIDE ONE PROFILE.
+    # Its curves, granularity, MTF, dye spectra, spectral sensitivity, push
+    # ladder and dye stability are all traced from Kodak's own 1982 paper and
+    # are tier 1. Three of its stored values are NOT in that paper and come
+    # from the owner's T3 comparison block of 2026-09-17, and two more are
+    # house defaults. Without these entries a reader has no way to tell which
+    # is which, and the instruction that produced the T3 block was explicit
+    # that its values be kept AND kept distinguishable so they can be
+    # upgraded when official Kodak documentation appears.
+    "EASTMAN_5293_250T_1982": (
+        ParamSource(
+            param="emulsion.habit", tier=1, status="stated",
+            source="Kennel et al. 1982 p923: the speed gain 'was obtained "
+                   "primarily through the use of larger grain silver-halide "
+                   "emulsions in the fast layers', with 'emulsion addenda and "
+                   "ripening procedures optimized to obtain the maximum speed "
+                   "for the grain sizes employed'. That is conventional grain "
+                   "growth. \u26a0 THE PAPER NAMES NO SPECIFIC HABIT, so the "
+                   "stored value is 'nontabular' and not 'cubic' -- the "
+                   "vocabulary was widened on 2026-09-17 rather than the fact "
+                   "invented.",
+            note="the tabular/non-tabular line is what separates this film "
+                 "from the 1992 EXR 5293 that reuses its number"),
+        ParamSource(
+            param="emulsion.coated_um", tier=3, status="stated", unit="um",
+            source="OWNER-SUPPLIED T3 BLOCK, 2026-09-17: emulsion pack "
+                   "~16-18 um for the 1982 emulsion against ~11-12 um for the "
+                   "1992 EXR. \u26a0 NOT IN THE PAPER, which discusses emulsion "
+                   "thickness only qualitatively (Fig. 2 and the sentence "
+                   "'sharpness is optimized by employing techniques that "
+                   "minimize emulsion-layer thickness'). Stored as the "
+                   "midpoint, 17.0, pending official Kodak documentation.",
+            confidence="medium"),
+        ParamSource(
+            param="taking_filter.designation", tier=3, status="stated",
+            source="OWNER-SUPPLIED T3 BLOCK, 2026-09-17: EI 160 in daylight "
+                   "through a Wratten No. 85, against the paper's tungsten EI "
+                   "of 250. \u26a0 THE PAPER GIVES NO DAYLIGHT RATING AT ALL, "
+                   "and the figure is NOT stored in "
+                   "`exposure_index_tungsten`: that field's own rule is "
+                   "UNFILTERED PAIRS ONLY, because a colour film's second "
+                   "index is dominated by the conversion filter's "
+                   "transmission rather than by the emulsion, and 250 -> 160 "
+                   "is 0.65 of a stop, which is simply what a No. 85 costs. "
+                   "What IS stored is the filter the figure assumes; the "
+                   "index itself is recorded here and in the T3 source so it "
+                   "is not lost.",
+            confidence="medium"),
+        ParamSource(
+            param="curves.g.shoulder_x", tier=3, status="estimated",
+            source="Fig. 4 STOPS INSIDE THE STRAIGHT LINE, at density 1.39 / "
+                   "1.96 / 2.34, so the paper contains no information about "
+                   "the shoulder. The stored shoulder sits 0.12 log E beyond "
+                   "EASTMAN_EXR_200T_5293's, which is the owner's T3 reading "
+                   "('long, gentle rounding' against the EXR's 'harder "
+                   "rolloff') expressed as the one degree of freedom left; "
+                   "shoulder_k is then tied to 1.4 x toe_k by the project's "
+                   "monotonicity rule rather than chosen. The implied D-max "
+                   "is 2.22 / 2.90 / 3.18.",
+            confidence="low"),
+        ParamSource(
+            param="grain.clump_gain", tier=3, status="derived",
+            source="NO GRAIN SIZE IS PUBLISHED ANYWHERE IN THE PAPER -- its "
+                   "granularity argument is made entirely in RMS. The clump "
+                   "triple is the Eastman colour negative house set and the "
+                   "gain is EASTMAN_EXR_200T_5293's 0.55 scaled by the traced "
+                   "RMS ratio at density 1.0, 10.8 / 7.4, giving 0.80. A "
+                   "derivation from a house value is still a house value.",
+            confidence="low"),
+        ParamSource(
+            param="grain.rms_aperture_um", tier=3, status="assumed",
+            unit="um",
+            source="Fig. 13's ordinate reads 'R.M.S. GRANULARITY' and states "
+                   "NO APERTURE. 48 um is Kodak's standard scanning aperture "
+                   "for every RMS figure of the period and is what the EXR "
+                   "twin's own sheet states, so it is assumed here -- but it "
+                   "is an assumption, and an RMS figure without an aperture "
+                   "is not comparable with one that has a different aperture.",
+            confidence="medium"),
+        ParamSource(
+            param="mtf.f50_g", tier=1, status="traced", unit="cycles/mm",
+            source="Fig. 14 traced: 41.5 cycles/mm for 5293 and 43.6 for "
+                   "5247 in the same frame, beside Table 2's identical "
+                   "resolving powers for the two films (50 lines/mm at 1.6:1, "
+                   "100 at 1000:1) and the sentence 'the MTF's and resolving "
+                   "powers of the two films are similar'. \u26a0 THIS DISPLACES "
+                   "THE OWNER'S T3 FIGURE of 25-30 lp/mm for the 1982 film, "
+                   "under the precedence rule: the manufacturer's own plotted "
+                   "and tabulated measurement outranks an undocumented "
+                   "secondary. The T3 figure is kept in `_K5293_1982_T3` so "
+                   "the disagreement is on the record rather than resolved "
+                   "silently. \u26a0 THE PAPER PRINTS ONE MTF CURVE FOR THE "
+                   "WHOLE FILM, not one per record, so all three f50 fields "
+                   "carry the same number.",
+            note="T3 disagreement recorded, not averaged"),
+        ParamSource(
+            param="mtf.f50_r", tier=1, status="traced", unit="cycles/mm",
+            source="Fig. 14, the same single traced curve as f50_g -- the "
+                   "paper publishes ONE MTF for the film and not one per "
+                   "record, so this is the measurement and not an anchor."),
+        ParamSource(
+            param="curves.g.gamma", tier=1, status="traced",
+            source="Fig. 4, straight-line slope of the green record over "
+                   "log E 1.0-2.4 relative, fitted to the shipped softplus "
+                   "curve model at rms 0.014 D. 5247's green in the same "
+                   "frame traces 0.700 against this film's 0.655, which is "
+                   "the paper's 'same contrast' claim holding to 0.045."),
+        ParamSource(
+            param="curves.g.dmin", tier=1, status="traced",
+            source="Fig. 4, the flat left plateau of the green record: "
+                   "0.542, with red at 0.183 and blue at 0.962. \u26a0 THE BLUE "
+                   "FIGURE IS AN INDEPENDENT CHECK ON THE OWNER'S T3 BLOCK, "
+                   "which quotes a blue D-min of 0.90-1.05 for the 1982 "
+                   "emulsion; the traced 0.962 sits inside it."),
+        ParamSource(
+            param="processing.developer", tier=1, status="stated",
+            source="Kennel et al. 1982 p927: 'Eastman color high-speed "
+                   "negative film 5293 is designed to be processed in Process "
+                   "ECN-2. This film is completely compatible with the other "
+                   "Eastman color films designed for Process ECN-2 films -- "
+                   "5247, 5243, and 5272. No changes in the replenishment "
+                   "rate or in the chemicals are necessary'. It also states "
+                   "compatibility with both the ferricyanide and the "
+                   "persulfate bleach."),
+        ParamSource(
+            param="grain.rms_granularity", tier=1, status="traced",
+            source="Fig. 13, by eliminating the figure's BARE log-exposure "
+                   "abscissa against the density curve drawn in the same "
+                   "frame: 10.8 at density 1.0, peaking at 12.3 in the toe "
+                   "(D 0.83) and falling to 5.3 by D 2.0. 5247 in the same "
+                   "frame traces 8.2 at D 1.0. \u26a0 THE OWNER'S T3 BLOCK "
+                   "QUOTES 10.0 FOR THIS FILM AND THE TRACE CONFIRMS IT; what "
+                   "the trace does NOT confirm is the same block's 5.0 for "
+                   "the EXR twin as a like-for-like contrast, since the paper "
+                   "says in words that 'the granularity of 5293 film is very "
+                   "similar to that of 5247 film' and traces the two within "
+                   "30 % of each other at every density."),
+    ),
     # -- AGFA, 2026-09-01: the 1998 «Technical Data PF» harvest ------------
     # ⚠ THESE ARE HAND ENTRIES AND THEY EXIST TO DISPLACE A DERIVED ONE.
     # `_PARAM_SOURCES_DERIVED` gave all eight pre-existing Agfa profiles a
@@ -35080,11 +39030,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK PANATOMIC-X FILM, p. 19, sunlight + tungsten; 380-660 nm, peak 570 nm",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.306, 0.372, 0.322), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_PANATOMIC_X_SHEET_1952': (
         ParamSource(
@@ -35136,11 +39087,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK PANATOMIC-X SHEET FILM, p. 33, sunlight + tungsten; 380-660 nm, peak 610 nm",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.240, 0.520, 0.240), a class default. This cell prints (0.308, 0.368, 0.324), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_PLUS_X_125': (
         ParamSource(
@@ -35637,11 +39589,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK ROYAL PAN SHEET FILM, p. 23, sunlight + tungsten; 380-670 nm, peak 470 nm",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.296, 0.379, 0.324), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_ROYAL_X_PAN_4166': (
         ParamSource(
@@ -35693,11 +39646,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK ROYAL-X PAN SHEET FILM, p. 44, sunlight + tungsten; 380-660 nm, peak 590 nm",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.329, 0.386, 0.286), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_SUPER_XX_PAN_4142': (
         ParamSource(
@@ -35749,11 +39703,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK SUPER-XX PANCHROMATIC SHEET FILM, p. 29, sunlight + tungsten; 380-660 nm, peak 470 nm",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.290, 0.356, 0.354), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_T400CN': (
         ParamSource(
@@ -36247,11 +40202,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK TRI-X PANCHROMATIC SHEET FILM, p. 25, sunlight + tungsten; 390-660 nm, peak 450 nm",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.460, 0.240), a class default. This cell prints (0.330, 0.337, 0.333), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_ULTRAMAX_400': (
         ParamSource(
@@ -36569,11 +40525,12 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=2, status='estimated',
+            param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
-            conditions='n/a',
-            confidence='low',
-            note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
+            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
+            source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK VERICHROME PAN FILM, p. 12, sunlight + tungsten; 380-670 nm, peak 450 nm",
+            confidence='high',
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.281, 0.367, 0.352), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_VERICOLOR_III_160': (
         ParamSource(
@@ -37774,7 +41731,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
-    'ORWOCOLOR_NC24': (
+    'ORWOCOLOR_NC19': (
         ParamSource(
             param='curves.g.dmin', tier=3, status='assumed',
             unit='density',
@@ -42537,7 +46494,19 @@ _KODAK_STILL_HARVEST_CURVES = frozenset({
 #: Colour negatives whose per-channel dmin values ladder upward (r << g << b)
 #: because the dmin encodes the orange coupler mask directly (audit finding;
 #: the rest keep near-neutral dmin and carry the mask in base_tint/dye data).
+
+
 _DMIN_LADDER = {
+    # ⚠ Added 2026-09-15b. These two must be listed HERE and not as a
+    # `mask_encoding=` literal on the profile, because `_apply_schema_v2`
+    # overwrites that literal unconditionally -- the same silent-discard
+    # defect class as `exposure_index_tungsten` and `processing`. Both
+    # stocks carried a FLAT base density, which asserts that a C-41
+    # negative has no orange mask; «Современные фотоматериалы и их
+    # обработка» prints their characteristic curves (pp. 183 and 140) and
+    # the traced toe plateaus are 0.784/0.568/0.209 and 1.020/0.803/0.382
+    # B/G/R. Those dmins now ARE the mask, so the encoding is a ladder.
+    "KODAK_VERICOLOR_III_160", "KODAK_EKTAPRESS_PJ400",
     # Added 2026-08-30 (K1): the traced E-190 dmins ladder 0.20/0.61/0.81
     # (160 pair) and 0.26/0.66/0.86 (400 pair) -- a 0.61 D mask spread,
     # so the mask is encoded in dmin exactly as for their siblings.
@@ -42831,6 +46800,25 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
     # `_reciprocity_for`. EASTMAN_TRI_X_5223 has carried an ignored 250 in its
     # literal for as long as the field has existed; it is honoured here now.
     "EASTMAN_TRI_X_5223": 250,
+    # ⚠ THE FIVE 1956 SHEET EMULSIONS, 2026-09-17 (queue P63), AND THEY ARE
+    # HERE RATHER THAN IN THEIR OWN LITERALS FOR EXACTLY THE REASON THE
+    # PARAGRAPH ABOVE GIVES: `_apply_schema_v2` reads this dict and nothing
+    # else, so a literal is silently discarded. All five are MONOCHROME and
+    # all five pairs are UNFILTERED -- the Seventh Edition prints a Daylight
+    # and a Tungsten column side by side for every sheet film and names no
+    # filter for either, which is the definition this field carries.
+    # ⚠ THE NUMBERS ARE 1956 AMERICAN STANDARD and are not post-1960 ASA;
+    # see the P63 block in the profile literals for why no conversion is
+    # applied.
+    "KODAK_SUPER_PANCHRO_PRESS_B_1956": 100,
+    "KODAK_PORTRAIT_PANCHROMATIC_1956": 32,
+    "KODAK_ROYAL_ORTHO_1956": 125,
+    # ⚠ SUPER SPEED ORTHO PORTRAIT IS RATED FOR TUNGSTEN ONLY. Its daylight
+    # column is EMPTY in the original, so the pair is the same number twice
+    # and `balance_kelvin` is 2850 -- the one stock in this dict where the
+    # two indexes agreeing is a statement rather than a coincidence.
+    "KODAK_SUPER_SPEED_ORTHO_1956": 25,
+    "KODAK_COMMERCIAL_1956": 6,
     # ⚠ FUJICOLOR_PORTRAIT_NPZ_800 IS DELIBERATELY NOT HERE, AND THE GUARD IS
     # WHY. Its sheet prints "Tungsten (3200K) -- ISO 200/24 deg, Wratten No. 80A
     # (or Fuji LBB-12)", which is a FILTERED effective speed: exactly two stops
@@ -42888,6 +46876,34 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
 # exists to expose rather than to paper over.
 # ---------------------------------------------------------------------------
 _PROCESSING: dict[str, ProcessingSpec] = {
+    # -- ORWOCOLOR NC 3, 2026-09-15 ------------------------------------------
+    # Tabelle 3, "ORWO-Verarbeitungsvorschrift 5186", Tamm & Weisflog 1972
+    # p343. The sheet prints the whole six-bath chain and only the colour
+    # developer is a ProcessingSpec field:
+    #     1 Farbentwickeln   6-7 min   ORWOCOLOR 11   20 +- 1/3 degC
+    #     2 Spruehwaessern   15 min                   12-15 degC
+    #     3 Bleichen          5 min    ORWOCOLOR 55   19-21 degC
+    #     4 Spruehwaessern    5 min                   12-15 degC
+    #     5 Fixieren          8 min    ORWOCOLOR 73   19-21 degC
+    #     6 Spruehwaessern   15 min                   12-15 degC
+    # Steps 1 to 4 run in darkness. 6-7 min is stored at its midpoint, which is
+    # also where the profile's own processing_family sits and where the traced
+    # green gradation reproduces the text's printed 0.55.
+    # ⚠ THE TOLERANCE IS PRINTED AS +- 1/3 degC and the schema has no field for
+    #   it. It is quoted here because a third of a degree is a TIGHT spec --
+    #   tighter than C-41's +- 0.15 degC is loose -- and it is evidence about
+    #   how the process was controlled, not about the emulsion.
+    # ⚠ THE NUMBER IS 5186, NOT 5168. One secondary web source for the sibling
+    #   NC 19 gives "C-5168"; the manufacturer's own table prints 5186, and a
+    #   transposition in a blog does not outrank Wolfen's own heading.
+    "ORWOCOLOR_NC3": ProcessingSpec(
+        developer="ORWOCOLOR 11",
+        dilution="",
+        minutes=6.5,
+        celsius=20.0,
+        agitation="continuous machine, spray wash between baths",
+        contrast_index=0.55,
+    ),
     # -- ANSCO, queue #215, 2026-09-05 ---------------------------------------
     # The condition the stored curves were developed at: Gifford & Gerhardt's
     # row B, "Normal" -- 16 min first developer, 14 min colour developer, both
@@ -43241,9 +47257,14 @@ _PROCESSING: dict[str, ProcessingSpec] = {
 #     strip manufacturer. `contrast_index` therefore stays 0.0 on every row
 #     here. A process name is not a contrast measurement.
 #  2. IT DOES NOT TOUCH A SOVIET OR AN ORWO STOCK. SVEMA CNL/LN and ORWOCOLOR
-#     NC21/NC24 are colour negatives of the right era and the wrong chemistry:
+#     NC19/NC21 are colour negatives of the right era and the wrong chemistry:
 #     they were processed in TsPV-1 and in ORWO's own baths, both of which this
-#     corpus documents elsewhere. Reading "colour negative, post-1972" as
+#     corpus documents elsewhere. ⚠ THE ORWO BATH NOW HAS A NAME, 2026-09-15:
+#     C-5168. Bratovanov names the process for NC 19 and photoroobit developed
+#     the same film "according to ORWO's formula" and published a separate
+#     warning against C-41. It is recorded in the NC 19 description; no
+#     ProcessingSpec row is written, because neither source prints a time, a
+#     temperature or an aim density, and a process name is not a measurement. Reading "colour negative, post-1972" as
 #     "C-41" would have swept up eleven stocks on a rule rather than a source.
 #  3. IT DOES NOT TOUCH A PRE-1972 OR A CINE COLOUR NEGATIVE with C-41, nor a
 #     pre-1974 one with ECN-2. C-41 dates from 1972 and ECN-2 from 1974; the
@@ -44138,7 +48159,7 @@ _COATING_OVERRIDE: dict[str, str] = {
     "SVEMA_FOTO_65": "poor",
     "SVEMA_FOTO_250": "poor", "TASMA_FN_64": "poor", "TASMA_POSITIVE_28": "poor",
     "SOVCOLOR_DS_4": "poor", "SOVIET_PANCHROM_1939": "trough",
-    "ORWOCOLOR_NC21": "poor", "ORWOCOLOR_NC24": "poor", "ORWO_UT18": "poor",
+    "ORWOCOLOR_NC21": "poor", "ORWOCOLOR_NC19": "poor", "ORWO_UT18": "poor",
     # Budget / small-plant lines that still show it.
     "FOMAPAN_400_ACTION": "poor", "FERRANIA_P30": "fair",
     "MACO_CUBE_400C": "fair", "MACO_PO_100C": "fair",
@@ -46099,6 +50120,21 @@ FILM_PROFILES = tuple(
 #: Unit row sums are preserved -- see `_dye()` for why that contract matters,
 #: and `dye_matrix_from_spectra` for why normalising rows loses no colour.
 _MEASURED_DYE_MATRIX: dict[str, Matrix3] = {
+    # -- EASTMAN 5293 (1982), 2026-09-17 (queue P67) --------------------------
+    # ⚠ DERIVED, NOT MEASURED AS A MATRIX. Kennel et al. 1982 Fig. 7 prints
+    # the three dye curves and no matrix; this is what ISO 5-3 makes of them,
+    # re-derived by dye_matrix_from_spectra.py on every build and stored as a
+    # literal so the database does not depend on a derivation running at import
+    # time. Status M, peaks 680 / 550 / 450 nm.
+    # ⚠ AND IT IS NOT IN USE, like every other row of this table. The stored
+    # characteristic curves are already status M densities, so the unwanted
+    # absorptions are in them ALREADY and applying this matrix would count them
+    # twice. The table exists because the measurement exists.
+    "EASTMAN_5293_250T_1982": (
+        (+0.912258, +0.087615, +0.000126),
+        (+0.015766, +0.792303, +0.191931),
+        (-0.000000, +0.041276, +0.958724),
+    ),
     # -- GEVAERT, 2026-09-02 (queue G2) ---------------------------------------
     # ⚠ ONE MEASUREMENT, TWO ROWS, AND THE TWO ARE IDENTICAL BY CONSTRUCTION.
     # Rens & Van Bets 1968 Bild 4 draws ONE dye set and captions it for both Typ
@@ -48465,6 +52501,1069 @@ def _apply_v34_halation_geometry(p: "FilmProfile") -> "FilmProfile":
 FILM_PROFILES = tuple(_apply_v34_halation_geometry(_p) for _p in FILM_PROFILES)
 
 
+# ---------------------------------------------------------------------------
+# v35 -- «Kodak Films» Data Book, Seventh Edition, 1956
+# ---------------------------------------------------------------------------
+# ⚠ WHAT THIS IS AND WHY IT IS TIER T1. Kodak drew, for each film in the book's
+# data-sheet section, a family of characteristic curves and LABELLED EACH
+# MEMBER IN FRAME with its development time and its gamma -- "7 1/2 min",
+# "gamma = 0.92". Nothing below is digitised off a pixel; every pair is a
+# transcription of a manufacturer's printed statement about its own product,
+# read off the page rendered at 400 dpi. That is the same tier as a modern
+# datasheet and it outranks every T2 reference in this corpus.
+#
+# ⚠⚠ AND IT DOES NOT OVERWRITE THE MODERN SHEETS, BECAUSE IT DESCRIBES A
+# DIFFERENT COATING. Seven of the twelve families belong to an earlier
+# generation of a product line whose profile holds the 1979 or 2016 emulsion:
+# the book publishes Tri-X at American Standard 200, the 2016 F-4017 sheet
+# publishes it at ISO 400, and both are manufacturer data. The precedence rule
+# cannot choose between two T1 sources measuring two different coatings, and
+# discarding either would lose real data -- so both are kept and
+# `DevelopmentPoint.edition` says which is which. See the v35 note beside
+# SCHEMA_VERSION.
+#
+# ⚠ THE TRANSCRIPTION GUARD IS PHYSICS, NOT A TOLERANCE. A misread gamma digit
+# is silent. But gamma(t) for a real developer-emulsion pair is the saturating
+# exponential `ProcessingFamily.gamma_at` already implements (Glafkides §211),
+# and four or five points fit its three parameters with room to spare. Every
+# family below is fitted in `kodak_1956.py` on every build and refused if any
+# point misses by more than 0.035 -- an order of magnitude below the smallest
+# single-digit error and an order above the two-decimal quantisation floor.
+# All twelve pass, and every fitted asymptote lands inside the 1.0-1.6 band
+# Glafkides gives for negatives.
+#
+# ⚠ AND THE 1952 EDITION IS THE SECOND READING THE FIRST HARVEST LACKED. The
+# 1952 Fifth Edition supplied the DK-50 families now on
+# KODAK_TRI_X_SHEET_1952 and KODAK_PANATOMIC_X_SHEET_1952, with its own source
+# string warning that the labels came from an Acrobat Paper Capture layer over
+# a 150 dpi raster and had never been read twice. The 1956 book reprints those
+# two plates unchanged, and the 400 dpi reading reproduces all ten pairs
+# exactly -- 4/6/8.5/12/19 against gamma 0.6-1.0 and 3/4/5/6/7 against the
+# same. Those two are therefore CORROBORATED and nothing is written for them;
+# the corroboration is recorded in the source string instead, because it is
+# what retires the warning.
+#
+# ⚠ WHAT IS NOT ADOPTED, AND WHY. The book's `Exposure Index` figures are NOT
+# copied onto `FilmProfile.exposure_index`. They are pre-1960 American Standard
+# indexes, and the book's own page 25 states the scale carries "a safety factor
+# of 2.5" that the 1960 revision removed; American Standard 80 and ISO 125 can
+# therefore describe one coating. They are stored where they are unambiguous --
+# on the development point, beside the edition that measured them.
+_K56_SOURCE = (
+    "Eastman Kodak Company, «Kodak Films», Kodak Data Book, SEVENTH EDITION, "
+    "first 1956 printing -- PDF/PROFILES/KODAK/1956-Kodak-Films.pdf, the "
+    "data-sheet section, pages 36-70 of the printed book. ⚠ TIER T1, AND BY "
+    "TRANSCRIPTION RATHER THAN BY TRACE: each characteristic curve of the "
+    "family is labelled IN FRAME by Kodak with its development time and its "
+    "gamma, so the pairs are a manufacturer's printed statement about its own "
+    "product and not a digitisation. Read at 400 dpi; the panel caption "
+    "supplies the developer, the dilution, the temperature and the agitation "
+    "regime, and the book's own development tables fix the vessel vocabulary "
+    "(«Tray (continuous agitation)», «Small Tank (30 sec. agitation)», «Large "
+    "Tank (1 min. agitation)»). ⚠ EVERY FAMILY IS FITTED TO THE "
+    "MEES-SHEPPARD LAW ON EVERY BUILD by kodak_1956.py and refused above a "
+    "0.035 residual, which is the guard against a misread digit; all twelve "
+    "pass and every asymptote lands inside the 1.0-1.6 band Glafkides §211 "
+    "gives for negatives. ⚠ THE EXPOSURE INDEX ON EACH POINT IS THE "
+    "PRE-1960 AMERICAN STANDARD VALUE, which is not an ISO number: page 25 of "
+    "this same book records the 2.5 safety factor the 1960 revision removed.")
+
+#: (profile, edition, developer, dilution, vessel, exposure_index, points)
+#: ⚠ 20.0 degC IS 68 F EXACTLY, which is the temperature every one of these
+#: panels is captioned at.
+_K56_FAMILIES: tuple[tuple, ...] = (
+    ("KODAK_VERICHROME_PAN", "1956 roll film", "KODAK D-76", "stock",
+     "small tank", 80,
+     ((5.0, 0.41), (7.5, 0.57), (11.0, 0.70), (19.0, 0.92), (31.0, 1.17))),
+    ("KODAK_PLUS_X_125", "1956 35mm", "KODAK D-76", "stock",
+     "small tank", 80,
+     ((5.0, 0.47), (6.0, 0.57), (9.0, 0.72), (13.0, 0.82), (18.0, 0.96))),
+    ("KODAK_TRI_X_400TX", "1956 roll film", "KODAK D-76", "stock",
+     "small tank", 200,
+     ((6.0, 0.54), (9.0, 0.69), (15.0, 1.00), (25.0, 1.26))),
+    ("KODAK_TRI_X_400TX", "1956 35mm", "KODAK D-76", "stock",
+     "small tank", 200,
+     ((6.0, 0.51), (10.0, 0.72), (15.0, 0.87), (25.0, 1.04))),
+    ("KODAK_PANATOMIC_X", "1956 roll film", "KODAK D-76", "stock",
+     "small tank", 25,
+     ((3.75, 0.43), (5.0, 0.55), (6.0, 0.62), (9.0, 0.79), (13.0, 0.96))),
+    ("KODAK_PANATOMIC_X", "1956 35mm", "KODAK D-76", "1:1",
+     "small tank", 25,
+     ((3.25, 0.42), (6.0, 0.61), (10.0, 0.81), (15.0, 1.02))),
+    ("KODAK_ROYAL_PAN_4141", "1956 sheet film", "KODAK DK-60a", "stock",
+     "tank", 200,
+     ((3.0, 0.58), (4.5, 0.75), (7.5, 0.92), (12.5, 1.09), (18.0, 1.14))),
+    ("KODAK_SUPER_XX_PAN_4142", "1956 sheet film", "KODAK DK-50", "stock",
+     "tank", 100,
+     ((4.0, 0.60), (5.0, 0.70), (7.0, 0.80), (9.0, 0.90), (12.0, 1.00))),
+    ("KODAK_ROYAL_X_PAN_4166", "1956 sheet film", "KODAK DK-50", "stock",
+     "tank", 650,
+     ((4.75, 0.47), (8.0, 0.80), (10.0, 1.00), (12.0, 1.10))),
+    ("KODAK_ROYAL_X_PAN_4166", "1956 roll film", "KODAK DK-50", "stock",
+     "small tank", 650,
+     ((3.75, 0.45), (5.0, 0.60), (8.0, 0.90), (12.0, 1.15))),
+)
+
+#: The two plates the seventh edition reprints unchanged from the fifth.
+#: Nothing is written for these; the agreement retires the fifth edition's own
+#: "read once, off a Paper Capture layer" warning, and that retirement is
+#: recorded in the source strings below.
+_K56_CORROBORATED = {
+    "KODAK_TRI_X_SHEET_1952": (
+        "⚠ CORROBORATED 2026-09-16 BY THE SEVENTH EDITION. «Kodak Films», "
+        "Kodak Data Book, Seventh Edition, 1956, PDF page 55, reprints this "
+        "plate unchanged and at a scan resolution that renders the in-frame "
+        "labels legible at 400 dpi. All five pairs read back identically -- "
+        "4 / 6 / 8 1/2 / 12 / 19 minutes against gamma 0.60 / 0.70 / 0.80 / "
+        "0.90 / 1.00 -- which retires the warning above: these labels have "
+        "now been read twice, from two printings, the second of them without "
+        "an OCR layer in the path. The 1956 sheet also publishes the film at "
+        "American Standard 200 daylight and 160 tungsten, matching the "
+        "profile's stored index."),
+    "KODAK_PANATOMIC_X_SHEET_1952": (
+        "⚠ CORROBORATED 2026-09-16 BY THE SEVENTH EDITION. «Kodak Films», "
+        "Kodak Data Book, Seventh Edition, 1956, PDF page 63, reprints this "
+        "plate unchanged. All five pairs read back identically -- 3 / 4 / 5 / "
+        "6 / 7 minutes against gamma 0.60 / 0.70 / 0.80 / 0.90 / 1.00 -- "
+        "which retires the warning above. ⚠ AND THE RATE LAW SURVIVES ITS "
+        "OWN RE-FIT: the stored gamma_infinity 1.35 and dev_rate_k 0.186 were "
+        "fitted from the 1952 reading, and an independent fit of the 1956 "
+        "reading by kodak_1956.py returns 1.326 and 0.192 -- 1.8 % and 3.2 % "
+        "apart, which is the grid resolution of the two fits and not a "
+        "disagreement. The stored pair is left untouched. The 1956 sheet "
+        "publishes the film at American Standard 32 daylight, 25 tungsten and "
+        "40 white-flame arc."),
+}
+
+
+def _apply_v35_kodak_1956(p: "FilmProfile") -> "FilmProfile":
+    """Append the 1956 Data Book's printed gamma families, generation-tagged.
+
+    ⚠ APPENDS, NEVER REPLACES. Every existing point keeps its empty `edition`,
+    which by the field's definition means "the generation this profile
+    describes". The 1956 points arrive beside them carrying their own
+    generation and their own American Standard speed, so a consumer that wants
+    one coating filters on the tag and a consumer that wants the whole
+    published history reads the tuple.
+
+    ⚠ AND `ProcessingFamily`'s RATE-LAW FIELDS ARE LEFT ALONE. gamma_infinity,
+    dev_rate_k and induction_t0_min describe ONE curve, and a family that now
+    holds two generations and two developers has no single curve to describe.
+    Fitting them per edition is `kodak_1956.fit_mees_sheppard`, which runs on
+    every build and prints its parameters; storing one of those fits in a
+    field that does not say which edition it belongs to would recreate, one
+    level up, exactly the ambiguity `edition` was added to remove.
+    """
+    fams = [f for f in _K56_FAMILIES if f[0] == p.name]
+    note = _K56_CORROBORATED.get(p.name)
+    if not fams and not note:
+        return p
+
+    old = p.processing_family or ProcessingFamily()
+    pts = list(old.points)
+    for _n, edition, dev, dil, vessel, ei, rows in fams:
+        for minutes, gamma in rows:
+            pts.append(DevelopmentPoint(
+                developer=dev, dilution=dil, minutes=float(minutes),
+                celsius=20.0, gamma=float(gamma), exposure_index=ei,
+                vessel=vessel, edition=edition))
+
+    src = old.source
+    if fams:
+        src = (src + "  " if src else "") + _K56_SOURCE
+    if note:
+        src = (src + "  " if src else "") + note
+
+    # ⚠ THE LABELLED FAMILY'S DEVELOPER IS RECORDED AS THE REFERENCE. Each
+    # 1956 data sheet draws its characteristic curves for one developer and
+    # names it; that is the condition the sheet's own curve describes, and
+    # `film_sim.development_family` needs it to break the tie the traced inset
+    # harvest creates. Written only when the field is still empty, so an
+    # existing statement from another source is never displaced.
+    ref_dev, ref_dil = old.reference_developer, old.reference_dilution
+    if fams and not ref_dev:
+        ref_dev, ref_dil = fams[0][2], fams[0][3]
+
+    return replace(p, processing_family=replace(
+        old, points=tuple(pts), source=src,
+        reference_developer=ref_dev, reference_dilution=ref_dil))
+
+
+FILM_PROFILES = tuple(_apply_v35_kodak_1956(_p) for _p in FILM_PROFILES)
+
+# ---------------------------------------------------------------------------
+# v35, second harvest -- the 1956 Data Book's TIME-GAMMA INSETS, traced
+# ---------------------------------------------------------------------------
+_K56_TRACE_SOURCE = (
+    "Eastman Kodak Company, \u00abKodak Films\u00bb, Kodak Data Book, SEVENTH "
+    "EDITION, first 1956 printing -- the TIME-GAMMA INSET beside each "
+    "data-sheet's characteristic-curve family. \u26a0 TIER T1 BY TRACE, NOT BY "
+    "TRANSCRIPTION, and the distinction is the whole reason these points are "
+    "tagged separately from the ones beside them. The characteristic family "
+    "carries Kodak's own printed time and gamma on every curve and is read as "
+    "text; the inset plots gamma against development time as a CONTINUOUS "
+    "line, one per developer, with the developer's name lettered along it and "
+    "not one point marked. So these numbers come off pixels at 400 dpi and "
+    "carry status=\"traced\". "
+    "\u26a0 WHAT THEY ADD THAT THE TRANSCRIPTIONS CANNOT. Kodak labels the "
+    "characteristic family for ONE developer -- D-76 on the roll films, DK-50 "
+    "or DK-60a on the sheets -- and draws two to four in the inset, so every "
+    "developer here except that one is a condition the corpus held no "
+    "contrast figure for at all: MQ (32 oz.), Versatol, Microdol and DK-50 at "
+    "1:1 enter the database with this harvest. "
+    "\u26a0 EVERY CURVE ADOPTED IS CHECKED AGAINST KODAK'S OWN PRINTED LABELS "
+    "AND THE CHECK IS LIKE FOR LIKE. Each panel is traced, each traced curve "
+    "is given the developer Kodak lettered on it, and the one curve whose "
+    "developer also carries a labelled characteristic family is interpolated "
+    "to Kodak's own times and compared with Kodak's own gammas. The worst "
+    "disagreement on the four adopted panels is 0.0440 of gamma and the best "
+    "0.0140; the tolerance is 0.055 and a panel over it is refused whole, as "
+    "are the nine panels whose axes or curve count did not resolve. The "
+    "agreement figure is carried on every row below. "
+    "\u26a0 AND A TRACED POINT NEVER DISPLACES A PRINTED ONE. Where a traced "
+    "minute falls within half a minute of a labelled point, the traced point "
+    "is dropped and Kodak's printed pair stands alone, so the two harvests "
+    "densify one family without ever answering the same question twice. "
+    "\u26a0 THE EXPOSURE INDEX IS THE PRE-1960 AMERICAN STANDARD VALUE of the "
+    "printed family this inset sits beside, which is not an ISO number.")
+
+#: (profile, edition, developer, dilution, vessel, exposure_index,
+#:  agreement, points) -- see `_K56_TRACE_SOURCE`.
+_K56_TRACE: tuple = (
+    ("KODAK_VERICHROME_PAN", "1956 roll film",
+     "KODAK D-76", "stock", "small tank", 80, 0.0355,
+     ((7, 0.507), (8, 0.562), (9, 0.61), (10, 0.647), (12, 0.718),
+      (13, 0.746), (14, 0.775), (15, 0.804), (16, 0.835), (17, 0.86),
+      (18, 0.885), (20, 0.935), (21, 0.963), (22, 0.992), (23, 1.015),
+      (24, 1.038), (25, 1.064), (26, 1.089), (27, 1.109))),
+    ("KODAK_VERICHROME_PAN", "1956 roll film",
+     "KODAK MQ", "32 oz.", "small tank", 80, 0.0355,
+     ((3, 0.407), (4, 0.508), (5, 0.598), (6, 0.662), (7, 0.746),
+      (8, 0.809), (9, 0.873), (10, 0.932), (11, 0.984), (12, 1.038),
+      (13, 1.077), (14, 1.131), (15, 1.163), (16, 1.192))),
+    ("KODAK_VERICHROME_PAN", "1956 roll film",
+     "KODAK Microdol", "stock", "small tank", 80, 0.0355,
+     ((7, 0.433), (8, 0.479), (9, 0.525), (10, 0.561), (11, 0.592),
+      (12, 0.618), (13, 0.641), (14, 0.661), (15, 0.679), (16, 0.697),
+      (17, 0.711), (18, 0.726), (19, 0.739), (20, 0.75), (21, 0.764),
+      (22, 0.773), (26, 0.821), (27, 0.831))),
+    ("KODAK_VERICHROME_PAN", "1956 roll film",
+     "KODAK Versatol", "1:15", "small tank", 80, 0.0355,
+     ((7, 0.554), (8, 0.629), (9, 0.71), (10, 0.782), (11, 0.847),
+      (12, 0.911), (13, 0.961), (14, 0.997), (15, 1.058), (16, 1.104),
+      (17, 1.141), (18, 1.182), (19, 1.207), (20, 1.23))),
+    ("KODAK_PLUS_X_125", "1956 35mm",
+     "KODAK D-76", "stock", "small tank", 80, 0.0440,
+     ((7, 0.585), (8, 0.642), (10, 0.727), (11, 0.763), (12, 0.789),
+      (14, 0.853), (15, 0.877), (16, 0.899), (19, 0.956))),
+    ("KODAK_PLUS_X_125", "1956 35mm",
+     "KODAK Microdol", "stock", "small tank", 80, 0.0440,
+     ((5, 0.397), (6, 0.451), (7, 0.5), (8, 0.542), (9, 0.583),
+      (10, 0.616), (11, 0.645), (12, 0.67), (13, 0.694), (14, 0.719),
+      (15, 0.737), (16, 0.756), (17, 0.776), (18, 0.788), (19, 0.802))),
+    ("KODAK_ROYAL_PAN_4141", "1956 sheet film",
+     "KODAK DK-50", "stock", "tank", 200, 0.0140,
+     ((3, 0.48), (4, 0.597), (5, 0.697), (6, 0.771), (7, 0.828),
+      (8, 0.869), (9, 0.907), (10, 0.938), (11, 0.964), (12, 0.985),
+      (13, 1.004), (14, 1.012), (15, 1.031), (16, 1.038), (17, 1.052))),
+    ("KODAK_ROYAL_PAN_4141", "1956 sheet film",
+     "KODAK DK-50", "1:1", "tank", 200, 0.0140,
+     ((3, 0.394), (4, 0.47), (5, 0.535), (6, 0.584), (7, 0.628),
+      (8, 0.659), (9, 0.692), (10, 0.714), (11, 0.74), (12, 0.761),
+      (13, 0.783), (14, 0.802), (15, 0.823), (16, 0.838), (17, 0.861))),
+    ("KODAK_ROYAL_PAN_4141", "1956 sheet film",
+     "KODAK DK-60a", "stock", "tank", 200, 0.0140,
+     ((4, 0.699), (5, 0.79), (6, 0.85), (7, 0.907), (8, 0.949),
+      (9, 0.99), (10, 1.016), (11, 1.052), (12, 1.076), (13, 1.1),
+      (14, 1.117))),
+    ("KODAK_SUPER_XX_PAN_4142", "1956 sheet film",
+     "KODAK D-76", "stock", "tank", 100, 0.0300,
+     ((2, 0.171), (3, 0.252), (4, 0.332), (5, 0.404), (6, 0.466),
+      (7, 0.524), (8, 0.576), (9, 0.623), (10, 0.663), (11, 0.698),
+      (12, 0.726), (16, 0.83), (17, 0.849), (18, 0.866))),
+    ("KODAK_SUPER_XX_PAN_4142", "1956 sheet film",
+     "KODAK DK-50", "stock", "tank", 100, 0.0300,
+     ((2, 0.353), (3, 0.484), (6, 0.734), (8, 0.833), (10, 0.912),
+      (11, 0.95), (13, 1.009), (14, 1.035), (15, 1.061), (16, 1.084),
+      (17, 1.105), (18, 1.124))),
+    ("KODAK_SUPER_XX_PAN_4142", "1956 sheet film",
+     "KODAK DK-50", "1:1", "tank", 100, 0.0300,
+     ((2, 0.23), (3, 0.329), (4, 0.412), (5, 0.484), (6, 0.545),
+      (7, 0.599), (8, 0.646), (9, 0.689), (10, 0.726), (11, 0.762),
+      (12, 0.788), (13, 0.821), (14, 0.847), (16, 0.896), (17, 0.913),
+      (18, 0.933))),
+    ("KODAK_SUPER_XX_PAN_4142", "1956 sheet film",
+     "KODAK DK-60a", "stock", "tank", 100, 0.0300,
+     ((2, 0.451), (3, 0.588), (4, 0.701), (5, 0.79), (6, 0.866),
+      (7, 0.933), (8, 0.988), (9, 1.037), (10, 1.077), (11, 1.115),
+      (12, 1.148), (13, 1.176), (14, 1.2), (15, 1.225), (16, 1.247),
+      (17, 1.267), (18, 1.286))),
+)
+
+
+def _apply_v35_kodak_1956_trace(p: "FilmProfile") -> "FilmProfile":
+    """Append the traced inset curves to the profile's ProcessingFamily.
+
+    \u26a0 APPENDS INTO THE SAME FAMILY the printed 1956 points already live
+    in, carrying the same `edition` and `vessel`, because they describe the
+    same coating processed the same way -- the inset and the characteristic
+    family are two drawings of one experiment. What separates a traced point
+    from a printed one is not a field on the point but its `_PARAM_STATUS`
+    entry and the collision rule in `_K56_TRACE_SOURCE`: the printed pair
+    always wins its own minute.
+
+    \u26a0 AND THIS IS WHAT MAKES THE DEVELOPMENT-TIME CONTROL ANSWER ON THESE
+    STOCKS. `film_sim.development_family` needs two or more gamma-bearing
+    points sharing (developer, dilution, vessel, edition) before it will
+    interpolate; the printed harvest gave four or five per stock for ONE
+    developer, and this gives fourteen to twenty-one for each of two to four.
+    """
+    rows = [r for r in _K56_TRACE if r[0] == p.name]
+    if not rows:
+        return p
+    old = p.processing_family or ProcessingFamily()
+    pts = list(old.points)
+    for _n, edition, dev, dil, vessel, ei, _agree, data in rows:
+        for minutes, gamma in data:
+            pts.append(DevelopmentPoint(
+                developer=dev, dilution=dil, minutes=float(minutes),
+                celsius=20.0, gamma=float(gamma), exposure_index=ei,
+                vessel=vessel, edition=edition))
+    src = old.source
+    src = (src + "  " if src else "") + _K56_TRACE_SOURCE
+    return replace(p, processing_family=replace(
+        old, points=tuple(pts), source=src))
+
+
+FILM_PROFILES = tuple(_apply_v35_kodak_1956_trace(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+#  v37 -- stamp every development with its ProcessVariantCtrl identity
+# ---------------------------------------------------------------------------
+# ⚠ THE KEY IS (STOCK, PRINTED NAME) AND THE MATCH MUST BE EXHAUSTIVE. Five
+# of the twenty-one ids are shared by three stocks each (the AGFAPAN developer
+# ladder is one list of developers offered on APX 25, 100 and 400), so the id
+# is not a function of the stock alone; and a development that reaches
+# `validate` without an id is refused outright rather than defaulted, because a
+# defaulted id would make one development answer to another's name.
+_PV_BY_NAME: dict[tuple[str, str], str] = {}
+for _st in ("AGFA_APX_25", "AGFA_APX_100", "AGFA_APX_400"):
+    _PV_BY_NAME[(_st, "REFINAL")] = "AGFA_REFINAL"
+    _PV_BY_NAME[(_st, "RODINAL 1+25")] = "AGFA_RODINAL_1_25"
+    _PV_BY_NAME[(_st, "RODINAL 1+50")] = "AGFA_RODINAL_1_50"
+    _PV_BY_NAME[(_st, "RODINAL SPECIAL")] = "AGFA_RODINAL_SPECIAL"
+    _PV_BY_NAME[(_st, "STUDIONAL LIQUID")] = "AGFA_STUDIONAL_LIQUID"
+_PV_BY_NAME.update({
+    ("CINESTILL_800T", "C-41 cross-process, as shipped"):
+        "CINESTILL_C41_AS_SHIPPED",
+    ("CINESTILL_800T", "Cs2 two-bath kit"): "CINESTILL_CS2_TWO_BATH",
+    ("CINESTILL_800T", "ECN-2, the base stock's native process"):
+        "CINESTILL_ECN2_NATIVE",
+    ("GEVACHROME_605", "23 DIN / 160 ASA (box speed)"):
+        "GEVACHROME_23DIN_160ASA",
+    ("GEVACHROME_605",
+     "26 DIN / 320 ASA (push 1, extended first development)"):
+        "GEVACHROME_26DIN_320ASA",
+    ("KODAK_PORTRA_800", "EI 800 (box speed)"): "PORTRA800_EI800",
+    ("KODAK_PORTRA_800", "EI 1600 (Push 1)"): "PORTRA800_EI1600_PUSH1",
+    ("KODAK_PORTRA_800", "EI 3200 (Push 2)"): "PORTRA800_EI3200_PUSH2",
+    ("KODAK_ULTRA_COLOR_400UC", "EI 400 (box speed), as E-4035 prints it"):
+        "ULTRA400UC_EI400_E4035",
+    ("KODAK_ULTRA_COLOR_400UC",
+     "EI 400, as E-190 (2003) prints it -- the cross-check"):
+        "ULTRA400UC_EI400_E190",
+    ("KODAK_ULTRA_COLOR_400UC", "EI 800 (Push 1), as E-4035 prints it"):
+        "ULTRA400UC_EI800_E4035",
+    ("KODAK_ULTRA_COLOR_400UC", "EI 800 (Push 1), as E-190 (2003) prints it"):
+        "ULTRA400UC_EI800_E190",
+    ("SUPER_ANSCOCHROME_1957", "A -- 14 min first developer, EI 80"):
+        "ANSCOCHROME_A_14MIN_EI80",
+    ("SUPER_ANSCOCHROME_1957", "B -- 16 min first developer, EI 100 (Normal)"):
+        "ANSCOCHROME_B_16MIN_EI100",
+    ("SUPER_ANSCOCHROME_1957", "C -- 19 min first developer, EI 150"):
+        "ANSCOCHROME_C_19MIN_EI150",
+    ("SUPER_ANSCOCHROME_1957", "D -- 22 min first developer, EI 200"):
+        "ANSCOCHROME_D_22MIN_EI200",
+})
+
+
+def _apply_v37_variant_ids(p: "FilmProfile") -> "FilmProfile":
+    """Give every ProcessVariant its ProcessVariantCtrl enumerator name."""
+    if not p.process_variants:
+        return p
+    out = []
+    for v in p.process_variants:
+        if v.variant_id:
+            out.append(v)
+            continue
+        vid = _PV_BY_NAME.get((p.name, v.name))
+        if vid is None:
+            raise ValueError(
+                f"{p.name}: ProcessVariant {v.name!r} has no entry in "
+                "_PV_BY_NAME. Every development needs a ProcessVariantCtrl "
+                "enumerator; add one to _PROCESS_VARIANT_IDS and to the "
+                "enumeration in AlgoControlEnums.hpp in the same edit.")
+        out.append(replace(v, variant_id=vid))
+    return replace(p, process_variants=tuple(out))
+
+
+FILM_PROFILES = tuple(_apply_v37_variant_ids(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+#  P62 -- the 1956 Data Book's THIRTY WEDGE SPECTROGRAMS
+# ---------------------------------------------------------------------------
+# ⚠⚠ THE ONLY MEASURED SPECTRAL RESPONSE THIS CORPUS HOLDS FOR THE 1950s
+# KODAK BLACK-AND-WHITE LINE, and the first one in it that was read as a
+# DENSITY BOUNDARY IN A HALFTONE FIELD rather than as a drawn stroke.
+# `kodak_1956_spectro.py` carries the reader, the calibration and the gates;
+# what follows is what it adopted, and the three facts that bound it.
+#
+# (1) THE VERTICAL AXIS HAS A SCALE KODAK NEVER PRINTED. The book states the
+#     instrument in words -- a neutral wedge, opaque at the top, so image
+#     height is linear in log exposure -- and then says the plates "show
+#     relative color sensitivity only". The gradient is recovered from the
+#     page-12 SENSITIVITY OF THE EYE plate, which draws a function published
+#     elsewhere and exactly: CIE 1924 V(lambda), fitted at r = 0.979 over
+#     410-690 nm. Log DEPTHS therefore carry about +/-10 %; WAVELENGTHS do
+#     not, and are anchored on the plates' own 400/500/600 nm ticks.
+#
+# (2) A WEDGE SPECTROGRAM IS S(lambda) x E(lambda) AND THE STORED CURVE IS S.
+#     Each emulsion is printed twice, to sunlight and to tungsten, and the two
+#     plates are visibly different pictures of one film. Dividing out a Planck
+#     radiator at 5500 K and 2850 K brings them from 0.427 log apart to 0.266,
+#     which is what justifies the correction and what sets the accuracy of the
+#     result. Where both plates are on scale the stored value is their mean.
+#
+# (3) BELOW 400 nm THE VALUES ARE KODAK'S OWN UNDERSTATEMENT, by their page-11
+#     warning that the spectrograph's lens absorbs much of the ultraviolet.
+#
+# ⚠ THE CLASS TEST QUEUE P62 DEMANDED IS RUN ON KODAK'S OWN REFERENCE PLATE
+# BEFORE ANY OF THIS IS BELIEVED: page 12 prints the canonical
+# NON-COLOR-SENSITIZED / ORTHOCHROMATIC / PANCHROMATIC stack and the reader
+# returns 490 / 587 / 655 nm in that order, with the eye plate peaking at
+# 551 nm against V(lambda)'s 555.
+_K56_SPECTRO_SOURCE = (
+    "Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester "
+    "N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. "
+    "Wavelength from the plate's own 400/500/600 nm boundary ticks against "
+    "the four labelled ticks of the page-12 reference plate; vertical scale "
+    "from that plate's SENSITIVITY OF THE EYE record against CIE 1924 "
+    "V(lambda), r=0.979, so log depths carry about +/-10 %. The "
+    "spectrograph's own illuminant is divided out as a Planck radiator at "
+    "5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion "
+    "then agree to 0.266 log on average, which is the accuracy of this "
+    "curve. Kodak states the plates give relative colour sensitivity only and "
+    "warns that the indicated ultraviolet sensitivity is below the true "
+    "value. Traced 2026-09-17, queue P62.")
+
+#: Sampling of every tuple below: 380 nm start, 10 nm step, 33 values, peak
+#: normalised to 0.0, -4.0 = off the plate's own scale.
+_K56_SPECTRO_GRID = (380.0, 10.0, 33)
+_K56_SPECTRO_CRITERION = "wedge_spectrogram_boundary_relative_log"
+
+#: ADOPTED. Seven emulsions that had no measured spectral response at all.
+_K56_SPECTRO = {
+    'KODAK_PANATOMIC_X': (
+     (-0.708, -0.491, -0.299, -0.185, -0.181, -0.134, -0.145, -0.136,
+      -0.221, -0.235, -0.325, -0.331, -0.364, -0.204, -0.212, -0.072,
+      -0.099, -0.044, -0.090, 0.000, -0.110, -0.073, -0.096, -0.110,
+      -0.291, -0.455, -0.671, -1.007, -1.418, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK PANATOMIC-X FILM, p. 19, sunlight + tungsten; 380-660 nm, peak 570 nm'),
+    'KODAK_PANATOMIC_X_SHEET_1952': (
+     (-1.665, -1.082, -1.185, -0.621, -0.490, -0.247, -0.304, -0.081,
+      -0.078, -0.038, -0.112, -0.132, -0.214, -0.129, -0.078, -0.104,
+      -0.274, -0.261, -0.304, -0.282, -0.250, -0.102, -0.070, 0.000,
+      -0.043, -0.084, -0.624, -1.241, -1.779, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK PANATOMIC-X SHEET FILM, p. 33, sunlight + tungsten; 380-660 nm, peak 610 nm'),
+    'KODAK_ROYAL_PAN_4141': (
+     (-1.127, -0.732, -0.524, -0.318, -0.259, -0.190, -0.206, -0.134,
+      -0.121, 0.000, -0.150, -0.149, -0.238, -0.155, -0.145, -0.100,
+      -0.101, -0.023, -0.063, -0.014, -0.076, -0.036, -0.059, -0.057,
+      -0.239, -0.540, -1.119, -1.401, -1.962, -2.399, -4.000, -4.000,
+      -4.000),
+     'KODAK ROYAL PAN SHEET FILM, p. 23, sunlight + tungsten; 380-670 nm, peak 470 nm'),
+    'KODAK_ROYAL_X_PAN_4166': (
+     (-0.863, -0.665, -0.575, -0.445, -0.399, -0.299, -0.304, -0.274,
+      -0.306, -0.299, -0.347, -0.341, -0.369, -0.309, -0.280, -0.184,
+      -0.136, -0.066, -0.069, -0.050, -0.065, 0.000, -0.067, -0.114,
+      -0.346, -0.574, -1.037, -1.479, -2.170, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK ROYAL-X PAN SHEET FILM, p. 44, sunlight + tungsten; 380-660 nm, peak 590 nm'),
+    'KODAK_SUPER_XX_PAN_4142': (
+     (-1.984, -1.435, -1.141, -0.687, -0.569, -0.299, -0.314, -0.043,
+      -0.020, 0.000, -0.124, -0.169, -0.342, -0.266, -0.174, -0.220,
+      -0.412, -0.393, -0.438, -0.418, -0.403, -0.198, -0.164, -0.084,
+      -0.125, -0.164, -0.646, -1.389, -1.819, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK SUPER-XX PANCHROMATIC SHEET FILM, p. 29, sunlight + tungsten; 380-660 nm, peak 470 nm'),
+    'KODAK_TRI_X_SHEET_1952': (
+     (-4.000, -1.270, -0.929, -0.614, -0.348, -0.157, -0.116, 0.000,
+      -0.056, -0.117, -0.369, -0.564, -0.743, -0.705, -0.758, -0.640,
+      -0.564, -0.321, -0.205, -0.050, -0.222, -0.171, -0.188, -0.093,
+      -0.161, -0.173, -0.484, -1.026, -1.882, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK TRI-X PANCHROMATIC SHEET FILM, p. 25, sunlight + tungsten; 390-660 nm, peak 450 nm'),
+    'KODAK_VERICHROME_PAN': (
+     (-0.613, -0.403, -0.354, -0.278, -0.277, -0.138, -0.147, 0.000,
+      -0.099, -0.119, -0.202, -0.237, -0.324, -0.276, -0.259, -0.178,
+      -0.159, -0.078, -0.096, -0.075, -0.133, -0.089, -0.128, -0.138,
+      -0.350, -0.740, -1.272, -1.290, -2.042, -2.705, -4.000, -4.000,
+      -4.000),
+     'KODAK VERICHROME PAN FILM, p. 12, sunlight + tungsten; 380-670 nm, peak 450 nm'),
+}
+
+# ⚠ READ AND NOT ADOPTED, WHICH IS THE PRECEDENCE RULE DOING ITS JOB. Both
+# stocks below already carry a spectral sensitivity from a Kodak SENSITOMETRIC
+# SHEET for that exact emulsion -- an instrument reading with a stated
+# criterion, against a 1956 wedge plate for an emulsion of the same NAME two
+# to four decades earlier. The sheet wins, the wedge reading is kept beside it
+# rather than discarded, and what it is good for is the one thing that does
+# not depend on the generation: the long-wave cutoff, which agrees to within
+# 20 nm on both. `verify.py` pins that agreement.
+_K56_SPECTRO_CORROBORATION = {
+    'KODAK_PLUS_X_125': (
+     (-0.685, -0.377, -0.248, -0.114, -0.091, 0.000, -0.058, -0.010,
+      -0.110, -0.148, -0.263, -0.303, -0.344, -0.291, -0.281, -0.232,
+      -0.255, -0.176, -0.107, -0.041, -0.240, -0.229, -0.272, -0.307,
+      -0.513, -0.654, -0.822, -1.072, -1.844, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK PLUS-X FILM (35mm), p. 13, sunlight + tungsten; 380-660 nm, peak 430 nm'),
+    'KODAK_TRI_X_400TX': (
+     (-0.997, -0.770, -0.597, -0.396, -0.342, -0.112, -0.102, -0.002,
+      -0.055, 0.000, -0.113, -0.188, -0.345, -0.267, -0.304, -0.252,
+      -0.249, -0.203, -0.211, -0.176, -0.279, -0.175, -0.238, -0.208,
+      -0.470, -0.709, -1.140, -1.693, -2.144, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK TRI-X FILM IN ROLLS, p. 15, sunlight + tungsten; 380-660 nm, peak 470 nm'),
+}
+
+# ⚠ READ AND HELD, BECAUSE THE EMULSION HAS NO PROFILE YET (queue P63).
+# Five of these eight are the unhoused 1956 sheet films `kodak_1956` already
+# holds the rest of the data for; three -- COMMERCIAL ORTHO, CONTRAST PROCESS
+# ORTHO and CONTRAST PROCESS PANCHROMATIC TYPE B -- are emulsions P63 does not
+# list, found because the reader went through every plate in the book rather
+# than only the ones a row asked for. NOTHING IS DISCARDED FOR WANT OF A
+# PROFILE TO ATTACH IT TO.
+#
+# ⚠ COMMERCIAL ORTHO IS THE ONE WITH A HOLE IN IT, AND THE HOLE IS A
+# MEASUREMENT. Its support is a blue lobe, a gap at 520-530 nm where the
+# boundary reaches the wedge's transparent end, and a separate green lobe --
+# the orthochromatic sensitizing, sitting directly below the blue-sensitive
+# COMMERCIAL plate on the same page. A reader that kept "the one longest run
+# of columns" deleted that second lobe and turned the ortho film into a copy
+# of the film above it; the class gate caught it.
+_K56_SPECTRO_UNHOUSED = {
+    'KODAK COMMERCIAL ORTHO SHEET FILM': (
+     (-1.304, -0.823, -0.672, -0.326, -0.198, -0.070, -0.046, 0.000,
+      -0.110, -0.253, -0.632, -1.151, -1.799, -2.326, -4.000, -4.000,
+      -2.228, -1.744, -1.871, -2.201, -4.000, -4.000, -4.000, -4.000,
+      -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK COMMERCIAL ORTHO SHEET FILM, p. 39, tungsten; 380-570 nm, peak 450 nm'),
+    'KODAK COMMERCIAL SHEET FILM': (
+     (-1.035, -0.706, -0.533, -0.230, -0.155, -0.066, -0.055, 0.000,
+      -0.089, -0.201, -0.499, -0.837, -1.467, -1.987, -4.000, -4.000,
+      -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+      -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK COMMERCIAL SHEET FILM, p. 39, tungsten; 380-510 nm, peak 450 nm'),
+    'KODAK CONTRAST PROCESS ORTHO SHEET FILM': (
+     (-0.404, -0.251, -0.155, -0.118, -0.187, -0.244, -0.399, -0.522,
+      -0.603, -0.527, -0.448, -0.395, -0.358, -0.227, -0.144, -0.019,
+      0.000, -0.256, -0.889, -1.580, -2.240, -4.000, -4.000, -4.000,
+      -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK CONTRAST PROCESS ORTHO SHEET FILM, p. 41, tungsten; 380-580 nm, peak 540 nm'),
+    'KODAK CONTRAST PROCESS PANCHROMATIC TYPE B SHEET FILM': (
+     (-0.311, -0.157, -0.060, -0.014, -0.089, -0.140, -0.298, -0.419,
+      -0.478, -0.411, -0.352, -0.257, -0.239, -0.185, -0.112, 0.000,
+      -0.065, -0.111, -0.142, -0.101, -0.116, -0.088, -0.151, -0.273,
+      -0.496, -0.641, -0.911, -1.300, -1.891, -2.360, -4.000, -4.000,
+      -4.000),
+     'KODAK CONTRAST PROCESS PANCHROMATIC TYPE B SHEET FILM, p. 41, tungsten; 380-670 nm, peak 530 nm'),
+    'KODAK PORTRAIT PANCHROMATIC SHEET FILM': (
+     (-1.450, -0.997, -0.680, -0.448, -0.355, -0.151, -0.122, 0.000,
+      -0.056, -0.040, -0.252, -0.387, -0.505, -0.431, -0.374, -0.420,
+      -0.682, -0.646, -0.625, -0.554, -0.562, -0.558, -0.670, -0.683,
+      -0.782, -1.040, -1.656, -2.038, -2.676, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK PORTRAIT PANCHROMATIC SHEET FILM, p. 31, sunlight + tungsten; 380-660 nm, peak 450 nm'),
+    'KODAK ROYAL ORTHO SHEET FILM': (
+     (-0.780, -0.459, -0.296, -0.124, -0.104, -0.047, -0.044, 0.000,
+      -0.059, -0.093, -0.161, -0.192, -0.215, -0.145, -0.136, -0.083,
+      -0.093, -0.058, -0.096, -0.154, -0.684, -1.510, -2.187, -4.000,
+      -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK ROYAL ORTHO SHEET FILM, p. 35, sunlight + tungsten; 380-600 nm, peak 450 nm'),
+    'KODAK SUPER PANCHRO-PRESS TYPE B SHEET FILM': (
+     (-1.343, -0.802, -0.514, -0.381, -0.302, -0.200, -0.271, -0.138,
+      -0.271, -0.370, -0.602, -0.613, -0.623, -0.469, -0.422, -0.347,
+      -0.306, -0.157, -0.044, 0.000, -0.287, -0.373, -0.439, -0.442,
+      -0.581, -0.713, -1.123, -1.604, -4.000, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK SUPER PANCHRO-PRESS TYPE B SHEET FILM, p. 27, sunlight + tungsten; 380-650 nm, peak 570 nm'),
+    'KODAK SUPER SPEED ORTHO PORTRAIT SHEET FILM': (
+     (-1.539, -0.978, -0.963, -0.322, -0.204, -0.047, -0.049, 0.000,
+      -0.046, -0.071, -0.232, -0.289, -0.390, -0.353, -0.432, -0.409,
+      -0.440, -0.270, -0.246, -0.783, -1.976, -4.000, -4.000, -4.000,
+      -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+      -4.000),
+     'KODAK SUPER SPEED ORTHO PORTRAIT SHEET FILM, p. 37, sunlight + tungsten; 380-580 nm, peak 450 nm'),
+}
+
+
+def _apply_p62_kodak_1956_spectro(p: "FilmProfile") -> "FilmProfile":
+    """Install the 1956 wedge spectrogram as the stock's spectral response.
+
+    ⚠ REFUSES TO OVERWRITE. A stock that already carries a digitised curve
+    keeps it -- those come from Kodak sensitometric sheets for the exact
+    emulsion, which outrank a 1956 plate of the same product name by the
+    precedence rule -- and its wedge reading lives in
+    `_K56_SPECTRO_CORROBORATION` instead.
+    """
+    curve = _K56_SPECTRO.get(p.name)
+    if curve is None:
+        return p
+    if p.spectral.has_data:
+        raise ValueError(
+            f"{p.name}: _K56_SPECTRO would overwrite a spectral sensitivity "
+            "that is already populated. Move the row to "
+            "_K56_SPECTRO_CORROBORATION; a 1956 wedge plate does not "
+            "displace a sensitometric sheet.")
+    start, step, _n = _K56_SPECTRO_GRID
+    return replace(p, spectral=SpectralSensitivity(
+        lambda_start_nm=start,
+        lambda_step_nm=step,
+        log_s_pan=curve[0],
+        criterion=_K56_SPECTRO_CRITERION,
+        source=_K56_SPECTRO_SOURCE + "  " + curve[1]))
+
+
+FILM_PROFILES = tuple(_apply_p62_kodak_1956_spectro(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+#  P63 -- the five 1956 sheet emulsions, wired to the data that was waiting
+# ---------------------------------------------------------------------------
+# ⚠ THE MAP EXISTS BECAUSE THE BOOK AND THE DATABASE SPELL THESE FILMS
+# DIFFERENTLY and neither spelling is wrong. `_K56_SPECTRO_UNHOUSED` is keyed
+# by the name Kodak prints on the data sheet, because that is what the reader
+# had to identify the plate by; a profile is keyed by this database's own id.
+_K56_SPECTRO_P63 = {
+    "KODAK_SUPER_PANCHRO_PRESS_B_1956":
+        "KODAK SUPER PANCHRO-PRESS TYPE B SHEET FILM",
+    "KODAK_PORTRAIT_PANCHROMATIC_1956":
+        "KODAK PORTRAIT PANCHROMATIC SHEET FILM",
+    "KODAK_ROYAL_ORTHO_1956": "KODAK ROYAL ORTHO SHEET FILM",
+    "KODAK_SUPER_SPEED_ORTHO_1956":
+        "KODAK SUPER SPEED ORTHO PORTRAIT SHEET FILM",
+    "KODAK_COMMERCIAL_1956": "KODAK COMMERCIAL SHEET FILM",
+}
+
+#: The printed (time, gamma) family each sheet draws its curves for, and the
+#: developer it draws them in. ⚠ THESE ARE TRANSCRIPTION, NOT TRACE -- Kodak
+#: letters both numbers on every curve, and `kodak_1956_curves.py` re-derives
+#: the gamma off the raster on every build and fails if the two disagree by
+#: more than 4.5 %. Fields: film_id, developer, dilution, ((minutes, gamma), …)
+_K56_P63_FAMILY = (
+    ("KODAK_SUPER_PANCHRO_PRESS_B_1956", "KODAK DK-50", "stock",
+     ((4.0, 0.60), (5.0, 0.70), (6.0, 0.80),
+      (7.5, 0.90), (9.0, 1.00), (10.5, 1.10))),
+    ("KODAK_PORTRAIT_PANCHROMATIC_1956", "KODAK DK-50", "1:1",
+     ((5.5, 0.60), (8.0, 0.70), (11.0, 0.80), (15.0, 0.90), (20.0, 1.00))),
+    ("KODAK_ROYAL_ORTHO_1956", "KODAK DK-60a", "stock",
+     ((3.0, 0.60), (4.0, 0.73), (6.0, 0.95), (10.0, 1.09), (18.0, 1.14))),
+    ("KODAK_SUPER_SPEED_ORTHO_1956", "KODAK DK-50", "1:1",
+     ((4.0, 0.50), (6.0, 0.60), (9.0, 0.70), (14.0, 0.80))),
+    ("KODAK_COMMERCIAL_1956", "KODAK DK-50", "1:1",
+     ((3.0, 0.50), (4.0, 0.65), (5.5, 0.85),
+      (7.0, 1.00), (11.0, 1.30), (17.0, 1.50))),
+)
+
+#: Kodak's own "For Normal Use" tank time, off each sheet's Processing table,
+#: for the developer that sheet's curve family is drawn in. ⚠ IT IS WHAT
+#: `ProcessingFamily.reference_developer` was added for at schema v36: the
+#: stored ToneCurve of each of these five stocks IS the curve Kodak drew for
+#: this developer, so the family must not be allowed to pick another one by
+#: counting points.
+_K56_P63_REFERENCE = {
+    "KODAK_SUPER_PANCHRO_PRESS_B_1956": ("KODAK DK-50", "stock"),
+    "KODAK_PORTRAIT_PANCHROMATIC_1956": ("KODAK DK-50", "1:1"),
+    "KODAK_ROYAL_ORTHO_1956": ("KODAK DK-60a", "stock"),
+    "KODAK_SUPER_SPEED_ORTHO_1956": ("KODAK DK-50", "1:1"),
+    "KODAK_COMMERCIAL_1956": ("KODAK DK-50", "1:1"),
+}
+
+_K56_P63_CURVE_SOURCE = (
+    "Eastman Kodak Company, \u00abKodak Films\u00bb, Seventh Edition, "
+    "Rochester N.Y., 1956 -- the data sheet's own characteristic-curve "
+    "family, traced at 300 dpi by kodak_1956_curves.py and fitted to the "
+    "curve Kodak's own Processing table recommends. Every traced curve's "
+    "gamma is checked against the gamma Kodak letters beside it on every "
+    "build; 23 of 26 agree to 3.9 % and the three that do not are pinned in "
+    "kodak_1956_curves.REFUSED. Traced 2026-09-17, queue P63.")
+
+
+def _apply_p63_kodak_1956_sheets(p: "FilmProfile") -> "FilmProfile":
+    """Give the five 1956 sheet emulsions their spectral response and family.
+
+    \u26a0 THE PROFILE LITERAL ABOVE CARRIES ONLY WHAT A LITERAL CAN SAY
+    CLEARLY -- the curve, the index, the class estimates. The two things that
+    came from somewhere else are attached here: the wedge-spectrogram
+    response queue P62 measured, and the printed development family
+    `kodak_1956` has held since 2026-09-16.
+    """
+    out = p
+    key = _K56_SPECTRO_P63.get(p.name)
+    if key is not None:
+        if p.spectral.has_data:
+            raise ValueError(
+                f"{p.name}: _K56_SPECTRO_P63 would overwrite a spectral "
+                "sensitivity that is already populated.")
+        curve = _K56_SPECTRO_UNHOUSED[key]
+        start, step, _n = _K56_SPECTRO_GRID
+        out = replace(out, spectral=SpectralSensitivity(
+            lambda_start_nm=start, lambda_step_nm=step,
+            log_s_pan=curve[0],
+            criterion=_K56_SPECTRO_CRITERION,
+            source=_K56_SPECTRO_SOURCE + "  " + curve[1]))
+    rows = [r for r in _K56_P63_FAMILY if r[0] == p.name]
+    if rows:
+        pts = []
+        for _n, dev, dil, data in rows:
+            for minutes, gamma in data:
+                pts.append(DevelopmentPoint(
+                    developer=dev, dilution=dil, minutes=float(minutes),
+                    celsius=20.0, gamma=float(gamma),
+                    exposure_index=p.exposure_index,
+                    vessel="tank", edition="1956 sheet film"))
+        refdev, refdil = _K56_P63_REFERENCE[p.name]
+        out = replace(out, processing_family=ProcessingFamily(
+            points=tuple(pts),
+            reference_developer=refdev,
+            reference_dilution=refdil,
+            source=_K56_P63_CURVE_SOURCE))
+    return out
+
+
+FILM_PROFILES = tuple(_apply_p63_kodak_1956_sheets(_p) for _p in FILM_PROFILES)
+
+
+
+# ---------------------------------------------------------------------------
+# v35 -- the two Kodak books' STATED facts, as per-parameter provenance
+# ---------------------------------------------------------------------------
+# ⚠ WHY THESE ARE `status="stated"` AND NOT `"measured"`. Both facts below are
+# printed by Kodak about Kodak's own product, but neither is an instrument
+# reading given as a number for THIS parameter. A resolving-power CLASS is a
+# word -- "High" -- whose numeric meaning the same book defines elsewhere as a
+# band; a meter setting is a published recommendation. The vocabulary has the
+# right slot for both and using "measured" would overstate them.
+#
+# --- (a) THE 1963 CATALOGUE CONFIRMS SIX STORED EXPOSURE INDEXES ------------
+# Kodak Limited's «Kodak Professional Catalogue», July 1963, publishes a meter
+# setting for every film it lists, on the POST-1960 ASA scale. Its own page 12
+# explains the distinction that makes these usable where the 1956 figures are
+# not: "speed data formerly described as 'exposure indices' were the old type
+# of speed figures, which allowed a safety factor of about x2 1/2", and the
+# new dual form "ASA 40/3.5°" marks a figure with only a minimum safety
+# factor. The post-1960 ASA number is therefore directly comparable with a
+# stored `exposure_index`, and six of the seven match exactly:
+#
+#     Verichrome Pan        ASA 125    stored 125    CONFIRM
+#     Plus-X Pan            ASA 125    stored 125    CONFIRM
+#     Tri-X Pan             ASA 400    stored 400    CONFIRM
+#     Panchro-Royal         ASA 400    stored 400    CONFIRM   (= Royal Pan)
+#     Royal-X Pan           ASA 1250   stored 1250   CONFIRM
+#     Super-XX Pan          ASA 200    stored 200    CONFIRM
+#     Panatomic-X           ASA 40     stored 32     DIFFER
+#
+# ⚠ AND THE ONE DISAGREEMENT IS A DATE, NOT AN ERROR. The stored 32 comes from
+# Kodak's own F-5 data sheet of 1979; the 40 is Kodak's own catalogue of 1963.
+# Kodak lowered the published speed of Panatomic-X by a third of a stop between
+# those dates, and both figures are correct for their coating. The stored value
+# is LEFT AT 32 because the profile's era field says 1979 and the rest of its
+# data comes from that sheet; the 1963 figure is recorded here so the change is
+# in the database rather than lost.
+#
+# ⚠ THE RATIO 1956:1963 IS ITSELF THE CHECK ON THE SAFETY-FACTOR STORY, and it
+# holds: Super-XX 100 -> 200, Royal Pan 200 -> 400, Tri-X 200 -> 400, Royal-X
+# 650 -> 1250 are all a factor of two, the one stop the 1960 revision removed.
+# Verichrome Pan 80 -> 125 and Plus-X 80 -> 125 are 1.56, two thirds of a stop,
+# and those are exactly the two films the 1963 catalogue describes as
+# re-coated. Nothing here required assuming the factor; it fell out.
+#
+# --- (b) THE 1956 BOOK CLASSIFIES RESOLVING POWER, WITH A BAND --------------
+# The Data Book puts every film in a six-step verbal class and defines the
+# steps numerically on its pages 19-20, in lines per millimetre:
+#
+#     Low              below 60        Moderately Low   60 to 70
+#     Medium           75 to 90        High             95 to 115
+#     Very High        120 to 150      Extremely High   above 150
+#
+# ⚠ THE GAPS BETWEEN THE BANDS ARE THE BOOK'S OWN AND ARE REPRODUCED, NOT
+# CLOSED. It prints 60-70 and then 75-90; nothing is said about 70-75. Filling
+# the gap would be inventing a classification Kodak declined to make.
+#
+# ⚠⚠ AND NO NUMBER IS WRITTEN INTO `mtf.resolving_power_lp_mm_lowc/_highc`,
+# FOR TWO INDEPENDENT REASONS, EITHER OF WHICH WOULD BE ENOUGH. First, those
+# two fields are defined by TEST-OBJECT CONTRAST -- 1.6:1 and 1000:1 -- and
+# this book states none: its page 19 says only that "the resolution of a film
+# depends on the brightness scale of the test chart", which is the sentence
+# that makes the omission fatal rather than cosmetic. Second, the datum is a
+# BAND and the field is a scalar; storing the midpoint would be the averaging
+# this project forbids, and storing an edge would be a claim the book does not
+# make. The class and its band go into the record as provenance, where both
+# survive intact.
+_K63_SOURCE = (
+    "Kodak Limited, «Kodak Professional Catalogue», July 1963. ⚠ TIER T1: a "
+    "manufacturer's own catalogue. Meter settings are the POST-1960 ASA "
+    "scale, which its page 12 distinguishes explicitly from the pre-1960 "
+    "«exposure indices» that «allowed a safety factor of about x2 1/2»; the "
+    "dual form «ASA 40/3.5°» is the marker of a figure with only a minimum "
+    "safety factor, and is therefore directly comparable with a stored "
+    "exposure_index.")
+
+#: (profile, 1963 ASA, note) -- six confirmations and one dated difference.
+_K63_EI: tuple[tuple[str, int, str], ...] = (
+    ("KODAK_VERICHROME_PAN", 125,
+     "CONFIRMS the stored 125. p44, «Meter Settings: ASA 125/5°, B.S. (arith) "
+     "125, B.S. (log) 32°, 22 DIN.» The 1956 Seventh Edition gives American "
+     "Standard 80 for the same film, a ratio of 1.56 -- two thirds of a stop, "
+     "which is the re-coating rather than the 1960 scale change."),
+    ("KODAK_PLUS_X_125", 125,
+     "CONFIRMS the stored 125. pp 31 and 47, «ASA 125/5°, 22 DIN», for both "
+     "the sheet and the 35 mm film. The 1956 Seventh Edition gives American "
+     "Standard 80, a ratio of 1.56."),
+    ("KODAK_TRI_X_400TX", 400,
+     "CONFIRMS the stored 400. p45, «ASA 400/7°, B.S. (arith) 400, B.S. (log) "
+     "37°, 27 DIN», for the roll, the 35 mm and the Professional roll alike. "
+     "The 1956 Seventh Edition gives American Standard 200: exactly the one "
+     "stop the 1960 ASA revision removed."),
+    ("KODAK_ROYAL_PAN_4141", 400,
+     "CONFIRMS the stored 400. p31 under the UK name «Panchro-Royal», «ASA "
+     "400/7°, 27 DIN». The 1956 Seventh Edition gives American Standard 200."),
+    ("KODAK_ROYAL_X_PAN_4166", 1250,
+     "CONFIRMS the stored 1250. pp 31 and 47, «ASA 1250/8.5°, B.S. (arith) "
+     "1250, 32 DIN», with the note that «with extended development, the "
+     "exposure given may be halved». The 1956 Seventh Edition gives American "
+     "Standard 650 and a practical index of 1600."),
+    ("KODAK_SUPER_XX_PAN_4142", 200,
+     "CONFIRMS the stored 200. p31, «ASA 200/6°, B.S. (arith) 200, B.S. (log) "
+     "34°, 24 DIN». The 1956 Seventh Edition gives American Standard 100 "
+     "daylight, 80 tungsten and 125 to the white-flame arc."),
+    ("KODAK_PANATOMIC_X", 40,
+     "⚠ DIFFERS FROM THE STORED 32, AND THE DIFFERENCE IS A DATE. p46, «ASA "
+     "40/3.5°, B.S. (arith) 40, B.S. (log) 27°, 17 DIN». The stored 32 is "
+     "Kodak's own F-5 data sheet of 1979; this 40 is Kodak's own catalogue of "
+     "1963. Kodak lowered the published speed by a third of a stop between "
+     "those dates and both are right for their coating. THE STORED VALUE IS "
+     "NOT CHANGED: this profile's era is 1979 and the rest of its data comes "
+     "from that sheet, so replacing one figure would leave the profile "
+     "internally inconsistent. Recorded here so the change is in the database. "
+     "The 1956 Seventh Edition gives American Standard 25, a ratio of 1.6 to "
+     "the 1963 figure."),
+)
+
+#: (profile, class, band_lo, band_hi) from the 1956 Data Book's Definition row.
+#: band_hi 0.0 means the class is open-ended upward.
+_K56_RP: tuple[tuple[str, str, float, float], ...] = (
+    ("KODAK_VERICHROME_PAN", "High", 95.0, 115.0),
+    ("KODAK_PLUS_X_125", "High", 95.0, 115.0),
+    ("KODAK_TRI_X_400TX", "Medium", 75.0, 90.0),
+    ("KODAK_PANATOMIC_X", "Very High", 120.0, 150.0),
+    ("KODAK_ROYAL_PAN_4141", "Medium", 75.0, 90.0),
+    ("KODAK_TRI_X_SHEET_1952", "Medium", 75.0, 90.0),
+    ("KODAK_SUPER_XX_PAN_4142", "Medium", 75.0, 90.0),
+    ("KODAK_PANATOMIC_X_SHEET_1952", "High", 95.0, 115.0),
+    ("KODAK_ROYAL_X_PAN_4166", "Moderately Low", 60.0, 70.0),
+)
+
+_K56_RP_SOURCE = (
+    "Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, "
+    "1956, the «Definition» row of the film's own data sheet, with the class "
+    "boundaries from pages 19-20 of the same book. ⚠ NO NUMBER IS WRITTEN "
+    "INTO mtf.resolving_power_lp_mm_lowc OR _highc AND THE REASON IS NOT "
+    "CAUTION. Those fields are defined by test-object contrast, 1.6:1 and "
+    "1000:1, and this book states none -- its page 19 says only that «the "
+    "resolution of a film depends on the brightness scale of the test chart», "
+    "which is what makes the omission fatal. The datum is also a BAND and the "
+    "field a scalar, so a midpoint would be averaging and an edge would be a "
+    "claim the book does not make. ⚠ THE BOOK'S OWN GAPS ARE REPRODUCED: it "
+    "prints 60-70 and then 75-90, and says nothing about 70-75.")
+
+
+def _apply_v35_kodak_param_sources(p: "FilmProfile") -> "FilmProfile":
+    """Attach the two books' STATED facts as per-parameter provenance."""
+    add = []
+    for name, asa, note in _K63_EI:
+        if name != p.name:
+            continue
+        add.append(ParamSource(
+            param="exposure_index", tier=1, status="stated",
+            unit="ASA (post-1960 scale)",
+            conditions="daylight; minimum safety factor, per the "
+                       "catalogue's own page 12",
+            source=_K63_SOURCE, confidence="high",
+            note=f"1963 catalogue publishes ASA {asa}. " + note))
+    for name, cls, lo, hi in _K56_RP:
+        if name != p.name:
+            continue
+        band = (f"{lo:.0f} to {hi:.0f} lines/mm" if hi
+                else f"above {lo:.0f} lines/mm")
+        add.append(ParamSource(
+            param="mtf.resolving_power_lp_mm_highc", tier=1, status="stated",
+            unit="lines/mm",
+            conditions="test-object contrast NOT STATED by the source",
+            source=_K56_RP_SOURCE, confidence="medium",
+            note=(f"1956 Data Book classifies this film «{cls}» resolving "
+                  f"power, which its pages 19-20 define as {band}. Stored as "
+                  f"provenance only; the field itself is untouched.")))
+    if not add:
+        return p
+    return replace(p, param_sources=tuple(p.param_sources) + tuple(add))
+
+
+FILM_PROFILES = tuple(
+    _apply_v35_kodak_param_sources(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# v35 -- dark-fade rates for camera negatives (Wilhelm 1993, Table 19.1)
+# ---------------------------------------------------------------------------
+# ⚠ THE FIRST DARK-FADE DATA IN THIS CORPUS FOR A CAMERA NEGATIVE. Until now
+# `DyeStabilitySpec` was populated on exactly one record -- KODAK VISION3 2254,
+# a digital-intermediate recording film -- and its own comment says why it was
+# not transferred to any camera stock: "a DI recording film's coupler set is
+# chosen for archival stability and printing rather than for camera exposure,
+# and method rule 18 forbids a class estimate from a single sample". That
+# refusal stands and is not reopened here. What changes is that a source for
+# camera negatives now exists.
+#
+# WHAT THE SOURCE IS. Henry Wilhelm with Carol Brower, «The Permanence and Care
+# of Color Photographs», Preservation Publishing, 1993, Chapter 19, Table 19.1:
+# "Estimated Number of Years for 'Just Noticeable' Fading to Occur in Various
+# Kodak Color Materials Stored in the Dark at Two Room Temperatures and Two
+# Refrigerator Temperatures (40% RH)", subtitled "Time Required for the Least
+# Stable Image Dye to Fade 10% from an Original Density of 1.0".
+#
+# ⚠⚠ THE DEFINITION IS THE SAME ONE H-1-2254 USES, WHICH IS WHY THE TWO CAN
+# SHARE A STRUCT. Kodak's sheet defines dye stability as "the elapsed time
+# before a 10% loss from a starting density of 1.0 occurs in any one-color
+# record"; Wilhelm's table measures "the least stable image dye to fade 10%
+# from an original density of 1.0". Same loss, same starting density, and in
+# both cases the figure belongs to whichever record moves first. The storage
+# temperature differs and is stored per record, which is what
+# `reference_temp_c` is for.
+#
+# ⚠ THE FIGURES ARE KODAK'S, NOT WILHELM'S, AND THAT SETS THE TIER. Both rows
+# adopted below are Kodak data that Wilhelm reproduces and attributes -- the
+# Vericolor III row from Kodak's own estimates, the Ektar 125 range from "Kodak
+# Publication E-107, dated June 1990", which Wilhelm quotes because "Kodak
+# declined to release specific stability data" in the table itself. So these
+# are T1 manufacturer figures reaching the corpus through a T2 book, and the
+# provenance records both links.
+#
+# ⚠ WHICH TEMPERATURE IS STORED, AND WHY IT IS NOT THE WARMEST. The struct's
+# docstring says a sheet printing two temperatures gets the warmer one, because
+# on every Kodak sheet seen so far the cooler column is entirely censored and a
+# censored column carries no figure. Neither reason applies here: Wilhelm
+# prints four temperatures and censors none. The stored temperature is 24 degC
+# (75 degF) because it is the one temperature the two adopted records have in
+# common -- the Ektar range is quoted ONLY at 75 degF -- and because Wilhelm's
+# own text treats it as "a typical room temperature". The full four-temperature
+# row is in the source string, so nothing is lost by the choice.
+#
+# ⚠ AND THE RANGE IS STORED AT ITS LOWER END, WHICH IS NOT AVERAGING. Kodak's
+# E-107 figure for Ektar 125 is "between 8 and 14 years", a range and not a
+# point. The midpoint would be the averaging method rule 4 forbids; the upper
+# end would be the optimistic reading of a conservation figure. The lower end
+# is the binding case, which is the same principle the struct already applies
+# when it stores the warmer of two temperatures, and the full range is quoted
+# in the source so a later reader can use the other end deliberately.
+_WILHELM_1993 = (
+    "Henry Wilhelm with contributing author Carol Brower, «The Permanence and "
+    "Care of Color Photographs: Traditional and Digital Color Prints, Color "
+    "Negatives, Slides, and Motion Pictures», Preservation Publishing "
+    "Company, Grinnell, Iowa, 1993, Chapter 19 «Frost-Free Refrigerators for "
+    "Storing Color and Black-and-White Films and Prints» -- "
+    "PDF/PROFILES/HW_Book_19_of_20_HiRes_v1c.pdf, Table 19.1 on p661 of the "
+    "printed book with its notes on p663. The table's own subtitle states the "
+    "criterion: «Time Required for the Least Stable Image Dye to Fade 10% "
+    "from an Original Density of 1.0», at 40 % RH. ⚠ THE FIGURES ARE KODAK'S "
+    "AND WILHELM ATTRIBUTES THEM; the book is the route, not the measurement. "
+    "⚠ TWO CAVEATS THE TABLE PRINTS ITSELF AND THAT THE STORED NUMBER DOES "
+    "NOT CARRY: (1) «These estimates are for dye fading only and do not take "
+    "into account the gradual formation of yellowish stain» -- for most "
+    "chromogenic materials the stain is visible before the 10 % dye loss is; "
+    "(2) p664: the Ektar, Vericolor III, Kodacolor Gold and Kodak Gold "
+    "negatives «most of which have humidity-sensitive yellow dyes as the "
+    "least stable dye, can fade approximately twice as fast as these figures "
+    "indicate when stored at 60% RH», so the stored years are a 40 % RH "
+    "figure and halve in a humid room. p665 also gives Kodak's own "
+    "temperature factors: «approximately 14 times longer at 40 degF (4.4 "
+    "degC), and approximately 20 times longer at 35 degF (1.7 degC)» than at "
+    "75 degF.")
+
+#: (profile, years at 24 degC, which dye, per-record extra note)
+_WILHELM_FADE: tuple[tuple[str, float, str, str], ...] = (
+    ("KODAK_VERICOLOR_III_160", 23.0, "yellow",
+     "Table 19.1 row «Vericolor III Professional Film Type S», printed as a "
+     "full four-temperature row and censored at none of them: 16 years at 80 "
+     "degF (26.7 degC), 23 at 75 degF (24 degC), 320 at 40 degF (4.4 degC) "
+     "and 460 at 35 degF (1.7 degC). ⚠ THE RATIOS ARE THE CHECK ON THE ROW "
+     "AND THEY HOLD: 320/23 = 13.9 and 460/23 = 20.0 against the 14x and 20x "
+     "factors p665 quotes from Kodak, so the four figures are one Arrhenius "
+     "extrapolation and not four independent estimates. ⚠ AND THE ROW IS "
+     "REMARKABLE IN ITS OWN TABLE: Vericolor II Type S is 6 years at the same "
+     "temperature and Vericolor II Type L is 3, so Vericolor III is four to "
+     "eight times more stable than the film it replaced. Wilhelm's p665 lists "
+     "it first among the «color negative films with relatively good "
+     "stability»."),
+    ("KODAK_EKTAR_125", 8.0, "yellow",
+     "⚠ NOT IN THE TABLE BODY, WHICH READS «(not disclosed)» FOR THIS FILM. "
+     "The figure is note H on p663: «Kodak declined to release specific "
+     "stability data for Kodak Ektar 125 Film, introduced in 1989. Kodak has, "
+     "however, provided data (Kodak Publication E-107, dated June 1990) which "
+     "indicates that when this film is kept in the dark at 75 degF and 40% "
+     "RH, a storage life of between 8 and 14 years may be expected before a "
+     "10% loss of the least stable image dye (yellow in this case) occurs.» "
+     "⚠ THE PUBLISHED FIGURE IS THE RANGE 8 TO 14 AND THE STORED VALUE IS ITS "
+     "LOWER END, the binding case; the midpoint would be averaging. ⚠ THE "
+     "SAME NOTE COVERS Ektar 25, Ektapress Gold 100 and Vericolor HC at 8-14 "
+     "years, while Ektar 1000, Kodak Gold 1600, Ektapress Gold 400 and 1600 "
+     "and Vericolor 400 are put at 19-33 -- so within Kodak's own 1990 range "
+     "the SLOW films are the LESS stable ones by a factor of about 2.4, which "
+     "is the opposite of the usual expectation and is worth not smoothing "
+     "away. ⚠ AND THIS IS THE ONLY SENSITOMETRIC-ADJACENT NUMBER ANY SOURCE "
+     "IN THIS CORPUS PUBLISHES FOR EKTAR 125 BESIDES THE BLUE D-MIN BOUND "
+     "from US 5,334,491 / EP 0 545 464 A1; the profile's own description "
+     "records that every other figure on it is a class estimate."),
+)
+
+
+def _apply_v35_wilhelm_fade(p: "FilmProfile") -> "FilmProfile":
+    """Attach the published dark-fade rate to the two stocks it covers."""
+    for name, years, dye, note in _WILHELM_FADE:
+        if name != p.name:
+            continue
+        kw = {"loss_" + dye[0]: float(years)}
+        return replace(p, dye_stability=DyeStabilitySpec(
+            reference_temp_c=24.0,
+            censor_years=0.0,   # nothing in this table is censored
+            source=_WILHELM_1993 + "  " + note,
+            **kw))
+    return p
+
+
+FILM_PROFILES = tuple(_apply_v35_wilhelm_fade(_p) for _p in FILM_PROFILES)
+
+
+
 PRINT_STOCKS: tuple[PrintStock, ...] = (
     PrintStock(
         name="SCAN_DI",
@@ -49426,6 +54525,9 @@ _MTF_KERNEL_TABLE: dict[float, tuple[float, float, float]] = {
     2.2000: (+0.245871, 0.390697, 1.188320),   # max|err| 0.0136  vs Gaussian 0.1166
     2.4200: (+0.183481, 0.374924, 1.117107),   # max|err| 0.0114  vs Gaussian 0.0954
     2.4400: (+0.171204, 0.362721, 1.106070),   # max|err| 0.0121  vs Gaussian 0.0936
+    # 2026-09-17, EASTMAN_5293_250T_1982's traced rolloff -- Kennel et al.
+    # 1982 Fig. 14, 210 samples above 8 cycles/mm.
+    2.3700: (+0.211492, 0.398210, 1.143163),   # max|err| 0.0101  vs Gaussian 0.1000
     2.3800: (+0.209678, 0.398716, 1.141156),   # max|err| 0.0099  vs Gaussian 0.0991
     2.3900: (+0.203068, 0.393025, 1.135008),   # max|err| 0.0102  vs Gaussian 0.0982
     2.5000: (+0.137869, 0.325088, 1.076711),   # max|err| 0.0145  vs Gaussian 0.0883
@@ -49501,6 +54603,47 @@ _MTF_KERNEL_TABLE: dict[float, tuple[float, float, float]] = {
 }
 
 
+#: THREE-lobe separable equivalent, for exponents the two-lobe family cannot
+#: reach. Each row is (w1, w2, s1, s2, s3) with the third weight implied as
+#: 1 - w1 - w2.
+#:
+#: ⚠ THIS EXISTS BECAUSE A MEASURED EXPONENT FELL OFF THE BOTTOM OF THE TWO-LOBE
+#: TABLE. «Современные фотоматериалы и их обработка» p.372 measures KODAK
+#: TECHNICAL PAN's modulation transfer at q = 1.071 -- the shallowest rolloff in
+#: the corpus, and the shallowest by a wide margin: the next is PROVIA 400X at
+#: 1.50. The best two-Gaussian pair for it is (+0.456987, 0.255839, 2.381448) at
+#: max|err| 0.0719, which beats the single Gaussian's 0.2657 by 3.7x and is
+#: still over the 0.045 the two-lobe table is held to. Storing it would have
+#: fallen back to the Gaussian in the renderer and said nothing about it.
+#:
+#: ⚠ A THIRD LOBE FIXES IT AND THE MARGIN IS NOT MARGINAL: 0.0267, inside
+#: tolerance, and TEN TIMES better than the single Gaussian. A shallow rolloff
+#: needs three scales because it is shallow over three decades -- two Gaussians
+#: can cover a knee and a tail, not a knee, a tail and a long shoulder between
+#: them.
+#:
+#: ⚠ IT COSTS LOBE BUDGET IN THE ENGINE, WHICH IS WHY THIS IS NOT THE DEFAULT.
+#: The adjacency band-pass MULTIPLIES the base transfer, so each base lobe
+#: carries its own inner and outer partner: three base lobes is nine, and
+#: ALGO_BLUR_MAX_LOBES was raised 6 -> 9 for it. A stock whose q sits in the
+#: two-lobe table keeps the two-lobe path and renders bit-identically to before.
+_MTF_KERNEL_TABLE3: dict[float, tuple[float, float, float, float, float]] = {
+    # KODAK_TECHNICAL_PAN, «Современные фотоматериалы и их обработка» p.372.
+    1.0710: (0.303249, 0.466223, 0.181907, 1.048645, 5.985403),
+    #        ^w1       ^w2       ^s1       ^s2       ^s3
+    #        max|err| 0.0267  vs Gaussian 0.2657  (10.0x)
+}
+
+
+def mtf_kernel3(q: float) -> tuple[float, float, float, float, float] | None:
+    """(w1, w2, s1, s2, s3) for an exponent the two-lobe family cannot reach.
+
+    Consulted ONLY when `mtf_kernel` has already returned None, so no stock
+    changes path because this table exists.
+    """
+    return _MTF_KERNEL_TABLE3.get(round(float(q), 4))
+
+
 def mtf_kernel(q: float) -> tuple[float, float, float] | None:
     """(w1, s1, s2) for a measured rolloff exponent, or None if not tabulated.
 
@@ -49522,11 +54665,18 @@ def mtf_kernel_response(mtf: MTFSpec, channel: int, f):
     import numpy as _np
     f50 = (mtf.f50_r, mtf.f50_g, mtf.f50_b)[channel]
     k = mtf_kernel(mtf.mtf_rolloff_q) if mtf.mtf_measured else None
-    if f50 <= 0.0 or k is None:
+    k3 = (mtf_kernel3(mtf.mtf_rolloff_q)
+          if (mtf.mtf_measured and k is None) else None)
+    if f50 <= 0.0 or (k is None and k3 is None):
         return mtf_response(mtf, channel, f)
-    w1, s1, s2 = k
     x = _np.asarray(f, dtype=_np.float64) / float(f50)
     l2 = _np.log(2.0)
+    if k3 is not None:
+        w1, w2, s1, s2, s3 = k3
+        return (w1 * _np.exp(-l2 * (x * s1) ** 2)
+                + w2 * _np.exp(-l2 * (x * s2) ** 2)
+                + (1.0 - w1 - w2) * _np.exp(-l2 * (x * s3) ** 2))
+    w1, s1, s2 = k
     return (w1 * _np.exp(-l2 * (x * s1) ** 2)
             + (1.0 - w1) * _np.exp(-l2 * (x * s2) ** 2))
 

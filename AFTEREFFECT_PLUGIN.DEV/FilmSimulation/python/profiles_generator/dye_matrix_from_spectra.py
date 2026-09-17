@@ -425,6 +425,14 @@ EXPECTED_STAGE12 = {
     "AGFA_RSX_II_200": 0.0811,
     "EASTMAN_EKTACHROME_7239": 0.0694,
     "EASTMAN_EXR_50D_5245": 0.0781,
+    # ⚠ THE TWO 5293s, 2026-09-17, AND THEY ARE NOT ONE MEASUREMENT TWICE.
+    # The 1982 EI 250T emulsion's dye set is traced from Fig. 7 of Kennel,
+    # Sehlin et al., SMPTE J. 91(10) 1982; the 1992 EXR 200T's comes from
+    # Kodak's own published sheet. They land 0.0019 apart -- which is what two
+    # generations of one ECN dye set read through the same release print
+    # should do, and it is a check rather than a coincidence, because neither
+    # derivation sees the other at any point.
+    "EASTMAN_5293_250T_1982": 0.0700,
     "EASTMAN_EXR_200T_5293": 0.0681,
     "GEVACOLOR_NEG_682": 0.0496,
     "KODAK_EKTACHROME_100D_5285": 0.0731,
@@ -629,8 +637,16 @@ def derive(p):
 #: 0.0809 -> 0.0817); `vs_rownorm_max` did NOT move at all, because its worst
 #: case is still TECHNICOLOR_THREE_STRIP at 0.1405 and neither Fuji set comes
 #: near it.
-EXPECTED_M1A = dict(n=29, positive=29, t_off_median=0.2232,
-                    t_asym_median=0.0817, vs_rownorm_max=0.1405)
+#: ⚠ REPINNED 2026-09-17, 29 -> 30, FOR EASTMAN_5293_250T_1982. The 1982
+#: EI 250T emulsion's dye set is traced from Fig. 7 of Kennel, Sehlin et al.,
+#: SMPTE J. 91(10) 1982 -- a different generation from the 1992 EXR 200T film
+#: that reuses the catalogue number, and a thirtieth independent panel that
+#: could have broken the sign result and did not: 30 of 30 POSITIVE. The
+#: magnitude median did not move at all (0.2232) and the asymmetry median
+#: moved 0.0817 -> 0.0832; `vs_rownorm_max` is still TECHNICOLOR_THREE_STRIP
+#: at 0.1405 and the new set comes nowhere near it.
+EXPECTED_M1A = dict(n=30, positive=30, t_off_median=0.2232,
+                    t_asym_median=0.0832, vs_rownorm_max=0.1405)
 M1A_TOL = 0.002
 
 

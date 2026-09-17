@@ -86,10 +86,24 @@ def parse_constants(src: str) -> list[tuple[str, str, str]]:
     return out
 
 
-def _py_literal(ctype: str, lit: str, known: dict[str, str]) -> str:
+_CAST_RE = re.compile(r"static_cast<int32_t>\s*\(\s*(\w+)::(\w+)\s*\)")
+
+
+def _py_literal(ctype: str, lit: str, known: dict[str, str],
+                enums: dict[str, dict[str, int]] | None = None) -> str:
     lit = lit.strip()
     if lit in known:                       # e.g. ExposureTimeSDef = ExposureTimeSOff
         return lit
+    # \u26a0 A COUNT WRITTEN AS static_cast<int32_t>(Enum::TOTAL_X) IS RESOLVED
+    # RATHER THAN COPIED. ProcessVariantCtrlCount is declared that way on
+    # purpose -- it is the compiler, not the author, that counts the
+    # enumerators -- and a mirror that emitted the cast as a string would turn
+    # the one fact this header guarantees into two.
+    m = _CAST_RE.fullmatch(lit)
+    if m is not None and enums is not None:
+        vals = enums.get(m.group(1))
+        if vals is not None and m.group(2) in vals:
+            return str(vals[m.group(2)])
     if ctype == "bool":
         return "True" if lit == "true" else "False"
     if ctype == "int32_t":
@@ -107,13 +121,24 @@ def render(header: Path) -> str:
     prn_keys = parse_key_table(src, "PrintStockCtrlKey")
     fmt_lbls = parse_label_table(src, "FilmFormatCtrlStr")
     prn_lbls = parse_label_table(src, "PrintStockCtrlStr")
+    pvr = parse_enum(src, "ProcessVariantCtrl")
+    pvr_keys = parse_key_table(src, "ProcessVariantCtrlKey")
+    pvr_lbls = parse_label_table(src, "ProcessVariantCtrlStr")
 
     # The TOTAL sentinels are a C++ counting idiom and are not selectable.
     fmt_sel = [(n, v) for n, v in fmt if not n.endswith("TOTAL_FORMATS")]
     prn_sel = [(n, v) for n, v in prn if not n.endswith("PRINT_STOCK_TOTAL")]
+    # \u26a0 THE SENTINEL AND THE COUNT ARE BOTH DROPPED HERE, and for different
+    # reasons. eAS_SHIPPED is the ABSENCE of a selection, so it has no key and
+    # no list-box entry; TOTAL_PROCESSES is a COUNT, so it has neither either.
+    # The three tables below must be index aligned over the real developments
+    # and nothing else, which is exactly what this guard checks.
+    pvr_sel = [(n, v) for n, v in pvr
+               if n != "TOTAL_PROCESSES" and not n.endswith("eAS_SHIPPED")]
     for what, sel, keys, lbls in (
         ("film format", fmt_sel, fmt_keys, fmt_lbls),
         ("print stock", prn_sel, prn_keys, prn_lbls),
+        ("process variant", pvr_sel, pvr_keys, pvr_lbls),
     ):
         if not (len(sel) == len(keys) == len(lbls)):
             raise SystemExit(
@@ -123,6 +148,8 @@ def render(header: Path) -> str:
 
     consts = parse_constants(src)
     known = {i: t for i, t, _ in consts}
+    enums = {"FilmFormatCtrl": dict(fmt), "PrintStockCtrl": dict(prn),
+             "ProcessVariantCtrl": dict(pvr)}
 
     L: list[str] = []
     w = L.append
@@ -173,6 +200,23 @@ def render(header: Path) -> str:
     w("        return PRINT_STOCK_LABEL.get(int(self), \"\")")
     w("")
     w("")
+    w("class ProcessVariantCtrl(IntEnum):")
+    w('    """A DEVELOPMENT, globally. eAS_SHIPPED is the absence of a')
+    w('    selection and TOTAL_PROCESSES is a count; neither is selectable."""')
+    w("")
+    for n, v in pvr:
+        w(f"    {n} = {v}")
+    w("")
+    w("    @property")
+    w("    def key(self) -> str:")
+    w('        """The film::ProcessVariant.variant_id, or "" for the sentinel."""')
+    w("        return PROCESS_VARIANT_KEY.get(int(self), \"\")")
+    w("")
+    w("    @property")
+    w("    def label(self) -> str:")
+    w("        return PROCESS_VARIANT_LABEL.get(int(self), \"As shipped\")")
+    w("")
+    w("")
     w("#: dupeStock draws on the same catalogue as printStock.")
     w("DupeStockCtrl = PrintStockCtrl")
     w("")
@@ -196,6 +240,16 @@ def render(header: Path) -> str:
         w(f"    {v}: {k!r},")
     w("}")
     w("")
+    w("PROCESS_VARIANT_KEY: dict[int, str] = {")
+    for (n, v), k in zip(pvr_sel, pvr_keys):
+        w(f"    {v}: {k!r},")
+    w("}")
+    w("")
+    w("PROCESS_VARIANT_LABEL: dict[int, str] = {")
+    for (n, v), k in zip(pvr_sel, pvr_lbls):
+        w(f"    {v}: {k!r},")
+    w("}")
+    w("")
     w("")
     w("# ---------------------------------------------------------------------------")
     w("# Numeric control metadata")
@@ -206,7 +260,7 @@ def render(header: Path) -> str:
     w("# guarded. See the header for which bounds are enforced and at which stage.")
     w("")
     for ident, ctype, lit in consts:
-        w(f"{ident} = {_py_literal(ctype, lit, known)}")
+        w(f"{ident} = {_py_literal(ctype, lit, known, enums)}")
     w("")
     w("")
     w("def film_format_key(value) -> str:")
@@ -225,6 +279,22 @@ def render(header: Path) -> str:
     w("        return \"\"")
     w("")
     w("")
+    w("def process_variant_key(value) -> str:")
+    w('    """Resolve a control value to a film::ProcessVariant.variant_id.')
+    w("")
+    w("    Accepts the enumerator, its integer value, or a bare key string.")
+    w('    An unrecognised value yields "", which every caller treats as "as')
+    w('    shipped" -- the same degradation both engines apply, and')
+    w("    deliberately not a clamp into range.")
+    w('    """')
+    w("    if isinstance(value, str):")
+    w("        return value")
+    w("    try:")
+    w("        return PROCESS_VARIANT_KEY.get(int(value), \"\")")
+    w("    except (TypeError, ValueError):")
+    w("        return \"\"")
+    w("")
+    w("")
     w("def print_stock_key(value) -> str:")
     w('    """Resolve a control value to a PRINT_STOCKS name. See above."""')
     w("    if isinstance(value, str):")
@@ -235,6 +305,11 @@ def render(header: Path) -> str:
     w("        return \"\"")
     w("")
     return "\n".join(L)
+
+
+def _unused_process_variant_key(value) -> str:      # pragma: no cover
+    """Placeholder kept out of the emitted file; see process_variant_key."""
+    raise NotImplementedError
 
 
 def main(argv: list[str] | None = None) -> int:

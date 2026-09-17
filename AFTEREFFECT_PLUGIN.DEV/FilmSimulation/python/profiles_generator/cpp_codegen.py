@@ -575,6 +575,55 @@ inline bool FilmMtfKernel(float q, float& w1, float& s1, float& s2)
 }
 
 
+/// One row of the THREE-lobe separable equivalent.
+struct MtfKernelRow3 {
+    float q;    ///< the exact stored rolloff exponent this row serves
+    float w1;   ///< weight of the tight lobe
+    float w2;   ///< weight of the middle lobe; the wide lobe carries 1 - w1 - w2
+    float s1;   ///< tight-lobe sigma, as a MULTIPLE of the legacy base sigma
+    float s2;   ///< middle-lobe sigma, same units
+    float s3;   ///< wide-lobe sigma, same units
+};
+
+
+/// Separable THREE-Gaussian equivalent, for exponents the two-lobe family
+/// cannot reach. Mirrors film_profiles.mtf_kernel3() exactly.
+///
+/// ⚠ WHY A THIRD LOBE EXISTS. KODAK TECHNICAL PAN's measured rolloff is
+/// q = 1.071, the shallowest in the corpus and well below the two-lobe table's
+/// floor of 1.50. The best PAIR for it misses by 0.0719 against the 0.045 that
+/// table is held to; a TRIPLE lands at 0.0267, ten times better than the single
+/// Gaussian. A shallow rolloff is shallow over three decades, and two Gaussians
+/// can cover a knee and a tail but not the long shoulder between them.
+///
+/// ⚠ CONSULTED ONLY AFTER FilmMtfKernel HAS RETURNED FALSE, so no stock that
+/// the two-lobe table serves changes path or changes a pixel.
+///
+/// ⚠ IT COSTS LOBE BUDGET. The adjacency band-pass MULTIPLIES the base
+/// transfer, so each base lobe carries an inner and an outer partner: three
+/// base lobes is nine, which is why ALGO_BLUR_MAX_LOBES is 9.
+inline bool FilmMtfKernel3(float q, float& w1, float& w2,
+                           float& s1, float& s2, float& s3)
+{
+    static const MtfKernelRow3 rows[] = {
+        // KODAK_TECHNICAL_PAN -- «Современные фотоматериалы и их обработка»
+        // p.372, fitted above the +15.1 % adjacency peak.
+        // max|err| 0.0267 against the single Gaussian's 0.2657, a 10.0x gain.
+        { 1.0710f, 0.303249f, 0.466223f, 0.181907f, 1.048645f, 5.985403f },
+    };
+    const int n = static_cast<int>(sizeof(rows) / sizeof(rows[0]));
+    for (int i = 0; i < n; i++) {
+        const float d = rows[i].q - q;
+        if ((d > -5.0e-5f) && (d < 5.0e-5f)) {
+            w1 = rows[i].w1; w2 = rows[i].w2;
+            s1 = rows[i].s1; s2 = rows[i].s2; s3 = rows[i].s3;
+            return true;
+        }
+    }
+    return false;
+}
+
+
 /// Base-reflection glow. Must be added to linear exposure before the
 /// characteristic curve, never to output pixels afterwards, and must conserve
 /// energy: light scattered away from a point is removed from it.
@@ -850,6 +899,16 @@ struct ProcessVariant
     /// alternative -- 0 already means "different chemistry".
     float       push_stops;
     ProcessingSpec processing;
+    /// The development's STABLE IDENTITY: the enumerator name, without its `e`
+    /// prefix, of this development in ProcessVariantCtrl (schema v37).
+    /// \warning THIS IS WHAT THE CONTROL SELECTS, and it replaced a position.
+    /// AlgoControls::processVariant used to be an index into the enclosing
+    /// profile's process_variants vector, so the stored value 2 named a
+    /// different development on every stock that had one -- always in range,
+    /// so never detectable, and silently re-pointed by inserting a variant.
+    /// AlgoResolveProcessVariant now matches ProcessVariantCtrlKeyOf() against
+    /// this string, which is why the vector's own order no longer matters.
+    std::string variant_id;
     std::string source;
 };
 
@@ -1328,12 +1387,39 @@ struct DevelopmentPoint {
     /// Without this field the two families sit interleaved in one flat array,
     /// told apart only by which time is shorter.
     std::string vessel;
+    // -- schema v35 (2026-09-16), INERT --------------------------------------
+    /// Which GENERATION of the stock this point measures; "" = the one the
+    /// profile itself describes.
+    ///
+    /// A product name is not an emulsion. The «Kodak Films» Data Book, Seventh
+    /// Edition, 1956 publishes Tri-X at American Standard 200 with a D-76
+    /// family reaching gamma 1.26 at 25 min; the 2016 F-4017 sheet publishes
+    /// it at ISO 400 with a different family. Both are manufacturer data about
+    /// the maker's own product, so neither supersedes the other -- they answer
+    /// different questions, and without this field they would sit interleaved
+    /// in one flat array as two answers to one question.
+    ///
+    /// exposure_index above is per point for the same reason. A pre-1960
+    /// American Standard index is NOT an ISO number: the 1956 book's own
+    /// page 25 records a safety factor of 2.5 that the 1960 revision removed,
+    /// so American Standard 80 and ISO 125 can describe the same coating.
+    std::string edition;
 };
 
 /// The whole published processing axis, not the single condition recorded in
 /// ProcessingSpec. Flat array so no developer name needs to become an enum.
 struct ProcessingFamily {
     std::vector<DevelopmentPoint> points;
+    /// The developer, and its dilution, that the SOURCE'S OWN characteristic
+    /// curve was measured in. Empty when the source does not say.
+    /// \warning NOT ProcessingSpec::developer, which claims the condition the
+    /// profile's STORED ToneCurve was measured in. On the 1956-sourced stocks
+    /// the stored curve is a 1979 sheet while the family is 1956, so the two
+    /// are different facts. AlgoDevelopmentGroup uses this to break a tie that
+    /// would otherwise cost a stock its development control the moment a
+    /// second developer's points were added.
+    std::string reference_developer;
+    std::string reference_dilution;
     std::string source;
 
     bool hasData() const { return !points.empty(); }
@@ -1482,6 +1568,15 @@ struct FilmProfile {
     TemporalSpec    temporal;     ///< gate weave / flicker / dirt (tier 3)
     ReciprocitySpec reciprocity;  ///< Schwarzschild failure (tier 2/3)
     AgingSpec       aging;        ///< storage damage hooks; all zeros = fresh
+    // -- schema v35 (2026-09-16), INERT ---------------------------------------
+    /// Published dark-fade RATE: how long a stated dye loss takes at a stated
+    /// storage temperature. A RATE, not a STATE -- see DyeStabilitySpec. The
+    /// struct has existed since v12 but was reachable only from PrintStock,
+    /// which was an accident of which document landed first: it was added for
+    /// a digital-intermediate recording film. Nothing about a dark-fade rate
+    /// is specific to a positive material, and it is a colour NEGATIVE's fade
+    /// that decides what a scan of a thirty-year-old roll looks like.
+    DyeStabilitySpec dye_stability;
     // -- schema v6 (2026-08-14) ----------------------------------------------
     /// Manufacturer exposure index under TUNGSTEN where the source prints one
     /// alongside the daylight figure; 0 = not stated. NOT redundant with
@@ -1849,16 +1944,20 @@ def _layer_stack(ls) -> str:
 
 def _processing_family(pf) -> str:
     if not pf.points:
-        return '{ {}, "" }'
+        return '{ {}, "", "", "" }'
     pts = ", ".join(
         "{ "
         + f'"{_escape(q.developer)}", "{_escape(q.dilution)}", '
         + f"{_d(q.minutes)}, {_d(q.celsius)}, "
         + f"{_d(q.contrast_index)}, {_d(q.gamma)}, {q.exposure_index}, "
-        + f'{_d(q.base_fog)}, "{_escape(q.vessel)}"'
+        + f'{_d(q.base_fog)}, "{_escape(q.vessel)}", '
+        + f'"{_escape(q.edition)}"'
         + " }"
         for q in pf.points)
-    return "{ { " + pts + f' }}, "{_escape(pf.source)}"' + " }"
+    return ("{ { " + pts + " }, "
+            + f'"{_escape(pf.reference_developer)}", '
+            + f'"{_escape(pf.reference_dilution)}", '
+            + f'"{_escape(pf.source)}"' + " }")
 
 
 def _reciprocity_table(rt) -> str:
@@ -2077,6 +2176,7 @@ def _process_variants(seq) -> str:
                 _f(v.dmin_shift),
                 _f(v.push_stops),
                 _processing(v.processing),
+                f'"{_escape(v.variant_id)}"',
                 f'"{_escape(v.source)}"',
             ])
             + " }"
@@ -2383,6 +2483,7 @@ def _profile_block(p: FilmProfile) -> str:
             {_temporal(p.temporal)},
             {_reciprocity(p.reciprocity)},
             {_aging(p.aging)},
+            {_dye_stability(p.dye_stability)},
             {p.exposure_index_tungsten},
             {_processing(p.processing)},
             {_provenance(p.provenance)},
@@ -2627,7 +2728,17 @@ def _print_block(s: PrintStock) -> str:
 # ⚠ UNTOUCHED: vector index == enum value == names-file line still holds, and
 # unlike the 19 -> 20 bump NO FILM ID MOVED -- the storage order is unchanged,
 # only the number of files it is sliced into.
-N_DATA_SLOTS = 24          #: fixed; the .vcxproj lists these files once
+# ⚠⚠ 24 -> 26 ON 2026-09-17, AND IT IS THE SAME ONE-TIME MANUAL STEP AS
+# EVERY BUMP ABOVE: `film_profiles_data_25.cpp` and `film_profiles_data_26.cpp`
+# must be added to the VS project by hand, once. What pushed it over was the
+# 186th stock (EASTMAN_5293_250T_1982, whose spectral and dye arrays are 36
+# samples each) landing on top of schema v37's `ProcessVariant::variant_id`
+# string on all 31 variant records and the 189 development points queue P61
+# adopted the day before -- slot 1 reached 112 kB, which is the hard limit.
+# ⚠ UNTOUCHED, as at every previous bump: vector index == enum value ==
+# names-file line, and NO FILM ID MOVED. Only the number of files the same
+# storage order is sliced into has changed.
+N_DATA_SLOTS = 26          #: fixed; the .vcxproj lists these files once
 SLOT_SOURCE_LIMIT = 112_000  #: bytes of emitted source per slot, hard error
 
 

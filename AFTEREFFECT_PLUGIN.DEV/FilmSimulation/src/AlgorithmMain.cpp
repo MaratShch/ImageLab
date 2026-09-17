@@ -110,7 +110,9 @@
 #include "AlgoEmulsionRecord.hpp"        // stage 7
 #include "AlgoCharacteristicCurve.hpp"   // stage 8
 #include "AlgoReciprocity.hpp"           // stage 8, frame constant
-#include "AlgoProcessVariant.hpp"        // frame setup, curve selection
+#include "AlgoProcessVariant.hpp"
+#include "AlgoDevelopmentTime.hpp"
+#include "AlgoStorageAge.hpp"        // frame setup, curve selection
 #include "AlgoInterimage.hpp"            // stage 8b
 #include "AlgoDirCoupler.hpp"            // stage 9
 #include "AlgoNegativeDefects.hpp"       // stage 9b   IMPLEMENTED
@@ -472,16 +474,67 @@ void Algorithm_Main
     //  solve, stage 8, the grain amplitude and the dupe chain all render the
     //  same film. See AlgoProcessVariant.hpp.
     //
-    //  INERT AT THE DEFAULT: processVariant is -1 unless the caller selects
+    //  INERT AT THE DEFAULT: processVariant is eAS_SHIPPED unless the caller
+    //  selects
     //  one, `variantStore` is never written, and the reference below binds
     //  straight to the database entry.
     // -----------------------------------------------------------------------
     film::FilmProfile variantStore;
 
-    const film::FilmProfile& profile =
+    const film::FilmProfile& profileVariant =
         AlgoResolveProcessVariant(profileAsShipped,
                                   algoCtrl.processVariant,
                                   variantStore);
+
+    // -----------------------------------------------------------------------
+    //  The chosen DEVELOPMENT TIME, resolved in the same place and for the
+    //  same reason.
+    //
+    //  This moves the stored curve along the time-gamma axis its OWN family
+    //  describes. The database has carried a ProcessingFamily since schema v7
+    //  - 960 development points across 25 stocks - and until this call no
+    //  stage in either engine read one of them. See AlgoDevelopmentTime.hpp.
+    //
+    //  APPLIED AFTER THE VARIANT, DELIBERATELY. A variant IS a different
+    //  development, so the two are mutually exclusive in practice and the host
+    //  disables this control whenever one is selected. Ordering them this way
+    //  means that if a host ignores that rule the time lands on the variant's
+    //  own curve rather than on a curve the variant then discards.
+    //
+    //  INERT AT THE DEFAULT: developmentMinutes is -1 unless the caller moves
+    //  it, `developStore` is never written, and the reference binds straight
+    //  through. A time outside the stock's traced range takes the same path.
+    // -----------------------------------------------------------------------
+    film::FilmProfile developStore;
+
+    const film::FilmProfile& profileDeveloped =
+        AlgoResolveDevelopmentTime(profileVariant,
+                                   algoCtrl.developmentMinutes,
+                                   developStore);
+
+    // -----------------------------------------------------------------------
+    //  DARK STORAGE, last of the three profile resolvers.
+    //
+    //  The order is chronological: a variant and a development time both
+    //  describe how the film was PROCESSED, and storage happens after
+    //  processing. A fade applied first would have the film ageing before it
+    //  was developed.
+    //
+    //  film::AgingSpec has existed since schema v2, is all zeros on all 191
+    //  stocks and is read by nothing, because nothing said how fast a film
+    //  fades. film::DyeStabilitySpec now does, for camera negatives as well as
+    //  for one recording film, and this turns that RATE into a STATE. See
+    //  AlgoStorageAge.hpp.
+    //
+    //  INERT AT THE DEFAULT: storageYears is 0 unless the caller moves it, and
+    //  188 of 191 stocks publish no rate and cannot respond at any age.
+    // -----------------------------------------------------------------------
+    film::FilmProfile agedStore;
+
+    const film::FilmProfile& profile =
+        AlgoResolveStorageAge(profileDeveloped,
+                              algoCtrl.storageYears,
+                              agedStore);
 
     // -----------------------------------------------------------------------
     //  Resolve the gauge, and from it every physical frame dimension.

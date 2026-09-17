@@ -171,6 +171,7 @@
     <ClInclude Include="include\AlgoCounterRng.hpp" />
     <ClInclude Include="include\AlgoCurveLut.hpp" />
     <ClInclude Include="include\AlgoDefectField.hpp" />
+    <ClInclude Include="include\AlgoDevelopmentTime.hpp" />
     <ClInclude Include="include\AlgoDirCoupler.hpp" />
     <ClInclude Include="include\AlgoDuplication.hpp" />
     <ClInclude Include="include\AlgoDyeImpurity.hpp" />
@@ -202,6 +203,7 @@
     <ClInclude Include="include\AlgoSilverTone.hpp" />
     <ClInclude Include="include\AlgoSpectralSensitivity.hpp" />
     <ClInclude Include="include\AlgoStockColourBalance.hpp" />
+    <ClInclude Include="include\AlgoStorageAge.hpp" />
     <ClInclude Include="include\AlgoTakingFilters.hpp" />
     <ClInclude Include="include\AlgoTemporalFlicker.hpp" />
     <ClInclude Include="include\AlgoTransmittance.hpp" />
@@ -271,6 +273,8 @@
     <ClCompile Include="src\film_profiles_data_22.cpp" />
     <ClCompile Include="src\film_profiles_data_23.cpp" />
     <ClCompile Include="src\film_profiles_data_24.cpp" />
+    <ClCompile Include="src\film_profiles_data_25.cpp" />
+    <ClCompile Include="src\film_profiles_data_26.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\LoadFilmDataBase.cpp" />
   </ItemGroup>
@@ -342,6 +346,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\fuji_t3_2026.py" />
     <None Include="python\profiles_generator\gen_active_profiles.py" />
     <None Include="python\profiles_generator\gen_control_enums.py" />
+    <None Include="python\profiles_generator\gen_film_control_matrix.py" />
     <None Include="python\profiles_generator\gen_film_curves_md.py" />
     <None Include="python\profiles_generator\gen_film_names.py" />
     <None Include="python\profiles_generator\gen_project_state.py" />
@@ -354,7 +359,13 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\iso5_3_density.py" />
     <None Include="python\profiles_generator\iso_5_3_status.py" />
     <None Include="python\profiles_generator\jp_jps_1965_269.py" />
+    <None Include="python\profiles_generator\kodak_1938.py" />
     <None Include="python\profiles_generator\kodak_1952_curves.py" />
+    <None Include="python\profiles_generator\kodak_1956.py" />
+    <None Include="python\profiles_generator\kodak_1956_curves.py" />
+    <None Include="python\profiles_generator\kodak_1956_spectro.py" />
+    <None Include="python\profiles_generator\kodak_1956_trace.py" />
+    <None Include="python\profiles_generator\kodak_5293_1982.py" />
     <None Include="python\profiles_generator\kodak_aim_density.py" />
     <None Include="python\profiles_generator\kodak_sensitometry.py" />
     <None Include="python\profiles_generator\kodak_still_curves.py" />
@@ -367,6 +378,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\mees_granularity.py" />
     <None Include="python\profiles_generator\mtf_vector.py" />
     <None Include="python\profiles_generator\ooue_1959_granularity.py" />
+    <None Include="python\profiles_generator\orwo_nc3_1972.py" />
     <None Include="python\profiles_generator\plot_inventory.py" />
     <None Include="python\profiles_generator\png_compare.py" />
     <None Include="python\profiles_generator\polaroid_spectral.py" />
@@ -381,6 +393,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\smpte_1953_hanson_kisner.py" />
     <None Include="python\profiles_generator\smpte_1954_5382.py" />
     <None Include="python\profiles_generator\sort_profiles.py" />
+    <None Include="python\profiles_generator\sovremennye_2004.py" />
     <None Include="python\profiles_generator\spectral_mono_parity.py" />
     <None Include="python\profiles_generator\spectral_sampling.py" />
     <None Include="python\profiles_generator\spectral_vector.py" />

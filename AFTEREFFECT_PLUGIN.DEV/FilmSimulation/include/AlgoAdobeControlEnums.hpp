@@ -22,7 +22,12 @@ enum class FilmSimulationCtrl : int32_t
     DEVELOPMENT_ENABLE,
     DEVELOPMENT_TIME,
     DEVELOPMENT_TEMPERATURE,
+    YEARS_OF_DARK_STORAGE,
     GROUP_STOP_DEVELOPMENT,
+    GROUP_START_COLOR_WHITE_BALANCE,
+    SCENE_COLOUR_TEMPERATURE,
+    WHITE_BALANCE_STRENGTH,
+    GROUP_STOP_COLOR_WHITE_BALANCE,
     TOTAL_PARAMS
 };
 
@@ -37,10 +42,14 @@ constexpr char itemNames[][32] = {
     "Exposure Time",
     "Mid-Gray Target",
     "Black Point Stretch",
-    "Development",
+    "Development And Storage",
     "Development Enable",
     "Development Time",
-    "Development Temperature"
+    "Development Temperature",
+    "Years of Dark Storage",
+    "Colour & White Balance",
+    "Scene Colour Temperature",
+    "White Balance Strength"
 };
 
 #endif // __IMAGE_LAB2_ALGO_ADOBE_CONTROL_ENUMERATORS__

@@ -65,7 +65,6 @@ enum class FilmFormatCtrl : int32_t
 
 // Display names, pipe separated, index aligned with FilmFormatCtrl.
 constexpr char FilmFormatCtrlStr[] =
-{
     "8 mm|"
     "Super 8|"
     "16 mm|"
@@ -79,8 +78,7 @@ constexpr char FilmFormatCtrlStr[] =
     "IMAX 15-perf|"
     "Polaroid SX-70|"
     "Polaroid pack|"
-    "Large format 4x5"
-};
+    "Large format 4x5";
 
 // Database keys, index aligned with FilmFormatCtrl. These are the exact
 // FORMAT_GEOM keys. The engine resolves a format through this table rather
@@ -205,27 +203,212 @@ constexpr DupeStockCtrl DupeStockCtrlDef = DupeStockCtrl::eDUPE_FINE_GRAIN;
 
 
 // ---------------------------------------------------------------------------
-//  Process variant
+//  Process variant -- the strongly typed selection
 // ---------------------------------------------------------------------------
 //  Selects an alternative development for the chosen emulsion: a push, a pull,
 //  a cross-process or an alternate kit, as the manufacturer plotted it.
 //
-//  THE VARIANT LIST IS PER STOCK, NOT GLOBAL, AND THAT IS WHY THIS CONTROL IS
-//  AN INDEX RATHER THAN A FIXED ENUMERATION. Eight stocks in the current
-//  database carry variants, and they carry twenty-one distinct developments
-//  between them: Rodinal at two dilutions, Refinal, Studional, the Anscochrome
-//  first-developer ladder, the Gevachrome DIN push, the Portra exposure-index
-//  ladder, and ECN-2 against C-41 cross-process. A single global enumeration
-//  cannot index into a per-stock vector, so processVariant remains an index
-//  into the selected profile's own process_variants, with -1 meaning "the
-//  development the stored curves already represent".
+//  \warning THIS WAS AN int32_t INDEX UNTIL 2026-09-17 AND THE CHANGE IS NOT
+//  COSMETIC. The host used to select a development by its POSITION in the
+//  chosen stock's own process_variants vector. Position is not an identity.
+//  Eight stocks offer between two and five developments each, so the stored
+//  value 2 meant "RODINAL 1+50" on an AGFAPAN, "ECN-2, the base stock's native
+//  process" on CINESTILL 800T and "EI 3200 (Push 2)" on PORTRA 800 - one saved
+//  project file, three films, three meanings, every one of them in range and
+//  therefore undetectable. Inserting a variant, or re-ordering two, silently
+//  changed what every saved project selected.
 //
-//  The display vocabulary the host needs in order to LABEL that list is
-//  generated from the database rather than written here, because a hand
-//  written copy drifts the moment a stock gains a variant. See
-//  AlgoProcessVariantNames.hpp, emitted beside film_enum.hpp.
-constexpr int32_t ProcessVariantNone = -1;
-constexpr int32_t ProcessVariantDef  = ProcessVariantNone;
+//  The control is now this enumeration. It is GLOBAL: each development has one
+//  value that means the same thing whatever stock is loaded. Which stock
+//  OFFERS which remains per stock and is answered by searching that stock's
+//  process_variants for the id - see AlgoProcessVariant.hpp.
+//
+//  \warning AND AN UNRECOGNISED VALUE RENDERS AS SHIPPED RATHER THAN BEING
+//  CLAMPED. A project saved against a database offering a variant this one
+//  does not takes the same inert path an unselected control takes. Clamping
+//  would render a DIFFERENT development and call it the one that was asked
+//  for, which is worse than rendering none.
+//
+//  THE ORDER IS FIXED AND THE TABLES BELOW ARE INDEX ALIGNED WITH IT. Every
+//  entry corresponds one for one with an entry of _PROCESS_VARIANT_IDS in the
+//  generated database, in the same order, and verify.py refuses the build if
+//  the two disagree in either direction.
+enum class ProcessVariantCtrl : int32_t
+{
+    //  \warning NOT A VARIANT AND NOT AN ITEM IN THE LIST BOX. It is the
+    //  absence of a selection: the development the stored curves already
+    //  represent. Negative so it can never collide with an enumerator, and
+    //  outside the [0, TOTAL_PROCESSES) range every validity test uses.
+    eAS_SHIPPED = -1,
+
+    eAGFA_REFINAL = 0,
+    eAGFA_RODINAL_1_25,
+    eAGFA_RODINAL_1_50,
+    eAGFA_RODINAL_SPECIAL,
+    eAGFA_STUDIONAL_LIQUID,
+    eCINESTILL_C41_AS_SHIPPED,
+    eCINESTILL_CS2_TWO_BATH,
+    eCINESTILL_ECN2_NATIVE,
+    eGEVACHROME_23DIN_160ASA,
+    eGEVACHROME_26DIN_320ASA,
+    ePORTRA800_EI800,
+    ePORTRA800_EI1600_PUSH1,
+    ePORTRA800_EI3200_PUSH2,
+    eULTRA400UC_EI400_E4035,
+    eULTRA400UC_EI400_E190,
+    eULTRA400UC_EI800_E4035,
+    eULTRA400UC_EI800_E190,
+    eANSCOCHROME_A_14MIN_EI80,
+    eANSCOCHROME_B_16MIN_EI100,
+    eANSCOCHROME_C_19MIN_EI150,
+    eANSCOCHROME_D_22MIN_EI200,
+
+    //  \warning TOTAL_PROCESSES IS A COUNT, NOT A PROCESS. It must stay last,
+    //  it must never be offered in the list box, and it must never be stored
+    //  as a selection. It exists so that the number of developments, the size
+    //  of the display tables and the bound of every range check are all one
+    //  fact written once - the compiler computes it from the enumerators, so
+    //  adding a variant cannot leave a table behind.
+    TOTAL_PROCESSES
+};
+
+//  The count as a plain integer, for array bounds and loop limits.
+constexpr int32_t ProcessVariantCtrlCount =
+    static_cast<int32_t>(ProcessVariantCtrl::TOTAL_PROCESSES);
+
+constexpr ProcessVariantCtrl ProcessVariantCtrlDef =
+    ProcessVariantCtrl::eAS_SHIPPED;
+
+//  Display strings for the list box, pipe separated in enumerator order, in
+//  the same form as every other control's string in this header.
+//  \warning TOTAL_PROCESSES AND eAS_SHIPPED ARE ABSENT BY DESIGN. The first is
+//  a count; the second is the absence of a selection and belongs in the host's
+//  own "no variant" affordance, not in the list of developments. Its label is
+//  ProcessVariantCtrlNoneStr below, kept separate for exactly that reason.
+constexpr char ProcessVariantCtrlStr[] =
+    "AS SHIPPED|"
+    "REFINAL|"
+    "RODINAL 1+25|"
+    "RODINAL 1+50|"
+    "RODINAL SPECIAL|"
+    "STUDIONAL LIQUID|"
+    "C-41 cross-process, as shipped|"
+    "Cs2 two-bath kit|"
+    "ECN-2, the base stock's native process|"
+    "23 DIN / 160 ASA (box speed)|"
+    "26 DIN / 320 ASA (push 1)|"
+    "EI 800 (box speed)|"
+    "EI 1600 (Push 1)|"
+    "EI 3200 (Push 2)|"
+    "EI 400 (box speed) - E-4035|"
+    "EI 400 (box speed) - E-190 (2003)|"
+    "EI 800 (Push 1) - E-4035|"
+    "EI 800 (Push 1) - E-190 (2003)|"
+    "A- 14 min first developer, EI 80|"
+    "B- 16 min first developer, EI 100|"
+    "C- 19 min first developer, EI 150|"
+    "D- 22 min first developer, EI 200";
+
+constexpr const char* const ProcessVariantCtrlNoneStr = "As shipped";
+
+//  The same strings indexed by enumerator, for code that needs one name rather
+//  than the whole list.
+constexpr const char* const ProcessVariantCtrlName[] =
+{
+    "REFINAL",
+    "RODINAL 1+25",
+    "RODINAL 1+50",
+    "RODINAL SPECIAL",
+    "STUDIONAL LIQUID",
+    "C-41 cross-process, as shipped",
+    "Cs2 two-bath kit",
+    "ECN-2, the base stock's native process",
+    "23 DIN / 160 ASA (box speed)",
+    "26 DIN / 320 ASA (push 1)",
+    "EI 800 (box speed)",
+    "EI 1600 (Push 1)",
+    "EI 3200 (Push 2)",
+    "EI 400 (box speed) -- E-4035",
+    "EI 400 (box speed) -- E-190 (2003)",
+    "EI 800 (Push 1) -- E-4035",
+    "EI 800 (Push 1) -- E-190 (2003)",
+    "A -- 14 min first developer, EI 80",
+    "B -- 16 min first developer, EI 100",
+    "C -- 19 min first developer, EI 150",
+    "D -- 22 min first developer, EI 200",
+};
+
+//  Database keys, index aligned with ProcessVariantCtrl. These are the exact
+//  film::ProcessVariant::variant_id values, so the engine resolves a variant
+//  through this table rather than through a display name and the two can
+//  change independently.
+constexpr const char* const ProcessVariantCtrlKey[] =
+{
+    "AGFA_REFINAL",
+    "AGFA_RODINAL_1_25",
+    "AGFA_RODINAL_1_50",
+    "AGFA_RODINAL_SPECIAL",
+    "AGFA_STUDIONAL_LIQUID",
+    "CINESTILL_C41_AS_SHIPPED",
+    "CINESTILL_CS2_TWO_BATH",
+    "CINESTILL_ECN2_NATIVE",
+    "GEVACHROME_23DIN_160ASA",
+    "GEVACHROME_26DIN_320ASA",
+    "PORTRA800_EI800",
+    "PORTRA800_EI1600_PUSH1",
+    "PORTRA800_EI3200_PUSH2",
+    "ULTRA400UC_EI400_E4035",
+    "ULTRA400UC_EI400_E190",
+    "ULTRA400UC_EI800_E4035",
+    "ULTRA400UC_EI800_E190",
+    "ANSCOCHROME_A_14MIN_EI80",
+    "ANSCOCHROME_B_16MIN_EI100",
+    "ANSCOCHROME_C_19MIN_EI150",
+    "ANSCOCHROME_D_22MIN_EI200",
+};
+
+static_assert(
+    static_cast<int32_t>(sizeof(ProcessVariantCtrlName)
+                         / sizeof(ProcessVariantCtrlName[0]))
+    == ProcessVariantCtrlCount,
+    "ProcessVariantCtrlName must have exactly TOTAL_PROCESSES entries");
+
+static_assert(
+    static_cast<int32_t>(sizeof(ProcessVariantCtrlKey)
+                         / sizeof(ProcessVariantCtrlKey[0]))
+    == ProcessVariantCtrlCount,
+    "ProcessVariantCtrlKey must have exactly TOTAL_PROCESSES entries");
+
+static_assert(
+    static_cast<int32_t>(ProcessVariantCtrl::eAS_SHIPPED) < 0,
+    "the sentinel must stay outside [0, TOTAL_PROCESSES)");
+
+//  True for a value that names an actual development. The sentinel and
+//  TOTAL_PROCESSES both answer false, which is what every caller wants: one is
+//  "nothing selected" and the other is a count.
+constexpr bool ProcessVariantCtrlValid (const ProcessVariantCtrl v) noexcept
+{
+    return (static_cast<int32_t>(v) >= 0)
+        && (static_cast<int32_t>(v) < ProcessVariantCtrlCount);
+}
+
+//  Display name for one value, or the sentinel's label. Never returns nullptr.
+constexpr const char* ProcessVariantCtrlLabel (const ProcessVariantCtrl v) noexcept
+{
+    return ProcessVariantCtrlValid(v)
+        ? ProcessVariantCtrlName[static_cast<int32_t>(v)]
+        : ProcessVariantCtrlNoneStr;
+}
+
+//  Database key for one value, or an empty string for the sentinel. This is
+//  what AlgoProcessVariant.hpp matches against film::ProcessVariant::variant_id.
+constexpr const char* ProcessVariantCtrlKeyOf (const ProcessVariantCtrl v) noexcept
+{
+    return ProcessVariantCtrlValid(v)
+        ? ProcessVariantCtrlKey[static_cast<int32_t>(v)]
+        : "";
+}
+
 
 
 // ---------------------------------------------------------------------------
@@ -292,6 +475,23 @@ constexpr double DevelopmentCelsiusMin  = 18.0;
 constexpr double DevelopmentCelsiusMax  = 24.0;
 constexpr double DevelopmentCelsiusDef  = DevelopmentCelsiusSentinel;
 constexpr double DevelopmentCelsiusStep = 0.5;
+
+// Years of DARK STORAGE since processing, for image-dye fade. Zero is the OFF
+// sentinel and is fresh film, not a minimum.
+// ⚠ THE CONTROL IS INERT ON 188 OF 191 STOCKS and must hide or disable itself
+// there, by the same rule processVariant and developmentMinutes already
+// follow: only a stock carrying a PUBLISHED dark-fade rate in
+// film::DyeStabilitySpec can respond, and today that is KODAK EKTAR 125 (8
+// years to a 10 % yellow loss) and KODAK VERICOLOR III 160 (23 years).
+// ⚠ THE UPPER BOUND IS NOT A PHYSICAL LIMIT. It is the span over which a
+// first-order fade from a published 10 %-loss time stays a restatement of that
+// figure rather than an extrapolation of it: at 100 years EKTAR 125's yellow
+// record is down 65 %, which is already past anything the source measured.
+constexpr double StorageYearsOff  =   0.0;
+constexpr double StorageYearsMin  =   0.0;
+constexpr double StorageYearsMax  = 100.0;
+constexpr double StorageYearsDef  = StorageYearsOff;
+constexpr double StorageYearsStep =   0.5;
 
 // -- duplication -----------------------------------------------------------
 

@@ -17,6 +17,11 @@
 #include "AlgoControl.hpp"
 
 
+namespace {
+
+}  // anonymous namespace
+
+
 // ---------------------------------------------------------------------------
 //  getFilmDamageDefault
 //
@@ -299,7 +304,7 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     //      stock was developed". Inert today because no stock's traced family
     //      is consulted at 0, but inert for the wrong reason.
     // ----------------------------------------------------------------------
-    controls.processVariant     = -1;
+    controls.processVariant     = ProcessVariantCtrl::eAS_SHIPPED;
     controls.developmentMinutes = -1.0;
     controls.developmentCelsius = -1.0;
 

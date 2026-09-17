@@ -1276,8 +1276,8 @@ def fit_tone_curve(pts, seed=None, iters=4000):
 #:            neutral+Dmin pair schema v14 added, and NOT three separated dyes.
 #:   mtf   -- SPATIAL FREQUENCY (cycles/mm) vs RESPONSE (%), both log10.
 #: The fifth element is HOW MANY traces the panel must have. It is not a
-#: convenience: it is what lets the reader tell "I found the figure" from "I
-#: found some of the figure", and it is what gates the chainer (see
+#: convenience: it is what separates "the whole figure was found" from "part
+#: of the figure was found", and it is what gates the chainer (see
 #: extract_panel). Every one of these counts is fixed by what the panel means
 #: -- three sensitive layers, three channels, one neutral and one D-min -- not
 #: by what any particular sheet happened to draw.

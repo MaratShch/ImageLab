@@ -64,14 +64,15 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         UnderlyingType(FilmSimulationCtrl::FILM_FORMAT));
     totalParams++;
 
-//    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
-//    PF_ADD_POPUP(
-//        itemNames[4],
-//        UnderlyingType(FilmFormatCtrl::eFILM_FORMAT_TOTAL_FORMATS),
-//        UnderlyingType(FilmFormatCtrl::eFILM_FORMAT_FF_35),
-//        FilmFormatCtrlStr,
-//        UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT));
-//    totalParams++;
+    // Process Variant ListBox
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        itemNames[4],
+        ProcessVariantCtrlCount,
+        UnderlyingType(ProcessVariantCtrl::eAS_SHIPPED),
+        ProcessVariantCtrlStr,
+        UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT));
+    totalParams++;
 
     // Close group item
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
@@ -157,7 +158,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     totalParams++;
 
     ///////////////////////////////////////////////////////////////////
-    // GROUP START: DEVELOPMENT                                      //
+    // GROUP START: DEVELOPMENT & STORAGE                           //
     ///////////////////////////////////////////////////////////////////
     // Open group item
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
@@ -176,7 +177,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         UnderlyingType(FilmSimulationCtrl::DEVELOPMENT_ENABLE));
     totalParams++;
 
-    // Development time slider
+    // Development time float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
         itemNames[12],
@@ -191,7 +192,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         UnderlyingType(FilmSimulationCtrl::DEVELOPMENT_TIME));
     totalParams++;
 
-    // Development temperature slider
+    // Development temperature float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
         itemNames[13],
@@ -206,10 +207,62 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         UnderlyingType(FilmSimulationCtrl::DEVELOPMENT_TEMPERATURE));
     totalParams++;
 
+    // Development & Storage slider
+    PF_ADD_SLIDER(
+        itemNames[14], 
+        StorageYearsMin,
+        StorageYearsMax,
+        StorageYearsMin,
+        StorageYearsMax,
+        StorageYearsDef,
+        UnderlyingType(FilmSimulationCtrl::YEARS_OF_DARK_STORAGE));
+
     // Close group item
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_DEVELOPMENT));
     totalParams++;
+
+    ///////////////////////////////////////////////////////////////////
+    // GROUP START: DEVELOPMENT & STORAGE                           //
+    ///////////////////////////////////////////////////////////////////
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_TOPICX(
+        itemNames[15],
+        ui_flags,
+        UnderlyingType(FilmSimulationCtrl::GROUP_START_COLOR_WHITE_BALANCE));
+    totalParams++;
+
+    // Scene Colour Temperature slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_SLIDER(
+        itemNames[16],
+        SceneKelvinMin,
+        SceneKelvinMax,
+        SceneKelvinMin,
+        SceneKelvinMax,
+        SceneKelvinDef,
+        UnderlyingType(FilmSimulationCtrl::SCENE_COLOUR_TEMPERATURE));
+    totalParams++;
+
+    // White Balance Strength float slider
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[17],
+        WbStrengthMin,
+        WbStrengthMax,
+        WbStrengthMin,
+        WbStrengthMax,
+        WbStrengthDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::WHITE_BALANCE_STRENGTH));
+    totalParams++;
+
+    // Close group item
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_COLOR_WHITE_BALANCE));
+    totalParams++;
+
 
     out_data->num_params = totalParams;
 

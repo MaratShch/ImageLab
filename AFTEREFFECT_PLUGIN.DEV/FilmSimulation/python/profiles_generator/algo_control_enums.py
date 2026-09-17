@@ -69,6 +69,44 @@ class PrintStockCtrl(IntEnum):
         return PRINT_STOCK_LABEL.get(int(self), "")
 
 
+class ProcessVariantCtrl(IntEnum):
+    """A DEVELOPMENT, globally. eAS_SHIPPED is the absence of a
+    selection and TOTAL_PROCESSES is a count; neither is selectable."""
+
+    eAS_SHIPPED = -1
+    eAGFA_REFINAL = 0
+    eAGFA_RODINAL_1_25 = 1
+    eAGFA_RODINAL_1_50 = 2
+    eAGFA_RODINAL_SPECIAL = 3
+    eAGFA_STUDIONAL_LIQUID = 4
+    eCINESTILL_C41_AS_SHIPPED = 5
+    eCINESTILL_CS2_TWO_BATH = 6
+    eCINESTILL_ECN2_NATIVE = 7
+    eGEVACHROME_23DIN_160ASA = 8
+    eGEVACHROME_26DIN_320ASA = 9
+    ePORTRA800_EI800 = 10
+    ePORTRA800_EI1600_PUSH1 = 11
+    ePORTRA800_EI3200_PUSH2 = 12
+    eULTRA400UC_EI400_E4035 = 13
+    eULTRA400UC_EI400_E190 = 14
+    eULTRA400UC_EI800_E4035 = 15
+    eULTRA400UC_EI800_E190 = 16
+    eANSCOCHROME_A_14MIN_EI80 = 17
+    eANSCOCHROME_B_16MIN_EI100 = 18
+    eANSCOCHROME_C_19MIN_EI150 = 19
+    eANSCOCHROME_D_22MIN_EI200 = 20
+    TOTAL_PROCESSES = 21
+
+    @property
+    def key(self) -> str:
+        """The film::ProcessVariant.variant_id, or "" for the sentinel."""
+        return PROCESS_VARIANT_KEY.get(int(self), "")
+
+    @property
+    def label(self) -> str:
+        return PROCESS_VARIANT_LABEL.get(int(self), "As shipped")
+
+
 #: dupeStock draws on the same catalogue as printStock.
 DupeStockCtrl = PrintStockCtrl
 
@@ -136,6 +174,54 @@ PRINT_STOCK_LABEL: dict[int, str] = {
     11: 'Kodak Vision3 DI 2254',
 }
 
+PROCESS_VARIANT_KEY: dict[int, str] = {
+    0: 'AGFA_REFINAL',
+    1: 'AGFA_RODINAL_1_25',
+    2: 'AGFA_RODINAL_1_50',
+    3: 'AGFA_RODINAL_SPECIAL',
+    4: 'AGFA_STUDIONAL_LIQUID',
+    5: 'CINESTILL_C41_AS_SHIPPED',
+    6: 'CINESTILL_CS2_TWO_BATH',
+    7: 'CINESTILL_ECN2_NATIVE',
+    8: 'GEVACHROME_23DIN_160ASA',
+    9: 'GEVACHROME_26DIN_320ASA',
+    10: 'PORTRA800_EI800',
+    11: 'PORTRA800_EI1600_PUSH1',
+    12: 'PORTRA800_EI3200_PUSH2',
+    13: 'ULTRA400UC_EI400_E4035',
+    14: 'ULTRA400UC_EI400_E190',
+    15: 'ULTRA400UC_EI800_E4035',
+    16: 'ULTRA400UC_EI800_E190',
+    17: 'ANSCOCHROME_A_14MIN_EI80',
+    18: 'ANSCOCHROME_B_16MIN_EI100',
+    19: 'ANSCOCHROME_C_19MIN_EI150',
+    20: 'ANSCOCHROME_D_22MIN_EI200',
+}
+
+PROCESS_VARIANT_LABEL: dict[int, str] = {
+    0: 'REFINAL',
+    1: 'RODINAL 1+25',
+    2: 'RODINAL 1+50',
+    3: 'RODINAL SPECIAL',
+    4: 'STUDIONAL LIQUID',
+    5: 'C-41 cross-process, as shipped',
+    6: 'Cs2 two-bath kit',
+    7: "ECN-2, the base stock's native process",
+    8: '23 DIN / 160 ASA (box speed)',
+    9: '26 DIN / 320 ASA (push 1)',
+    10: 'EI 800 (box speed)',
+    11: 'EI 1600 (Push 1)',
+    12: 'EI 3200 (Push 2)',
+    13: 'EI 400 (box speed) -- E-4035',
+    14: 'EI 400 (box speed) -- E-190 (2003)',
+    15: 'EI 800 (Push 1) -- E-4035',
+    16: 'EI 800 (Push 1) -- E-190 (2003)',
+    17: 'A -- 14 min first developer, EI 80',
+    18: 'B -- 16 min first developer, EI 100',
+    19: 'C -- 19 min first developer, EI 150',
+    20: 'D -- 22 min first developer, EI 200',
+}
+
 
 # ---------------------------------------------------------------------------
 # Numeric control metadata
@@ -145,8 +231,7 @@ PRINT_STOCK_LABEL: dict[int, str] = {
 # them -- so they describe where the model is meaningful, not where it is
 # guarded. See the header for which bounds are enforced and at which stage.
 
-ProcessVariantNone = -1
-ProcessVariantDef = ProcessVariantNone
+ProcessVariantCtrlCount = 21
 ExposureStopsMin = -4.0
 ExposureStopsMax = 4.0
 ExposureStopsDef = 0.0
@@ -165,6 +250,11 @@ DevelopmentCelsiusMin = 18.0
 DevelopmentCelsiusMax = 24.0
 DevelopmentCelsiusDef = DevelopmentCelsiusSentinel
 DevelopmentCelsiusStep = 0.5
+StorageYearsOff = 0.0
+StorageYearsMin = 0.0
+StorageYearsMax = 100.0
+StorageYearsDef = StorageYearsOff
+StorageYearsStep = 0.5
 GenerationsMin = 0
 GenerationsMax = 4
 GenerationsDef = 0
@@ -310,6 +400,22 @@ def film_format_key(value) -> str:
         return value
     try:
         return FILM_FORMAT_KEY.get(int(value), "")
+    except (TypeError, ValueError):
+        return ""
+
+
+def process_variant_key(value) -> str:
+    """Resolve a control value to a film::ProcessVariant.variant_id.
+
+    Accepts the enumerator, its integer value, or a bare key string.
+    An unrecognised value yields "", which every caller treats as "as
+    shipped" -- the same degradation both engines apply, and
+    deliberately not a clamp into range.
+    """
+    if isinstance(value, str):
+        return value
+    try:
+        return PROCESS_VARIANT_KEY.get(int(value), "")
     except (TypeError, ValueError):
         return ""
 

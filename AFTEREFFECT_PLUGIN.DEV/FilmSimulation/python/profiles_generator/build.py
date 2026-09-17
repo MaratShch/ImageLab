@@ -1553,6 +1553,242 @@ def audits(root: Path):
         # 0.064-0.070 D on Figure 8-2's 5242, twelve times worse. Only the
         # agreeing sets are eligible for adoption, and the day that stops
         # being true the build says so.
+        # ⚠ THE FIRST COLOUR STOCK IN THIS CORPUS WITH A DEVELOPMENT-TIME
+        # FAMILY, and it closes from a different direction the gap h24
+        # below could not: of the six H-24 figures that reader digitises,
+        # the time and temperature panels are exactly the two its own
+        # identity gate refuses. Tamm & Weisflog print the kinetics
+        # directly, and the trace validates against the running text --
+        # green 0.559 at 6.5 min against the printed 0.55.
+        # ⚠ REGISTERED BECAUSE A REVIEW OF THIS BOOK GOT IT WRONG ONCE. The
+        # volume was searched for TABLE captions naming granularity, resolving
+        # power or characteristic curves, found none, and was written off as a
+        # processing manual. The tables really are processing tables; the
+        # sensitometry is in 708 FIGURES the search never looked at. This
+        # reader indexes all of them, calibrates each panel against a digit
+        # template bank it cuts from ten axes in the same PDF, and refuses any
+        # characteristic-curve trace whose base densities do not come out an
+        # orange ladder. It adopts three numbers and reports the rest: the
+        # nine traces that reproduce manufacturer data already in the database
+        # are the check on the three that do not.
+        ("sovremennye_2004.py",
+         ["--assert"],
+         HERE / "sovremennye_2004.py",
+         "В. И. Шеберстов et al., «Современные фотоматериалы и их обработка» "
+         "-- the plot atlas of the late-film-era catalogue, 717 pp and 708 "
+         "figures, every one an embedded bitmap with no vector paths. ADOPTED: "
+         "the Vericolor III and EKTAPRESS PJ400 orange-mask ladders, both of "
+         "which stood as FLAT placeholders asserting that a C-41 negative has "
+         "no mask, and the Technical Pan f50, which stood as an estimate "
+         "reasoned from granularity because P-255 prints no resolving power. "
+         "⚠ CORROBORATED AND DELIBERATELY NOT WRITTEN: nine traces reproduce "
+         "vendor figures already stored, to within 0.008-0.036 D on the Portra "
+         "ladders and 1.3-5.6 c/mm on the Agfa monochrome MTF, and seven more "
+         "colour f50 readings fall inside the stored r/g/b bracket -- the book "
+         "is [T2] reference data and never displaces a vendor sheet. "
+         "⚠ READ AND NOT STORED: the 42 development-kinetics panels, which are "
+         "exactly the shape ProcessingFamily wants and would close the "
+         "Development Time gap, because their curves are named by a legend or "
+         "by crowded in-plot labels and the curve-to-developer assignment is "
+         "not unambiguous -- a DevelopmentPoint carries a developer name and a "
+         "wrong one is worse than none (queue P49); and the 232 dye spectra, "
+         "because dye_matrix is a coupling matrix and no published calibration "
+         "turns a spectrum into one (queue P50)"),
+        # ⚠ TWO MODULES FOR ONE BOOK, AND THE SPLIT IS THE TIER. Kodak
+        # labelled every characteristic curve in the 1956 Data Book with its
+        # own development time and gamma, so `kodak_1956.py` TRANSCRIBES a
+        # manufacturer's printed statement and `kodak_1956_trace.py` digitises
+        # the panels beside it. Keeping them in one file would let a later
+        # reader take the second for the first.
+        ("kodak_1956.py",
+         [],
+         HERE / "kodak_1956.py",
+         "Eastman Kodak Company, «Kodak Films», Kodak Data Book, SEVENTH "
+         "EDITION, 1956 -- seventeen data sheets, and the densest "
+         "gamma-against-time material in this corpus. ADOPTED: 45 printed "
+         "(time, gamma) pairs across twelve emulsions, TIER T1 BY "
+         "TRANSCRIPTION rather than by trace, because Kodak labelled each "
+         "curve of each family IN FRAME with both numbers. Four stocks gained "
+         "a processing family that had none -- PANATOMIC-X, ROYAL PAN 4141, "
+         "ROYAL-X PAN 4166 and SUPER-XX PAN 4142. ⚠ SEVEN OF THE TWELVE ARE "
+         "AN EARLIER GENERATION of a stock whose profile holds the 1979 or "
+         "2016 coating, and both readings are manufacturer data, so "
+         "DevelopmentPoint.edition was added at schema v35 to carry the "
+         "generation with the point rather than choose between two T1 "
+         "sources. ⚠ THE GUARD IS PHYSICS: every family is fitted to the "
+         "Mees-Sheppard law on every build and refused above a 0.035 "
+         "residual, which no misread digit survives; all twelve pass and "
+         "every asymptote lands inside the 1.0-1.6 band Glafkides §211 gives "
+         "for negatives. ⚠ CORROBORATED AND NOT WRITTEN: the Fifth Edition "
+         "of 1952 supplied the DK-50 families on TRI-X SHEET 1952 and "
+         "PANATOMIC-X SHEET 1952 with its own warning that the labels came "
+         "from an Acrobat Paper Capture layer and had never been read twice; "
+         "the Seventh Edition reprints both plates and all ten pairs read "
+         "back identically at 400 dpi, which retires the warning. ⚠ HELD, "
+         "NOT STORED: five sheet emulsions with a complete data set and no "
+         "profile to attach it to (queue P63)"),
+        ("kodak_1956_trace.py",
+         [],
+         HERE / "kodak_1956_trace.py",
+         "The same book's TIME-GAMMA insets, which plot two to five "
+         "developers per film and on four sheets plot the whole set twice, "
+         "once per agitation regime -- the axis DevelopmentPoint.vessel "
+         "exists for and that is empty almost everywhere outside Agfa. "
+         "⚠⚠ NOTHING IS ADOPTED, AND THE REASON IS COVERAGE RATHER THAN "
+         "ACCURACY. The reader calibrates ONE of the fourteen pages: it takes "
+         "its axis VALUES from the PDF's OCR layer, and thirteen pages have "
+         "lost the tick row -- page 49 yields no row of five numeric tokens "
+         "anywhere, page 46 recovers five ticks of about fifteen, page 63 "
+         "returns the neighbouring time-temperature chart's logarithmic axis. "
+         "⚠ THE RASTER HALF WORKS: on the one page that calibrates, the "
+         "traced D-76 curve reads gamma 0.676 at 11 min and 0.907 at 19 "
+         "against Kodak's own printed 0.70 and 0.92, with no knowledge of "
+         "those labels. Two curves off one panel is not a harvest, and "
+         "loosening the agreement tolerance until that panel passes would be "
+         "choosing a tolerance to fit a result -- so the module runs, reports "
+         "what it can calibrate, and writes nothing (queue P61)"),
+        ("kodak_1956_spectro.py",
+         ["--root", str(root)],
+         HERE / "kodak_1956_spectro.py",
+         "The same book's THIRTY WEDGE SPECTROGRAMS -- the only measured "
+         "spectral response this corpus holds for the 1950s Kodak "
+         "black-and-white line, and the first measurement in the project "
+         "that is the POSITION OF A DENSITY BOUNDARY IN A SCREENED GREY "
+         "FIELD rather than the centre of a drawn stroke. \u26a0\u26a0 THE "
+         "QUEUE ROW ASKED FOR A READER WITH ITS OWN VALIDATION AND THE BOOK "
+         "SUPPLIES A BETTER TEST THAN THE ROW IMAGINED: page 12 prints "
+         "Kodak's canonical NON-COLOR-SENSITIZED / ORTHOCHROMATIC / "
+         "PANCHROMATIC stack with the wavelengths labelled in words, so the "
+         "reader is checked on a three-way class separation -- 490 / 587 / "
+         "655 nm in that order -- before any data-sheet plate is believed. "
+         "\u26a0\u26a0 AND THE VERTICAL AXIS HAD NO SCALE, WHICH THE SAME PLATE "
+         "FIXES. Kodak states the wedge is neutral and image height is "
+         "therefore linear in log exposure, but never publishes the "
+         "gradient -- so the shape was known only up to a multiplicative "
+         "constant, which peak normalisation does not remove. The page-12 "
+         "SENSITIVITY OF THE EYE record draws a function published "
+         "elsewhere and exactly, CIE 1924 V(lambda); fitting it gives 59.5 "
+         "px per log unit at 600 dpi at r=0.979, and the resulting "
+         "dimensionless constant makes every one of the thirty plates come "
+         "out 4.70-5.25 log units tall -- one wedge, fifteen pages, nothing "
+         "fitted to make that happen. \u26a0\u26a0 AND A WEDGE SPECTROGRAM IS "
+         "NOT A SPECTRAL SENSITIVITY: it records S(lambda) x E(lambda), "
+         "which is why the book prints each emulsion twice. Dividing out a "
+         "Planck radiator at 5500 K and 2850 K brings an emulsion's two "
+         "independent plates from 0.427 log apart to 0.266 -- the "
+         "justification for the correction and the honest accuracy of the "
+         "result, both measured rather than asserted. \u26a0 SEVEN EMULSIONS "
+         "GAIN A MEASURED SPECTRAL RESPONSE, two keep the sensitometric "
+         "sheet that outranks a 1956 plate and store the wedge reading "
+         "beside it, and eight are read and held for profiles that do not "
+         "exist yet (queue P62)"),
+        ("kodak_1956_curves.py",
+         ["--root", str(root)],
+         HERE / "kodak_1956_curves.py",
+         "The same book's CHARACTERISTIC CURVES for the five sheet emulsions "
+         "queue P63 had a complete data set for and no profile to put it in "
+         "-- SUPER PANCHRO-PRESS TYPE B, PORTRAIT PANCHROMATIC, ROYAL ORTHO, "
+         "SUPER SPEED ORTHO PORTRAIT and COMMERCIAL. 26 curves off five "
+         "plates. \u26a0\u26a0 KODAK LETTERS EVERY CURVE WITH ITS OWN "
+         "DEVELOPMENT TIME AND ITS OWN GAMMA AND THE TRACE NEVER SEES EITHER, "
+         "so the comparison against those labels is free and it is the gate: "
+         "23 of 26 agree to 3.9 % with a mean of 1.1 %, five times better "
+         "than the same project's read of the 1952 edition, which is a fact "
+         "about the scan and not about the method. \u26a0 THE THREE THAT DO "
+         "NOT ARE PINNED RATHER THAN COVERED BY A WIDER TOLERANCE, and all "
+         "three sit where a label is lettered ALONG a curve that nearly "
+         "touches its neighbour -- the one place a follower can change "
+         "branch invisibly. The chord width was checked against the "
+         "alternative explanation: 0.4 to 0.8 decades all give the same "
+         "three outliers, so no definition of gamma removes them. \u26a0 A "
+         "SECOND, FREE CHECK COMES FROM THE DRAUGHTSMAN: these grids are "
+         "isotropic, one decade of log exposure to one unit of density, and "
+         "the density and log-exposure tick ladders are measured "
+         "independently and agree to 0.5 %. \u26a0 THE CURVE ADOPTED FOR "
+         "EACH PROFILE IS THE ONE KODAK'S OWN PROCESSING TABLE RECOMMENDS -- "
+         "the \"For Normal Use\" row, intermittent agitation, for the "
+         "developer the family is drawn in -- and the first version of that "
+         "table GUESSED two of the five and had both wrong, by 0.10 and 0.22 "
+         "of gamma. \u26a0 THE ToneCurve ABSCISSA IS RE-ANCHORED ON THE "
+         "SPEED POINT, because the database's own x axis is normalised "
+         "relative log exposure: over its 69 monochrome stocks `toe_x` "
+         "correlates with log10(exposure_index) at r = -0.01 and density "
+         "reaches dmin + 0.10 at x = -1.46, so a curve dropped in at Kodak's "
+         "own attenuation origin would be a curve placed at random. Five "
+         "fits at 0.0019-0.0148 RMS density (queue P63)"),
+        ("kodak_1938.py",
+         ["--root", str(root)],
+         HERE / "kodak_1938.py",
+         "\u00abEastman Professional Films\u00bb, Eastman Kodak Company, 1938 -- "
+         "fifteen sheet-film speeds and a braced filter-factor matrix, and the "
+         "conversion queue P65 was blocked on. \u26a0\u26a0 THE SPEEDS ARE NOT "
+         "ASA AND THE BOOKLET SAYS SO: page 8 states they were obtained \"according "
+         "to the standard system of speed evaluation employed in the Kodak "
+         "Research Laboratories\" and are \"for light of sunlight quality and "
+         "are not valid\" under tungsten -- which is both why they were "
+         "unusable and why the conversion must be derived against a DAYLIGHT "
+         "index. \u26a0 THREE FILMS ARE RATED ON BOTH THIS SCALE AND THE 1956 "
+         "AMERICAN STANDARD. The two panchromatic ones give exactly 4.00 and "
+         "4.00 -- and they are not one measurement twice, because the 1956 "
+         "Super Panchro-Press is a Type B re-coating while Portrait "
+         "Panchromatic carries no type suffix, so two different eighteen-year "
+         "histories land on the same ratio, which is the signature of a scale "
+         "and not of an emulsion. \u26a0 THE THIRD GIVES 1.60 AND IS RECORDED "
+         "RATHER THAN AVERAGED IN: Commercial is the one non-colour-sensitive "
+         "film of the three, so the conversion is adopted for PANCHROMATIC "
+         "sheet film only. \u26a0 NONE OF THE FIFTEEN IS IN THE DATABASE and "
+         "none becomes one here -- the booklet prints no curve of any kind -- "
+         "so what closes the row is that the scale converts and the table is "
+         "stored instead of lost (queue P65)"),
+        ("kodak_5293_1982.py",
+         ["--root", str(root)],
+         HERE / "kodak_5293_1982.py",
+         "Kennel, Sehlin, Reinking, Spakowsky and Whittier, \u00abEastman Color "
+         "High-Speed Negative Film 5293\u00bb, SMPTE Journal 91(10), October "
+         "1982, 922-930 -- the EI 250T emulsion, and NOT the 1992 EXR 200T "
+         "film that reuses the same catalogue number. Nine pages, a pure "
+         "raster scan with NO TEXT LAYER AT ALL, so every axis is calibrated "
+         "from tick-label centroids against values transcribed by eye. Six "
+         "figures traced: the characteristic curves, the spectral "
+         "sensitivities, the spectral dye densities, the push-1 sensitometry, "
+         "the MTF, and the granularity. \u26a0\u26a0 THE PAPER CHECKS ITS OWN "
+         "TRACES AND THE MODULE FAILS THE BUILD IF IT STOPS DOING SO. Every "
+         "figure draws 5293 beside 5247 and the text makes three quantitative "
+         "claims about the pair -- 0.40 log E faster, the same contrast, "
+         "similar MTF -- of which the first two are a horizontal displacement "
+         "and a slope, independent of each other and exactly what a "
+         "mis-calibrated axis gets wrong. A fourth check is free: Fig. 12 "
+         "redraws Fig. 4's normally-processed curves five pages and one "
+         "calibration later, and the two traces must agree to 0.02 D. "
+         "\u26a0 FIG. 13 IS READ IN A WAY ITS BARE ABSCISSA WOULD SEEM TO "
+         "FORBID: captioned \"Log E\" with no numbers, it draws the density "
+         "curve in the same frame as the two granularity curves, so log E is "
+         "ELIMINATED between them and every column becomes a point of "
+         "sigma(D) -- which is the form GrainSpec wants anyway. \u26a0 FIG. 3 "
+         "(microdensitometer line scans, both axes bare) and Fig. 16's "
+         "ordinate (\"OVERALL PICTURE QUALITY\", two reference lines and no "
+         "scale) are REFUSED and recorded as refusals (queue P67)"),
+        ("orwo_nc3_1972.py",
+         ["--assert"],
+         HERE / "orwo_nc3_1972.py",
+         "Tamm & Weisflog, «NC 3 - ein neuer Color-Negativfilm», BILD UND TON "
+         "11/1972 -- the three ORWOCOLOR NC 3 plot panels, read off four pages "
+         "that are single embedded bitmaps with no vector paths and no tick "
+         "text, so every axis is calibrated geometrically. ⚠ NOT ON THE LABEL "
+         "CENTROIDS: a minus sign pulls «-1,0» about 7 px left of its own tick "
+         "against the unsigned «0», which on a 165 px decade would tilt the "
+         "whole abscissa, so three of the four axes are fitted on the tick "
+         "stubs and only Bild 6's -- single unsigned digits 6/7/8/9 -- is read "
+         "from labels. ⚠ THE UNLABELLED STROKES ARE NAMED TWICE, BY DIFFERENT "
+         "PHYSICS: Bild 5's records must order blue > green > red in D-min "
+         "because the orange mask is a positive yellow-plus-magenta image, and "
+         "Bild 7's must order blue > green > red in f50 because Tabelle 2 "
+         "prints k-Zahlen of 42/60/85 um. The two agree, which is what "
+         "licenses the assignment. ⚠ AND THE ORDINATE PROVES ITSELF: Bild 7 "
+         "carries only two ordinate ticks, and the scale fitted on them "
+         "extrapolates to M = 0 exactly on the abscissa stroke -- a third "
+         "point the fit was never given.",
+         ),
         ("h24_variations.py",
          ["--root", str(root), "--assert"],
          HERE / "h24_variations.py",

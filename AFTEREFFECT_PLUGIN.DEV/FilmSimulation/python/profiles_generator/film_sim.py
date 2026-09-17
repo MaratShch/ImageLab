@@ -90,8 +90,10 @@ from algo_control_enums import (      # generated from AlgoControlEnums.hpp
     FilmFormatCtrl,
     PrintStockCtrl,
     DupeStockCtrl,
+    ProcessVariantCtrl,
     film_format_key,
     print_stock_key,
+    process_variant_key,
 )
 
 # 18% reflectance is the photographic mid grey reference. Relative exposure is
@@ -1373,7 +1375,7 @@ def _cc_filter_shift(text: str) -> tuple[float, float, float]:
     return tuple(out)                  # type: ignore[return-value]
 
 
-def resolve_process_variant(profile, index: int):
+def resolve_process_variant(profile, variant):
     """The profile as a chosen PROCESS renders it. Returns `profile` unchanged
     when nothing is chosen, so this is inert by default.
 
@@ -1394,16 +1396,37 @@ def resolve_process_variant(profile, index: int):
     effect. The AGFAPAN developer variants are the whole of that nineteen:
     Agfa print an exposure index per developer and no second curve.
 
-    `index` is an index into `profile.process_variants`; anything outside the
-    range, and any variant that is the profile's own default, returns the
-    profile untouched.
+    ⚠⚠ THE SELECTION IS AN ENUMERATOR AND NO LONGER AN INDEX, 2026-09-17.
+    `variant` is a `ProcessVariantCtrl` value -- or the integer behind one --
+    and it names a DEVELOPMENT, globally. It used to be a position in this
+    profile's own `process_variants` tuple, and position is not identity: the
+    stored value 2 meant "RODINAL 1+50" on an AGFAPAN, "ECN-2, the base
+    stock's native process" on CINESTILL 800T and "EI 3200 (Push 2)" on
+    PORTRA 800. Every one of those was in range, so nothing could tell a stale
+    selection from a correct one, and inserting a variant re-pointed every
+    saved project silently.
+
+    ⚠ A VALUE THIS STOCK DOES NOT OFFER RETURNS THE PROFILE UNTOUCHED, which
+    is the same inert path an unselected control takes. Clamping into range
+    would render a different development and present it as the one asked for.
+
+    ⚠ AND THE ENUMERATION LIVES IN `AlgoControlEnums.hpp`, not here. The
+    database mirrors it in `_PROCESS_VARIANT_IDS` and `verify.py` refuses the
+    build if the two disagree, so there is exactly one list of developments in
+    the project and this function reads it rather than restating it.
     """
-    if index is None or index < 0:
+    if variant is None:
         return profile
-    variants = getattr(profile, "process_variants", ())
-    if not variants or index >= len(variants):
+    key = process_variant_key(variant)
+    if not key:
         return profile
-    v = variants[index]
+    v = None
+    for q in getattr(profile, "process_variants", ()) or ():
+        if getattr(q, "variant_id", "") == key:
+            v = q
+            break
+    if v is None:
+        return profile
 
     curves = profile.curves
     if getattr(v, "curves", None) is not None:
@@ -1425,6 +1448,256 @@ def resolve_process_variant(profile, index: int):
         return profile
     ei = v.exposure_index or profile.exposure_index
     return replace(profile, curves=curves, exposure_index=ei)
+
+
+def development_family(profile):
+    """The one coherent (developer, dilution, vessel, edition) group of
+    development points this stock's stored curve actually sits on, or None.
+
+    ⚠⚠ A `ProcessingFamily` IS NOT ONE CURVE AND TREATING IT AS ONE IS THE
+    DEFECT THIS FUNCTION EXISTS TO PREVENT. The tuple is flat by design -- the
+    struct's own docstring says so, to keep the C++ emitter a plain array --
+    and after the 1956 harvest it can hold, on a single stock, two developers
+    at two dilutions in two vessels across two emulsion GENERATIONS. Reading
+    gamma against time straight off that tuple would interpolate between a
+    1956 roll film in a small tank and a 2016 sheet in a tray and call the
+    result a development curve. `vessel` was added at v28 and `edition` at v35
+    precisely so the groups can be told apart; this is the consumer that uses
+    them.
+
+    THE GROUP IS CHOSEN, NOT GUESSED:
+      1. only points carrying a real gamma are eligible -- a time-only point
+         states a temperature, not a contrast, and cannot place a curve;
+      2. groups are keyed on all four discriminants;
+      3. a group whose developer matches `profile.processing.developer` wins,
+         because that is the developer the STORED CURVE was measured in and
+         the whole operation is "move along the axis this curve sits on";
+      4. failing that, the largest group wins, and only if it is unambiguous.
+
+    Returns a sorted tuple of (minutes, gamma), or None.
+    """
+    fam = getattr(profile, "processing_family", None)
+    if fam is None or not fam.points:
+        return None
+    groups: dict[tuple, list] = {}
+    for q in fam.points:
+        if q.gamma <= 0.0:
+            continue
+        groups.setdefault(
+            (q.developer, q.dilution, q.vessel, getattr(q, "edition", "")),
+            []).append((float(q.minutes), float(q.gamma)))
+    groups = {k: v for k, v in groups.items() if len(v) >= 2}
+    if not groups:
+        return None
+
+    want = (getattr(profile.processing, "developer", "") or "").strip().lower()
+    if want:
+        named = {k: v for k, v in groups.items()
+                 if k[0].strip().lower() == want}
+        if named:
+            groups = named
+    else:
+        # ⚠ FAILING THAT, THE FAMILY'S OWN REFERENCE DEVELOPER (schema v36).
+        # `ProcessingSpec.developer` describes the stored curve and is empty on
+        # every 1956-sourced stock, because the stored curve is a later sheet.
+        # `ProcessingFamily.reference_developer` describes the SOURCE's own
+        # characteristic curve, which is the curve these points were drawn
+        # beside, and Kodak prints it in the caption. Without it SUPER-XX PAN
+        # ties seventeen DK-50 points against seventeen DK-60a and refuses.
+        ref = (getattr(fam, "reference_developer", "") or "").strip().lower()
+        rdil = (getattr(fam, "reference_dilution", "") or "").strip().lower()
+        if ref:
+            named = {k: v for k, v in groups.items()
+                     if k[0].strip().lower() == ref
+                     and (not rdil or k[1].strip().lower() == rdil)}
+            if named:
+                groups = named
+    best = max(groups.values(), key=len)
+    # ⚠ A TIE IS A REFUSAL, NOT A COIN TOSS. Two equally large groups for the
+    # same developer are two measurements of different processes, and picking
+    # one by dictionary order would make the render depend on insertion order.
+    if sum(1 for v in groups.values() if len(v) == len(best)) > 1:
+        return None
+    return tuple(sorted(best))
+
+
+def development_gamma_scale(profile, minutes: float) -> float:
+    """Ratio by which a development time moves this stock's gamma. 1.0 = no-op.
+
+    ⚠ A RATIO AND NOT AN ABSOLUTE GAMMA, because the stored curve is already a
+    development and the control moves ALONG that axis rather than replacing it.
+    The reference point is the family's gamma at `profile.processing.minutes`,
+    the condition the stored curves were measured at, so asking for that time
+    returns exactly 1.0 and reproduces every earlier render bit for bit. Using
+    the family's absolute gamma instead would silently re-level every stock
+    whose traced family and stored curve disagree slightly, which is a
+    different and unwanted change.
+
+    ⚠ REFUSES OUTSIDE THE TRACED RANGE RATHER THAN CLAMPING, and the control's
+    own contract in AlgoControlEnums.hpp says so: extrapolating a development
+    family is not a measurement. A request outside the range, a stock with no
+    usable family, and a reference time that is itself outside the range all
+    return 1.0 -- the sentinel result.
+
+    ⚠ MONOCHROME ONLY, AND THIS IS A DATA STATEMENT RATHER THAN A CONVENIENCE.
+    A single scale applied to three records asserts that the three layers move
+    together under development, which this project has measured to be false --
+    PORTRA 800 pushed to EI 3200 gains 0.25 of gamma in red against 0.14 in
+    blue. Every gamma-bearing family in the database is monochrome except
+    ORWOCOLOR NC 3, whose seven points are one channel's worth of data and
+    cannot place three curves. A per-channel family would lift this.
+    """
+    if minutes is None or minutes < 0.0:
+        return 1.0
+    if not getattr(profile, "is_monochrome", False):
+        return 1.0
+    pts = development_family(profile)
+    if not pts:
+        return 1.0
+    lo, hi = pts[0][0], pts[-1][0]
+    if not (lo <= minutes <= hi):
+        return 1.0
+
+    def at(t: float) -> float:
+        for (t0, g0), (t1, g1) in zip(pts, pts[1:]):
+            if t0 <= t <= t1:
+                if t1 == t0:
+                    return g0
+                return g0 + (g1 - g0) * (t - t0) / (t1 - t0)
+        return pts[-1][1]
+
+    # ⚠⚠ WHERE THE REFERENCE TIME COMES FROM, AND WHY IT IS NOT SIMPLY
+    # `processing.minutes`. That field is the obvious anchor and it is EMPTY on
+    # six of the eleven stocks that have a usable family -- including all four
+    # the 1956 harvest gave a family to -- so requiring it would leave the
+    # control inert on the majority of the data that exists to drive it.
+    #
+    # The honest fallback is an INVERSION rather than a substitution: the
+    # stored curve has a gamma, the family says which development time
+    # produces that gamma, and that time IS "the development the stored curves
+    # represent" -- which is the sentinel's own definition, quoted from
+    # AlgoControlEnums.hpp. Solving for it uses only measured numbers and
+    # assumes nothing about which edition the stored curve came from, because
+    # the quantity actually used downstream is the RATIO, and a ratio anchored
+    # at the stored gamma returns exactly 1.0 there by construction.
+    #
+    # ⚠ AND IT REFUSES WHEN THE STORED GAMMA IS OUTSIDE THE FAMILY'S RANGE,
+    # which is the case that says the two describe different emulsions. There
+    # is no defensible reference then, and inventing one would place the whole
+    # curve on a family it does not belong to.
+    ref = float(getattr(profile.processing, "minutes", 0.0) or 0.0)
+    if not (lo <= ref <= hi):
+        g_stored = float(profile.curves.g.gamma)
+        g_lo, g_hi = pts[0][1], pts[-1][1]
+        if not (min(g_lo, g_hi) <= g_stored <= max(g_lo, g_hi)):
+            return 1.0
+        ref = None
+        for (t0, g0), (t1, g1) in zip(pts, pts[1:]):
+            if min(g0, g1) <= g_stored <= max(g0, g1):
+                ref = (t0 if g1 == g0
+                       else t0 + (t1 - t0) * (g_stored - g0) / (g1 - g0))
+                break
+        if ref is None:
+            return 1.0
+
+    g_ref = at(ref)
+    if g_ref <= 0.0:
+        return 1.0
+    return at(minutes) / g_ref
+
+
+def resolve_development_time(profile, minutes: float):
+    """The profile as a chosen DEVELOPMENT TIME renders it (queue P61b).
+
+    Returns `profile` itself on the sentinel path, so the identity test that
+    guards `resolve_process_variant` guards this too.
+
+    ⚠ THE SCALE MULTIPLIES `ToneCurve.gamma`, THE MODEL COEFFICIENT, exactly as
+    `ProcessVariant.gamma_scale` does -- the same choice, made for the same
+    reason, and stated here so the two cannot drift apart. `dmin` is NOT
+    touched: base fog does move with development time, and
+    `DevelopmentPoint.base_fog` exists to hold it, but it is populated on one
+    stock in the database and a relation fitted to one stock is not a relation.
+    """
+    k = development_gamma_scale(profile, minutes)
+    if k == 1.0:
+        return profile
+    curves = RGBCurves(*[replace(c, gamma=c.gamma * k)
+                         for c in profile.curves.as_tuple()])
+    return replace(profile, curves=curves)
+
+
+def dark_fade_fractions(profile, years: float) -> tuple[float, float, float]:
+    """Fraction of each image dye lost to DARK STORAGE after `years`.
+
+    Returns (cyan, magenta, yellow), each 0.0 when the record states no rate
+    for that dye -- which today is two of the three on both stocks that carry
+    a rate at all.
+
+    ⚠ THE LAW IS FIRST ORDER AND THE SOURCE DEFINES IT THAT WAY. Both
+    `DyeStabilitySpec` sources state a time to a 10 % loss from a starting
+    density of 1.0, which is a statement about a constant fractional rate: a
+    dye losing a tenth of what remains in T years has lost 1 - 0.9**(t/T)
+    after t. Nothing is fitted and nothing is extrapolated beyond restating
+    the published figure as a function of time.
+
+    ⚠ ONLY THE DYE THE SOURCE NAMES IS FADED, and this is the honest half.
+    Wilhelm's Table 19.1 publishes the time for the LEAST STABLE dye and names
+    it -- yellow, on both KODAK_EKTAR_125 and KODAK_VERICOLOR_III_160 -- and
+    says nothing about the other two. Fading all three at the same rate would
+    assert an equality the source explicitly contradicts: its whole subject is
+    that "one of the three image dyes -- usually magenta -- is much more stable
+    in dark fading than is the least stable dye, and this differential in
+    fading rates results in increasingly objectionable color shifts". A
+    differential fade is the effect; a uniform one would be a density change
+    wearing its costume.
+
+    ⚠ AT THE RECORD'S OWN REFERENCE TEMPERATURE, WITH NO TEMPERATURE CONTROL.
+    The source quotes 24 degC and gives factors for two refrigerator
+    temperatures -- about 14x longer at 4.4 degC and 20x at 1.7 degC -- but
+    three points do not define a continuous law and this project does not fit
+    one to invent the values between them. The factors are in the provenance
+    string for whoever does.
+    """
+    spec = getattr(profile, "dye_stability", None)
+    if spec is None or not spec.has_data or years is None or years <= 0.0:
+        return (0.0, 0.0, 0.0)
+    out = []
+    for t in (spec.loss_c, spec.loss_m, spec.loss_y):
+        if t <= 0.0:
+            out.append(0.0)
+        else:
+            out.append(1.0 - 0.9 ** (float(years) / float(t)))
+    return tuple(out)
+
+
+def resolve_storage_age(profile, years: float):
+    """The film as `years` of dark storage leave it (queue P64).
+
+    Returns `profile` itself when nothing fades, so the identity contract that
+    guards `resolve_process_variant` and `resolve_development_time` guards this
+    one too.
+
+    ⚠ WHICH DYE SITS IN WHICH RECORD. On a chromogenic negative the cyan dye
+    forms in the red-sensitive layer, magenta in the green and yellow in the
+    blue, so a dye's fade is read in that record and in no other. Losing a
+    fraction f of a dye scales the density that dye contributes by (1 - f),
+    which on the stored model is a scale on `ToneCurve.gamma`.
+
+    ⚠ `dmin` IS DELIBERATELY NOT TOUCHED, AND THIS IS A REFUSAL RATHER THAN AN
+    OMISSION. On a masked negative part of D-min is the orange mask, which is
+    dye and does fade, and part is the support, which does not. The schema
+    stores their SUM and nothing in the corpus separates them, so any dmin
+    change here would be a guess at that split applied to every stock. The
+    visible consequence is that a faded negative rendered here loses image dye
+    and keeps its mask; the real one loses some mask too.
+    """
+    f = dark_fade_fractions(profile, years)
+    if f == (0.0, 0.0, 0.0):
+        return profile
+    cs = profile.curves.as_tuple()
+    return replace(profile, curves=RGBCurves(
+        *[replace(c, gamma=c.gamma * (1.0 - fi)) for c, fi in zip(cs, f)]))
 
 
 def reciprocity_log_shift(profile, exposure_time_s: float) -> tuple[float, ...]:
@@ -2336,11 +2609,33 @@ class RenderSettings:
     # -- and every sheet on file prints "no correction needed" across exactly
     # -- that span. The corrections live beyond 1 s and below 1e-4 s.
     exposure_time_s: float = 0.0
-    #: Index into the stock's own `process_variants`, or -1 for the
-    #: development the stored curves represent. See
-    #: `resolve_process_variant`: only 5 of the 24 recorded variants
-    #: change a pixel, and the rest are inert on purpose.
-    process_variant: int = -1
+    #: WHICH DEVELOPMENT, as a `ProcessVariantCtrl` value. `eAS_SHIPPED`
+    #: (-1) is the sentinel and means the development the stored curves
+    #: already represent.
+    #:
+    #: ⚠⚠ AN ENUMERATOR AND NOT AN INDEX SINCE 2026-09-17. It used to be
+    #: a position in the selected stock's own `process_variants` tuple, so
+    #: the same stored number named a different development on every stock
+    #: that had one -- always in range, therefore never detectable, and
+    #: silently re-pointed by inserting a variant. The value is now global:
+    #: `ProcessVariantCtrl.ePORTRA800_EI3200_PUSH2` means that development
+    #: and nothing else, and selecting it on a stock that does not offer it
+    #: renders the stock as shipped rather than clamping into range.
+    #:
+    #: ⚠ ONLY 5 OF THE 31 RECORDED DEVELOPMENTS CHANGE A PIXEL -- see
+    #: `resolve_process_variant`. The other 26 differ only in exposure index,
+    #: which no stage reads.
+    process_variant: int = int(ProcessVariantCtrl.eAS_SHIPPED)
+    #: Development time in minutes, or < 0 for the sentinel -- "the
+    #: development the stored curves represent". See
+    #: `resolve_development_time`; inert on every stock with no
+    #: gamma-bearing development family, which is most of them.
+    development_minutes: float = -1.0
+    #: Years of DARK STORAGE since processing. 0 = fresh, which is
+    #: the default and is inert on every stock. See
+    #: `resolve_storage_age`; only stocks carrying a published
+    #: dark-fade rate respond, which is two of 185 today.
+    storage_years: float = 0.0
     scene_kelvin: float = 5500.0
     wb_strength: float = 0.0
     grey_target: float = 0.18       # display linear value for 18% scene grey
@@ -2763,6 +3058,21 @@ def simulate(
     # the frame is not being given. Replacing the profile here means every
     # consumer downstream sees one consistent film.
     profile = resolve_process_variant(profile, settings.process_variant)
+    # ⚠ AFTER the variant and before anything reads a curve: a variant
+    # IS a different development, so the two are mutually exclusive in
+    # practice and the host disables this control when one is selected.
+    # Ordering them this way means that if a host ignores that rule the
+    # time is applied to the variant's own curve rather than to a curve
+    # the variant then discards.
+    profile = resolve_development_time(
+        profile, getattr(settings, 'development_minutes', -1.0))
+    # ⚠ LAST OF THE THREE PROFILE RESOLVERS, AND THE ORDER IS
+    # CHRONOLOGICAL: a variant and a development time both describe how
+    # the film was PROCESSED, and storage happens after processing. A
+    # fade applied before a development change would have the film
+    # ageing before it was developed.
+    profile = resolve_storage_age(
+        profile, getattr(settings, 'storage_years', 0.0))
 
     h, w = linear_rgb.shape[:2]
     negative_width_mm = FORMATS[film_format_key(settings.film_format)]

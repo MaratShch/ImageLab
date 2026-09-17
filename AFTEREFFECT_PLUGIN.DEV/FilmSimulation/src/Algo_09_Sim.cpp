@@ -1866,7 +1866,7 @@ void AlgoStage09b_NegativeDefects
     //
     //  ⚠ THE RUN LENGTH COMES FROM THE STOCK, NOT FROM A CONTROL.
     //  TemporalSpec::scratch_persistence_frames is the mean run of a running
-    //  scratch in frames, populated on all 184 stocks, and this is its only
+    //  scratch in frames, populated on all 191 stocks, and this is its only
     //  reader. It is an ERA property - how long a machine fault lasted on the
     //  equipment of the day - so it belongs beside the weave amplitude and the
     //  dirt rate rather than on a slider, and the control expresses only how many
@@ -1896,7 +1896,7 @@ void AlgoStage09b_NegativeDefects
     //
     //  ⚠ THE SCRATCH CLASS IS THE FIRST HERE WITH AN ERA TERM ALREADY IN FORCE,
     //  and it is in force only because it reads TemporalSpec, which IS populated
-    //  on all 184 stocks - unlike AgingSpec. So the mean run length of a tramline
+    //  on all 191 stocks - unlike AgingSpec. So the mean run length of a tramline
     //  genuinely differs between a 1930s nitrate print and a modern negative
     //  today, while the amount of dust does not yet. That asymmetry is real and
     //  is a property of which structure got populated, not a design.

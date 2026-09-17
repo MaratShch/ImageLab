@@ -58,6 +58,11 @@
 #include "AlgoTypes.hpp"
 #include "film_profiles.hpp"
 
+// ProcessVariantCtrl, its key table and its validity test. The
+// enumeration is defined ONCE, there, and used here rather than
+// restated -- see the note below.
+#include "AlgoControlEnums.hpp"
+
 #include <cstddef>   // std::size_t
 
 
@@ -77,23 +82,50 @@
 //  which is what makes that safe. Returning by value instead would copy a
 //  FilmProfile -- vectors and all -- once per frame for a feature that is off
 //  by default.
+//
+//  \warning THE SELECTION IS AN ENUMERATION AND NO LONGER AN INDEX, 2026-09-17.
+//  It used to be a position in `asShipped.process_variants`, and position is
+//  not identity: the stored value 2 named a different development on every
+//  stock that had one, every such value was in range, and nothing could tell
+//  a stale project file from a correct one. `ProcessVariantCtrl` gives each
+//  development one global value; this resolver finds it by matching
+//  `film::ProcessVariant::variant_id` against `ProcessVariantCtrlKeyOf`, so
+//  the stock's own ordering is free to change and a saved selection is not.
+//
+//  \warning A VALUE THIS STOCK DOES NOT OFFER IS "AS SHIPPED", NOT AN ERROR
+//  AND NOT A CLAMP. Selecting PORTRA 800's push on an AGFAPAN renders the
+//  AGFAPAN as its stored curves represent it -- the same inert path an
+//  unselected control takes -- because clamping into range would render some
+//  other development and present it as the one that was asked for.
 // ---------------------------------------------------------------------------
 inline const film::FilmProfile& AlgoResolveProcessVariant
 (
-    const film::FilmProfile& asShipped,
-    const int32_t            index,
-    film::FilmProfile&       store
+    const film::FilmProfile&  asShipped,
+    const ProcessVariantCtrl  variant,
+    film::FilmProfile&        store
 ) noexcept
 {
-    if (index < 0)
+    if (false == ProcessVariantCtrlValid(variant))
         return asShipped;
 
-    const std::size_t n = asShipped.process_variants.size();
-    if (0u == n || static_cast<std::size_t>(index) >= n)
+    const char* const key = ProcessVariantCtrlKeyOf(variant);
+
+    const film::ProcessVariant* sel = nullptr;
+    for (std::size_t i = 0u; i < asShipped.process_variants.size(); ++i)
+    {
+        if (asShipped.process_variants[i].variant_id == key)
+        {
+            sel = &asShipped.process_variants[i];
+            break;
+        }
+    }
+
+    // This stock does not offer the selected development. See the note above:
+    // the shipped profile is the answer, by reference and with no copy.
+    if (nullptr == sel)
         return asShipped;
 
-    const film::ProcessVariant& v =
-        asShipped.process_variants[static_cast<std::size_t>(index)];
+    const film::ProcessVariant& v = *sel;
 
     // ----------------------------------------------------------------------
     //  Decide the curve set first, without writing anything.

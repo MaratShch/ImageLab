@@ -54,6 +54,7 @@ from pathlib import Path
 import numpy as np
 
 import film_profiles as fp
+import algo_control_enums as ace
 
 HERE = Path(__file__).resolve().parent
 
@@ -763,6 +764,7 @@ def recip_stage_python_side(rows) -> dict:
 
 VARIANT_CPP = r"""
 #include "AlgoProcessVariant.hpp"
+#include "AlgoControlEnums.hpp"
 #include "film_profiles.hpp"
 #include <cstdio>
 
@@ -789,7 +791,9 @@ int main()
 
         film::FilmProfile store;
         const film::FilmProfile& out =
-            AlgoResolveProcessVariant(*p, r.idx, store);
+            AlgoResolveProcessVariant(*p,
+                                      (ProcessVariantCtrl)r.idx,
+                                      store);
 
         // Whether the resolver copied at all is part of the contract, not an
         // implementation detail: it is what makes an unselected variant free.
@@ -812,13 +816,25 @@ int main()
 
 
 def variant_probe_table():
-    """Every stock, every variant index, plus OFF and one past the end."""
+    """Every stock against EVERY ProcessVariantCtrl value, plus the sentinel
+    and one past TOTAL_PROCESSES.
+
+    \u26a0 EVERY STOCK AGAINST EVERY ENUMERATOR, AND THAT IS THE POINT OF THE
+    CHANGE. While the control was an index, "every index a stock has" was the
+    whole reachable set. It is now a GLOBAL enumeration, so a host can send
+    PORTRA 800's push to an AGFAPAN, and the contract says that renders the
+    AGFAPAN as shipped rather than clamping into its own list. The only way to
+    test that is to drive the full cross product -- 186 stocks x 23 values --
+    and require the two languages to agree on all of it, including on which
+    combinations copy at all.
+    """
     rows = []
+    total = int(ace.ProcessVariantCtrl.TOTAL_PROCESSES)
     for q in fp.FILM_PROFILES:
-        rows.append((q.name, -1))
-        for i in range(len(q.process_variants)):
+        rows.append((q.name, -1))                 # eAS_SHIPPED
+        for i in range(total):
             rows.append((q.name, i))
-        rows.append((q.name, len(q.process_variants)))     # out of range
+        rows.append((q.name, total))              # TOTAL_PROCESSES itself
     return rows
 
 
@@ -862,6 +878,251 @@ def variant_python_side(rows) -> dict:
             out[("V", name, idx, k)] = (
                 (c.dmin, c.gamma, c.toe_x, c.toe_k, c.shoulder_x, c.shoulder_k),
                 int(r.exposure_index), 0 if r is q else 1)
+    return out
+
+
+# ===========================================================================
+#  DEVELOPMENT TIME, RESOLVER LEVEL  (queue P61b)
+#
+#  Same shape as the process-variant probe above and for the same reason: the
+#  resolver returns a PROFILE, so what is compared is the six ToneCurve
+#  parameters on each of the three records, plus whether the resolver copied.
+#
+#  ⚠ THE INERT CASES ARE AGAIN THE LOAD-BEARING ONES, and there are more of
+#  them here than anywhere else in this file. The sentinel, any time outside
+#  the stock's own traced range, every stock with no gamma-bearing family, and
+#  every colour stock must all return the profile EXACTLY AS SHIPPED and copy
+#  nothing. The sweep therefore probes well outside each family as well as
+#  inside it.
+#
+#  ⚠ AND THE TWO IMPLEMENTATIONS MUST AGREE ABOUT THE GROUP, NOT ONLY ABOUT
+#  THE ARITHMETIC. A ProcessingFamily can hold two developers at two dilutions
+#  in two vessels across two emulsion generations on one stock; if C++ and
+#  Python pick different groups they will both interpolate correctly and
+#  return different answers. Probing at several times inside each family is
+#  what makes that disagreement visible rather than lucky.
+# ===========================================================================
+
+DEVTIME_CPP = r"""
+#include "AlgoDevelopmentTime.hpp"
+#include "film_profiles.hpp"
+#include <cstdio>
+
+struct DRow { const char* name; double minutes; };
+
+static const DRow DROWS[] = {
+/*ROWS*/
+};
+
+int main()
+{
+    const auto& db = film::GetFilmDatabase();
+    const int   n  = (int)(sizeof(DROWS)/sizeof(DROWS[0]));
+
+    for (int i = 0; i < n; ++i)
+    {
+        const DRow& r = DROWS[i];
+
+        const film::FilmProfile* p = nullptr;
+        for (const auto& q : db)
+            if (q.name == r.name) { p = &q; break; }
+        if (nullptr == p)
+            continue;
+
+        film::FilmProfile store;
+        const film::FilmProfile& out =
+            AlgoResolveDevelopmentTime(*p, r.minutes, store);
+
+        const int copied = (&out == p) ? 0 : 1;
+
+        const film::ToneCurve* c[3] = { &out.curves.r, &out.curves.g, &out.curves.b };
+
+        for (int k = 0; k < 3; ++k)
+            printf("D\t%s\t%.17g\t%d\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%d\n",
+                   r.name, r.minutes, k,
+                   (double)c[k]->dmin, (double)c[k]->gamma,
+                   (double)c[k]->toe_x, (double)c[k]->toe_k,
+                   (double)c[k]->shoulder_x, (double)c[k]->shoulder_k,
+                   copied);
+    }
+
+    return 0;
+}
+"""
+
+
+def devtime_probe_table():
+    """Every stock at the sentinel, well outside any family, and -- where one
+    exists -- at nine times spanning its own traced range."""
+    import film_sim as fs
+    rows = []
+    for q in fp.FILM_PROFILES:
+        rows.append((q.name, -1.0))       # sentinel
+        rows.append((q.name, 0.5))        # below every family
+        rows.append((q.name, 600.0))      # above every family
+        pts = fs.development_family(q)
+        if not pts:
+            continue
+        lo, hi = pts[0][0], pts[-1][0]
+        for i in range(9):
+            rows.append((q.name, lo + (hi - lo) * i / 8.0))
+    return rows
+
+
+def devtime_build_and_run(tmp: Path, root: Path, rows) -> dict:
+    lines = ['    { "%s", %.17g },' % r for r in rows]
+    src = tmp / "devtime_parity.cpp"
+    src.write_text(DEVTIME_CPP.replace("/*ROWS*/", "\n".join(lines)))
+    exe = tmp / "devtime_parity"
+    cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+           "-o", str(exe), str(src),
+           str(HERE / "film_profiles.cpp"), str(HERE / "LoadFilmDataBase.cpp")]
+    cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] development-time probe compile failed")
+        print(r.stderr[-4000:])
+        raise SystemExit(2)
+    r = subprocess.run([str(exe)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] development-time probe crashed")
+        print(r.stderr[-2000:])
+        raise SystemExit(2)
+    out = {}
+    for line in r.stdout.splitlines():
+        f = line.split("\t")
+        out[(f[0], f[1], float(f[2]), int(f[3]))] = (
+            tuple(float(x) for x in f[4:10]), int(f[10]))
+    return out
+
+
+def devtime_python_side(rows) -> dict:
+    import film_sim as fs
+    by = {q.name: q for q in fp.FILM_PROFILES}
+    out = {}
+    for name, minutes in rows:
+        q = by[name]
+        r = fs.resolve_development_time(q, minutes)
+        cs = r.curves.as_tuple()
+        for k in range(3):
+            c = cs[k]
+            out[("D", name, minutes, k)] = (
+                (c.dmin, c.gamma, c.toe_x, c.toe_k, c.shoulder_x, c.shoulder_k),
+                0 if r is q else 1)
+    return out
+
+
+# ===========================================================================
+#  STORAGE AGE, RESOLVER LEVEL  (queue P64)
+#
+#  The third profile resolver, probed the same way as the other two.
+#
+#  ⚠ THE ASYMMETRY IS WHAT IS BEING CHECKED, not just the arithmetic. Only the
+#  dye the source names fades -- yellow on both stocks that carry a rate -- so
+#  a correct resolver moves the BLUE record and leaves red and green exactly
+#  as shipped. An implementation that faded all three would agree with a naive
+#  reference and be wrong about the physics; comparing all three records
+#  separately is what makes that visible.
+# ===========================================================================
+
+STORAGE_CPP = r"""
+#include "AlgoStorageAge.hpp"
+#include "film_profiles.hpp"
+#include <cstdio>
+
+struct SRow { const char* name; double years; };
+
+static const SRow SROWS[] = {
+/*ROWS*/
+};
+
+int main()
+{
+    const auto& db = film::GetFilmDatabase();
+    const int   n  = (int)(sizeof(SROWS)/sizeof(SROWS[0]));
+
+    for (int i = 0; i < n; ++i)
+    {
+        const SRow& r = SROWS[i];
+
+        const film::FilmProfile* p = nullptr;
+        for (const auto& q : db)
+            if (q.name == r.name) { p = &q; break; }
+        if (nullptr == p)
+            continue;
+
+        film::FilmProfile store;
+        const film::FilmProfile& out =
+            AlgoResolveStorageAge(*p, r.years, store);
+
+        const int copied = (&out == p) ? 0 : 1;
+
+        const film::ToneCurve* c[3] = { &out.curves.r, &out.curves.g, &out.curves.b };
+
+        for (int k = 0; k < 3; ++k)
+            printf("S\t%s\t%.17g\t%d\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%d\n",
+                   r.name, r.years, k,
+                   (double)c[k]->dmin, (double)c[k]->gamma,
+                   (double)c[k]->toe_x, (double)c[k]->toe_k,
+                   (double)c[k]->shoulder_x, (double)c[k]->shoulder_k,
+                   copied);
+    }
+
+    return 0;
+}
+"""
+
+
+#: Ages probed. 0 is the load-bearing one -- the inertness contract -- and the
+#: rest straddle both published times (8 y and 23 y) so the interpolation is
+#: exercised on each side of each.
+STORAGE_YEARS = (0.0, 0.5, 4.0, 8.0, 15.0, 23.0, 40.0, 100.0)
+
+
+def storage_probe_table():
+    return [(q.name, y) for q in fp.FILM_PROFILES for y in STORAGE_YEARS]
+
+
+def storage_build_and_run(tmp: Path, root: Path, rows) -> dict:
+    lines = ['    { "%s", %.17g },' % r for r in rows]
+    src = tmp / "storage_parity.cpp"
+    src.write_text(STORAGE_CPP.replace("/*ROWS*/", "\n".join(lines)))
+    exe = tmp / "storage_parity"
+    cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+           "-o", str(exe), str(src),
+           str(HERE / "film_profiles.cpp"), str(HERE / "LoadFilmDataBase.cpp")]
+    cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] storage-age probe compile failed")
+        print(r.stderr[-4000:])
+        raise SystemExit(2)
+    r = subprocess.run([str(exe)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] storage-age probe crashed")
+        print(r.stderr[-2000:])
+        raise SystemExit(2)
+    out = {}
+    for line in r.stdout.splitlines():
+        f = line.split("\t")
+        out[(f[0], f[1], float(f[2]), int(f[3]))] = (
+            tuple(float(x) for x in f[4:10]), int(f[10]))
+    return out
+
+
+def storage_python_side(rows) -> dict:
+    import film_sim as fs
+    by = {q.name: q for q in fp.FILM_PROFILES}
+    out = {}
+    for name, years in rows:
+        q = by[name]
+        r = fs.resolve_storage_age(q, years)
+        cs = r.curves.as_tuple()
+        for k in range(3):
+            c = cs[k]
+            out[("S", name, years, k)] = (
+                (c.dmin, c.gamma, c.toe_x, c.toe_k, c.shoulder_x, c.shoulder_k),
+                0 if r is q else 1)
     return out
 
 
@@ -1216,6 +1477,10 @@ GENERATED_LAWS = {
     "FilmMtfKernel": (
         "the separable two-Gaussian equivalent of that rolloff, which is what a "
         "renderer without an FFT can actually convolve"),
+    "FilmMtfKernel3": (
+        "the THREE-Gaussian equivalent, for exponents the two-lobe family "
+        "cannot reach -- consulted only after the two-lobe lookup has failed, "
+        "so no stock it already serves changes path"),
 }
 
 #: Laws known to be bypassed, with the reason, so the check reports honestly
@@ -1266,7 +1531,7 @@ LAW_EQUIVALENT_IMPL = {
     # The entry records an approximation that is 4.5x closer than what it
     # replaced, with the bound asserted by verify.py, rather than a bypass that
     # was 4.5x further away and asserted nothing.
-    "FilmMtfResponse": ("FilmMtfKernel",),
+    "FilmMtfResponse": ("FilmMtfKernel", "FilmMtfKernel3"),
 }
 
 
@@ -2068,6 +2333,140 @@ def main() -> int:
                     bad += 1
                 print(f"[i] process variant: {len(curve_moved)} stocks change a "
                       f"CURVE and therefore a pixel: {sorted(curve_moved)}")
+
+        # ------------------------------------------------------------------
+        #  DEVELOPMENT TIME, resolver level (queue P61b)
+        # ------------------------------------------------------------------
+        if not (root / "AlgoDevelopmentTime.hpp").is_file():
+            print(f"  [SKIP] development time: AlgoDevelopmentTime.hpp not "
+                  f"present under {root}")
+        else:
+            drows = devtime_probe_table()
+            with tempfile.TemporaryDirectory() as td:
+                dcpp = devtime_build_and_run(Path(td), root, drows)
+            dpy = devtime_python_side(drows)
+            if set(dcpp) != set(dpy):
+                print(f"[FAIL] development-time probe sets differ: "
+                      f"{len(set(dpy) - set(dcpp))} missing, "
+                      f"{len(set(dcpp) - set(dpy))} extra")
+                bad += 1
+            else:
+                dw, dat, dcp = 0.0, None, []
+                for k, (want, wcp) in dpy.items():
+                    got, gcp = dcpp[k]
+                    err = max(abs(a - b) for a, b in zip(got, want))
+                    if err > dw:
+                        dw, dat = err, k
+                    if gcp != wcp:
+                        dcp.append(k)
+                moved = sum(1 for _k, (_c, cp) in dpy.items() if cp)
+                stocks = len({k[1] for k, (_c, cp) in dpy.items() if cp})
+                print(f"[i] development time: {len(dpy)} probes over "
+                      f"{len(fp.FILM_PROFILES)} stocks -- the sentinel, two "
+                      f"times outside every family, and nine spanning each "
+                      f"family that exists")
+                print(f"[i] development time: worst curve-parameter "
+                      f"disagreement {dw:.2e} at {dat}; {moved} probe rows "
+                      f"resolve to a DIFFERENT profile, over {stocks} stock(s)")
+                if dw > TOL_CALLIER:
+                    print(f"[FAIL] the two development-time resolvers disagree "
+                          f"by {dw:.2e} at {dat}")
+                    bad += 1
+                # ⚠ THE COPY DECISION IS THE INERTNESS CONTRACT. A resolver
+                # that copies on the sentinel has stopped being free; one that
+                # does not copy when the scale moves renders the base stock and
+                # silently ignores the control.
+                if dcp:
+                    print(f"[FAIL] the two resolvers disagree about WHETHER a "
+                          f"development time changes the profile, on "
+                          f"{len(dcp)} probe(s), first {dcp[0]}")
+                    bad += 1
+                # ⚠ THE COUNT IS PINNED because the whole point of P61b was
+                # that it was ZERO: the database has carried a
+                # ProcessingFamily since schema v7 and no stage read one. A
+                # drop back toward zero means a group-selection regression,
+                # not a data change.
+                if stocks < 11:
+                    print(f"[FAIL] only {stocks} stock(s) respond to a "
+                          f"development time; 11 carry a usable "
+                          f"gamma-bearing family")
+                    bad += 1
+
+        # ------------------------------------------------------------------
+        #  STORAGE AGE, resolver level (queue P64)
+        # ------------------------------------------------------------------
+        if not (root / "AlgoStorageAge.hpp").is_file():
+            print(f"  [SKIP] storage age: AlgoStorageAge.hpp not present "
+                  f"under {root}")
+        else:
+            srows = storage_probe_table()
+            with tempfile.TemporaryDirectory() as td:
+                scpp = storage_build_and_run(Path(td), root, srows)
+            spy = storage_python_side(srows)
+            if set(scpp) != set(spy):
+                print(f"[FAIL] storage-age probe sets differ")
+                bad += 1
+            else:
+                sw, sat, scp = 0.0, None, []
+                for k, (want, wcp) in spy.items():
+                    got, gcp = scpp[k]
+                    err = max(abs(a - b) for a, b in zip(got, want))
+                    if err > sw:
+                        sw, sat = err, k
+                    if gcp != wcp:
+                        scp.append(k)
+                moved = {k[1] for k, (_c, cp) in spy.items() if cp}
+                print(f"[i] storage age: {len(spy)} probes over "
+                      f"{len(fp.FILM_PROFILES)} stocks x {len(STORAGE_YEARS)} "
+                      f"ages; worst curve-parameter disagreement {sw:.2e} at "
+                      f"{sat}; {len(moved)} stock(s) age at all")
+                if sw > TOL_CALLIER:
+                    print(f"[FAIL] the two storage-age resolvers disagree by "
+                          f"{sw:.2e} at {sat}")
+                    bad += 1
+                if scp:
+                    print(f"[FAIL] the two resolvers disagree about WHETHER a "
+                          f"storage age changes the profile, on {len(scp)} "
+                          f"probe(s), first {scp[0]}")
+                    bad += 1
+                # ⚠ THE ASYMMETRY IS THE PHYSICS AND IT IS PINNED HERE. Only
+                # the dye the source names fades, so every OTHER record must
+                # come back EXACTLY as shipped at every age. An implementation
+                # that faded all three would pass every tolerance above.
+                #
+                # ⚠⚠ AND WHICH RECORD THAT IS, IS PER STOCK AND NOT A CONSTANT.
+                # This test skipped channel 2 outright until 2026-09-17,
+                # because both stocks with a rate were Wilhelm's and Wilhelm
+                # publishes the time for the least stable dye, which on both
+                # of them is YELLOW. Kennel et al. 1982 publish a CYAN curve
+                # for EASTMAN_5293_250T_1982, so the hard-coded channel was
+                # about to assert that the one record with a published rate
+                # must not move. The skip is now read from each stock's own
+                # DyeStabilitySpec.
+                _by = {q.name: q for q in fp.FILM_PROFILES}
+                _sym = []
+                for k, (got, _cp) in spy.items():
+                    _d = _by[k[1]].dye_stability
+                    _rate = (_d.loss_c, _d.loss_m, _d.loss_y)[k[3]]
+                    if _rate > 0.0:
+                        continue
+                    base = _by[k[1]].curves.as_tuple()[k[3]]
+                    if abs(got[1] - base.gamma) > 1e-12:
+                        _sym.append(k)
+                if _sym:
+                    print(f"[FAIL] a dye with no published rate faded anyway, "
+                          f"on {len(_sym)} probe(s), first {_sym[0]}")
+                    bad += 1
+                # ⚠ 2 -> 3 ON 2026-09-17, and the third fades a different dye
+                # from a different source: Kennel et al. 1982 Fig. 15 predicts
+                # the CYAN loss of the 1982 5293 at 24 degC, where Wilhelm's
+                # Table 19.1 gives YELLOW for the other two.
+                _want_moved = sum(1 for q in fp.FILM_PROFILES
+                                  if q.dye_stability.has_data)
+                if len(moved) != _want_moved:
+                    print(f"[FAIL] {len(moved)} stock(s) respond to a storage "
+                          f"age; {_want_moved} publish a dark-fade rate")
+                    bad += 1
 
         # ------------------------------------------------------------------
         #  RECIPROCITY, STAGE LEVEL. Drives the real stage 8, not the law.

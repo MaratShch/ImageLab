@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
-"""Stage and zip the five delivery archives. Strictly separated, by design.
+"""Stage and zip the six delivery archives. Strictly separated, by design.
 
-⚠ FIVE ARCHIVES, NOT ONE, AND THE SEPARATION IS THE POINT. The owner integrates
+⚠ SIX ARCHIVES, NOT ONE, AND THE SEPARATION IS THE POINT. The owner integrates
 each into a different place: the generator into `PYTHON/profile_generator`, the
 database into `CPP/Algorithm/FilmProfile`, the two engines into
-`CPP/Algorithm/Scalar` and `CPP/Algorithm/AVX2`, and the Markdown into the doc
-tree. A single archive would make every delivery a merge.
+`CPP/Algorithm/Scalar` and `CPP/Algorithm/AVX2`, the Markdown into the doc
+tree, and the mockup and the two parameter PDFs into the UI documentation. A
+single archive would make every delivery a merge.
+
+⚠ THE SIXTH IS NEW ON 2026-09-17b AND CARRIES NO CODE. The HTML control-surface
+mockup and the English and Russian parameter references were previously handed
+over outside the numbered set, which meant the one deliverable describing the
+CONTROL SURFACE had no place in the delivery that changed it. It is archive 6
+now, on the same rule as the other five.
 
 ⚠ AND THE TWO ENGINE ARCHIVES ARE NEVER MERGED INTO ONE GENERIC TREE. The
 scalar twin computes in `double` and the AVX2 twin in `float`; they are two
@@ -27,10 +34,12 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CPP = Path("/root/work/tst")           # the live, editable engine tree
-OUT = Path("/root/work/deliver9")
+OUT = Path("/root/work/deliver10")
 #: ⚠ SUFFIXED. A second delivery was cut on the same day at schema v30,
-#: and two archives named for one date cannot be told apart on disk.
-STAMP = date.today().isoformat() + 'a'
+#: and two archives named for one date cannot be told apart on disk. 2026-09-17
+#: is the same case again: the 'a' set went out at schema v37 with 186 stocks,
+#: this 'b' set has 191 and the six-archive layout.
+STAMP = date.today().isoformat() + 'b'
 
 #: Generator sources: everything needed to REGENERATE the database.
 #: ⚠ NOT everything needed to run every audit. Until 2026-09-10d this tuple's
@@ -59,132 +68,116 @@ DB_FILES = (
 )
 
 MANIFEST = """\
-FIVE ARCHIVES -- {stamp}
-========================
+SIX ARCHIVES -- {stamp}
+=======================
 
-Schema v33 unchanged. Verify 696 PASS / 1 baselined FAIL, build clean, all
-four engine parity audits green.
+Schema v37. 191 film stocks, 11 print stocks, 14 gauges. Verify 749 PASS / 1
+baselined FAIL, build clean, all six engine parity audits green, all 28
+translation units compiling at -Wall -Wextra with zero bytes of output.
 
-⚠⚠ THE QUEUE WENT DOWN FOR THE FIRST TIME IN FIVE PASSES: 30 LIVE -> 28
-=======================================================================
+⚠⚠ A SIXTH ARCHIVE JOINS THE FIVE, AND IT IS THE ONE THAT CARRIES NO CODE
+=========================================================================
+The five production archives have always been strictly separated because the
+owner integrates each into a different place in their tree. The UI mockup and
+the two parameter PDFs are a sixth destination and were previously handed over
+outside the numbered set; they are now archive 6, on the same rule -- one
+archive, one place, never a merge.
 
-P41 through P44 were all opened on 2026-09-11 and the instruction the same day
-was blunt: stop adding rows, start resolving them. P43 and P44 are CLOSED, and
-⚠ NEITHER CLOSED THE WAY ITS OWN ROW PREDICTED. Both were blocked on their own
-wrong premise rather than on the thing they named, which is the argument for
-re-reading a blocker before going out and sourcing it.
+WHAT CHANGED IN THIS DELIVERY
+=============================
 
-P43 -- SETTLED FROM WITHIN THE DATABASE, AND THE DOCUMENT IT ASKED FOR WOULD
-NOT HAVE SETTLED IT
-============================================================================
+FIVE NEW FILM STOCKS AND ONE FROM EARLIER THE SAME DAY: 186 -> 191
+------------------------------------------------------------------
+185  EASTMAN_5293_250T_1982   the 1982 EI 250T emulsion, beside the 1992 EXR
+                              200T film that reuses the catalogue number.
+                              Traced from Kennel, Sehlin et al., SMPTE J.
+                              91(10) 1982, 922-930: characteristic curves,
+                              spectral sensitivity, spectral dye density,
+                              push-1 sensitometry, MTF and granularity, each
+                              cross-checked against the paper's own stated
+                              numbers on every build.
+186-190  the five 1956 Kodak sheet emulsions -- SUPER PANCHRO-PRESS TYPE B,
+                              PORTRAIT PANCHROMATIC, ROYAL ORTHO, SUPER SPEED
+                              ORTHO PORTRAIT and COMMERCIAL. Every number they
+                              carry had been read before today; what was
+                              missing was a reader for the two blockers.
 
-The row wanted a SILVER-ONLY CLUMP MEASUREMENT so that `dye_cloud_um` would
-have something to add to. That measurement is not needed: the silver-only law
-can be derived here, because ⚠ the monochrome stocks carry dye_cloud_um = 0 BY
-DEFINITION, so their clump IS silver-only. Fitting it against crystal size over
-65 monochrome stocks gives
+THREE SCHEMA VERSIONS: v34 -> v37
+---------------------------------
+v35  DyeStabilitySpec reaches camera negatives, and AlgoControls gains
+     storageYears. A published time to a 10 % dye loss becomes a state through
+     f(t) = 1 - 0.9^(t/T) -- not fitted, and exactly 0.10 at t = T. ONLY THE
+     DYE THE SOURCE NAMES IS FADED, because the differential between dyes IS
+     the effect. Populated on 3 of 191 stocks; inert on the other 188 at any
+     age.
+v36  ProcessingFamily.reference_developer / reference_dilution. The field
+     exists because a stock LOST a control by GAINING data: SUPER-XX PAN came
+     out of the P61 harvest with 17 DK-50 points against 17 DK-60a, and
+     development_family refuses a tie by design.
+v37  ProcessVariant.variant_id -- the database half of the enumeration below.
 
-    clump = 3.93 x grain_um
+THE PROCESS VARIANT CONTROL IS NO LONGER AN INDEX
+--------------------------------------------------
+AlgoControls::processVariant was an int32_t position in whichever stock
+happened to be loaded, so the stored value 2 named "RODINAL 1+50" on an
+AGFAPAN, "ECN-2, the base stock's native process" on CINESTILL 800T and
+"EI 3200 (Push 2)" on PORTRA 800. Every one of them was in range, so no test
+could tell a stale project from a correct one, and inserting a variant
+re-pointed every saved selection in silence.
 
-⚠ THE TEST IS NOT CIRCULAR: clump_um is not derived from grain_um anywhere in
-the generator, and the 170 stocks carrying both produce 130 distinct ratios.
+It is now ProcessVariantCtrl, a global enumeration in AlgoControlEnums.hpp,
+which is the single authority for three lists that must be one list: the
+enumerators, the pipe-separated ListBox strings, and the database keys the
+resolver matches. Three static_asserts refuse to compile if the three ever
+differ in length, and four verify.py guards bind the header, the generated
+Python mirror, the database and every stamped variant_id together.
 
-THREE RESULTS, ALL AGREEING:
+⚠ TOTAL_PROCESSES IS THE LAST ENUMERATOR AND THE COUNT (21). It sizes the
+string table and bounds the range check and is NEVER a selectable item. A
+value outside [0, TOTAL_PROCESSES), or one the selected stock does not offer,
+resolves to eAS_SHIPPED rather than being clamped: a stale preset should render
+the stock as shipped, not render some other development in its place.
 
-  1. Colour sits at the SAME ratio as monochrome. log(clump/grain) is 1.369 on
-     65 monochrome against 1.297 on 103 colour -- t = -0.65, indistinguishable.
-     A real extra dye spread demands colour sit systematically HIGHER.
-  2. Adding the dye term is a COIN FLIP. Predicting each colour clump as
-     sqrt((3.93*grain)^2 + dye^2) against the silver-only 3.93*grain improves
-     51 stocks and worsens 52. It carries no information.
-  3. ⚠ The two stocks with the LARGEST dye cloud contradict it hardest.
-     KODAK_BW400CN and KODAK_T400CN are chromogenic black-and-white -- their
-     image really is dye and nothing else, which is why they carry 9.0 um --
-     and their clump/grain is 2.5, the LOWEST in the set, where the hypothesis
-     needs the highest.
+FIVE QUEUE ROWS CLOSED
+----------------------
+P61  the 1956 time-gamma insets: 13 curves, 189 points, four stocks, six
+     developer conditions new to the corpus.
+P62  the thirty 1956 wedge spectrograms. The reader is validated on Kodak's own
+     page-12 three-class reference stack (490 / 587 / 655 nm in that order)
+     before any data-sheet plate is believed, and the vertical scale Kodak
+     never published is recovered from the CIE 1924 V(lambda) curve drawn on
+     that same plate.
+P63  the five sheet emulsions above. 26 characteristic curves traced, checked
+     against the gamma Kodak letters beside each one: 23 of 26 within 3.9 %,
+     three pinned as refusals rather than covered by a wider tolerance.
+P64  the dark-storage control: AlgoStorageAge.hpp turns the published rate into
+     a state. Its second half -- a storage TEMPERATURE -- is refused, because
+     three published temperatures do not define a continuous law.
+P65  the 1938 Kodak Research Laboratories speed scale converts at exactly 4.00
+     on two independently rated panchromatic films and at 1.60 on the one
+     non-colour-sensitive film, so the conversion is adopted for panchromatic
+     sheet film only and the third ratio is recorded as a refusal.
 
-⚠⚠ AND THE FIELD IS NOT A MEASUREMENT ANYWAY: four distinct values across 115
-stocks (1.5 / 2.0 / 2.5 and the two chromogenic 9.0s) with no per-stock
-provenance. It is an era band. Pairing a real silver-only measurement with a
-three-level guess would still be pairing a measurement with a guess.
+The live queue goes 43 -> 39 rows.
 
-So the answer is not "acquire a document" but "the test that document was
-wanted for runs today and comes out null". G-DYECLOUD-INERT asserts the field
-stays unread, and exists because the next reader will have the same good idea.
-
-P44 -- A SCRATCH IS NOT BORN AND DOES NOT DIE, SO NO BIRTH/DEATH MODEL WAS
-NEEDED. WHAT WAS MISSING WAS THE SCRATCH CLASS ITSELF
-==========================================================================
-
-The row assumed persistence had to be a lifetime on a static population. ⚠ The
-field's own docstring says "mean lifetime of a RUNNING scratch" -- abraded by
-continuous contact as the film passes, so it is a RUN LENGTH ALONG THE WEB, and
-stage 9b already translates defects with the web. The coordinate was there.
-
-⚠⚠ WHAT WAS ACTUALLY MISSING: stage 9b modelled three PARTICULATE classes --
-dust, debris, fibres -- and there was NO SCRATCH GENERATOR ANYWHERE IN EITHER
-ENGINE. The field had nothing to attach to, which the row read as a missing
-model when it was a missing class.
-
-NOW IMPLEMENTED IN BOTH TWINS, using only figures already measured and recorded
-in the tree: width 26 um, straightness 0.98, the 3.5:1 longitudinal bias, median
-contrast 3.5 %. Two populations, on the two controls that were already in the
-layout and unconsumed:
-
-    scratchTransport   a TRAMLINE locked to the transport axis that holds its
-                       across-web position while the picture moves past it, for
-                       scratch_persistence_frames frames
-    scratchHandling    shorter unlocked single-event marks, no persistence
-
-⚠ THE STRAIGHTNESS FIGURE VALIDATED THE EXISTING FIBRE CLASS ON THE WAY PAST.
-Deriving the walk's persistence length from 0.98 as a 2-D worm-like chain gives
-Lp = 2.5 mm, and a median 4 mm fibre then comes out at 0.87 -- mid-range of the
-0.7-0.95 that `defectFibres` claims for itself. The two classes are now
-separated by the one measured quantity rather than by assertion.
-
-Controls consumed 9 -> 11, unconsumed 8 -> 6. Four guards:
-G-SCRATCH-CONSTANTS / -GATE / -TRAMLINE / -POLARITY, the tramline one asserting
-a run holds one column set for 41 consecutive frames.
-
-⚠ SEVEN MODELLING CHOICES THE SOURCES DO NOT SETTLE are each named AS choices
-at the constant rather than presented as fact -- among them that the transport
-scratch is drawn exactly straight (0.98 over a multi-frame run implies a lateral
-excursion wider than the web), that the cut-versus-burnish share is a
-maximum-entropy 0.5 because nothing measures it, and that the 3.5 % contrast is
-used unsolved in the negative-density domain because no scratch amplitude
-distribution exists to solve against. The likely direction of that last error --
-too strong, by roughly the print gamma -- is stated at the constant rather than
-hidden.
-
-VERIFICATION
-=============
-
-    verify.py            696 PASS / 1 baselined FAIL   (691 before; +5 guards)
-    stage_parity.py      125/125 planes, 0 pinned exceptions
-    interimage_parity    2 flavours, worst 5.221e-05
-    bromide_parity       both builds, both directions, both scales
-    spectral_mono_parity 69/69 monochrome stocks exact
-    compile              all 26 TUs, exit 0 and zero bytes of output
-
-⚠ The scratch class is LIVE at the default control values, so stage 9b renders
-differently from the previous set on every stock. That is the point of the
-change, but it is a visible difference and not a silent one.
-
-ARCHIVE CONTENTS
-=================
-
-  1  python_generator     the generator, its audits and its docs at root
-                          level. NO C++. Carries stage_parity.py,
-                          png_compare.py and the film_sim.py with -8bpp.
-  2  generated_database   the 26 generated C++/HPP files plus the name,
-                          display-order and migration tables.
+THE SIX ARCHIVES
+================
+  1  python_generator     the generator and its audits. NO C++ AT ALL.
+  2  generated_database   include/ + src/, the layout the VS project expects.
   3  algorithm_scalar     include/ + src/, the double build.
   4  algorithm_avx2       include/ + src/, the float build.
   5  documentation_md     the whole doc/ tree.
+  6  ui_mockup_and_pdf    the HTML control-surface mockup and the two parameter
+                          references. No source, no database, no Markdown.
 
-⚠ NO TEST SOURCE IN ANY OF THE FIVE -- the test translation units, profall.cpp
+⚠ NO TEST SOURCE IN ANY OF THE SIX -- the test translation units, profall.cpp
 and the two harnesses are in the separate optional archive. The .txt files ship
 inside include/ in archives 3 and 4.
+
+⚠ THE TWO ENGINE ARCHIVES ARE NEVER MERGED. Scalar computes in double and AVX2
+in float; they are two files carrying one law, and the parity audits compile
+BOTH and compare each to the Python reference, which is what makes keeping them
+separate safe rather than merely tidy.
 """
 
 
@@ -352,11 +345,29 @@ def main() -> int:
     z5 = _zip(f"5_documentation_md_{STAMP}.zip", HERE,
               [p for p in dict.fromkeys(docs) if p.is_file()])
 
-    for z in (z1, z2, z3, z4, z5):
+    # ---- 6. UI mockup and the two parameter references ---------------------
+    # ⚠ NO SOURCE, NO DATABASE, NO PROJECT MARKDOWN, and the generator that
+    # BUILDS the two PDFs is deliberately not here either: it imports
+    # `algo_control_enums` and `film_profiles`, so shipping it would put a
+    # dependency on archives 1 and 2 inside an archive whose whole point is
+    # that it stands alone on the documentation shelf. What ships is the
+    # rendered output and the mockup it describes.
+    ui = Path("/root/work/ui")
+    ui_files = [ui / n for n in
+                ("FilmSimulator_Mockup_v4.html",
+                 "FilmSimulation_EffectControls_EN.pdf",
+                 "FilmSimulation_EffectControls_RU.pdf",
+                 "README.txt")]
+    missing = [f.name for f in ui_files if not f.is_file()]
+    if missing:
+        raise RuntimeError("archive 6 is missing %s" % ", ".join(missing))
+    z6 = _zip(f"6_ui_mockup_and_pdf_{STAMP}.zip", ui, ui_files)
+
+    for z in (z1, z2, z3, z4, z5, z6):
         with zipfile.ZipFile(z) as zf:
             print(f"  {z.name:44s} {z.stat().st_size/1024:9.1f} kB  "
                   f"{len(zf.namelist()):4d} files")
-    print(f"[OK] five archives in {OUT}")
+    print(f"[OK] six archives in {OUT}")
     return 0
 
 

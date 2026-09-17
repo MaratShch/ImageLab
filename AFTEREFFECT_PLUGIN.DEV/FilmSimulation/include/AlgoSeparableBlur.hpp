@@ -73,10 +73,15 @@ constexpr int32_t ALGO_BLUR_MAX_TAPS      = 2 * ALGO_BLUR_MAX_HALF_TAPS + 1;
 // A measured rolloff now enters as a WEIGHTED PAIR of base Gaussians (see
 // film::FilmMtfKernel), and because the adjacency band-pass multiplies the base
 // transfer rather than adding to it, each base lobe carries its own inner and
-// outer adjacency partner: 2 x 3 = 6. Nothing else in the engine asks for more
-// than three, so the extra capacity costs two unused array slots per call and
-// no arithmetic.
-constexpr int32_t ALGO_BLUR_MAX_LOBES = 6;
+// outer adjacency partner: 2 x 3 = 6.
+// ⚠ RAISED 6 -> 9 ON 2026-09-15b, AND AGAIN THE REASON IS STAGE 6. One measured
+// exponent fell off the bottom of the two-lobe table: KODAK TECHNICAL PAN reads
+// q = 1.071, and the best PAIR for a rolloff that shallow misses the law by
+// 0.0719 where the table's tolerance is 0.045. A TRIPLE lands at 0.0267. Three
+// base lobes each carrying an inner and an outer adjacency partner is 3 x 3 = 9.
+// Only stocks the two-lobe table cannot serve take the wider path, so the cost
+// is three unused array slots per call on everything else and no arithmetic.
+constexpr int32_t ALGO_BLUR_MAX_LOBES = 9;
 
 
 // ---------------------------------------------------------------------------

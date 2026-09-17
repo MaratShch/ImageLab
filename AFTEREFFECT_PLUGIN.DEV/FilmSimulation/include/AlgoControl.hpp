@@ -465,7 +465,7 @@ struct FilmDamage
      *                    ⚠ THAT ANCHOR IS A DEFINITION, NOT A MEASUREMENT. A
      *                    per-metre rate is what this would properly multiply,
      *                    and AgingSpec.scratch_rate_base_per_m is where such a
-     *                    rate belongs - but it ships zero on all 184 stocks, so
+     *                    rate belongs - but it ships zero on all 191 stocks, so
      *                    there is nothing to derive an anchor from and the
      *                    control is defined instead of pretended. See the
      *                    constant's own comment in AlgoNegativeDefects.hpp.
@@ -1136,7 +1136,7 @@ struct AlgoControls
      *  3  AE CONTROL     dropdown, populated from FORMAT_GEOM. ⚠ THE COMPLETE
      *                    LEGAL SET IS 14 VALUES, exhaustive as of schema v28,
      *                    with the frame WIDTH each one selects and the number
-     *                    of the 184 stocks that name it as their own default:
+     *                    of the 191 stocks that name it as their own default:
      *                      "8mm"             4.800 mm    2 stocks
      *                      "super8"          5.790 mm    -
      *                      "16mm"           10.260 mm    6 stocks
@@ -1210,7 +1210,7 @@ struct AlgoControls
      *                                                 default_print
      *                      "SCAN_DI"                  digital-intermediate
      *                                                 inversion -- the default
-     *                                                 of 183 of 184 profiles
+     *                                                 of 190 of 191 profiles
      *                      "KODAK_2383_RELEASE"       modern release print
      *                      "KODAK_VISION3_DI_2254"    DI intermediate
      *                      "KODAK_5302"               fine-grain release
@@ -1436,22 +1436,33 @@ struct AlgoControls
 
     /**
      *  1  NAME           processVariant
-     *  2  TYPE           int32_t
-     *  3  AE CONTROL     dropdown, populated from the selected stock's own
-     *                    `process_variants` list -- the entries are named by
-     *                    the manufacturer ("EI 1600 (Push 1)", "Cs2 two-bath
-     *                    kit") and the list is EMPTY on 164 of the 170 stocks,
-     *                    so the control should hide itself rather than show a
-     *                    dropdown with one dead entry
-     *  4  UNIT           index into that vector. Not an enum: the list is
-     *                    per-stock and changes when the stock changes
-     *  5  MIN            -1, the OFF sentinel
-     *  6  MAX            size of the selected stock's process_variants, minus
-     *                    one. Out of range is treated as -1 rather than
-     *                    clamped, because a stale preset pointing at a variant
-     *                    the new stock does not have should render the stock as
-     *                    shipped, not render its variant 0
-     *  7  DEFAULT        -1 -- the development the stored curves represent
+     *  2  TYPE           ProcessVariantCtrl (AlgoControlEnums.hpp)
+     *  3  AE CONTROL     list box. The FULL list of developments is
+     *                    ProcessVariantCtrlStr, pipe separated in enumerator
+     *                    order; the host shows only the entries the selected
+     *                    stock actually offers, which it finds by matching
+     *                    ProcessVariantCtrlKey against that stock's own
+     *                    `process_variants`. The list is EMPTY on 183 of the
+     *                    191 stocks, so the control should hide itself there
+     *                    rather than show a dropdown with one dead entry.
+     *                    \warning TOTAL_PROCESSES IS NOT AN ITEM. It is the
+     *                    enumeration's count and exists to size the string
+     *                    table and bound the range checks; offering it would
+     *                    put a non-existent development in the list.
+     *  4  UNIT           an enumerator, and as of 2026-09-17 NOT an index.
+     *                    It used to be a position in the selected stock's own
+     *                    vector, which made the same stored number mean a
+     *                    different development on every stock that had one --
+     *                    always in range, so never detectable. The value is
+     *                    now global and identifies the development itself.
+     *  5  MIN            eAS_SHIPPED (-1), the OFF sentinel
+     *  6  MAX            TOTAL_PROCESSES - 1. A value outside
+     *                    [0, TOTAL_PROCESSES), or one this stock does not
+     *                    offer, is treated as eAS_SHIPPED rather than clamped:
+     *                    a stale preset should render the stock as shipped,
+     *                    not render some other development in its place
+     *  7  DEFAULT        eAS_SHIPPED -- the development the stored curves
+     *                    represent
      *  8  STEP           1
      *  9  PURPOSE        Selects a DIFFERENT DEVELOPMENT of the same emulsion:
      *                    a push, a cross-process, an alternate chemistry kit.
@@ -1486,7 +1497,7 @@ struct AlgoControls
      * 14  FULL/LITE      Both, at full quality: one profile copy per frame,
      *                    and only when a variant is selected.
      */
-    int32_t processVariant;
+    ProcessVariantCtrl processVariant;
 
     /**
      *  1  NAME           developmentMinutes
@@ -1494,7 +1505,7 @@ struct AlgoControls
      *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
      *                    that carries no time-gamma family -- same rule
      *                    processVariant already follows for an empty variant
-     *                    list. ⚠ THAT IS 174 OF 184 STOCKS TODAY. Showing a
+     *                    list. ⚠ THAT IS 175 OF 191 STOCKS TODAY. Showing a
      *                    live slider that cannot move a pixel is worse than
      *                    showing none, because the user then reads the absence
      *                    of change as a broken effect rather than as absent
@@ -1504,7 +1515,7 @@ struct AlgoControls
      *                    families are printed in minutes against gamma
      *                    (`ProcessingFamily.points[].minutes`), so an absolute
      *                    axis interpolates them directly; a multiplier would
-     *                    need a reference time that 101 of the 183 stocks with
+     *                    need a reference time that 102 of the 189 stocks with
      *                    a developer do not state
      *  5  MIN            -1.0 as the sentinel. Effective minimum is the
      *                    SELECTED STOCK'S OWN shortest traced point, which
@@ -1535,8 +1546,15 @@ struct AlgoControls
      *                    exactly where processVariant already substitutes one.
      *                    ⚠⚠ IT IS A DELIBERATE NO-OP WHERE THERE IS NO FAMILY,
      *                    AND THAT IS NOT A LIMITATION TO BE ENGINEERED AROUND.
-     *                    Only 12 of 184 stocks carry a family and only 9 of
-     *                    those carry gamma values:
+     *                    ⚠ 30 of 191 stocks carry a family as of 2026-09-17b
+     *                    and 22 of those carry gamma values -- up from 12 and
+     *                    9, because queue P61 traced the 1956 Data Book's
+     *                    time-gamma insets onto four existing stocks and
+     *                    queue P63 added five more stocks that each arrive
+     *                    with the family Kodak prints on their own sheet.
+     *                    16 of the 30 pass `development_family`'s own
+     *                    requirement of two or more gamma-bearing points
+     *                    sharing one (developer, dilution, vessel, edition):
      *                      AGFA_APX_25 / _100 / _400   62 / 64 / 73 points,
      *                                                  gamma 0.55-0.75
      *                      EASTMAN_DOUBLE_X_5222        5 points, 0.50-1.05
@@ -1637,7 +1655,7 @@ struct AlgoControls
      *                    developmentMinutes
      *  7  DEFAULT        -1.0 -- the temperature the stored curves represent,
      *                    i.e. `profile.processing.celsius` where stated (82 of
-     *                    184 stocks). Reproduces every pre-field render BIT
+     *                    191 stocks). Reproduces every pre-field render BIT
      *                    FOR BIT
      *  8  STEP           0.5 °C [proposed] for the monochrome families, whose
      *                    traced span is 6 °C. ⚠ A colour process would need
@@ -1654,7 +1672,7 @@ struct AlgoControls
      *                    collapsing them would discard half the measurement.
      * 10  OUTPUT EFFECT  Selects which time-gamma curve of the family the
      *                    time axis is then read along, and rebuilds the
-     *                    characteristic curve. ⚠ ON 181 OF 184 STOCKS IT IS A
+     *                    characteristic curve. ⚠ ON 181 OF 191 STOCKS IT IS A
      *                    DELIBERATE NO-OP, because their family holds one
      *                    temperature or none. That is the honest behaviour:
      *                    time-temperature equivalence charts DO exist for real
@@ -1686,7 +1704,7 @@ struct AlgoControls
      *   and nothing is copied, so -1 is bit-exact.
      *
      *   ⚠ WHY BOTH CONTROLS EXIST AT ALL WHEN SO FEW STOCKS CAN USE THEM.
-     *   83 of 184 stocks now state a developer, a time and a temperature --
+     *   82 of 191 stocks now state a developer, a time and a temperature --
      *   45 of them from a PROCESS MANUAL rather than a film datasheet (KODAK
      *   H-24 for ECN-2, FUJIFILM TB C41 for C-41). That block of data has no
      *   consumer at all today and is the largest populated-but-unread field
@@ -1699,6 +1717,66 @@ struct AlgoControls
      *   item, not a code one.
      */
     double developmentCelsius;
+
+    /**
+     *  1  NAME           storageYears
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
+     *                    carrying no published dark-fade rate -- the same rule
+     *                    processVariant and developmentMinutes follow. ⚠ THAT
+     *                    IS 188 OF 191 STOCKS TODAY.
+     *  4  UNIT           years of dark storage since processing
+     *  5  MIN            0, which is also the OFF sentinel and means fresh
+     *  6  MAX            100 -- see the note in AlgoControlEnums.hpp: a bound
+     *                    on where a first-order fade stops restating the
+     *                    published figure, not a physical limit
+     *  7  DEFAULT        0
+     *  8  STEP           0.5
+     *  9  PURPOSE        Ages the image dyes the way dark storage does. The
+     *                    database publishes a time to a 10 % loss from density
+     *                    1.0 for the LEAST STABLE dye; this control turns that
+     *                    rate into a state.
+     * 10  OUTPUT EFFECT  Scales ToneCurve::gamma on the record belonging to
+     *                    each faded dye -- cyan in red, magenta in green,
+     *                    yellow in blue -- before anything reads a curve.
+     *                    ⚠⚠ ONLY THE DYE THE SOURCE NAMES FADES, which on both
+     *                    stocks is yellow, so the visible result is a NEGATIVE
+     *                    THAT HAS LOST BLUE DENSITY and prints warm. That
+     *                    asymmetry is the effect: Wilhelm's whole subject is
+     *                    that the three dyes fade at different rates and the
+     *                    differential is what makes a faded negative
+     *                    uncorrectable. Fading all three together would be a
+     *                    density change wearing the costume of one.
+     *                    ⚠ dmin IS NOT TOUCHED. Part of a masked negative's
+     *                    D-min is orange mask, which fades, and part is
+     *                    support, which does not; ToneCurve stores the sum and
+     *                    nothing separates them. A faded negative rendered
+     *                    here keeps all of its mask.
+     * 11  STAGES         resolved in FRAME SETUP, after processVariant and
+     *                    developmentMinutes -- the order is chronological,
+     *                    since storage happens after processing
+     * 12  INTERACTIONS   Compounds with both of the other profile resolvers
+     *                    and with nothing else.
+     * 13  SCALAR/AVX2    External semantics identical; the resolution lives in
+     *                    the shared header AlgoStorageAge.hpp and is evaluated
+     *                    once per frame in HighPrecType, so the two paths
+     *                    cannot compute different curves.
+     * 14  FULL/LITE      Both: one profile copy per frame, and only when a
+     *                    stock with a published rate is aged.
+     *
+     *   SENTINEL: storageYears <= 0 is fresh film; the base profile is
+     *   returned by reference and nothing is copied, so 0 reproduces
+     *   pre-field renders bit for bit.
+     *
+     *   ⚠ WHAT THE NUMBER DOES NOT CARRY, stated because the source states it:
+     *   the published years are a 40 % RH figure that HALVES at 60 % RH, and
+     *   they count dye fading only -- the yellowish stain that usually becomes
+     *   visible before the 10 % dye loss does is not modelled at all. There is
+     *   also no storage-temperature control: the source gives factors at two
+     *   refrigerator temperatures and three points do not define a continuous
+     *   law.
+     */
+    double storageYears;
 
     /**
      *  1  NAME           scannerSpecular
@@ -1916,7 +1994,7 @@ struct AlgoControls
      *                    it. At 0.0 that is 0.00 per cent, the whole-frame mean
      *                    moves 0.7 of one 8-bit code, and red clipping is
      *                    untouched.
-     *                    \warning IT ALSO MOVES ALL 184 STOCKS, by each stock's
+     *                    \warning IT ALSO MOVES ALL 191 STOCKS, by each stock's
      *                    own Dmax: VELVIA floors at 4.0/3.2/2.2 of 255,
      *                    negatives through SCAN_DI at 1.5, the POLAROID
      *                    materials at 33 to 46. 14 of the 44 reversal stocks

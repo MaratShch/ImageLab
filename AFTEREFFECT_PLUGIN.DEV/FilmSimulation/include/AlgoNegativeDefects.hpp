@@ -680,7 +680,7 @@ constexpr HighPrecType ALGO_SCRATCH_CUT_SHARE = 0.5;
 //
 //  ⚠ 1.0 IS A DEFINITIONAL ANCHOR, NOT A MEASUREMENT, and the difference matters.
 //  AgingSpec carries scratch_rate_base_per_m, which is what a real per-metre rate
-//  would multiply - and every one of the 184 stocks ships that structure entirely
+//  would multiply - and every one of the 191 stocks ships that structure entirely
 //  zero, documented as "fresh". So there is nothing to anchor a rate against, and
 //  the honest thing is to define the control instead of pretending to derive it:
 //  scratchTransport = 1.0 means ONE running tramline on the web, on average, at
@@ -908,7 +908,7 @@ constexpr uint32_t ALGO_DEFECT_TAG_SCRATCH_CELL  = 0x005C4A02u;
 //                 THE OLD SENTENCE. The claim cost something concrete: a
 //                 2026-09-11 field audit read that comment and listed
 //                 `TemporalSpec::scratch_persistence_frames` - populated on all
-//                 184 stocks - as a field the stage "can use directly". It
+//                 191 stocks - as a field the stage "can use directly". It
 //                 could not, because the particulate classes have no lifetime
 //                 for it to set, and P44 said correctly that giving it one is a
 //                 modelling decision rather than a wiring job.

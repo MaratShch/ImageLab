@@ -258,6 +258,12 @@
     <ClInclude Include="include\AlgoAdobeControlEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoDevelopmentTime.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoStorageAge.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -426,6 +432,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\film_profiles_data_24.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_25.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_26.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -726,6 +738,33 @@
       <Filter>python\profiles_generator</Filter>
     </None>
     <None Include="python\profiles_generator\gen_control_enums.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_film_control_matrix.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1938.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1956.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1956_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1956_spectro.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1956_trace.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_5293_1982.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\orwo_nc3_1972.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sovremennye_2004.py">
       <Filter>python\profiles_generator</Filter>
     </None>
   </ItemGroup>

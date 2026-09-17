@@ -472,7 +472,7 @@ void AlgoMakeGrainField
     //
     //  ⚠ WHAT WAS WRONG. `GrainSpec::anisotropy` has been emitted into
     //  film_profiles.hpp all along and NO C++ STAGE READ IT. The reference
-    //  model does read it, so for the 32 of 184 stocks that carry a figure -
+    //  model does read it, so for the 33 of 191 stocks that carry a figure -
     //  values 1.02 to 1.10 - Python rendered stretched grain and both C++
     //  engines rendered round grain. Nothing failed and nothing looked broken;
     //  the two engines simply modelled different emulsions, on the stocks whose
