@@ -138,6 +138,13 @@ __all__ = [
     "ProcessVariant",
     "ReciprocityTable",
     "InterimageSpec",
+    "gost_speed_criterion",
+    "SubLayerSet",
+    "ah_od_band_for",
+    "emulsion_side_critical_angle",
+    "PaperSpectralRecord",
+    "PAPER_SPECTRA",
+    "paper_spectra_for",
     "PERFS_PER_FRAME",
     "get_profile",
     "get_print_stock",
@@ -198,7 +205,21 @@ _ANTIHALATIONS = frozenset({"remjet", "colloidal_ag", "dyed_base",
 #: Callier coefficient Q = D_parallel / D_diffuse is exactly the ratio the
 #: geometry pair implies. So a stored `callier_q` is meaningless without
 #: knowing which two geometries it converts between.
-_DENSITY_GEOMETRIES = frozenset({"diffuse", "specular", "doubly_diffuse"})
+# ⚠ "reflection" WAS MISSING UNTIL v42 AND THE v31 COMMENT ON
+# `PrintStock.density_geometry` HAD ALREADY SAID WHY IT WOULD BE NEEDED: a
+# colour PAPER's density is measured by light that enters the coating,
+# scatters off the loaded base and comes back out, so it makes TWO passes
+# through the dye and carries the base's own scatter. That is not "diffuse"
+# transmission with a different number, it is a different geometry, and the
+# three values here were all transmission ones. The gap was harmless while
+# every stock in the file was film and became reachable the moment the first
+# paper record landed (queue P35, the Fujicolor Crystal Archive spectral
+# panels). ⚠ IT IS NOT A CONVERTIBLE UNIT: see the
+# `DyeImpurity.measurement_mode` note, where the same dye measures ~2.5x
+# higher unwanted absorption in reflection than in transmission and that
+# factor is explicitly recorded as an observation, not a conversion.
+_DENSITY_GEOMETRIES = frozenset({"diffuse", "specular", "doubly_diffuse",
+                                 "reflection"})
 
 #: Gamma criteria `FilmProfile.gamma_criterion` accepts (schema v29).
 #: ⚠ NINE MUTUALLY INCOMPATIBLE DEFINITIONS OF "GAMMA" APPEAR IN THIS
@@ -287,6 +308,107 @@ _GAMMA_CRITERIA = frozenset({
 #: (schema v29). ⚠ MIXING THESE CORRUPTS `dye_matrix`; see the field.
 _IMPURITY_MODES = frozenset({"transmission", "reflection", "in_film",
                              "solution"})
+
+# -- schema v43 (2026-09-18c, queue P13): THE MAGENTA COUPLER CLASS ----------
+#
+# ⚠⚠ `AgingSpec.dye_fade_m` CANNOT HAVE ONE DEFAULT AND THE REASON IS THAT THE
+# RANKING INVERTS. This is the second of the two conflicts the v30 notes left
+# open, and it is not a conflict of measurement: the coupler chemistry
+# changed, and it traded light stability for hue purity.
+#
+#   1950s chromogenic magenta   -- "the magenta is the most stable of the
+#                                  colours" to light, pyrazolone above
+#                                  nitrile (Glafkides Vol. 2 §561 p.639)
+#   1980s pyrazoloazole magenta -- the LEAST light-stable of the three,
+#                                  fading 92-98 % in 400-600 h of
+#                                  under-glass sunlight, against 60-85 %
+#                                  for the 5-pyrazolone it replaced
+#                                  (US 4,684,603; US 4,675,275;
+#                                  EP 0,264,730 B1)
+#
+# So a single default would be wrong by a factor of well over two on one era
+# or the other, in OPPOSITE directions, and averaging them describes no real
+# material. What the schema was missing is the CAUSAL key: which coupler the
+# magenta layer uses. With that on the record the default is a lookup, and
+# without it the honest answer is "unknown", which `magenta_fade_default`
+# returns as None rather than guessing.
+_MAGENTA_COUPLER_CLASSES = frozenset({
+    "nitrile",           # earliest chromogenic magenta, least stable of the two 1950s ones
+    "pyrazolone",        # the 1950s magenta Glafkides ranks most stable of the three dyes
+    "five_pyrazolone",   # the 1980s incumbent the patents measure at 60-85 % loss
+    "pyrazoloazole",     # its 1980s replacement, 92-98 % loss, better hue
+})
+
+#: Fractional LIGHT fade of the magenta dye by coupler class, as a (low, high)
+#: band, under the one test the sources share: under-glass sunlight, 400-600
+#: hours, starting density 1.0.
+#:
+#: ⚠ THE 1950s ROWS ARE A RANKING AND NOT A NUMBER, which is why they are
+#: absent here rather than estimated. Glafkides states the ORDER -- magenta
+#: most stable of the three dyes, pyrazolone above nitrile -- and publishes no
+#: fraction against a stated exposure. A band invented to fill those two rows
+#: would be the single default this whole entry exists to refuse.
+_MAGENTA_LIGHT_FADE: dict[str, tuple[float, float]] = {
+    "five_pyrazolone": (0.60, 0.85),
+    "pyrazoloazole":   (0.92, 0.98),
+}
+
+#: The 1950s ordering, stored as an ordering because that is what the source
+#: gives: entries rank from MOST light-stable to least.
+_MAGENTA_STABILITY_RANK_1950S: tuple[str, ...] = ("pyrazolone", "nitrile")
+
+#: The source lines behind both halves, so neither can be cited loosely.
+_MAGENTA_FADE_SOURCE: str = (
+    "1950s ordering: Glafkides P., «Chimie et Physique Photographiques» "
+    "Vol. 2 §561 p.639 -- the magenta is the most stable of the colours to "
+    "light, pyrazolone above nitrile; no fraction against a stated exposure "
+    "is published. 1980s bands: US 4,684,603 and US 4,675,275 (Fuji) and "
+    "EP 0 264 730 B1 -- under-glass sunlight 400-600 h from density 1.0, "
+    "pyrazoloazole 92-98 % loss against 5-pyrazolone's 60-85 %. ⚠ THE TWO "
+    "HALVES ARE NOT ON ONE SCALE AND MUST NOT BE MERGED INTO ONE LADDER."
+)
+
+
+def magenta_fade_default(coupler_class: str) -> float | None:
+    """Mid-band magenta light-fade fraction for a coupler class, or None.
+
+    ⚠ RETURNS None FOR AN UNSET OR 1950s CLASS, DELIBERATELY. The 1950s
+    sources publish a ranking and no fraction; an unset class publishes
+    nothing at all. Both are "unknown", and a caller that needs a number must
+    say which chemistry it is modelling. See `_MAGENTA_LIGHT_FADE`.
+    """
+    band = _MAGENTA_LIGHT_FADE.get(coupler_class)
+    return None if band is None else 0.5 * (band[0] + band[1])
+
+#: WHAT a `DyeImpurityRatio` IS A RATIO OF (schema v41, queue P36).
+#:
+#: ⚠⚠ `_IMPURITY_MODES` ABOVE RECORDS THE GEOMETRY AND NOTHING RECORDED THE
+#: QUANTITY, which is the gap US 2,449,966 exposes. Wesley T. Hanson Jr.
+#: (Eastman Kodak, filed 1944-05-03, granted 1948-09-21) is the origin document
+#: of the coloured-coupler orange mask, and it defines the object this
+#: project's dye-impurity model has been approximating: the **absorption
+#: gamma** -- the H&D curve of a dye image as read by light of one spectral
+#: region. A ratio of gammas and a ratio of densities at one point are
+#: different numbers on any film whose unwanted absorption does not scale
+#: exactly with its wanted one, and the schema could not tell them apart.
+_IMPURITY_QUANTITIES = frozenset({"density_ratio", "gamma_ratio"})
+
+#: HANSON'S MASKING RULE, verbatim in structure: the mask's absorption gamma
+#: must be EQUAL AND OPPOSITE to the unwanted absorption gamma -- or to the
+#: AVERAGE of the two unwanted gammas when one mask must serve two bands.
+#: `(sign, averaging_divisor_when_one_mask_serves_two)`.
+_HANSON_MASK_RULE: tuple[float, int] = (-1.0, 2)
+_HANSON_MASK_SOURCE = (
+    "US 2,449,966, Wesley T. Hanson Jr., Eastman Kodak, «Integral mask for "
+    "color film», filed 1944-05-03, granted 1948-09-21 -- the origin document "
+    "of the coloured-coupler orange mask. Tier T1.")
+#: ⚠ AND THE FOUR POPULATED RECORDS ARE DENSITY RATIOS, NOT GAMMA RATIOS, which
+#: is why the distinction had to be made before anything could be checked. All
+#: four are Soviet ТУ sheets tabulating «коэффициент нежелательного поглощения»
+#: as a bounded range per dye and band at a stated density -- a ratio of
+#: DENSITIES at one point. They are not rewritten as gammas, because the sheets
+#: do not publish the second curve that would be needed to form one.
+_IMPURITY_QUANTITY_DEFAULT: str = "density_ratio"
 
 #: Definitions `InterimageSpec.gamma_ratio_criterion` accepts (schema v30).
 #:
@@ -439,6 +561,207 @@ _GOST_SPEED_CLASSES = frozenset({
     "neg_cine", "neg_still", "positive_dupe", "aerial_negative",
     "aerial_spectrozonal_alt", "reversal"})
 
+# -- schema v43 (2026-09-18c, queue P12): THE CRITERIA BECOME DATA -----------
+#
+# ⚠⚠ THE FIVE ROWS ABOVE WERE A COMMENT, AND A COMMENT CANNOT BE CHECKED.
+# Queue P12 carried "the GOST speed criterion is not settled" for a week after
+# the comment above had settled it, and the reason the row stayed open is that
+# nothing in the file could be asked which criterion a given stock's stored
+# speed was qualified by. The table below is that comment, machine-readable,
+# keyed FIRST by edition and only then by class.
+#
+# ⚠⚠ EDITION FIRST, AND THAT IS THE WHOLE POINT RATHER THAN A TIDINESS. The
+# "conflict" P12 recorded is between two revisions FORTY YEARS APART -- the
+# 1950s standard Glafkides describes and ГОСТ 9160-91 -- and a criterion is
+# meaningless without the edition it belongs to. Nesting by class alone would
+# have reproduced the original error in a data structure.
+#
+# ⚠ 9160-82 IS PRESENT AS A KEY WITH NO ROWS, WHICH IS A STATEMENT AND NOT AN
+# OMISSION. Seven stocks in this file cite ГОСТ 9160-82 on their own ТУ
+# sheets and NOBODY HAS READ THAT EDITION (queue P38). Its criteria are
+# therefore unknown, and `gost_speed_criterion` returns None for it rather
+# than falling back on 9160-91's numbers -- a fallback would silently qualify
+# a 1987 rating with a 1993 criterion, which is precisely the mistake the
+# edition field was added to prevent.
+_GOST_SPEED_CRITERIA: dict[str, dict[str, tuple[float, float]]] = {
+    # ГОСТ 9160-91 §5.2.4, all five rows. D_kr is measured ABOVE FOG; speed is
+    # S = K / H_kr throughout. The four main K values were checked against the
+    # standard's own rounding tables 5-8 and reproduce 1.6 / 1.41 / 20 / 10.
+    "9160-91": {
+        "neg_cine":                (0.20, 1.6),
+        "neg_still":               (0.15, 1.4142135623730951),
+        "positive_dupe":           (0.90, 10.0),
+        "aerial_negative":         (0.85, 20.0),
+        "aerial_spectrozonal_alt": (0.20, 1.0),
+        # ⚠ REVERSAL IS A TWO-POINT CONSTRUCTION AND THE 0.20 HERE IS ONLY ITS
+        # FIRST POINT. D1 = 0.2 + Dmin, D2 = the tangent point capped at
+        # 2.0 + Dmin, and lg H_kr = (lg H1 + lg H2) / 2. A consumer that reads
+        # this row as a single-density criterion is wrong; see
+        # `_GOST_REVERSAL_CONSTRUCTION` below.
+        "reversal":                (0.20, 10.0),
+    },
+    # ⚠ EMPTY ON PURPOSE. See the note above: the 1982 text is unread.
+    "9160-82": {},
+}
+
+#: The reversal row's second point and the mean it is taken with, so that the
+#: two-point construction is not lost by being stored as a single pair above.
+#: (D1 offset above Dmin, D2 cap above Dmin, "mean of the two lg H").
+_GOST_REVERSAL_CONSTRUCTION: tuple[float, float, str] = (
+    0.20, 2.00, "lg H_kr = (lg H1 + lg H2) / 2")
+
+#: ⚠⚠ THE 1950s STANDARD, AND IT IS NOT AN EDITION OF 9160 -- which is why it
+#: is a separate constant and not a third key above. Glafkides Vol. 1 §228,
+#: pp. 233-234 describes the Soviet criterion of his own day: D = fog + 0.2
+#: with S = 1/E, reference exposure 1 candle-metre-second, a 21-step wedge at
+#: 0.15 interval, 1/20 s, 20 C with 10-15 cm/s developer flow. ГОСТ 9160 did
+#: not exist in that form; putting this under a 9160 key would invent a
+#: document. ⚠ THE PRACTICAL SIZE OF THE DISAGREEMENT: on a long-toe stock
+#: fog+0.2 and fog+0.85 differ by a third of a stop or more, so a speed read
+#: under one and qualified by the other is wrong by more than the rounding
+#: ladder's own step.
+_GOST_1950S_CRITERION: dict[str, object] = {
+    "d_kr_above_fog": 0.20,
+    "speed_law": "S = 1/E",
+    "reference_exposure": "1 candle-metre-second",
+    "wedge_steps": 21,
+    "wedge_interval_logh": 0.15,
+    "exposure_time_s": 0.05,
+    "developer_temp_c": 20.0,
+    "developer_flow_cm_s": (10.0, 15.0),
+    "source": ("Glafkides P., «Chimie et Physique Photographiques», Vol. 1 "
+               "§228 pp.233-234 -- the Soviet speed criterion as of the "
+               "1950s, i.e. BEFORE ГОСТ 9160 in the form this file stores"),
+}
+
+# -- schema v43 (2026-09-18c, queue P14): THE IOFIS 1981 SUMMARY TABLES ------
+#
+# ⚠⚠ THIRTEEN SOVIET FILMS HAVE PUBLISHED SENSITOMETRY AND NO RECORD IN THIS
+# FILE, and the row that said so had been carrying their NAMES for a week
+# while their NUMBERS lived nowhere. Both tables are transcribed below, in
+# full -- including the rows for stocks this database already holds, because
+# those rows are what lets the transcription be checked against something
+# other than itself.
+#
+# Source: «Фотокинотехника: Энциклопедия», под ред. Е. А. Иофиса, Москва:
+# Советская энциклопедия, 1981 -- printed p.126, table «Основные
+# характеристики чёрно-белых киноплёнок, выпускаемых в СССР», and printed
+# p.407, table «Цветные фото- и киноплёнки общего назначения, выпускаемые в
+# СССР». The volume is an image-only scan; both pages were read off a 150 dpi
+# render.
+#
+# ⚠ TWO CAUTIONS TRAVEL WITH EVERY NUMBER HERE AND NEITHER IS OPTIONAL.
+#   (1) RESOLVING POWER ON p.407 IS PRINTED «не менее» -- a guaranteed
+#       MINIMUM, not a measurement, so it is NOT an f50 and not an
+#       `mtf.resolving_power_*`. p.126's column carries no such qualifier and
+#       is still a catalogue figure rather than a traced curve.
+#   (2) METHOD RULE 25 BINDS: where a ТУ or a ГОСТ exists for one of these
+#       films it OUTRANKS this encyclopedia, which is a tertiary summary.
+#
+# ⚠⚠ AND NO PROFILE IS BUILT FROM THESE ROWS, WHICH IS A DELIBERATE REFUSAL
+# AND NOT THE WORK BEING LEFT UNDONE. A `FilmProfile` needs a `ToneCurve`, and
+# a ToneCurve needs D-max and a latitude that NEITHER TABLE PRINTS. What is
+# published here is a speed, a contrast coefficient, a resolving-power floor
+# and (on p.126 only) a fog density -- four numbers that pin the curve's
+# GRADIENT and its BASE and say nothing about where it ends. Building thirteen
+# profiles would mean inventing the shoulder of every one of them and then
+# attaching four real measurements to the invention, which is exactly the
+# failure `PaperSpectralRecord` was created the same day to avoid. The data is
+# stored whole, the reason is stored beside it, and the day a ТУ sheet for one
+# of these films arrives the profile is a transcription rather than a re-read.
+#
+# p.126, black-and-white cine films:
+#   (designation, S daylight, S tungsten, contrast coefficient, resolving
+#    power lin/mm, fog density). None = the table prints a dash.
+#   ⚠ THE » DITTO MARKS ARE EXPANDED. ОЧ-Т-45 repeats ОЧ-45's speeds, ОЧ-Т-180
+#   repeats ОЧ-180's speeds and its resolving power, and КН-3 repeats КН-2's
+#   contrast coefficient. Storing a ditto would store a typographic mark.
+_IOFIS_1981_BW: tuple[
+        tuple[str, float | None, float | None, float, float, float | None], ...] = (
+    ("КН-1",      11.0,  None,  0.65, 135.0, 0.10),
+    ("КН-2",      32.0,  26.0,  0.65, 100.0, 0.12),
+    ("КН-3",      90.0,  65.0,  0.65,  78.0, 0.15),
+    ("ВЧ(КН-4)", 350.0, 500.0,  1.0,   73.0, 0.20),
+    ("МЗ-3",      None,   5.0,  3.0,  100.0, 0.05),
+    ("ОЧ-45",     45.0,  32.0,  1.4,   85.0, None),
+    ("ОЧ-Т-45",   45.0,  32.0,  1.1,   80.0, None),
+    ("ОЧ-180",   180.0, 250.0,  1.3,   73.0, None),
+    ("ОЧ-Т-180", 180.0, 250.0,  1.1,   73.0, None),
+)
+
+#: p.407, colour films: (designation, S ГОСТ, contrast lo, contrast hi,
+#: resolving power floor lin/mm, kind, illuminant). A single printed contrast
+#: sets lo == hi.
+_IOFIS_1981_COLOUR: tuple[
+        tuple[str, float, float, float, float, str, str], ...] = (
+    ("ЦД-4",     45.0,  0.7, 0.8,  58.0, "negative_unmasked",  "daylight"),
+    ("ЦНЛ-65",   65.0,  0.6, 0.8,  58.0, "negative_masked",    "tungsten"),
+    ("ЦП-8Р",     0.15, 3.0, 3.0, 100.0, "positive_print",     "tungsten"),
+    ("ЦП-10",     0.3,  3.0, 3.0, 290.0, "positive_print",     "tungsten"),
+    ("ЦО-22Д",   22.0,  1.8, 2.0,  60.0, "reversal_camera",    "daylight"),
+    ("ЦО-32Д",   32.0,  1.8, 2.0,  50.0, "reversal_camera",    "daylight"),
+    ("ЦО-90Л",   90.0,  1.5, 1.5,  70.0, "reversal_camera",    "tungsten"),
+    ("ЦО-180Л", 180.0,  1.5, 1.5,  70.0, "reversal_camera",    "tungsten"),
+    ("ЦО-5",      0.4,  1.1, 1.1,  70.0, "reversal_print",     "tungsten"),
+)
+
+#: The thirteen the row names, i.e. the rows above with no profile in this
+#: file. Kept as an explicit set so that adding one of these stocks later
+#: must also shorten this list, and so a census can count the gap.
+_IOFIS_1981_UNPROFILED: tuple[str, ...] = (
+    "ЦО-22Д", "ЦО-180Л", "ЦО-5", "ЦП-8Р", "ЦП-10",
+    "КН-1", "КН-2", "КН-3", "ВЧ(КН-4)", "МЗ-3",
+    "ОЧ-Т-45", "ОЧ-180", "ОЧ-Т-180",
+)
+
+#: Rows that DO correspond to a stock this database holds, so the
+#: transcription can be checked against the profiles rather than trusted.
+#: (Iofis designation -> stock name).
+_IOFIS_1981_MAPPED: dict[str, str] = {
+    "ЦНЛ-65":  "SVEMA_CNL_65",
+    "ЦО-32Д":  "SVEMA_CO_32D",
+    "ЦО-90Л":  "SVEMA_CO_90L",
+    "ОЧ-45":   "TASMA_OCH_45",
+}
+
+_IOFIS_1981_SOURCE: str = (
+    "«Фотокинотехника: Энциклопедия», под ред. Е. А. Иофиса, Москва: "
+    "Советская энциклопедия, 1981 [Iofis E. A. (ed.), 'Photo and Cine "
+    "Technique: an Encyclopedia'], printed p.126 (black-and-white cine "
+    "films, «Основные характеристики чёрно-белых киноплёнок, выпускаемых в "
+    "СССР») and printed p.407 (colour films, «Цветные фото- и киноплёнки "
+    "общего назначения, выпускаемые в СССР»). Image-only scan; both tables "
+    "read off a 150 dpi render. ⚠ TERTIARY SUMMARY -- a ТУ or ГОСТ for any "
+    "of these films outranks it (method rule 25)."
+)
+
+
+#: Editions whose criteria are NOT on file, so that a consumer can tell
+#: "no rows" from "no such edition".
+_GOST_EDITIONS_UNREAD: frozenset[str] = frozenset({"9160-82"})
+
+#: ⚠ THE SIX STOCKS THAT CARRY A CLASS AND NAME NO EDITION, recorded so the
+#: absence is a fact rather than drift. Every one of them is classed from its
+#: MATERIAL TYPE, which no edition disputes; what is missing is which revision
+#: qualified its stored speed. They may not be "completed" by assuming the
+#: edition of their neighbours.
+_GOST_EDITION_UNSTATED: frozenset[str] = frozenset({
+    "SVEMA_CNL_65", "SVEMA_DS_4", "SVEMA_FOTO_32", "SVEMA_FOTO_130",
+    "TASMA_FN_64", "TASMA_OCH_45",
+    # -- joined 2026-09-18c when queue P40 retired their class refusal.
+    "SVEMA_FOTO_65", "SVEMA_FOTO_250"})
+
+
+def gost_speed_criterion(edition: str, cls: str):
+    """(D_kr above fog, K) for one class under one EDITION, or None.
+
+    ⚠ RETURNS None RATHER THAN FALLING BACK. An edition whose text has not
+    been read has no criteria, and answering with another edition's numbers
+    would qualify a rating with a standard that did not exist when it was
+    measured. See `_GOST_SPEED_CRITERIA`.
+    """
+    return _GOST_SPEED_CRITERIA.get(edition, {}).get(cls)
+
 #: ⚠ THE SOVIET STOCKS DELIBERATELY LEFT WITHOUT A `gost_speed_class`, and
 #: why, recorded here so nobody "completes" the set later. Populated on 13 of
 #: 18 on 2026-09-11; the other five are refusals, not omissions.
@@ -465,11 +788,62 @@ _GOST_SPEED_CLASSES = frozenset({
 #: or when a stored primary ТУ sheet in this file names it (9160-82).
 _GOST_EDITIONS = frozenset({"9160-82", "9160-91"})
 
+#: -- schema v43 (2026-09-18c, queue P39): THE NIKFI SCALE ------------------
+#:
+#: ⚠⚠ TWO STOCKS ARE RATED IN A UNIT THIS FILE COULD NOT WRITE DOWN, and the
+#: consequence was that the only speed figure those stocks have lived in a
+#: prose description where nothing could read it. НИКФИ -- the Soviet cinema
+#: research institute -- published its own speed scale, and SVEMA_DS_2 and
+#: SVEMA_LN_3 are both specified as "20-26 NIKFI units". That is not a ГОСТ
+#: rating, so `gost_speed_class` stays withheld on both (below) and their
+#: stored `exposure_index` is NOT this number.
+#:
+#: ⚠⚠ NO CONVERSION IS STORED AND NONE MAY BE INVENTED. Queue P39 asked for a
+#: NIKFI-to-ГОСТ conversion and the answer is that this corpus holds no NIKFI
+#: source at all -- not the scale's definition, not its criterion density, not
+#: its constant. A ratio fitted from two stocks' other numbers would be a
+#: guess wearing a unit. What this carrier does is keep the PUBLISHED FIGURE
+#: in a field, in its own unit, named, so that the day a NIKFI definition
+#: arrives the conversion is arithmetic on data already here instead of a
+#: re-read of two descriptions.
+#:
+#: (stock -> (low, high) in NIKFI units, as the source prints the range)
+_NIKFI_SPEED: dict[str, tuple[float, float]] = {
+    "SVEMA_DS_2":  (20.0, 26.0),
+    "SVEMA_LN_3":  (20.0, 26.0),
+}
+
+#: What a NIKFI unit is, to the extent this corpus can say -- which is: the
+#: name of the institute that published it, and nothing else. Kept beside the
+#: numbers so that no reader mistakes the absence of a note for the absence of
+#: a problem.
+_NIKFI_SCALE_DEFINITION: str = (
+    "НИКФИ (Научно-исследовательский кинофотоинститут), the Soviet cinema "
+    "and photography research institute, published a speed scale of its own "
+    "alongside ГОСТ. ⚠ ITS CRITERION DENSITY AND ITS CONSTANT ARE NOT IN "
+    "THIS CORPUS, so no NIKFI figure may be converted to a ГОСТ or ISO speed "
+    "and none has been. Queue P39."
+)
+
+
 _GOST_CLASS_WITHHELD: dict[str, str] = {
-    "SVEMA_DS_2":     "rated in NIKFI units, not ГОСТ",
-    "SVEMA_LN_3":     "rated in NIKFI units, not ГОСТ",
-    "SVEMA_FOTO_65":  "entry merges the FN cine and Foto still designations",
-    "SVEMA_FOTO_250": "entry merges the FN cine and Foto still designations",
+    "SVEMA_DS_2":     "rated in NIKFI units, not ГОСТ -- see _NIKFI_SPEED",
+    "SVEMA_LN_3":     "rated in NIKFI units, not ГОСТ -- see _NIKFI_SPEED",
+    # ⚠⚠ THE REFUSAL ON THESE TWO IS RETIRED AT v43 (queue P40) AND IT WAS
+    # RESOLVED BY READING THE PROVENANCE, NOT BY SPLITTING THE RECORDS. The
+    # row's own remedy was "splitting the entries is the fix". It is not:
+    # splitting would store ONE dataset under TWO names, which is the
+    # double-count trap queue P35 spent the same day documenting. The
+    # question a `gost_speed_class` answers is "which criterion qualified the
+    # SPEED THIS RECORD STORES", and that has one answer here -- both
+    # profiles' sensitometry comes from Гурлев 1986 p.296's **Foto-65** and
+    # **Foto-250** columns, i.e. the STILL line, so the class is `neg_still`
+    # on both and the cine designation is a packaging name for the same
+    # emulsion (the owner's 2026-08-13 decision, recorded in FOTO_65's own
+    # description: "the USSR standard defines Foto-65 as the same film").
+    # ⚠ IF A CINE-COLUMN RATING IS EVER FOUND it is a SECOND number under a
+    # SECOND criterion and must be stored as one, never used to overwrite
+    # this one.
     # ⚠ A FIFTH, AND ITS REASON IS STRUCTURAL RATHER THAN EVIDENTIAL. Tasma
     # «Позитивная МЗ-3» IS a ГОСТ "positive_dupe" material and the evidence
     # for that is not in doubt -- its own description reads "Soviet B&W cine
@@ -836,12 +1210,27 @@ _US6746834_ASYMMETRY: tuple[tuple[str, str], ...] = (
 #: green is 0.05+0.17 = 0.22 confirming the printed 0.22, 105's green is
 #: 0.02+0.09 = 0.11, and 116's green difference closes on 0.37-0.19 = 0.18.
 #: These are solved, not guessed, and `_US5262287_RECOVERED` names them.
+#:
+#: ⚠ ONE CELL WAS WRONG HERE UNTIL 2026-09-17 AND ONLY THE PAGE IMAGE CAUGHT
+#: IT. Sample 105's ΔlogE(R1.5) was stored 0.00; the patent prints 0.01. The
+#: text layer renders that row "0.06  0.0  0.05  0.  0.02  0.09" -- it drops
+#: the trailing digit of the SECOND cell as well as the leading digit of the
+#: fourth -- and the earlier transcription repaired only the fourth. The
+#: 300 dpi render of page 31 of the owner's own copy
+#: (PDF/PROFILES/PATENTS/US5262287.pdf) reads 0.01, and the table's own
+#: difference identity closes on it: 0.06 - 0.01 = 0.05, the printed
+#: difference. 0.00 would have required a printed difference of 0.06.
+#: ⚠ THE GENERAL LESSON, recorded because it cost a wrong number for six
+#: days: a difference column that closes is necessary but not sufficient --
+#: it was never checked against 105's red pair, because the red pair looked
+#: undamaged. Every numeric table harvested from a scan is now read off the
+#: page image, not off the text layer, before it is stored.
 #: Source, verbatim (line 1889 of /root/work/pat/txt/US5262287.txt):
 #:     "   04               0.8             0.05             0.13                    0.22              0.05              0.7          Low        Good     Low      Good"
 _US5262287_DLOGE: tuple[tuple[int, float, float, float, float], ...] = (
     (101, 0.12, 0.01, 0.17, 0.03), (102, 0.04, 0.01, 0.08, 0.01),
     (103, 0.17, 0.02, 0.21, 0.04), (104, 0.18, 0.05, 0.22, 0.05),
-    (105, 0.06, 0.00, 0.11, 0.02), (106, 0.37, 0.05, 0.40, 0.09),
+    (105, 0.06, 0.01, 0.11, 0.02), (106, 0.37, 0.05, 0.40, 0.09),
     (107, 0.31, 0.03, 0.36, 0.04), (108, 0.24, 0.02, 0.27, 0.03),
     (109, 0.25, 0.03, 0.29, 0.04), (110, 0.27, 0.02, 0.30, 0.03),
     (111, 0.36, 0.06, 0.40, 0.13), (112, 0.28, 0.05, 0.30, 0.05),
@@ -858,6 +1247,215 @@ _US5262287_RECOVERED: tuple[tuple[int, str], ...] = (
 _US5262287_WINDOWS: tuple[tuple[str, float, float], ...] = (
     ("dloge_r_0.5", 0.20, 0.40), ("dloge_r_1.5", 0.00, 0.07),
     ("dloge_g_0.5", 0.25, 0.45), ("dloge_g_1.5", 0.00, 0.15))
+
+#: EP 0 608 959 B1 (Eastman Kodak), TABLE III -- the ONLY published
+#: white-light-versus-separation measurement in this corpus taken on a
+#: COMPLETE, TWELVE-LAYER COLOUR NEGATIVE, and the only one that gives all
+#: three records at once.
+#:
+#: Columns as printed: sample, type, DIR coupler added to the mid-green
+#: layer, its level in g/m2, then Rr/Rn, Gg/Gn, Bb/Bn -- each the record's
+#: SEPARATION gamma divided by its NEUTRAL gamma. The patent states the
+#: mechanism in its own words at [0055]: "Without inhibition, the ratio
+#: would be one. With increasing inhibition due to inter-image effects, the
+#: ratio increases due to the reduction in neutral gamma."
+#:
+#: ⚠ THIS IS THE SAME QUANTITY US5273870A CALLS "the percentage steepening
+#: of color gradation during color separation exposure ... in relation to
+#: the color gradation established on exposure with white light", so the two
+#: sources are directly comparable once written the same way up:
+#: IIE % = (ratio - 1) x 100. Sample 101 is therefore (blue 38, green 73,
+#: red 14) in the units `_IIE_TIERS` uses.
+#:
+#: ⚠ AND WRITTEN THAT WAY UP THE TWO HOUSES DISAGREE ON THE SHAPE, which is
+#: the finding, not a transcription doubt. See the conflict note at
+#: `_IIE_TIERS`. Every value below was read off the 300 dpi render of page
+#: 12 of the owner's copy, PDF/PROFILES/PATENTS/EP0608959B1.pdf, not off the
+#: text layer.
+#:
+#: Sample 101 is the common control and the patent prints its row twice, once
+#: at the head of each half of the table. It is stored ONCE.
+_EP0608959_GAMMA_RATIOS: tuple[
+        tuple[int, str, str, float, float, float, float], ...] = (
+    # sample  type     coupler  g/m2    Rr/Rn  Gg/Gn  Bb/Bn
+    (101, "Comp", "none", 0.000, 1.14, 1.73, 1.38),
+    (102, "Comp", "D-4",  0.011, 1.20, 1.69, 1.38),
+    (103, "Comp", "D-4",  0.022, 1.26, 1.78, 1.38),
+    (104, "Inv",  "D-1",  0.009, 1.16, 1.74, 1.46),
+    (105, "Inv",  "D-1",  0.018, 1.18, 1.78, 1.56),
+    (106, "Inv",  "D-1",  0.027, 1.18, 1.77, 1.61))
+
+#: EP 0 608 959 B1, TABLE IV -- THE INTERIMAGE EFFECT IS NOT CONSTANT ALONG
+#: THE CHARACTERISTIC CURVE, and this is the only measurement in the corpus
+#: that shows it.
+#:
+#: Four coatings differing only in which green-sensitive layers carry the
+#: yellow-coloured magenta masking coupler, with the blue record's
+#: separation-over-neutral gamma ratio read in three separate exposure
+#: zones, all anchored on Dmin + 0.15:
+#:
+#:     "low"        from Dmin+0.15 to 0.40 logE slower
+#:     "mid"        from 0.40 logE slower to 1.1 logE slower
+#:     "mid_upper"  from 1.1 logE slower to 1.8 logE slower
+#:
+#: Sample 107 measures 1.10 / 1.53 / 1.33 on ONE record of ONE coating --
+#: a factor of 1.4 between the weakest and the strongest zone. The model's
+#: interimage stage applies a single coefficient per direction with no
+#: dependence on where the receiver sits, so this table is currently an
+#: UNMODELLED term for negatives. (The reversal branch has
+#: `density_weighting`, but that scales with the DONOR's density and is
+#: monotone; this profile is in the RECEIVER's own exposure zone and is not.)
+#: Recorded as queue item P66 rather than approximated.
+_EP0608959_ZONE_RATIOS: tuple[
+        tuple[int, str, float, float, float], ...] = (
+    # sample  masked layers  low   mid   mid_upper
+    (107, "H,M,L", 1.10, 1.53, 1.33),
+    (108, "M,L",   1.06, 1.46, 1.33),
+    (109, "H,L",   1.12, 1.44, 1.25),
+    (110, "H,M",   1.12, 1.49, 1.21))
+
+#: EP 0 324 471 A2 (Fuji), TABLE 1 -- TWENTY-ONE COLOUR NEGATIVE COATINGS WITH
+#: BOTH GAMMAS FOR ALL THREE RECORDS. The largest white-versus-separation set
+#: in this corpus by a wide margin, and the THIRD house to publish the
+#: quantity.
+#:
+#: ⚠ IT WAS IN THE CORPUS AND UNREADABLE FOR SIX DAYS. Printed pages 81-83 are
+#: image-only and sideways; the text layer returns 38 characters of noise for
+#: all three. Recovered 2026-09-17d by rendering them at 300 dpi rotated 90
+#: degrees and reading the render -- the same method queue P2 used on
+#: RU 2172512 C1, and the method §M.4 of NotFound.md now makes mandatory.
+#:
+#: Columns, as printed: sample, remark, then the MONOCHROMATIC gradients
+#: gamma^p_R / gamma^p_G / gamma^p_B, each measured at that record's own
+#: peak-sensitivity wavelength, and the WHITE-LIGHT gradients
+#: gamma_R / gamma_G / gamma_B under a 5500 K standard source. Both are
+#: least-squares lines through fog+0.4/0.6/0.8/1.0 read behind narrow-band
+#: filters (B 434 nm / 9 nm HW, G 550 nm / 8 nm HW, R 690 nm / 52 nm HW).
+#: The samples are camera colour NEGATIVES -- the white-light gammas sit at
+#: 0.58-0.84, and the patent photographs them and prints them on Fujicolor
+#: paper.
+#:
+#: ⚠ THIS IS THE SAME METRIC `_IIE_TIERS` STORES, so IIE % = (gamma^p/gamma
+#: - 1) x 100 per record needs no conversion. See `_IIE_TIERS` for what the
+#: twenty-one say about the ladder.
+_EP0324471_TABLE1: tuple[
+        tuple[int, str, float, float, float, float, float, float], ...] = (
+    # sample rem     g^p_R  g^p_G  g^p_B   g_R    g_G    g_B
+    (101, "Inv", 0.95, 0.95, 0.80, 0.61, 0.61, 0.70),
+    (102, "Cmp", 1.04, 1.10, 0.92, 0.67, 0.70, 0.84),
+    (103, "Cmp", 0.76, 0.95, 0.80, 0.60, 0.63, 0.70),
+    (104, "Cmp", 0.95, 0.95, 0.78, 0.79, 0.63, 0.68),
+    (105, "Cmp", 0.76, 0.93, 0.75, 0.62, 0.60, 0.71),
+    (106, "Cmp", 0.95, 0.93, 0.75, 0.75, 0.60, 0.70),
+    (107, "Cmp", 0.97, 0.78, 0.80, 0.60, 0.62, 0.69),
+    (108, "Cmp", 0.97, 0.95, 0.80, 0.60, 0.72, 0.69),
+    (109, "Cmp", 0.95, 0.78, 0.85, 0.63, 0.60, 0.72),
+    (110, "Cmp", 0.95, 0.95, 0.80, 0.63, 0.70, 0.71),
+    (111, "Cmp", 0.95, 0.92, 0.64, 0.61, 0.60, 0.67),
+    (112, "Cmp", 0.95, 0.92, 0.80, 0.61, 0.59, 0.81),
+    (113, "Cmp", 0.93, 0.92, 0.63, 0.60, 0.62, 0.70),
+    (114, "Cmp", 0.93, 0.92, 0.80, 0.59, 0.58, 0.80),
+    (115, "Inv", 1.16, 0.95, 0.80, 0.63, 0.60, 0.70),
+    (116, "Inv", 1.16, 0.90, 0.80, 0.60, 0.61, 0.67),
+    (117, "Inv", 0.90, 1.12, 0.80, 0.60, 0.62, 0.70),
+    (118, "Inv", 0.92, 1.13, 0.78, 0.59, 0.60, 0.71),
+    (119, "Inv", 0.95, 0.94, 0.78, 0.62, 0.60, 0.70),
+    (120, "Inv", 0.95, 0.95, 0.79, 0.60, 0.62, 0.70),
+    (121, "Inv", 0.92, 0.95, 0.82, 0.61, 0.60, 0.70))
+
+#: EP 0 324 471 A2, TABLE 1's second half -- THE ONLY DIRECTIONAL INTERIMAGE
+#: DATA IN THIS CORPUS FOR A COLOUR NEGATIVE, printed for four of the
+#: twenty-one coatings.
+#:
+#: IE(X/Y) is the patent's own measure: the density decrease in record X over
+#: 1.0 log E, measured from the log exposure giving fog+0.2 in DONOR record Y.
+#: So IE(R/G) is the effect of GREEN on RED and maps to this record's `a_rg`.
+#: Stored as `(sample, ie_r_from_g, ie_g_from_r, ie_g_from_b, ratio)` where
+#: `ratio` is the printed IE(R/B)/IE(G/B) column, from which the fourth
+#: directed value follows exactly: ie_r_from_b = ratio x ie_g_from_b.
+#:
+#: ⚠⚠ THE FOURTH IS THE ONE THAT MATTERS: BLUE ACTING ON RED IS MEASURED
+#: NOWHERE ELSE IN THIS CORPUS. US 6,746,834 TABLE 3 prints four of six
+#: directions and neither red->blue nor blue->red is among them, which is why
+#: `_IIE_DONOR_SPLIT` had to carry an assumption at v38. This table removes
+#: that assumption for the negative branch.
+_EP0324471_IE: tuple[tuple[int, float, float, float, float], ...] = (
+    # sample  IE(R/G)  IE(G/R)  IE(G/B)  IE(R/B)/IE(G/B)
+    (101, 0.22, 0.30, 0.20, 0.75),
+    (119, 0.14, 0.33, 0.22, 1.05),
+    (120, 0.27, 0.14, 0.35, 0.60),
+    (121, 0.20, 0.40, 0.13, 1.10))
+
+#: EP 1 033 620 A1 (Kodak), TABLE 2-1 -- seven scanning-oriented colour
+#: negative coatings, each with the spectral-sensitivity parameters the patent
+#: sets its claims on AND a measured CAPTURE COLOUR ERROR.
+#:
+#: ⚠ ALSO RECOVERED BY PAGE IMAGE, 2026-09-17d, and the row that asked for it
+#: (queue P33) named it "Table 3-1" after the sentence on printed page 45 that
+#: cites it. The table itself is headed TABLE 2-1; the reference and the
+#: caption disagree in the source. Stored under the caption.
+#:
+#: Columns: sample, remark, RU (red unit) peak nm, GU (green unit) peak nm,
+#: BU (blue unit) peak nm, GU half-peak bandwidth nm, GU relative sensitivity
+#: at 520 nm %, the wavelength where RU and GU are equally sensitive nm, that
+#: equal sensitivity as a fraction of maximum %, RU relative sensitivity at
+#: 560 nm %, and the capture colour error.
+#:
+#: ⚠ WHAT IT IS FOR. This is the only source in the corpus that puts a
+#: MEASURED COLOUR ERROR against a record's spectral SHAPE, and 110 stocks
+#: here carry a spectral sensitivity curve. The three inventive coatings
+#: (101, 103, 104) all sit at green bandwidth > 65 nm, 520 nm response >= 60 %
+#: and red peak <= 620 nm, and score 2.2-3.2; every coating that breaks one of
+#: those scores 7.5-14.5. It is a design rule with its own penalty attached,
+#: not a per-stock value -- these are patent coatings.
+_EP1033620_TABLE2_1: tuple[
+        tuple[int, str, int, int, int, int, int, int, int, int, float],
+        ...] = (
+    # smpl rem     RU   GU   BU  GUbw  GU520 eq_nm eq_%  RU560  err
+    (101, "Inv",  596, 540, 457, 73, 72, 572, 53, 29,  2.7),
+    (102, "Cmp",  625, 546, 472, 49, 45, 583, 18,  3, 10.0),
+    (103, "Inv",  592, 541, 471, 72, 73, 573, 51, 27,  3.2),
+    (104, "Inv",  593, 564, 453, 80, 69, 577, 57, 17,  2.2),
+    (105, "Cmp",  581, 546, 470, 26, 43, 555, 30, 47,  7.5),
+    (106, "Cmp",  592, 546, 458, 27, 42, 555, 45, 75, 12.0),
+    (107, "Cmp",  653, 541, 422, 70, 69, 582, 22,  4, 14.5))
+
+#: The spectral design window EP 1 033 620 A1 claims, and which its own
+#: TABLE 2-1 separates cleanly: `(name, lo, hi)` with None for an open end.
+#: Every inventive coating satisfies all three; every comparative breaks at
+#: least one.
+_EP1033620_WINDOWS: tuple[tuple[str, float | None, float | None], ...] = (
+    ("gu_half_peak_bandwidth_nm", 65.0, None),
+    ("gu_rel_sensitivity_520nm_pct", 60.0, None),
+    ("ru_peak_nm", None, 620.0))
+
+#: PROCESS ECP-2E, the nine-step colour print cycle, as «Using KODAK Kit
+#: Chemicals in Motion Picture Film Laboratories» prints it (queue P66).
+#:
+#: `(step, minutes, celsius, tolerance_celsius, replenish_ml_per_100ft)` with
+#: 0.0 where the manual states none. A wash or rinse carries a time and no
+#: temperature of its own.
+#:
+#: ⚠ IT IS STORED AS A REFERENCE CYCLE AND NOT COPIED ONTO A PRINT STOCK'S
+#: `processing`, AND THE REASON IS ONE LETTER. KODAK_2383_RELEASE's curves
+#: come from the 2015 ECP-2D edition of the 2383 sheet; this manual documents
+#: ECP-2**E**. The two are revisions of one process and this corpus holds no
+#: statement that their developer conditions are identical, so the stock
+#: carries the process its own source NAMES and not the times another
+#: document prints for a different revision. Recording the distinction is the
+#: point: it is the same error class as v36's reference_developer.
+_ECP_2E_CYCLE: tuple[
+        tuple[str, float, float, float, float], ...] = (
+    # step             min   degC   +/-    mL/100ft
+    ("developer",      3.00, 36.7, 0.1, 690.0),
+    ("stop",           0.67, 27.0, 1.0,   0.0),
+    ("wash",           0.67,  0.0, 0.0,   0.0),
+    ("ul_bleach",      1.00, 27.0, 1.0, 400.0),
+    ("wash",           0.67,  0.0, 0.0,   0.0),
+    ("fixer",          0.67, 27.0, 1.0,   0.0),
+    ("wash",           1.00,  0.0, 0.0,   0.0),
+    ("final_rinse",    0.17,  0.0, 0.0,   0.0),
+    ("dryer",          4.00, 57.0, 0.0,   0.0))
 
 #: US 3,672,898, claims -- spectral sensitivity ENVELOPE SHAPE for all three
 #: records, as `record -> (peak_nm, ((pct, short_nm, long_nm), ...))`.
@@ -1827,7 +2425,193 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 # curve describes; it is a property of the FAMILY, not of the profile's stored
 # ToneCurve, which on these stocks is a 1979 sheet. `ProcessingSpec.developer`
 # already claims the latter and must not be made to carry the former.
-SCHEMA_VERSION = 37
+#
+# --- v37 (2026-09-17) -------------------------------------------------------
+# See the P62/P63 harvest notes; no interimage change.
+#
+# --- v38 (2026-09-17) -------------------------------------------------------
+# NO NEW FIELD AND THE VERSION STILL MOVES, because the MEANING of six fields
+# that were already there has changed. `InterimageSpec.a_rg/a_rb/a_gr/a_gb/
+# a_br/a_bg` have carried a structural identity since v5 -- the two donors of
+# a receiver were always equal -- and a stored record could be read, and was
+# read by a guard, as if that identity were part of the schema. It is not part
+# of it any more.
+#
+# ⚠ WHAT FORCED IT IS A MEASUREMENT, NOT A PREFERENCE. US 6,746,834 TABLE 3
+# measures the green record receiving 0.10 from red and 0.21 from blue on one
+# coating: same receiver, same measurement, two donors a factor of 2.1 apart.
+# The equal split was adopted at v5 with the explicit reason that "no surveyed
+# patent measures one" -- that sentence was true when written and is false
+# now. `_IIE_DONOR_SPLIT` carries the derivation, including the one assumption
+# it needs (red->blue and blue->red are measured nowhere, so green's donor
+# strength is set level with blue's) and the factorised fit the data refused.
+#
+# ⚠ AND IT CLOSES A DEFECT THIS SUITE HAS BEEN PINNING SINCE v31. G-IIE-ASYM-rg
+# recorded that 72 of 108 stocks violated the patent's own IIEgr > IIErg
+# ordering, with the note that fixing it "needs its own pass with a deliberate
+# decision about magnitude". This is that pass; the count is 0 of 108 and the
+# guard is now an assertion. The magnitude decision is that there is none to
+# make: the per-receiver totals are untouched and only their split moves, so
+# every published IIE percentage the solver was fitted to is still reproduced
+# to the same tolerance. A neutral ramp is bit-identical; colours move.
+#
+# ⚠ ALSO HARVESTED, INTO THE MEASURED REFERENCE DATA SECTION:
+# EP 0 608 959 B1 TABLE III -- six complete twelve-layer colour negatives with
+# all three records' separation-over-neutral gamma ratios, the only such set
+# in the corpus and the second house to publish the quantity -- and TABLE IV,
+# which shows one record of one coating moving 1.10 / 1.53 / 1.33 across three
+# exposure zones. The tiers are NOT re-based on the Kodak numbers: they
+# contradict the directional data on the red record, and the conflict is
+# recorded at `_IIE_TIERS` and in NotFound.md rather than resolved by
+# preference. The zone dependence is unmodelled and is queue item P66.
+#
+# ⚠ AND ONE WRONG NUMBER WAS FOUND AND CORRECTED. `_US5262287_DLOGE` sample
+# 105 carried 0.00 for dloge_r_1.5 where the patent prints 0.01; the text
+# layer had dropped a trailing digit the difference-identity check did not
+# cover. Found by reading the page image, which is now the rule for every
+# numeric table harvested from a scan.
+#
+# --- v40 (2026-09-17e) ------------------------------------------------------
+# `SpectralSensitivity.log_s_c` (queue S1), `AntiHalationSpec.silver_g_per_m2`
+# and `.neutral` (queue P70), and four reference blocks.
+#
+# ⚠⚠ S1 IS THE SCHEMA CATCHING UP WITH A REFUSAL IT CAUSED.
+# doc/FUJI_FOURTH_LAYER.md has opened, since 2026-09-06f, with the sentence
+# "THIS FILE EXISTS BECAUSE THE DATABASE CANNOT HOLD WHAT IS IN IT": five Fuji
+# colour negatives draw FOUR sensitive layers, `SpectralSensitivity` had three
+# colour records, and the fourth was traced, dash-separated, checked at a 3 nm
+# peak spread across four independently calibrated panels -- and stored
+# nowhere. It is stored now, on the same grid as the three it was measured
+# with, and emitted to both engines with `AlgoSpectralHasFourthLayer` and
+# `AlgoSpectralFourthLayerPeakNm` to read it. ⚠ IT IS NOT INTEGRATED: a fourth
+# SENSITIVE layer feeds the same three dyes, and the taking path sums three
+# records and normalises over three.
+#
+# ⚠ P70 SWEPT THE 61-PATENT LIBRARY FOR AN ANTIHALATION OPTICAL DENSITY AND
+# THE RESULT IS A NEGATIVE, ASSERTED AS ONE. No document in the corpus states
+# an EXPOSURE-TIME optical density for an antihalation layer. What it states
+# is a colloidal-silver COATING WEIGHT -- 0.236 g Ag/m2 with 2.44 g gelatin,
+# on two independent twelve-layer negatives in EP 0 608 959 B1 -- and a bound
+# on the POST-PROCESSING RESIDUAL density, US 6,531,271's 0.6/0.3/0.1/0.05
+# Status M. Those are different quantities and `_AH_COATING_REFERENCE` keeps
+# them apart: a removable absorber is opaque during exposure and near-clear
+# afterwards.
+#
+# ⚠⚠ AND THE PAIR CONVICTS THE ESTIMATES BEFORE ANY FRAME IS SCANNED (P71).
+# Invert KODAK_VISION3_500T_5219 against CINESTILL_800T through the v39 gain
+# law and the rem-jet backing comes out at OD 0.272 / 0.218 / 0.199 -- neither
+# neutral, which carbon black is, nor opaque, which a rem-jet backing is. The
+# two hand-set triples cannot both be right. Pinned as G-V39-PAIR rather than
+# tuned away.
+#
+# ⚠ OOUE 1961 READ FURTHER (P72). Fig. 7's labelled schematic prints n ~ 1.5
+# and a critical angle of 42 degrees against the 42.51 this module computes
+# from its own index -- half a degree, by two independent routes. Fig. 8 is
+# the only PER-LAYER sharpness measurement in the corpus: the yellow, magenta
+# and cyan layers of one Fujicolor negative at 18.0 / 14.6 / 9.7 lines per mm
+# at R = 0.5, read by eye to +/- 1.5 and NOT transferred to any stock. Fig. 9
+# is the experimental licence for the engine's negative x print MTF chain.
+#
+# ⚠ ГОСТ 10691.6-88 READ BY OCR OFF ITS OWN RENDER (P34). The black-and-white
+# technical-film speed standard prints D_kr = 0.85 and 0.20 at K = 1 -- the
+# same pair conflict I-24 settled inside the 1991 COLOUR table, now appearing
+# in a second standard for a different material class.
+#
+# ⚠ AND THREE AUDITS LANDED AS EDITS. P47 relabelled 38 mask ladders whose
+# provenance is tier-1 and left 12 whose ladder is itself an estimate, taking
+# the pinned mislabel count 50 -> 12. P42 and P48 both returned NEGATIVES that
+# are now asserted rather than assumed.
+#
+# --- v39 (2026-09-17d) ------------------------------------------------------
+# FOUR CHANGES, AND THREE OF THEM EXIST BECAUSE A ROW'S OWN DIAGNOSIS WAS
+# WRONG.
+#
+# `DevelopmentPoint.film_format` (queue P54). The book holds 705 development
+# times its parser could not attribute, and the row blamed "a two-film table
+# split by halving the temperature list". Read from the page GEOMETRY instead
+# of the text layer, the real structure is three axes: two COLUMN groups that
+# are sometimes two films and sometimes two TANK SIZES, row sub-blocks
+# carrying a FILM FORMAT the schema had no field for, and a third vessel axis
+# in the row direction. Development points 1175 -> 1606.
+#
+# `ProcessingFamily.temperature_coeff_per_c` (queue P54). 179 time-temperature
+# series across 11 stocks fit d ln(t)/dT = -0.0854 median, time x0.43 per
+# +10 degC, DERIVED AT IMPORT from each stock's own points. AlgoControl.hpp's
+# `developmentCelsius` block said in its own words that it was waiting for a
+# time-temperature equivalence chart that was not borrowed from another
+# developer. This is that chart, fitted per stock, and the control is live in
+# the Python reference and both C++ engines.
+#
+# `PrintStock.processing` (queue P66). FilmProfile has carried a
+# ProcessingSpec since v1 and PrintStock carried none, so eleven positive
+# stocks held a curve with no statement of the chemistry behind it.
+# `_ECP_2E_CYCLE` stores the nine-step cycle the corpus already held and had
+# nowhere to put; the one stock whose own sheet names a process gets ECP-2D,
+# and the cycle is NOT copied onto it because the manual documents ECP-2E and
+# no document here says the two share a developer condition.
+#
+# `FilmProfile.anti_halation` + `base_fresnel` + `halation_gain_from_od`.
+# ⚠⚠ THIS SPLITS HALATION INTO THREE TIERS AND THE SPLIT IS THE POINT. Radii
+# have been geometry since v34; the GAINS are the last hand-set numbers on
+# the halation path -- 79 distinct triples across 114 stocks, none traceable.
+# Tier A is the optics of the support, COMPUTED from two refractive indices
+# the module already holds; Tier B is the antihalation layer as a physical
+# object, per film, measured or absent; Tier C is the model, derived. The
+# gain law is gain(lambda) = T_pack * 10^(-2*AH_OD(lambda)), the factor two
+# being the double pass, and under it the red halo stops being three chosen
+# numbers and becomes a consequence of an absorber's spectrum.
+# ⚠ TIER B IS POPULATED ON ZERO STOCKS AND THAT IS THE HONEST STATE -- the
+# corpus names a construction on 31 of 191 and an optical density on none.
+# Every render is bit-identical to a v38 one.
+# ⚠ ALSO HARVESTED: Ooue 1961 (Fuji Photo Film Research Laboratories), the
+# only published halation spatial scale in this corpus -- halation exposes at
+# 100-200 um, turbidity below 100 um -- which corroborates the total-internal-
+# reflection mechanism v34 assumes and gives the derivation a bound to be
+# checked against. EP 0 324 471 A2 TABLE 1 and EP 1 033 620 A1 TABLE 2-1 also
+# landed (queue P33), and the interimage donor split became class-keyed.
+# -- v44 (2026-09-18e, queue P73): THE 1931-1969 ANTIHALATION PATENT CHAIN --
+# Four patents, four houses, thirty-eight years, and they chain: US 3,445,231
+# cites US 2,182,794. What they settle is that `AntiHalationSpec.position` is
+# a different PHYSICAL SYSTEM per value and not a label -- a backing is capped
+# near 0.1-0.3 D because positives print through it, where an in-path absorber
+# runs to 2.0 D. `_AH_OD_BY_POSITION` + `ah_od_band_for()` hold that;
+# `_US2481770_HALATION_LADDER` is the only quantitative halation measurement
+# in this corpus and lets the model be checked rather than only fitted;
+# `emulsion_side_critical_angle()` adds the SECOND critical angle the model
+# never had; `_US3445231_INPACK_SPEED_LOSS` is the first measured cost of an
+# in-pack antihalation layer; and `_V34_BASE_OPTICS` gains a `nitrate` row,
+# the support every 1930s stock here was actually coated on.
+# Every render is bit-identical to a v43 one: no profile names nitrate, no
+# profile gains an optical density, and the new law has no data.
+SCHEMA_VERSION = 44
+
+
+# -- v43 (2026-09-18c, queues P12 / P39 / P13 / P40 / P41 / M1a): SIX ROWS
+# THAT NEEDED A CARRIER RATHER THAN A DOCUMENT -------------------------------
+# `_GOST_SPEED_CRITERIA` turns the five class criteria from a comment into an
+# EDITION-keyed table, with 9160-82 present and empty because nobody has read
+# it; `_GOST_1950S_CRITERION` stores Glafkides' pre-9160 reading beside it,
+# so the "conflict" is two revisions rather than two opinions (P12).
+# `_NIKFI_SPEED` keeps two stocks' only published speed in its own unit, with
+# no conversion invented (P39). `AgingSpec.magenta_coupler_class` plus
+# `_MAGENTA_LIGHT_FADE` make the magenta fade default era-keyed, because the
+# ranking INVERTS between the 1950s and 1980s coupler chemistries (P13).
+# `SubLayerSet` gives a colour record the offset sub-layers EP 0 083 377 A1
+# describes, and the law that sums them (P41). `PrintStock.reader_is_emulsion`
+# says whether a stock's own spectral sensitivity may serve as stage 12's
+# M_reader, which is the configuration question M1a was left holding.
+# Every render is bit-identical to a v42 one.
+
+
+# -- v42 (2026-09-18, queue P35): COLOUR PAPER GETS A SPECTRAL RECORD --------
+# `PaperSpectralRecord` + `PAPER_SPECTRA` + `paper_spectra_for()`, and
+# "reflection" joins `_DENSITY_GEOMETRIES`. Two records carry the Fujicolor
+# Crystal Archive spectral dye density and spectral sensitivity panels -- the
+# database's first spectral data of any kind for colour paper. The carrier is
+# new rather than reusing `PrintStock` because those bulletins print no
+# characteristic curve and `PrintStock` cannot exist without one; see that
+# class's docstring for why inventing one was refused a second time.
+# Every render is bit-identical to a v41 one.
 
 
 # ---------------------------------------------------------------------------
@@ -2672,6 +3456,31 @@ class MTFSpec:
     # -- schema v2 (DM-11); defaults are inert, see class docstring ----------
     resolving_power_lp_mm_lowc: float = 0.0
     resolving_power_lp_mm_highc: float = 0.0
+    # -- schema v41 (2026-09-18b), queue P11: THE LENS REGIME ----------------
+    #: ⚠⚠ THE TWO PAIRS ABOVE AND BELOW ARE NOT THE SAME MEASUREMENT AND MUST
+    #: NEVER BE WRITTEN INTO EACH OTHER. `_lowc` / `_highc` vary the TARGET
+    #: CONTRAST (1.6:1 and 1000:1) at a fixed optic; these two vary the OPTIC
+    #: at a fixed target. Glafkidès Vol. 1 §233, after Perrin and Hoadley,
+    #: publishes an ordinary Fuess lens against their apochromat «1381», and
+    #: the same emulsion reads 40 lines/mm on one and 70 on the other -- so a
+    #: figure copied from one axis into the other would be wrong by up to a
+    #: factor of two. Queue P11 was opened when exactly that copy was proposed
+    #: onto five stocks, three of which already carried a manufacturer figure.
+    resolving_power_lp_mm_fuess: float = 0.0
+    resolving_power_lp_mm_apo: float = 0.0
+    #: Which optic a resolving figure was read through, when the source says:
+    #: "" not stated, "fuess", "apochromat_1381", "vendor_unstated".
+    resolving_optic: str = ""
+    #: The target contrast it was read at, as the source writes it -- "1.6:1",
+    #: "1000:1", or "" when the source does not say.
+    resolving_target_contrast: str = ""
+    #: ⚠ AND THE DENSITY, WHICH NO SOURCE IN THIS CORPUS USED TO STATE AND
+    #: WHICH OOUE 1961 FIG. 5 SHOWS IS NOT OPTIONAL: resolving power rises,
+    #: peaks and falls with density, so a figure quoted without one is the PEAK
+    #: of that curve and belongs at D 0.70-1.05, not at D-min. 0.0 means the
+    #: source states none, and `_OOUE_1961_FIG5_PEAK_BAND` is then what it
+    #: means.
+    resolving_density: float = 0.0
     # -- schema v10 (C2, 2026-08-19): the ROLLOFF the renderer actually reads.
     # ⚠ THESE TWO SUPERSEDE mtf_tail_a / mtf_tail_f_exp BELOW ON EVIDENCE, and the
     # older pair is left in place rather than deleted so this note has something to
@@ -2839,6 +3648,1709 @@ class MTFSpec:
 # ---------------------------------------------------------------------------
 # Halation
 # ---------------------------------------------------------------------------
+#: Where an antihalation layer sits in the optical path (schema v39).
+#:
+#: ⚠ THIS IS A POSITION VOCABULARY AND NOT A CONSTRUCTION ONE.
+#: `EmulsionSpec.antihalation` already names the construction -- remjet,
+#: dyed_base, dyed_backing, dyed_undercoat, colloidal_ag, none. What that
+#: field does NOT say is where the absorber sits relative to the reflecting
+#: interface, and that is what decides the halo: light crosses a backing
+#: twice on the far side of the support, an undercoat twice on the near side,
+#: and an in-pack layer twice inside the emulsion where it also attenuates
+#: the direct image.
+_AH_POSITIONS = frozenset({
+    "backing", "undercoat", "in_pack", "in_base"})
+
+
+#: OOUE 1961 -- THE ONLY PUBLISHED NUMBER FOR THE HALATION SPATIAL SCALE IN
+#: THIS CORPUS, and the only source in it that separates halation from
+#: turbidity quantitatively.
+#:
+#: Ooue Shingo (大上進吾), Fuji Photo Film Research Laboratories, «Graininess
+#: and Sharpness of Photographic Film», テレビジョン (Television) vol. 15
+#: no. 8 (1961) pp. 464-468, section 3 «混濁度(turbidity)とハレーション
+#: (halation)». Same author as the granularity paper `ooue_1959_granularity`
+#: already reads; a different paper.
+#:
+#: Verbatim, translated: "The emulsion layer is semi-transparent, so part of
+#: the light passes through the layer, is TOTALLY INTERNALLY REFLECTED at the
+#: film-base / air interface, and exposes the emulsion layer from behind.
+#: This is the phenomenon called halation. ... The light reaching the
+#: emulsion by halation, in most films, gives its exposure at a distance of
+#: roughly 200-100 um from the point at which it passed through the emulsion
+#: layer. The spread of light by scattering and diffraction inside the
+#: emulsion layer (turbidity), on the other hand, exposes mainly within a
+#: range below 100 um."
+#:
+#: ⚠ WHAT IT CORROBORATES: the MECHANISM the v34 derivation assumes. A Fuji
+#: research laboratory in 1961 states total internal reflection at the
+#: base/air interface in as many words, which until now rested on Kodak's
+#: TI2497 wording plus two refractive indices.
+#:
+#: ⚠ WHAT IT DOES NOT SETTLE, AND THE TENSION IS RECORDED RATHER THAN
+#: RESOLVED. This database's derived inner annulus edge r_c = 2t/sqrt(n^2-1)
+#: is 183 um on a 100 um acetate base and 233 um on the 127 um base that 155
+#: of 191 stocks carry, against a stored median sigma_1 of 324 um. Ooue's
+#: band brackets the first and sits below the second. The two are not the
+#: same statistic -- r_c is a hard inner cutoff, Ooue's figure reads like a
+#: modal displacement, and a Gaussian sigma is neither -- so the numbers are
+#: not forced to agree. What the band IS good for is a BOUND: a halation
+#: model that puts its energy far outside 100-400 um now contradicts a
+#: published measurement. Asserted as G-V39-OOUE.
+_OOUE_1961_IMAGE_SPREAD: dict[str, tuple[float, float]] = {
+    #                     lo_um   hi_um
+    "halation_exposure": (100.0, 200.0),
+    "turbidity_spread": (0.0, 100.0),
+}
+_OOUE_1961_SOURCE = (
+    "Ooue Shingo, Fuji Photo Film Research Laboratories, «Graininess and "
+    "Sharpness of Photographic Film», Television (テレビジョン) 15(8), 1961, "
+    "pp. 464-468, section 3. Tier T1 for the mechanism and the band; the "
+    "figures in the paper are raster and are NOT traced.")
+
+
+#: The wavelengths the derived halation gain is evaluated at, one per
+#: record. Not the centroids of the taking sensitivities -- those vary per
+#: stock -- but the wavelengths at which an antihalation dye's absorption is
+#: conventionally quoted, so that a published OD triple can be read straight
+#: in.
+_HALATION_GAIN_LAMBDAS: tuple[float, float, float] = (650.0, 550.0, 450.0)
+
+
+#: WHAT THE PATENT LIBRARY ACTUALLY STATES ABOUT ANTIHALATION LAYERS
+#: (queue P70, 2026-09-17e). The sweep the row asked for, run over the 61
+#: patents on the owner's disk with the search terms it listed.
+#:
+#: ⚠⚠ THE RESULT IS A NEGATIVE ON THE QUANTITY THE GAIN LAW WANTS AND A
+#: POSITIVE ON TWO OTHERS, and the distinction is the whole value of the
+#: sweep. NOT ONE DOCUMENT IN THE CORPUS STATES AN EXPOSURE-TIME OPTICAL
+#: DENSITY FOR AN ANTIHALATION LAYER. What they state is:
+#:
+#:   (a) the SILVER COATING WEIGHT of a colloidal-silver layer, twice, on
+#:       complete twelve-layer colour negatives, and
+#:   (b) a bound on the PERMANENT -- that is, post-processing RESIDUAL --
+#:       antihalation density, which is a different quantity entirely.
+#:
+#: ⚠ (b) IS NOT (a) AND MUST NEVER BE WRITTEN INTO `optical_density`. A
+#: removable absorber -- rem-jet, or a bleachable dye -- is opaque during
+#: exposure and near-clear afterwards; its residual density says nothing
+#: about the OD that attenuated the halation ray. Kodak's own bound is a
+#: SCANNING-NOISE limit on what survives processing, and reading it as the
+#: absorber's working density would understate a rem-jet backing by orders
+#: of magnitude.
+#:
+#: Keyed by the `EmulsionSpec.antihalation` construction vocabulary.
+#: `(silver_g_per_m2, gelatin_g_per_m2, citation)` with 0.0 for "not stated".
+_AH_COATING_REFERENCE: dict[str, tuple[float, float, str]] = {
+    "colloidal_ag": (
+        0.236, 2.44,
+        "Eastman Kodak Company, EP 0 608 959 B1, «Photographic element and "
+        "process providing improved colour rendition», Layer 1 of both "
+        "Photographic Sample 101 (Example 1) and Photographic Sample 107 "
+        "(Example 2): «Antihalation Layer -- black colloidal silver sol "
+        "containing 0.236 g of silver, with 2.44 g gelatin». ⚠ TWO "
+        "INDEPENDENT TWELVE-LAYER COLOUR NEGATIVES IN ONE DOCUMENT COAT THE "
+        "SAME WEIGHT, which is what makes this a construction figure rather "
+        "than one coating's accident. Corroborated at a different weight by "
+        "US 2004/0175660 A1, whose 1st layer antihalation coats 0.30 g of "
+        "silver. ⚠ A COATING WEIGHT IS NOT AN OPTICAL DENSITY and is not "
+        "converted to one here -- see `AntiHalationSpec.silver_g_per_m2`."),
+    "remjet": (
+        0.0, 0.0,
+        "Named but never quantified anywhere in this corpus. US 6,077,654 "
+        "(Kodak) describes «rem-jet carbon black containing backing layer» "
+        "and «transparent polyethylene terephthalate support with rem-jet "
+        "carbon black pigmented» backing, and states no density, no "
+        "thickness and no carbon loading. ⚠ THIS IS THE CONSTRUCTION ON 17 "
+        "OF THE 31 STOCKS THAT NAME ONE, so the corpus's commonest "
+        "antihalation layer is also its least quantified."),
+}
+
+
+# ===========================================================================
+# QUEUE P70 -- THE ANTIHALATION OPTICAL DENSITY. FOUND 2026-09-18, AND THE
+# FIRST ATTEMPT THE SAME DAY GOT IT WRONG IN A WAY WORTH KEEPING.
+#
+# ⚠⚠ THE FIRST PASS SWEPT ALL 277 PDFs IN THE OWNER'S LIBRARY AND CONCLUDED
+# THAT NO DOCUMENT STATES A WORKING ANTIHALATION DENSITY. That sweep was
+# correct about the library and WRONG about the conclusion it drew from it, in
+# two separate ways, and both are recorded because each is a trap that will be
+# walked into again.
+#
+#   MISTAKE 1 -- THE LIBRARY IS NOT THE LITERATURE. The row asked for a search
+#   of the owner's 61 patents; the sweep widened that to all 277 documents on
+#   disk and then stopped, as though "not in the library" settled it. It does
+#   not. US 3,392,021, US 4,977,070 and US 4,581,323 all state the number and
+#   none of them is on disk.
+#
+#   MISTAKE 2 -- A CEILING WAS READ AS A FLOOR. US 6,531,271 says the permanent
+#   antihalation density is "UP TO about 0.6 ... more preferably up to about
+#   0.3 ... most preferably up to about 0.05". Those are UPPER BOUNDS ON WHAT
+#   MAY REMAIN after processing. The first pass read 0.6 as a level the working
+#   density had to EXCEED, computed 0.24-0.30 D from the coating weights, saw
+#   it fall "below" 0.6 and declared the conversion physically impossible. The
+#   comparison was meaningless: a residue ceiling constrains nothing about the
+#   density that did the absorbing, and 0.24-0.30 turns out to be very nearly
+#   the right answer.
+
+#: US 3,392,021 A, «Photographic anti-halation layers» -- THE DOCUMENT THAT
+#: PAIRS A CAREY LEA SILVER COVERAGE WITH THE DENSITY IT IS MEANT TO PRODUCE,
+#: which is what every other source in this corpus was missing.
+#:
+#: Verbatim: "Where it is desired to prepare an anti-halation layer for use
+#: with a material wherein the anti-halation layer will eventually be removed,
+#: A DENSITY AS HIGH AS 1. MAY BE DESIRABLE"; where the layer stays in the
+#: finished product, "DENSITIES AS LOW AS 0.15 MAY BE DESIRABLE". Coverage:
+#: "from about 5 mg. per square foot Carey Lea silver to 100 mg. per square
+#: foot".
+#: `(removable_od, retained_od)` and `(lo, hi)` g Ag/m2 -- 1 ft2 = 0.092903 m2.
+_US3392021_AH_OD: tuple[float, float] = (1.00, 0.15)
+_US3392021_AH_COVERAGE_G_M2: tuple[float, float] = (0.0538, 1.0764)
+
+#: US 4,977,070 A, «Transparentizable antihalation layers» -- the working
+#: density as a nested-preference ladder, the same shape US 6,531,271 uses for
+#: the residue. Transmission optical density TO WHITE LIGHT, before processing:
+#: at least 0.3, preferably 0.5, more preferably 1.0, most preferably 2.0.
+_US4977070_AH_WORKING_OD: tuple[float, ...] = (0.3, 0.5, 1.0, 2.0)
+
+#: US 4,581,323 A -- a TOPCOAT bleachable antihalation layer on a
+#: photothermographic element, a different construction and an order lower:
+#: "0.05 to 0.4, preferably 0.1 to 0.25". Kept so the two are never averaged.
+_US4581323_AH_TOPCOAT_OD: tuple[float, float] = (0.05, 0.40)
+_US4581323_AH_TOPCOAT_PREF: tuple[float, float] = (0.10, 0.25)
+
+#: Covering power IMPLIED by US 3,392,021's own two ranges -- density per gram
+#: of Carey Lea silver per square metre. The patent does not pair a density
+#: with a coverage, so this is a band and not a constant.
+#: 1.00 D at 1.0764 g/m2 -> 0.93; 0.15 D at 0.0538 g/m2 -> 2.79.
+_AH_COVERING_POWER_BAND_D_PER_G_M2: tuple[float, float] = (0.93, 2.79)
+
+#: Glafkides, «Photographic Chemistry» vol. 1: "the covering power of the
+#: silver can take a wide variety of values depending on the more or less
+#: spongy structure of the grains. AN AVERAGE VALUE IS 1 g OF METAL PER m2 FOR
+#: A DENSITY OF 1." Mees, «The Theory of the Photographic Process», Table XII
+#: measures the photometric equivalent P on three real films at 0.013-0.022 g
+#: per 100 cm2 per unit density, i.e. a covering power near 0.5 D per g/m2,
+#: and states the scaling law: "the photometric equivalent is proportional to
+#: the diameter of the silver grains ... its value decreases with decreasing
+#: size of grain", so covering power RISES as the silver gets finer.
+#:
+#: ⚠ ALL THREE AGREE TO WITHIN A FACTOR OF ABOUT THREE -- Mees 0.5, Glafkides
+#: 1.0, US 3,392,021's Carey Lea band 0.93-2.79 -- with the colloidal sol at
+#: the high end exactly as Mees's grain-size law predicts. The first pass
+#: argued that a sol must be one to TWO ORDERS more covering than developed
+#: silver and therefore that no conversion was licensed; the measured band says
+#: the factor is two to five, and the conversion is licensed.
+_GLAFKIDES_COVERING_POWER_D_PER_G_M2: float = 1.0
+_MEES_COVERING_POWER_D_PER_G_M2: float = 0.5
+
+#: The coating weights, now four, as `(g Ag/m2, source)`.
+_AH_SILVER_COATING_WEIGHTS: tuple[tuple[float, str], ...] = (
+    (0.150, "Eastman Kodak, US 5,856,078 A, antihalation UNDERCOAT of "
+            "Examples 1-3: «filamentary metallic silver (0.15 g/m2)» -- and "
+            "the word FILAMENTARY matters, because that is the form Glafkides "
+            "and Mees measured their covering power on"),
+    (0.236, "Eastman Kodak, EP 0 608 959 B1, Layer 1 of Samples 101 and 107"),
+    (0.250, "Fuji Photo Film, US 6,746,834 B2, 1st layer: «Antihalation layer "
+            "-- Black colloidal silver 0.25 g, Gelatin 2.40 g»"),
+    (0.300, "US 2004/0175660 A1, 1st layer antihalation"),
+)
+
+#: ⚠⚠ THE ANSWER QUEUE P70 ASKED FOR, AS A PER-CONSTRUCTION DEFAULT -- which is
+#: the form the row itself says a patent can license, "never a per-film value".
+#: Three independent routes and they agree:
+#:
+#:   1. STATED, US 3,392,021: a removable anti-halation layer wants a density
+#:      as high as 1.0; one that stays in the film, as low as 0.15.
+#:   2. STATED, US 4,977,070: at least 0.3, preferably 0.5, 1.0, 2.0.
+#:   3. DERIVED, from four coating weights against the covering-power band:
+#:      0.15 g/m2 -> 0.14-0.42 D, 0.236 -> 0.22-0.66, 0.25 -> 0.23-0.70,
+#:      0.30 -> 0.28-0.84.
+#:
+#: All three land inside 0.15-2.0 D and the derived values sit inside the two
+#: stated ranges, so the coating weights this corpus already held were always
+#: consistent with the published densities -- nobody had the second half of the
+#: conversion. `(low, typical_removable, high)`.
+_AH_WORKING_OD_DEFAULT: dict[str, tuple[float, float, float]] = {
+    "colloidal_ag": (0.15, 1.00, 2.00),
+    "dyed_undercoat": (0.15, 1.00, 2.00),
+}
+#: ⚠ AND IT IS STILL NOT WRITTEN ONTO ANY PROFILE, FOR A REASON THAT IS NOW
+#: QUEUE P71'S AND NOT P70'S -- but not the reason first written here. The
+#: earlier text said the hand-set gains and the law were on different scales;
+#: they are not (stage 5's kernel conserves energy, so the engine's gain is a
+#: scattered FRACTION and the law's output is a transmission -- one scale, one
+#: ceiling of 1.0). The real gate is the CONSTRUCTION SPLIT: this density is a
+#: default for an absorber IN the optical path, and 17 of the 31 stocks that
+#: name a construction carry a rem-jet BACKING, which the law now refuses
+#: because a backing removes the reflection rather than attenuating the
+#: returning ray. Writing an in-path default onto a backing stock would be the
+#: same category error, one field further along.
+_AH_OD_WRITTEN_TO_PROFILES: bool = False
+#: Superseded name kept so nothing silently reads the old verdict.
+_AH_OD_FROM_COATING_LICENSED: bool = True
+
+#: Glafkides vol. 1, on reversal-film construction: "When an under-layer forms
+#: the anti-halo layer the colouring matter is usually colloidal silver,
+#: THICKNESS 2 µ." A per-construction default, written onto no profile.
+_AH_LAYER_THICKNESS_UM: dict[str, float] = {"colloidal_ag": 2.0}
+
+#: US 6,531,271 (Kodak, Szajewski & Irving) -- the PERMANENT antihalation
+#: density ladder, as four nested preferences. Status M density, stated
+#: identically for blue, green and red, i.e. treated as neutral.
+#:
+#: Verbatim: "The incorporated permanent antihalation density is up to about
+#: 0.6 in blue, green or red density, more preferably up to about 0.3 in
+#: blue, green or red density, even more preferably up to about 0.1 in blue,
+#: green or red density and most preferably up to about 0.05 in blue, green
+#: or red Status M density."
+#:
+#: ⚠ READ WHAT IT BOUNDS. This is what REMAINS after processing, and the
+#: patent's own reason for limiting it is scanning noise -- "limiting the
+#: amount of color masking couplers, permanent antihalation density and
+#: incorporated permanent Dmin adjusting dyes serves to reduce the optical
+#: density of the films, after processing, in the 350 to 750 nm range". It
+#: belongs to `ToneCurve.dmin`'s world, not to the halation gain's.
+#: ГОСТ 10691.6-88 -- THE BLACK-AND-WHITE TECHNICAL-FILM SPEED STANDARD,
+#: READ 2026-09-17e (queue P34).
+#:
+#: ⚠ THE FILE HAS NO TEXT LAYER AT ALL and the row said so; it is read here
+#: by rendering each of its six pages at 300 dpi and OCR-ing the render with
+#: a Russian model, the same route the 1956 Kodak plates took. Its companion
+#: ⚠ CORRECTED 2026-09-18: this comment used to read "ГОСТ 10691.0-84 is on
+#: the same disk under a Cyrillic path the staging bridge will not carry,
+#: which is the half of this row that stays open". It is READ -- see
+#: `_GOST_10691_0_SOURCE` below. The alphabet was never the problem: that copy
+#: is named with its full 232-character Russian title, about 330 bytes in
+#: UTF-8 against a 255-byte limit on one path component, and the same library
+#: holds the whole booklet under the short name «МАТЕРИАЛЫ ФОТОГРАФИЧЕСКИЕ».
+#:
+#: WHAT IT IS. «Пленки черно-белые фототехнические, пленки для научных
+#: исследований и промышленных целей. Метод определения чисел
+#: светочувствительности», in force 01.01.90. It is the BLACK-AND-WHITE
+#: companion to ГОСТ 9160-91, whose five colour criteria this module already
+#: holds in `_GOST_9160_SPEED`, and it applies to a material class 9160 does
+#: not cover: phototechnical films and films for scientific and industrial
+#: use.
+#:
+#: THE LAW, verbatim in structure: S = K / H_kr, where H_kr is the exposure
+#: reaching the density that exceeds D_min by the speed criterion D_kr. ⚠ THE
+#: STANDARD EXPLICITLY PERMITS FOG DENSITY D_0 IN PLACE OF D_min, which is a
+#: tolerance this project's own criterion notes should carry.
+#:
+#: ⚠⚠ AND IT ADDS TWO CRITERION ROWS THAT ГОСТ 9160-91 DOES NOT HAVE, which
+#: is what makes it worth reading rather than merely citing: D_kr = 0.85 and
+#: D_kr = 0.20, both at K = 1, with the choice named per material in that
+#: material's own ТУ. Conflict I-24 was settled at v31 by showing that
+#: Glafkides' fog+0.2 and RU 2172512 C1's fog+0.85 are two rows of one 1991
+#: colour table; this is a SECOND standard, for a different material class,
+#: printing the same two numbers again. The pair is not a 9160 peculiarity.
+#:
+#: `(D_kr, K)`; the standard also tabulates the speed-number lattice for
+#: K = 1.0 and K = 10 against log H_kr.
+#: «GEVAERT Manual of Photography» -- THE STILL-FILM CATALOGUE, DECODED BY ITS
+#: OWN ARITHMETIC (queue P46, 2026-09-17e).
+#:
+#: ⚠⚠ THE ROW SAID "EVERY DIGIT NEEDS A PAGE-IMAGE READ" AND IT TURNED OUT
+#: NOT TO. The text layer mangles every resolving power -- "go lines/mm" for
+#: 90, "gs" for 95, "r 10" for 110, "1 25" for 125, "I OO" for 100, "2,goo"
+#: for 2,900 -- so transcribing from it would enter wrong numbers with high
+#: confidence, exactly as the row warned. But Gevaert print each figure
+#: TWICE, once in lines/mm and once in lines/inch, and the second copy
+#: survives the OCR intact. Every value below is recovered by dividing the
+#: lines/inch figure by 25.4 and rounding, and every one lands within 1.1 of
+#: a round number: 3,200 -> 126.0 -> 125; 2,900 -> 114.2 -> 115; 2,800 ->
+#: 110.2 -> 110; 2,550 -> 100.4 -> 100; 2,400 -> 94.5 -> 95; 2,300 -> 90.6
+#: -> 90. ⚠ THIS IS THE SAME IDIOM `_US5262287_DLOGE` USES -- a table that
+#: prints a quantity twice decodes itself -- and it is stronger than an eye
+#: read because the arithmetic can be checked.
+#:
+#: ⚠ AND THE SPEED PAIRS CARRY A SECOND DECODER. Every DIN figure is printed
+#: beside its ASA partner, and the pairs sit on the standard ladder: 17/40,
+#: 22/125, 25/250, 27/400, 19/64, 13/16, 10/8. A mangled DIN is recoverable
+#: from its ASA and vice versa, and all seven pairs agree.
+#:
+#: ⚠⚠ NOT ONE OF THESE BECOMES A PROFILE, AND THE REASON IS THE ROW'S OWN:
+#: there is no overlap with the seven Gevaert stocks this database holds --
+#: those are all CINE and this catalogue is still photography -- so nothing
+#: can be corrected, only added. And nothing can be added either, because the
+#: manual prints NO CHARACTERISTIC CURVE of any kind. A resolving power and a
+#: speed do not make a profile. What this table is for is the class it
+#: documents: it is the first Gevaert still-film resolving power in the
+#: corpus and the first dual daylight/artificial speed pair on any Gevaert
+#: material.
+#:
+#: `(product, format, resolving_power_lp_mm, lines_per_inch_as_printed,
+#:   din_daylight, asa_daylight, din_artificial, asa_artificial)`; 0 where
+#: the entry states none.
+_GEVAERT_MANUAL_CATALOGUE: tuple[
+        tuple[str, str, int, int, int, int, int, int], ...] = (
+    # -- roll and 35 mm, p189
+    ("Gevapan 27", "roll/35mm",       125, 3200, 17,  40, 0,  0),
+    ("Gevapan 30", "roll",            110, 2800, 22, 125, 0,  0),
+    ("Gevapan 30", "miniature",       115, 2900, 22, 125, 0,  0),
+    # -- sheet, p190
+    ("Gevapan 33", "roll",             95, 2400, 25, 250, 0,  0),
+    ("Gevapan 33", "miniature",       100, 2550, 25, 250, 0,  0),
+    ("Gevapan 36", "roll",             90, 2300, 27, 400, 0,  0),
+    ("Gevapan 36", "miniature",        95, 2400, 27, 400, 0,  0),
+    # -- plates, p191-192. The two entries carrying an ARTIFICIAL-LIGHT pair
+    #    are the ones whose sensitising is not panchromatic-neutral; Gevaert
+    #    print both settings only where they differ.
+    ("plate A",    "plate",            90, 2300, 22, 125, 19, 64),
+    ("plate B",    "plate",            90, 2300, 22, 125, 0,  0),
+    ("plate C",    "plate",            90, 2300, 25, 250, 0,  0),
+    ("plate D",    "plate",            90, 2300, 27, 400, 0,  0),
+    ("plate E",    "plate",            90, 2300, 22, 125, 19, 64),
+    ("plate F",    "plate",            95, 2400, 22, 125, 0,  0),
+    ("plate G",    "plate",            90, 2300, 25, 250, 0,  0),
+    ("plate H",    "plate",            90, 2300, 27, 400, 0,  0),
+    ("plate J",    "plate",            90, 2300, 13,  16, 10,  8),
+)
+#: ⚠ THE PLATE ROWS ARE LETTERED, NOT NAMED, AND THAT IS DELIBERATE. The
+#: headings on pp.191-192 are set as spaced capitals -- "' G e v a p a n 3 0
+#: '" -- and the OCR merges several of them with the body text, so which
+#: resolving power belongs to which plate cannot be established from the text
+#: layer with the certainty the lines/inch decoder gives the NUMBERS. The
+#: values are therefore stored with their page order and without a product
+#: name invented for them. Closing that needs the page images, and it buys
+#: only a label.
+_GEVAERT_MANUAL_SOURCE = (
+    "A. H. S. Craeybeckx, «GEVAERT Manual of Photography», 492 pp, "
+    "pp.188-192. Tier T1, the manufacturer's own catalogue. Resolving powers "
+    "recovered from the lines/inch column printed beside each lines/mm "
+    "figure; speeds cross-checked DIN against ASA. Queue P46.")
+#: The manual's own statement about the sheet-film class, p190, which is the
+#: only antihalation statement in the corpus that covers a whole product line:
+#: "All Gevaert sheet films are provided with a very efficient anti-halation
+#: layer." ⚠ A QUALITATIVE CLASS STATEMENT AND NOT A DENSITY -- it names the
+#: construction for a line this database holds no member of, and it is
+#: recorded beside `_AH_COATING_REFERENCE` for that reason.
+_GEVAERT_SHEET_ANTIHALATION = True
+
+
+#: OOUE 1961 FIGURE 7 -- THE LABELLED SCHEMATIC, AND IT CARRIES FOUR NUMBERS
+#: THE PAPER'S TEXT DOES NOT (queue P72, 2026-09-17e).
+#:
+#: 第7図 「混濁度とハレーションの原理図」 draws the ray path in section and
+#: prints its dimensions on the drawing: emulsion layer 10-20 um, film base
+#: 100-150 um, n ~ 1.5, and the critical angle marked 約42度 -- "about 42
+#: degrees".
+#:
+#: ⚠⚠ THE 42 DEGREES IS THE CORROBORATION THAT MATTERS. This module computes
+#: the critical angle for acetate from its own stored index as 42.51 degrees
+#: (`base_fresnel(1.48)`), by Snell's law and nothing else. A Fuji research
+#: laboratory drew 42 on the same geometry in 1961. Two independent routes to
+#: within half a degree, and the second one is a picture of the mechanism the
+#: v34 derivation assumes.
+#:
+#: ⚠ AND THE FIGURE'S OWN BASE RANGE DOES NOT REPRODUCE THE PAPER'S OWN
+#: HALATION BAND, which is worth recording because it settles what that band
+#: is. r_c = 2t/sqrt(n^2-1) over Fig. 7's 100-150 um base gives 183-275 um,
+#: while the text states the halation exposure lands at 100-200 um. The two
+#: cannot both be an inner cutoff; the text's figure must be a modal or
+#: typical displacement. That is exactly the reading `_OOUE_1961_IMAGE_SPREAD`
+#: already assumed, and it is now supported by the paper disagreeing with
+#: itself rather than by this project's preference.
+_OOUE_1961_GEOMETRY: dict[str, tuple[float, float]] = {
+    "emulsion_um": (10.0, 20.0),
+    "base_um": (100.0, 150.0),
+    "refractive_index": (1.5, 1.5),
+    "critical_angle_deg": (42.0, 42.0),
+}
+
+#: OOUE 1961 FIGURE 8 -- the response functions of six materials, and the ONLY
+#: PER-LAYER SHARPNESS MEASUREMENT IN THIS CORPUS.
+#:
+#: Curves, as the caption names them: 1 Neopan SS, 2 process film, 3 indirect
+#: X-ray film, and then the three that matter -- 4, 5 and 6 are the YELLOW,
+#: MAGENTA and CYAN layers of one Fujicolor negative film. Abscissa 0-30
+#: lines/mm, ordinate R(u) 0-1.
+#:
+#: ⚠⚠ RESOLUTION FALLS WITH LAYER DEPTH, AND THIS IS THE ONLY PLACE THE
+#: DATABASE CAN SEE IT. `MTFSpec.f50_r/g/b` are EQUAL on every one of the 191
+#: stocks; the yellow layer is on top, the cyan at the bottom, and Fuji
+#: measured them 1.8x apart.
+#:
+#: ⚠ READ BY EYE OFF A 600 dpi RENDER AND LABELLED AS SUCH. These are NOT a
+#: tracer's output: the frequency at R = 0.5 is read against the printed tick
+#: ladder to about +/- 1.5 lines/mm, which is why the ORDERING is what this
+#: entry is for and the absolute values carry their uncertainty with them.
+#: `(name, f50_lines_per_mm)`; the reading uncertainty is
+#: `_OOUE_1961_FIG8_READ_UNCERTAINTY`.
+_OOUE_1961_FIG8: tuple[tuple[int, str, float], ...] = (
+    (1, "Neopan SS", 25.4),
+    (2, "process film", 25.0),
+    (3, "indirect X-ray film", 16.7),
+    (4, "Fujicolor negative, YELLOW layer", 18.0),
+    (5, "Fujicolor negative, MAGENTA layer", 14.6),
+    (6, "Fujicolor negative, CYAN layer", 9.7),
+)
+_OOUE_1961_FIG8_READ_UNCERTAINTY = 1.5     # lines/mm, by eye
+
+#: OOUE 1961 FIGURE 9 -- the cascade proof, as a statement rather than a
+#: trace. Four curves: a the negative's response function, b the positive's,
+#: c the combination CALCULATED as the product a x b, and d the combination
+#: MEASURED. c and d coincide on the page.
+#:
+#: ⚠ THIS IS THE EXPERIMENTAL LICENCE FOR THE ENGINE'S NEGATIVE x PRINT MTF
+#: CHAIN, and the paper states the generalisation in words: a system of more
+#: stages still multiplies, "the same as in an electrical circuit". The
+#: project multiplies stage transfer functions and had no measured
+#: justification on file for doing so.
+_OOUE_1961_CASCADE_PROVEN = True
+
+
+#: Ooue 1961 第5図 (Fig. 5) -- RESOLVING POWER AGAINST DENSITY, traced
+#: 2026-09-18 (queue P72, and it is the figure queue P11 is about).
+#:
+#: ⚠⚠ RESOLVING POWER IS NOT MONOTONE IN DENSITY AND IT IS NOT A PROPERTY OF A
+#: FILM ALONE -- it rises, peaks and falls, and this corpus stores ONE number
+#: per stock with no density attached to it. Ooue's own sentence beside the
+#: figure: 解像力は特定の濃度において極大を示す ("resolving power shows a maximum
+#: at a particular density"). So a published resolving power with no stated
+#: density is the PEAK of a curve like these, and the density it belongs to is
+#: 0.7-1.0, not D-min.
+#:
+#: Three materials, each with its developer, as `(density, lines/mm)` at 0.05 D
+#: over the span actually traced. Axis calibration from the frame's own ticks:
+#: x 0.0-1.5 D at 0.5 intervals (measured spacings 431 / 434 / 428 px), y
+#: 0-200 lines/mm at 50 intervals (212 / 211 / 210 / 210 px).
+#:
+#: ⚠ THE CHECK, AND IT IS THE PAPER'S OWN PROSE RATHER THAN A REPEATED COLUMN.
+#: Ooue states that a THINNER emulsion reaches a HIGHER maximum but loses
+#: resolving power FASTER as density rises. The three traces reproduce both
+#: orderings without being fitted to them: peaks 180 > 103 > 53 lines/mm in
+#: the order Minicopy > Neopan SS > direct X-ray film, which is the order of
+#: increasing coating thickness, and the fall from peak to the right-hand end
+#: of each trace is 154 > 12 > 13 lines/mm over comparable density intervals,
+#: steepest on the thinnest coating.
+_OOUE_1961_FIG5: dict[str, tuple[tuple[float, float], ...]] = {
+    "minicopy_copinal_1_1": (
+        (0.10, 64.8), (0.15, 91.2), (0.20, 110.9), (0.25, 125.4),
+        (0.30, 137.6), (0.35, 148.5), (0.40, 157.7), (0.45, 164.8),
+        (0.50, 169.7), (0.55, 173.8), (0.60, 176.7), (0.65, 178.8),
+        (0.70, 180.0), (0.75, 180.0), (0.80, 178.3), (0.85, 174.1),
+        (0.90, 168.1), (0.95, 160.4), (1.00, 150.8), (1.05, 139.6),
+        (1.10, 125.3), (1.15, 108.7), (1.20, 89.6), (1.25, 67.9),
+        (1.30, 43.1), (1.35, 26.2)),
+    "neopan_ss_microfine": (
+        (0.30, 58.0), (0.35, 63.1), (0.40, 70.0), (0.45, 77.8),
+        (0.50, 83.6), (0.55, 89.2), (0.60, 94.5), (0.65, 97.7),
+        (0.70, 100.5), (0.75, 102.3), (0.80, 102.8), (0.85, 101.3),
+        (0.90, 98.7), (0.95, 94.3), (1.00, 89.5)),
+    "xray_direct_rendol": (
+        (0.65, 35.2), (0.70, 39.3), (0.75, 42.5), (0.80, 45.9),
+        (0.85, 48.2), (0.90, 49.7), (0.95, 50.4), (1.00, 49.8),
+        (1.05, 50.4), (1.10, 46.3), (1.15, 43.8), (1.20, 41.5),
+        (1.25, 39.7)),
+}
+#: The maximum of each trace, as `(density, lines/mm)`. ⚠ THIS IS THE NUMBER A
+#: DATA SHEET QUOTES when it prints a resolving power without a density.
+_OOUE_1961_FIG5_PEAKS: dict[str, tuple[float, float]] = {
+    "minicopy_copinal_1_1": (0.70, 180.0),
+    "neopan_ss_microfine": (0.80, 102.8),
+    "xray_direct_rendol": (1.05, 50.4),
+}
+#: The band the three maxima fall in. A resolving power read off a data sheet
+#: belongs HERE and not at D-min, which is the ambiguity queue P11 records.
+_OOUE_1961_FIG5_PEAK_BAND: tuple[float, float] = (0.70, 1.05)
+#: ⚠ AND IT IS NOT WIRED. Nothing on the render path makes resolving power a
+#: function of density: `MTFSpec` stores one f50 triple and one resolving power
+#: pair per stock. This table is stored, guarded and INERT, in the same state
+#: `AntiHalationSpec` is in -- in the database, not yet in the algorithm --
+#: because wiring it would need a density-dependent MTF stage and a second
+#: measurement to calibrate the shape on a stock this project actually holds.
+#: Ooue's three materials are a 1961 Minicopy, a Neopan SS and an X-ray film,
+#: and only the Neopan has a descendant here.
+_OOUE_1961_FIG5_WIRED: bool = False
+
+
+_GOST_10691_6_CRITERIA: tuple[tuple[float, float], ...] = ((0.85, 1.0),
+                                                           (0.20, 1.0))
+#: The rounding rule, and its own published amendment. The original text said
+#: speeds are rounded to numbers CLOSE TO the members of a geometric
+#: progression; ИУС No. 1, 1990 replaces that with rounding to the MEMBERS
+#: themselves, and moves the rule for intermediate values into each
+#: material's ТУ. ⚠ THE AMENDMENT IS PRINTED ON THE STANDARD'S OWN SECOND
+#: PAGE and is transcribed because the uncorrected wording would license a
+#: tolerance the corrected one refuses.
+_GOST_10691_6_ROUNDING = (
+    "members of a geometric progression (ИУС No. 1, 1990 amendment; the "
+    "original wording read «close to» and was corrected)")
+_GOST_10691_6_SOURCE = (
+    "ГОСТ 10691.6-88, «Пленки черно-белые фототехнические, пленки для "
+    "научных исследований и промышленных целей. Метод определения чисел "
+    "светочувствительности», in force 01.01.90. Tier T1, a state standard. "
+    "⚠ NO TEXT LAYER: read by 300 dpi render plus Russian OCR, queue P34.")
+
+
+# ===========================================================================
+# ГОСТ 10691.0-84 -- the densitometry base standard ГОСТ 9160-91 delegates to
+# (queue P34, read 2026-09-18)
+#
+# ⚠ THE ROW SAID THIS DOCUMENT COULD NOT BE STAGED "BECAUSE THE FILE NAME IS
+# CYRILLIC". It is not the alphabet. The file is named with its full 232-
+# character Russian title, which is about 330 BYTES in UTF-8 against a 255-byte
+# limit on a path component, so the transfer completed and the write did not.
+# The same library holds the whole ГОСТ 10691.0-84 -- 10691.4-84 booklet under
+# the short name «МАТЕРИАЛЫ ФОТОГРАФИЧЕСКИЕ.pdf», 14 pages WITH a text layer,
+# and that copy read first time. ⚠ A BLOCKER THAT NAMES A MECHANISM IS MAKING A
+# CLAIM ABOUT THE MECHANISM, and this one was wrong twice over: wrong about the
+# cause, and wrong that the document was out of reach at all.
+#
+# ⚠ AND BOTH TABLES DECODE THEMSELVES, WHICH IS WHY THEY COULD BE TAKEN FROM A
+# 1984 SCAN AT ALL. Each prints the densitometer's response as the SUM of two
+# published columns -- a receiver term and a source term -- so every row is
+# checked by its own arithmetic before it is believed, and Table 1's receiver
+# column is CIE 1924 V(λ) shifted by a constant, which is an invariant this
+# project already holds independently in `kodak_1956_spectro.V_LAMBDA`.
+
+#: §2.3.3 Table 1 -- VISUAL diffuse density, 400-700 nm at 20 nm, as
+#: `(nm, lg V(λ)_rel, lg E(λ)_rel at 3000 K, lg S(λ)_rel of the densitometer)`.
+#: The third column is the sum of the first two, on every row.
+_GOST_10691_0_VISUAL: tuple[tuple[int, float, float, float], ...] = (
+    (400, 0.00, 0.00, 0.00), (420, 1.00, 0.14, 1.14),
+    (440, 1.76, 0.27, 2.03), (460, 2.18, 0.38, 2.56),
+    (480, 2.54, 0.47, 3.01), (500, 2.91, 0.56, 3.47),
+    (520, 3.25, 0.63, 3.88), (540, 3.38, 0.70, 4.08),
+    (560, 3.40, 0.76, 4.16), (580, 3.34, 0.81, 4.15),
+    (600, 3.20, 0.86, 4.06), (620, 2.98, 0.90, 3.88),
+    (640, 2.64, 0.93, 3.57), (660, 2.19, 0.96, 3.15),
+    (680, 1.63, 0.99, 2.62), (700, 1.01, 1.02, 2.03),
+)
+#: The constant the standard's own receiver column is V(λ) shifted by --
+#: lg V(λ) + this reproduces column 2 of Table 1. Derived, not printed.
+_GOST_10691_0_VISUAL_OFFSET: float = 3.40
+
+#: §2.3.4 Table 2 -- COPY (printing) diffuse density, 340-540 nm at 10 nm, as
+#: `(nm, lg S(λ)_rel of a typical UNSENSITISED silver-halide material,
+#:   lg E(λ)_rel at 3000 K, at 3200 K, lg S_densitometer 3000 K, 3200 K)`.
+#: ⚠ THE RECEIVER HERE IS NOT AN EYE AND NOT A PHOTOCELL -- it is the PRINTING
+#: MATERIAL, which is why this metric exists at all: a copying density is the
+#: density the next emulsion in the chain sees, and it is blind above 540 nm.
+_GOST_10691_0_COPY: tuple[tuple[int, float, float, float, float, float], ...] = (
+    (340, 2.00, 0.00, 0.00, 2.00, 2.00), (350, 3.94, 0.11, 0.10, 4.05, 4.04),
+    (360, 4.77, 0.22, 0.19, 4.99, 4.96), (370, 4.94, 0.31, 0.28, 5.25, 5.22),
+    (380, 5.00, 0.40, 0.36, 5.40, 5.36), (390, 5.00, 0.48, 0.44, 5.48, 5.44),
+    (400, 4.98, 0.56, 0.51, 5.54, 5.49), (410, 4.94, 0.64, 0.57, 5.58, 5.51),
+    (420, 4.90, 0.71, 0.63, 5.61, 5.53), (430, 4.84, 0.77, 0.69, 5.61, 5.53),
+    (440, 4.76, 0.83, 0.74, 5.59, 5.50), (450, 4.66, 0.89, 0.79, 5.55, 5.45),
+    (460, 4.52, 0.94, 0.84, 5.46, 5.36), (470, 4.35, 0.99, 0.89, 5.34, 5.24),
+    (480, 4.13, 1.04, 0.93, 5.17, 5.05), (490, 3.85, 1.08, 0.96, 4.93, 4.81),
+    (500, 3.44, 1.12, 1.00, 4.56, 4.44), (510, 2.81, 1.16, 1.03, 3.97, 3.84),
+    (520, 2.18, 1.20, 1.06, 3.38, 3.24), (530, 1.55, 1.23, 1.09, 2.78, 2.64),
+    (540, 0.00, 1.26, 1.12, 1.26, 1.12),
+)
+
+#: §2.3.1 the optical-geometric conditions ГОСТ 9160-91 §3.3.1 defers here for,
+#: which is the reason this row was opened. Diffuse-in/directed-out OR
+#: directed-in/diffuse-out, either way round; both diffusers scatter at least
+#: this much; the directed beam is normal to the sample and inside this FULL
+#: aperture angle.
+_GOST_10691_0_DIFFUSER_MIN: float = 0.90
+_GOST_10691_0_APERTURE_FULL_DEG: float = 20.0
+#: §2.3.4 a densitometer may differ from Tables 1 and 2 by a CONSTANT at every
+#: wavelength; after that constant is removed the residual must not exceed this.
+_GOST_10691_0_SPECTRAL_TOL: float = 0.05
+#: §2.3.4 measurement error: absolute below D 1.00, relative above it.
+_GOST_10691_0_DENSITY_TOL: tuple[float, float] = (0.02, 0.02)
+#: §4.2.3 the MEAN GRADIENT criterion for black-and-white general-purpose still
+#: film and cine film, as `(D1 above Dmin, Δ lg H from point 1 to point 2)`.
+#: ⚠ THIS IS THE CLASS ГОСТ 9160-91 DOES NOT COVER, and it is not the same
+#: number: 9160's colour classes are 0.15 + Dmin (still) and 0.20 + Dmin
+#: (cine) over the same 1.3 decades, this one is 0.10 + Dmin. A Soviet
+#: black-and-white gamma read under 9160's criterion would be measured from
+#: the wrong point on its own toe.
+_GOST_10691_0_GRADIENT_POINT: tuple[float, float] = (0.10, 1.3)
+#: §4.2.5 a point may sit this far off the extension of the straight line and
+#: still count as its end -- the tolerance that fixes photographic latitude.
+_GOST_10691_0_STRAIGHT_TOL: float = 0.04
+#: §4.2.1 / §4.2.4 reproducibility of two parallel measurements: speed, mean
+#: gradient, contrast coefficient.
+_GOST_10691_0_SPREAD: tuple[float, float, float] = (0.12, 0.08, 0.10)
+#: §4.2.2 THE DEFINITION OF «КОЭФФИЦИЕНТ КОНТРАСТНОСТИ», verbatim in
+#: structure, and it retires a refusal this file has carried since v29.
+#: "Коэффициент контрастности γ определяют как тангенс угла наклона
+#: ПРЯМОЛИНЕЙНОГО УЧАСТКА характеристической кривой к оси логарифмов
+#: экспозиций. Для вычисления γ на прямолинейном участке выбирают ДВЕ
+#: МАКСИМАЛЬНО УДАЛЕННЫЕ ДРУГ ОТ ДРУГА ТОЧКИ … γ = |D2 − D1| / (lgH2 − lgH1)".
+#:
+#: ⚠ THAT IS `straight_line` AND NOT A CHORD, and the standard proves it is not
+#: a chord by defining the chord SEPARATELY in the very next clause as «средний
+#: градиент». The two are different quantities in the same document, so a
+#: Soviet «коэффициент контрастности» can no longer be read as either one at
+#: the reader's discretion. ⚠ The note at the bottom of this file said "NO
+#: SOURCE IN THIS CORPUS PRINTS THE ГОСТ DEFINITION OF THAT QUANTITY"; one does
+#: now, and the note is corrected rather than deleted.
+_GOST_10691_0_CONTRAST_COEFF: str = "straight_line"
+#: The stocks that definition can be attached to, and it is ONE of the three
+#: that carry a stated Soviet contrast coefficient. ⚠ THE OTHER TWO ARE COLOUR
+#: FILMS and 10691.0-84 governs BLACK-AND-WHITE material only; their standard
+#: is ГОСТ 9160-91, whose own definitions page is the one that OCR'd badly, so
+#: SVEMA_CNL_65 and SVEMA_CO_90L keep "" and the reason is now narrower than
+#: "no source prints it" -- it is "the source that prints it does not govern
+#: these two".
+_GOST_10691_0_CONTRAST_STOCKS: tuple[str, ...] = ("TASMA_OCH_45",)
+
+#: ⚠ FOUR MONOCHROME SOVIET STOCKS CARRY A ГОСТ 9160-91 MATERIAL CLASS, AND
+#: 9160-91 IS THE COLOUR STANDARD -- its title is «Метод общесенситометрического
+#: испытания МНОГОСЛОЙНЫХ ЦВЕТОФОТОГРАФИЧЕСКИХ материалов». The standard that
+#: covers them is this one. It matters numerically rather than only
+#: bibliographically: 9160-91 builds a mean gradient from D1 = Dmin + 0.15
+#: (still) or + 0.20 (cine), 10691.0-84 §4.2.3 from Dmin + 0.10, over the same
+#: 1.3 decades -- so a black-and-white gamma read under the colour standard
+#: starts from the wrong point on its own toe.
+#: ⚠ NOTHING IS RELABELLED. `gost_speed_class` records a SPEED class and all
+#: four of these were entered with `speed_criterion = "iso6"` beside it, so
+#: what the mismatch proves is that the two fields disagree about which system
+#: rated the stock -- a conflict to be surfaced, not resolved by editing a
+#: string. Guarded by G-V40-P34C.
+#: ⚠ FOUR BECAME SIX ON 2026-09-18c, and the two that joined were ADDED to
+#: this list in the same edit that gave them a class (queue P40). SVEMA_FOTO_65
+#: and SVEMA_FOTO_250 are monochrome, so writing `neg_still` on them writes a
+#: COLOUR standard's class onto a black-and-white film for exactly the reason
+#: the other four already did -- their speed is a ГОСТ speed and 9160 is where
+#: this file's criteria live. The mismatch is not a reason to withhold the
+#: class; it is the same surfaced conflict, now on six stocks instead of four.
+_GOST_BW_CLASS_MISMATCH: tuple[str, ...] = (
+    "SVEMA_FOTO_32", "SVEMA_FOTO_130", "TASMA_FN_64", "TASMA_OCH_45",
+    "SVEMA_FOTO_65", "SVEMA_FOTO_250")
+
+# ===========================================================================
+# QUEUE P53 -- THE DYE-ABSORPTION PANELS' ORDINATE, MEASURED 2026-09-18
+#
+# The row's blocker was rewritten on 2026-09-17e to "decide the ordinate". It
+# is decided, and the answer is that THERE IS NO SINGLE ORDINATE: the 115
+# panels are drawn on SEVEN different vertical frames under one caption, and
+# the captions never say which.
+#
+# Measured across all 115, from each panel's own calibrated axis:
+#
+#     y frame   panels        x frame        panels
+#     (0, 4)      19          250-750 nm       48
+#     (0, 3)       4          350-750 nm       14
+#     (-1, 2)     11          250-740 nm        1
+#     (-1, 3)      3          380-720 nm        1
+#     (-2, 2)     25          300-1000 nm       1
+#     (-2, 1)      1
+#     (-3, 1)      2
+#     no calibration          50
+#
+# ⚠⚠ AND THE SPLIT IS PHYSICS, NOT BOOKKEEPING. An optical density cannot be
+# negative. A frame whose BOTTOM IS ZERO is therefore a linear density axis --
+# and on those panels no curve goes below the axis, which is the independent
+# confirmation. A frame whose bottom is -1, -2 or -3 is not a density axis at
+# all: on those panels the curves plunge to -0.98 and off the bottom, and a
+# quantity that falls without limit as a bell's wing decays is a LOGARITHM. A
+# (-3, 1) frame is four decades of log density, D 0.001 to 10, which is exactly
+# how a dye's out-of-band tail is plotted when the tail is the point.
+#
+# So the ordinate is decidable PER PANEL from the frame alone, which is the
+# rule below. What that does NOT yet license is storing the curves, and the
+# reason is no longer the ordinate.
+_SOVREMENNYE_DYEABS_Y_FRAMES: dict[tuple[int, int], int] = {
+    (0, 4): 19, (0, 3): 4, (-1, 2): 11, (-1, 3): 3,
+    (-2, 2): 25, (-2, 1): 1, (-3, 1): 2,
+}
+_SOVREMENNYE_DYEABS_X_FRAMES: dict[tuple[int, int], int] = {
+    (250, 750): 48, (350, 750): 14, (250, 740): 1,
+    (380, 720): 1, (300, 1000): 1,
+}
+_SOVREMENNYE_DYEABS_NO_CAL: int = 50
+_SOVREMENNYE_DYEABS_TOTAL: int = 115
+
+def sovremennye_dyeabs_is_log(frame_bottom: float) -> bool:
+    """True when a dye-absorption panel's ordinate is log10(density).
+
+    ⚠ THE TEST IS THE SIGN OF THE FRAME FLOOR AND NOTHING ELSE. A density is
+    non-negative by definition, so an axis that goes below zero is not carrying
+    a density; and every panel whose floor IS zero keeps its curves above the
+    axis, which is the check that the rule is not merely a convention.
+    """
+    return frame_bottom < -0.05
+
+#: ⚠⚠ AND THE FOURTH DEFECT, FOUND THE SAME DAY AND NOT PREVIOUSLY RECORDED.
+#: These panels are drawn over a FULL GRID. `sovremennye_2004.interior` removes
+#: the frame by blanking every row that is more than 80 % ink and every such
+#: column -- which on a gridded panel blanks the GRID as well, and the grid
+#: crosses the curves. Each curve is therefore cut into a dozen pieces before
+#: any reader sees it, so every component-based test rejects the curves it was
+#: written to keep: on p.139 the largest surviving component is 221 px of a
+#: curve that is over a thousand. THE TRACER IS NOT THE PROBLEM AND NEITHER IS
+#: THE PAGE; the frame-removal step destroys the data on this figure family.
+#: Queue P53's remaining blocker is that, plus the in-plot leader lines which a
+#: flatness test still confuses with a crest on 7 of 19 Kodak-frame panels.
+#: ⚠ FIXED 2026-09-18b. `interior` now finds the rules by OPENING with a long
+#: line kernel as well as by counting ink in a row -- the two catch different
+#: lines, and either alone loses panels -- and MENDS the one-pixel cut each
+#: blanked rule leaves in a curve, by closing across the rule and writing the
+#: result back only inside the blanked band. On p.139 the largest surviving
+#: component goes from 221 px to a whole curve. `drop_leaders` then removes the
+#: rules that point from an in-plot label to its curve, identified by two
+#: properties together: STRAIGHT over their whole length, which no spectral or
+#: characteristic curve is, and reaching a box that held text.
+_SOVREMENNYE_GRID_CHOPS_CURVES: bool = False
+
+#: THE λ-MAX WINDOW THE CORPUS'S OWN VENDOR SPECTRA DEFINE, as `(lo, hi)` nm
+#: per dye. Measured over the 30 stocks that carry a full three-dye
+#: `SpectralDyeDensity` from a manufacturer sheet: yellow 440-460, magenta
+#: 530-550, cyan 660-690, widened by 10 nm for trace noise. ⚠ THIS IS NOT A
+#: TOLERANCE CHOSEN TO LET THE BOOK IN -- it is what thirty manufacturer
+#: measurements already in this database agree on, and it is the test the
+#: book's panels are put to.
+_DYE_PEAK_WINDOW: dict[str, tuple[float, float]] = {
+    "yellow": (430.0, 470.0), "magenta": (520.0, 560.0),
+    "cyan": (650.0, 700.0),
+}
+#: ⚠⚠ AND NOT ONE OF THE BOOK'S PANELS PASSES IT. With the reader repaired, 23
+#: of the 115 dye-absorption panels yield three peaks in the right order and
+#: separated by at least 40 nm. Every one of the 23 then fails the window:
+#: the film panels put cyan at 594-650 nm where thirty vendor sheets put it at
+#: 660-690, and the paper panels -- which are internally consistent at yellow
+#: 466-477 / magenta 540-547 / cyan 697-705 -- return a NEGATIVE cyan peak
+#: density of -0.10 to -0.40, so their frame origin is wrong even where their
+#: wavelengths are not. `(banded, inside_window)`.
+_SOVREMENNYE_DYEABS_BANDED: tuple[int, int] = (23, 0)
+#: QUEUE P56, FINISHED 2026-09-18b -- AND THE LAST OF ITS FOUR PANELS WAS NEVER
+#: A TEMPLATE GAP. The row said all four "fail calibration -- not tracing,
+#: calibration" and prescribed teaching the digit bank their axes. Three were
+#: that. The fourth, Fujichrome 64T Type II on p.269, has its frame printed in
+#: GREY: levels 156-199 against the reader's 128 ink cutoff, so `find_frame`
+#: saw no border at all -- the strongest row in the panel carries 37 % of the
+#: width -- and nothing downstream ever ran. `find_frame` now tries a LADDER of
+#: cutoffs and takes the first that yields a frame, and also accepts a rule by
+#: its longest unbroken RUN as well as by total ink, so a border the scan has
+#: eaten pieces out of is still a border.
+#: `(named_by_the_row, now_calibrating)`.
+_SOVREMENNYE_P56_PANELS: tuple[int, int] = (4, 2)
+#: ⚠ TWO STILL REFUSE, and the reason is now narrow and measured: KONICA VX 100
+#: and PROVIA 100F read their POSITIVE labels and return None on the negative
+#: ones, so the residue is a glyph the bank cannot match at its stated
+#: confidence rather than an axis form it has never seen. Sixteen axes are now
+#: in `BANK_SOURCES` against the ten it started with.
+_SOVREMENNYE_P56_RESIDUE: tuple[str, ...] = (
+    "Konica Color VX 100", "Fujichrome Provia 100F Professional")
+#: Panels that calibrate, by figure kind, after the 2026-09-18b reader work.
+_SOVREMENNYE_CALIBRATING: dict[str, int] = {"char": 217, "dyeabs": 64}
+
+
+_GOST_10691_0_SOURCE = (
+    "ГОСТ 10691.0-84, «Материалы фотографические черно-белые на прозрачной "
+    "подложке. Метод общесенситометрического испытания» (СТ СЭВ 1755-79, "
+    "2986-81, 2987-81, 4095-83), approved 14 June 1984 No. 1934, in force "
+    "01.01.87. Tier T1, a state standard, read from its own text layer. "
+    "⚠ Read from the library copy «МАТЕРИАЛЫ ФОТОГРАФИЧЕСКИЕ.pdf», which is "
+    "the bound 10691.0-84 -- 10691.4-84 booklet; the separately named copy "
+    "cannot be written to disk because its file name is 330 bytes. Queue P34.")
+
+
+# ===========================================================================
+# QUEUES P17 AND P18 -- THE TWO INTERIMAGE DEFINITIONS, AND THE EXACT
+# CONVERSION BETWEEN THEM (2026-09-18b)
+#
+# ⚠⚠ P17 AND P33 WERE BOTH ASKING FOR TABLES THIS DATABASE ALREADY HELD. P17
+# wanted US 5,262,287's white-light-versus-separation table, "past the HTML
+# truncation point on every full-text view tried"; it is in
+# `_US5262287_DLOGE`, all 17 coatings, read off the page image, with four
+# scan-damaged cells recovered by the table's own difference identity. P33
+# wanted EP 0 324 471 A2's Table 1 gamma pairs, "blank in the dump"; they are
+# in `_EP0324471_TABLE1`, all 21 coatings with both γᵖ and γ per record. Both
+# rows describe a retrieval problem that was solved without their noticing.
+#
+# ⚠⚠ WHAT WAS ACTUALLY MISSING IS THE THING P18 ASKS FOR: the two documents
+# measure interimage in DIFFERENT UNITS and nothing related them. US 5,262,287
+# tabulates a LOG-EXPOSURE SHIFT at two densities; this project's
+# `_iie_measure` works in a GAMMA RATIO. They are the same quantity and the
+# conversion is exact, because the patent's two densities fix the interval.
+#
+#   Between D = 0.5 and D = 1.5 the density interval is 1.0, so the white-light
+#   curve spans 1/γ_white in log E and the separation curve spans 1/γ_sep. The
+#   tabulated shift at each density differs by exactly that difference of
+#   spans:
+#
+#       Δ  =  ΔlogE(0.5) − ΔlogE(1.5)  =  1/γ_white − 1/γ_sep
+#
+#   and therefore
+#
+#       γ_sep / γ_white  =  1 / (1 − γ_white · Δ)
+#       IIE %            =  (γ_sep / γ_white − 1) × 100
+#
+# ⚠ THE SIGN IS NOT A CHOICE. Interimage inhibition RAISES the separation
+# gamma, so the separation curve spans LESS log E than the white-light one and
+# the tabulated shift SHRINKS as density rises -- which is why the patent's own
+# difference column is positive on all 17 coatings. A conversion that came out
+# negative would be reading the shift the wrong way round.
+#
+# ⚠⚠ AND THE RESULT CORROBORATES `_IIE_TIERS` FROM A HOUSE THAT DID NOT
+# CONTRIBUTE TO IT. Over the 17 coatings, at the 0.55-0.65 white-light gamma a
+# colour negative of this class carries, the converted interimage runs 1.7 % to
+# 31.7 % with a median near 17 % -- spanning this project's trace (5-7), mild
+# (10-15) and medium (25-35) tiers, and reaching neither zero nor the strong
+# tier's top. The tiers were built from Agfa and Kodak; this is Fuji.
+#: GLAFKIDÈS Vol. 1 §233, after PERRIN AND HOADLEY -- the LENS-REGIME
+#: resolving-power population queue P11 was opened to protect (2026-09-18b).
+#:
+#: Verbatim: "Perrin and Hoadley have worked out a special apochromatic
+#: objective for measuring the resolving power of sensitive layers, made from
+#: two fluorite convergent elements on either side of a divergent element made
+#: from Bausch and Lomb S.K.16 glass. It is called 1381. The following are some
+#: results obtained with it:" -- then a two-column table, "Ord. Fuess Lens"
+#: against "Lens 1381".
+#:
+#: ⚠⚠ THIS IS WHY THE ROW REFUSED THE WRITE. Tri-X reads 40 lines/mm on the
+#: ordinary lens and 70 on the apochromat: the SAME emulsion, the SAME target,
+#: a factor of 1.75 between them. Writing either into
+#: `resolving_power_lp_mm_lowc` / `_highc`, which vary the TARGET CONTRAST at a
+#: fixed optic, would have put a lens measurement in a contrast field on five
+#: stocks, three of which already carried a manufacturer figure.
+#:
+#: ⚠ AND THE RATIO IS NOT CONSTANT, which is the other reason the two axes do
+#: not map: apochromat/Fuess runs 1.06 (Microfile) to 1.90 (Super XX), and it
+#: is LARGEST on the coarsest emulsion. A single conversion factor does not
+#: exist.
+#:
+#: `emulsion as printed -> (ordinary Fuess lens, apochromat 1381)`, lines/mm.
+_GLAFKIDES_LENS_PAIR: dict[str, tuple[float, float]] = {
+    "Super XX": (50.0, 95.0),
+    "Panatomic-X": (65.0, 105.0),
+    "Tri-X": (40.0, 70.0),
+    "Duplicating negative": (80.0, 105.0),
+    "Cine positive": (60.0, 105.0),
+    "High-contrast positive": (105.0, 170.0),
+    "Duplicating positive": (135.0, 170.0),
+    "Sound recording 1357": (55.0, 100.0),
+    "Microfile": (170.0, 180.0),
+}
+_GLAFKIDES_LENS_SOURCE = (
+    "M. Glafkidès, «Photographic Chemistry», vol. 1, §233 «Resolving power», "
+    "p. 238, after Perrin and Hoadley's apochromat 1381. Tier T2: a textbook "
+    "reporting a primary measurement, with no date, no target contrast and no "
+    "density stated for any figure.")
+#: ⚠ THE THREE THAT MAY BE WRITTEN ONTO A STOCK, and only these three. The
+#: other six name a CLASS ("cine positive", "duplicating negative") rather than
+#: a product, and this database has no stock that is that class and only that
+#: class. Even for the three, the emulsion is the 1950s one: they go onto the
+#: profiles that ARE that generation, not onto a modern descendant sharing the
+#: name -- the EASTMAN_5247 1974/1983 trap.
+_GLAFKIDES_LENS_STOCKS: dict[str, str] = {
+    "Super XX": "KODAK_SUPER_XX_PAN_4142",
+    "Panatomic-X": "KODAK_PANATOMIC_X_SHEET_1952",
+    "Tri-X": "KODAK_TRI_X_SHEET_1952",
+}
+
+
+def _apply_glafkides_lens_pair(profiles) -> int:
+    """Write the lens pair onto the three stocks it names, and nothing else."""
+    by = {p.name: p for p in profiles}
+    n = 0
+    for printed, stock in _GLAFKIDES_LENS_STOCKS.items():
+        p = by.get(stock)
+        if p is None:
+            continue
+        fuess, apo = _GLAFKIDES_LENS_PAIR[printed]
+        object.__setattr__(p.mtf, "resolving_power_lp_mm_fuess", fuess)
+        object.__setattr__(p.mtf, "resolving_power_lp_mm_apo", apo)
+        object.__setattr__(p.mtf, "resolving_optic", "apochromat_1381")
+        object.__setattr__(p.mtf, "resolving_target_contrast", "")
+        n += 1
+    return n
+
+
+_US5262287_GAMMA_WHITE_BAND: tuple[float, float] = (0.55, 0.65)
+
+
+def ep0324471_interimage():
+    """EP 0 324 471 A2 TABLE 1 in the same units, straight from its own pairs.
+
+    ⚠ THIS DOCUMENT NEEDS NO CONVERSION AT ALL, which is what makes it the
+    control on the one above: it prints BOTH gammas per record, so IIE % is
+    γᵖ/γ − 1 and nothing is assumed about the white-light gamma. Returns
+    `(sample, kind, IIE%_r, IIE%_g, IIE%_b)` for all 21 coatings.
+    """
+    out = []
+    for s, kind, pr, pg, pb, r, g, b in _EP0324471_TABLE1:
+        out.append((s, kind, (pr / r - 1.0) * 100.0, (pg / g - 1.0) * 100.0,
+                    (pb / b - 1.0) * 100.0))
+    return tuple(out)
+
+
+#: ⚠⚠ AND THE TWO HOUSES DO NOT AGREE ON MAGNITUDE, WHICH IS WORTH MORE THAN IF
+#: THEY DID. Converted into one set of units, US 5,262,287 (Fuji) runs 1.8-28.5
+#: % over 17 coatings while EP 0 324 471 A2 (Fuji too, but a different filing
+#: and a different construction) runs 20-93 % on red and green and −10 to +19 %
+#: on BLUE. The blue column is the tell: the second document's blue record can
+#: go NEGATIVE, which no inhibition can do, so on those coatings the blue
+#: separation gamma is below its white-light gamma for some other reason --
+#: most likely the yellow filter layer, which the separation exposure does not
+#: see the same way. `(lo, hi)` per record, as measured.
+_EP0324471_IIE_RANGE: dict[str, tuple[float, float]] = {
+    "r": (20.3, 93.3), "g": (25.8, 88.3), "b": (-10.0, 19.4),
+}
+#: ⚠ SO `InterimageSpec` KEEPS THE GAMMA-RATIO DEFINITION (queue P18 decided).
+#: It is the definition BOTH documents can be expressed in -- one prints it
+#: outright, the other converts to it exactly -- and it is the one
+#: `_iie_measure` already uses, so nothing in the engine moves. The log-exposure
+#: shift is the derived form and is kept as a reader, not as storage.
+_INTERIMAGE_DEFINITION: str = "gamma_ratio_separation_over_white"
+
+# ===========================================================================
+# QUEUE P68 -- THE EXPOSURE-ZONE PROFILE OF THE INTERIMAGE EFFECT, DECIDED
+# 2026-09-18b, AND THE DECISION IS TO REFUSE IT.
+#
+# EP 0 608 959 B1 TABLE IV measures the blue record's separation-over-neutral
+# gamma ratio in three exposure zones of the SAME coating, all anchored on
+# Dmin + 0.15: low 1.06-1.12, mid 1.44-1.53, mid-upper 1.21-1.33 across four
+# coatings -- one record of one film moving by a factor of 1.39, and NOT
+# monotone: weakest in the toe, strongest in the mid scale, falling again
+# above it. Stage 8b has no term for that shape.
+#
+# ⚠⚠ THE DECISION IS NOT "THE EFFECT IS NOT REAL". It is measured, it is large,
+# and `_EP0608959_ZONE_RATIOS` holds it. The decision is that a THREE-POINT
+# NON-MONOTONE SHAPE FROM ONE RECORD OF ONE MANUFACTURER IS THINNER EVIDENCE
+# THAN THE FLAT COEFFICIENT IT WOULD REPLACE. The flat coefficient is a
+# corpus-wide median over three houses; this is four coatings of one Kodak
+# filing, on the BLUE record only, so a zone profile for green and red would
+# have to be assumed outright -- and the moment it is assumed, every colour
+# render in the database moves on an assumption.
+#
+# ⚠ WHAT WOULD CHANGE THE DECISION, stated so it is checkable rather than
+# rhetorical: the same three-zone measurement on a GREEN or RED record, from
+# any house. One record is a shape; two are a law.
+#
+# ⚠ AND IT IS ALREADY DOING WORK WHERE IT IS SOUND. The same table is what
+# reconciled Agfa and Kodak under queue P69: Agfa reads at "density 1.0 over
+# fog", which on a 0.6-gamma negative falls in Kodak's mid-upper zone, and
+# applying the MEASURED zone factor -- not an assumed profile -- brought two
+# of the three records into agreement. Using a measurement to convert between
+# two stated conditions is not the same as fitting it as a per-stock curve.
+_IIE_ZONE_PROFILE_ADOPTED: bool = False
+#: The measured spread, as `(lo, hi)` of the mid-over-low ratio across the four
+#: coatings -- the factor a zone term would have to carry.
+_IIE_ZONE_SPREAD: tuple[float, float] = (1.25, 1.39)
+#: The records the measurement covers. ⚠ Blue only, which is the whole reason.
+_IIE_ZONE_RECORDS: tuple[str, ...] = ("b",)
+
+
+def interimage_from_dloge(d_shift: float, gamma_white: float) -> float:
+    """IIE per cent from a log-exposure shift difference. See above.
+
+    `d_shift` is ΔlogE(0.5) − ΔlogE(1.5) as US 5,262,287 tabulates it, and
+    `gamma_white` the white-light gamma of the record the shift was read on.
+    """
+    denom = 1.0 - float(gamma_white) * float(d_shift)
+    if denom <= 1e-6:
+        return float("inf")
+    return (1.0 / denom - 1.0) * 100.0
+
+
+def us5262287_interimage(gamma_white: float = 0.60):
+    """Every coating of US 5,262,287 TABLE 2, in this project's own units.
+
+    Returns `(sample, IIE%_red, IIE%_green)` per coating.
+    """
+    out = []
+    for s, r05, r15, g05, g15 in _US5262287_DLOGE:
+        out.append((s, interimage_from_dloge(r05 - r15, gamma_white),
+                    interimage_from_dloge(g05 - g15, gamma_white)))
+    return tuple(out)
+
+
+_US6531271_PERMANENT_AH_DENSITY: tuple[float, ...] = (0.6, 0.3, 0.1, 0.05)
+
+
+#: THE ONE CONTROLLED HALATION EXPERIMENT IN THIS DATABASE (queue P71).
+#:
+#: KODAK_VISION3_500T_5219 and CINESTILL_800T are the SAME emulsion with the
+#: SAME Kodak designation -- CineStill say so in print, which is why both
+#: profiles carry 5219 -- and they differ in one thing: the rem-jet backing
+#: is stripped from the second. One variable, two profiles, and this file has
+#: recorded since v34 that the difference between them "lived in a hand-tuned
+#: scalar".
+#:
+#: `(gain_5219, gain_cinestill)` per record, as the two profiles assert them.
+#:
+#: ⚠⚠ THE PAIR ALREADY CONVICTS THE ESTIMATES, WITHOUT ANY NEW MEASUREMENT,
+#: AND THAT IS WHAT THIS ENTRY IS FOR. Invert the asserted ratio through the
+#: v39 gain law -- gain_with / gain_without = 10^(-2*OD) -- and the rem-jet
+#: backing comes out at OD 0.272 red, 0.218 green, 0.199 blue. Two things are
+#: wrong with that, independently:
+#:
+#:   (1) IT IS NOT NEUTRAL. A rem-jet backing is carbon black, and carbon is
+#:       neutral across the visible; the corpus's own description of it is
+#:       "rem-jet carbon black pigmented" (US 6,077,654). An absorber that
+#:       attenuates red 1.4x more than blue is a DYE, not carbon.
+#:   (2) IT IS TWO ORDERS OF MAGNITUDE TOO WEAK. OD 0.2 passes 63 % of the
+#:       light. A rem-jet backing is visually opaque; nothing that transmits
+#:       two thirds of the beam would be worth coating, stripping in a
+#:       prebath, and handling as effluent.
+#:
+#: So the three gains on 5219 and the three on CINESTILL_800T cannot BOTH be
+#: right, and the law added at v39 is what makes the contradiction visible.
+#: ⚠ WHAT IT DOES NOT DO IS FIX THEM. Which of the two triples is wrong, and
+#: by how much, needs the measurement the row asks for: an edge trace across
+#: a specular highlight on a scanned frame of each, fitted per channel. The
+#: corpus holds scans of KODAK-GOLD100, SVEMA-FN250 and SVEMA-FN64 and of
+#: neither film in this pair. Asserted as G-V39-PAIR so the inconsistency
+#: cannot be quietly tuned away instead of measured.
+_CINESTILL_5219_PAIR: dict[str, tuple[float, float]] = {
+    #        5219 (rem-jet)  CineStill (stripped)
+    "r": (0.30, 1.05),
+    "g": (0.11, 0.30),
+    "b": (0.04, 0.10),
+}
+
+
+def cinestill_implied_remjet_od() -> tuple[float, float, float]:
+    """The rem-jet optical density the two profiles' asserted gains imply.
+
+    ⚠ THIS IS NOT A MEASUREMENT AND MUST NEVER BE WRITTEN INTO
+    `AntiHalationSpec.optical_density`. It is the estimates' own arithmetic
+    consequence, computed so that it can be checked and found wrong -- see
+    `_CINESTILL_5219_PAIR`.
+    """
+    import math
+    out = []
+    for k in ("r", "g", "b"):
+        with_ah, without = _CINESTILL_5219_PAIR[k]
+        out.append(-math.log10(with_ah / without) / 2.0)
+    return (out[0], out[1], out[2])
+
+
+# ===========================================================================
+# QUEUE P71, RESOLVED IN PREMISE 2026-09-18 -- THE PAIR CANNOT VALIDATE THIS
+# LAW, AND NOT BECAUSE THE FRAMES ARE MISSING.
+#
+# ⚠⚠ THE TWO STOCKS DIFFER IN A CONSTRUCTION THE LAW DOES NOT MODEL.
+# KODAK_VISION3_500T_5219 carries a REM-JET BACKING -- `position = "backing"`,
+# carbon black on the far side of the support. CINESTILL_800T is the same
+# emulsion with that backing stripped. The law `halation_gain_from_od` applies
+# 10^(-2*OD): the attenuation of a ray that crosses an absorber, reflects, and
+# crosses it again. That is the geometry of an UNDERCOAT. A backing sits beyond
+# the reflecting interface and works the other way -- it removes the total
+# internal reflection by replacing the base/air boundary with an index-matched
+# absorber. So inverting this pair through this law was a category error, and
+# the absurd implied OD of 0.272 / 0.218 / 0.199 was measuring the error.
+# The law now refuses `position == "backing"` outright.
+#
+# ⚠⚠ AND THE EARLIER "TWO DIFFERENT SCALES" READING WAS WRONG. It is worth
+# writing down because the arithmetic is simple and was not done. Stage 5
+# computes `pO = pE + g*(blur(A) - A)` with a multi-Gaussian kernel whose
+# weights sum to 1, so the operator REDISTRIBUTES and `g` is the fraction of
+# the above-threshold exposure taken from a point and scattered. A fraction
+# cannot exceed 1, and the law's own output T_pack*10^(-2*OD) cannot either.
+# THE TWO SCALES ARE THE SAME SCALE. CineStill's stored red gain of 1.05 is
+# therefore not a scale mismatch, it is out of range for the ENGINE as well:
+# at g > 1 the halo centre loses more than its own excess and the result is
+# held up only by the `MAX_VALUE(..., 0)` floor.
+#
+# ⚠ WHAT THE PAIR WOULD HAVE HAD TO SHOW. With the working antihalation
+# density now on file from queue P70 -- 0.15 to 2.0 D, and a removable layer
+# wanting "a density as high as 1" -- a genuine in-path absorber at OD 1.0
+# attenuates the returning ray by 10^-2, i.e. to one per cent. The stored 5219
+# gains are 0.30 / 0.11 / 0.04 against CineStill's 1.05 / 0.30 / 0.10: ratios
+# of 0.29 / 0.37 / 0.40, which is an absorber of OD 0.2, an order weaker than
+# any published antihalation layer. The estimates were never describing one.
+#
+# ⚠ THE EXPERIMENT THAT WOULD WORK is named by the same Kodak document the
+# 2026-09-18 sweep found: the VISION3 AHU redesign replaced rem-jet with an
+# anti-halation UNDERCOAT on the same emulsion, and Kodak state the AHU
+# "controls halation even more successfully than remjet". AHU against rem-jet
+# 5219 is one variable in a construction this law DOES model. The corpus holds
+# the rem-jet generation only.
+_HALATION_GAIN_LAW_CEILING: float = 1.0
+#: The engine's own ceiling, and it is the same number for the same reason:
+#: stage 5's kernel conserves energy, so the gain is a scattered FRACTION.
+_HALATION_ENGINE_GAIN_CEILING: float = 1.0
+#: True while a stock in the pair stores a gain outside [0, 1].
+_CINESTILL_GAIN_OUT_OF_RANGE: bool = True
+#: The law is defined for an absorber IN the optical path only.
+_HALATION_GAIN_LAW_POSITIONS: frozenset = frozenset(
+    {"in_pack", "undercoat", "in_base"})
+#: Eastman Kodak, «KODAK VISION3 AHU Camera Negative Films -- talking points
+#: for filmmakers»: the AHU structure "controls halation even more
+#: successfully than remjet". A direction with no number, and the only
+#: published comparison of the two constructions in this corpus.
+_AHU_BEATS_REMJET_STATED: bool = True
+
+
+def halation_gain_from_od(ah: "AntiHalationSpec", n_support: float,
+                          t_pack: tuple[float, float, float] = (1.0, 1.0, 1.0)
+                          ) -> tuple[float, float, float] | None:
+    """TIER C. The halation gain DERIVED from Tier A and Tier B.
+
+    Returns (r, g, b) or None when the antihalation record carries no
+    density -- which today is every stock, so this function changes no render
+    and is here to be the thing a measurement lands in.
+
+        gain(lambda) = T_pack(lambda) * 10^(-2 * AH_OD(lambda)) * R_base
+
+    The factor two is the double pass: light crosses the absorber going down
+    and again coming back. `R_base` is 1 inside the totally-reflected cone,
+    which is the cone halation is made of, so the Fresnel value is NOT
+    applied here -- `base_fresnel` exists for the sub-critical component,
+    which this model does not carry.
+
+    ⚠⚠ WHAT THIS BUYS, AND IT IS THE WHOLE ARGUMENT FOR TIER B. The amplitude
+    is the only unsourced half of the halation model left: the radii have
+    been geometry since v34, and the gains are 79 distinct hand-set triples
+    across 114 stocks. KODAK_VISION3_500T_5219 asserts 0.30 / 0.11 / 0.04 by
+    hand. Under this law that ORDERING IS NOT ASSERTED AT ALL -- it falls out
+    of the absorber's spectrum. A neutral carbon backing has a flat OD and
+    must give near-equal gains; a dye tuned to absorb blue and green leaves
+    red as the survivor, which is why real halos are red. The red bias stops
+    being three numbers somebody chose.
+
+    ⚠ T_pack IS NOT FREE AND IS NOT INVENTED HERE. The light that reaches the
+    support has already crossed the emulsion pack, and that transmission is
+    spectral and depth-dependent. Passing the default (1, 1, 1) means "not
+    known", and the caller must say so rather than letting the gain quietly
+    absorb it. Pushing an unknown one layer down is not removing it.
+
+    ⚠ AND THE MIGRATION RULE, stated here because getting it wrong is silent:
+    when a stock gains an OD, its hand-set `gain_r/g/b` must be DELETED, not
+    kept beside the derived value. `threshold_stops` already gates halation
+    by exposure and the stored gain already absorbs "how much got through";
+    applying an absorption that is also in the gain counts it twice.
+
+    ⚠ AND NO DERIVED GAIN SHIPS WITHOUT A VALIDATION TARGET. The one
+    controlled experiment in this database is KODAK_VISION3_500T_5219 against
+    CINESTILL_800T -- the same emulsion, the same Kodak designation, the
+    rem-jet stripped, one variable. Replacing an estimate with a formula fed
+    by another estimate is lateral motion, not progress.
+    """
+    if not ah.has_density:
+        return None
+    # ⚠⚠ A REAR BACKING IS NOT AN IN-PATH ABSORBER AND THIS LAW DOES NOT
+    # DESCRIBE ONE (queue P71, 2026-09-18). The double-pass factor
+    # 10^(-2*OD) is the attenuation of a ray that crosses an absorber, is
+    # REFLECTED, and crosses it again -- which is the geometry of an
+    # undercoat, an in-pack filter or a dyed base. A rem-jet backing sits
+    # BEYOND the base, on the far side of the very interface that does the
+    # reflecting, so it does not attenuate the returning ray: it removes the
+    # reflection, by replacing the base/air boundary that total internal
+    # reflection needs with an index-matched absorbing layer. Feeding a
+    # backing's OD to this formula is a category error, and it is the error
+    # that produced the nonsense rem-jet density of 0.272 / 0.218 / 0.199
+    # when the 5219 / CineStill pair was inverted through it.
+    #
+    # ⚠ THE SCHEMA ALREADY CARRIES THE DISTINCTION -- `position` is one of
+    # in_pack, undercoat, in_base or backing, and `_AH_CONSTRUCTION_POSITION`
+    # assigns it from the construction. So the branch costs nothing and the
+    # refusal is explicit rather than a silently wrong number.
+    if ah.position == "backing":
+        return None
+    out = []
+    for k, lam in enumerate(_HALATION_GAIN_LAMBDAS):
+        od = ah.od_at(lam)
+        if od <= 0.0:
+            return None
+        out.append(float(t_pack[k]) * (10.0 ** (-2.0 * od)))
+    return (out[0], out[1], out[2])
+
+
+def base_fresnel(n: float) -> tuple[float, float]:
+    """TIER A. (normal-incidence reflectance, critical angle in degrees).
+
+    ⚠ COMPUTED, NEVER STORED. This is Fresnel's law and Snell's law on an
+    index this module already holds per support material. A stored copy per
+    film would be one physical constant written 191 times, and the proposal
+    that halation needs a per-film `R_base(lambda)` founders on exactly that:
+    past the critical angle the reflectance IS 1 by definition of total
+    internal reflection, which is the halation mechanism, and below it the
+    dispersion of both supports across the visible is under one per cent.
+    """
+    import math
+    r0 = ((n - 1.0) / (n + 1.0)) ** 2
+    theta_c = math.degrees(math.asin(min(1.0 / max(n, 1.0 + 1e-9), 1.0)))
+    return (r0, theta_c)
+
+
+# ===========================================================================
+# QUEUE P73 -- THE 1931-1969 ANTIHALATION PATENT CHAIN (schema v44)
+#
+# Four patents, four houses, thirty-eight years, and they are a CHAIN rather
+# than four opinions: US 3,445,231 cites US 2,182,794, and all four are about
+# the same trade-off -- how much light an antihalation construction may absorb
+# before it costs more than the halation it prevents.
+#
+#   US 1,908,527  McMaster, Eastman Kodak, filed 1931-07-07, granted 1933-05-09
+#                 "Antistatic non halation motion picture film". A PERMANENT
+#                 neutral dye layer under a cellulose acetate antistatic
+#                 varnish, on a nitrate base.
+#   US 2,182,794  Dawson, Du Pont Film Manufacturing, filed 1938-12-13,
+#                 granted 1939-12-12. A REMOVABLE backing layer in an
+#                 acid-soluble amino-polymer binder.
+#   US 2,481,770  Nadeau, Eastman Kodak, filed 1949-02-01, granted 1949-09-13.
+#                 Antihalation WITHOUT a dye, by a LOW-REFRACTIVE-INDEX
+#                 sublayer between emulsion and support. Carries the only
+#                 quantitative halation ladder in this corpus.
+#   US 3,445,231  Nishio et al., Fuji Photo Film, filed 1966-03-18, granted
+#                 1969-05-20. A MORDANTED in-pack undercoat, and the only
+#                 document here that measures what such a layer costs in speed.
+#
+# ⚠⚠ THE FIRST THING THE CHAIN SETTLES IS THAT `position` IS NOT A LABEL, IT
+# IS A DIFFERENT PHYSICAL SYSTEM WITH A DIFFERENT USABLE DENSITY. Queue P70
+# established a working antihalation density of 0.15-2.0 D from later
+# patents; every one of those is an absorber the exposing ray crosses. A
+# BACKING is on the far side of the support and is capped an order of
+# magnitude lower, because positives are printed THROUGH it. US 1,908,527
+# says so in its own claim and US 2,481,770 repeats it eighteen years later.
+# ⚠ AND US 3,445,231 STATES, IN PROSE, THE REASON P71 MADE
+# `halation_gain_from_od` REFUSE `position == "backing"`: "the presence of a
+# comparatively thick support layer between the light-sensitive layer and the
+# anti-halation layer reduces the anti-halation effect of the layer itself."
+# A backing is not a weak in-path absorber; it is a different geometry.
+
+#: Antihalation optical density by POSITION and by whether the layer survives
+#: processing. (lo, hi, what the band is, source).
+#:
+#: ⚠ THESE ARE CLASS BANDS AND NOT PER-FILM MEASUREMENTS. Nothing here is
+#: written onto a profile: 30 stocks name an antihalation POSITION and none
+#: carries an optical density, and a band midpoint stamped onto nineteen
+#: backing stocks would be nineteen inventions. Use `ah_od_band_for()` where a
+#: documented default is needed and store 0.0 where nothing was measured.
+_AH_OD_BY_POSITION: dict[str, tuple[float, float, str, str]] = {
+    "backing_permanent": (
+        0.10, 0.30,
+        "a neutral dye layer that STAYS on the film, so the printer must see "
+        "through it; 0.20-0.25 is the stated aim and 0.30 the stated ceiling, "
+        "and the blue may fall to 0.10",
+        "US 1,908,527 (McMaster / Eastman Kodak, 1933) -- 'the density "
+        "throughout the visual range is of the order of .20 to .25 ... "
+        "Preferably, however, the density should not be greater than .30', "
+        "and the claim reads 'a density between .10 and .30 as to light of "
+        "all visible wave lengths'"),
+    "backing_permanent_tinted": (
+        0.04, 0.08,
+        "the same construction at 1/10 to 1/20 of the removable loading, "
+        "leaving 'a weakly colored blue to blue-green tint to the finished "
+        "film'",
+        "US 2,182,794 (Dawson / Du Pont, 1939) -- removable layers are dyed "
+        "to 0.8 D and 'In the event it is desired to have the non-halation "
+        "layer remain on the film, then the dye concentration is reduced to "
+        "about 1/10 to 1/20 that described above'"),
+    "backing_removable": (
+        0.80, 0.80,
+        "a layer dissolved out in the acid stop or fix, so nothing limits it "
+        "but coatability; a single stated figure, not a range",
+        "US 2,182,794 (Dawson / Du Pont, 1939) -- 'the dye should be added "
+        "in an amount sufficient to give a photographic density of 0.8'"),
+    "backing_standard_1949": (
+        0.20, 0.20,
+        "a LOWER BOUND, not a band: Kodak's 1949 description of an ordinary "
+        "dye backing as one whose normal-incidence transmission density is "
+        "GREATER than 0.2, with everything below that called low-density",
+        "US 2,481,770 (Nadeau / Eastman Kodak, 1949) -- 'Dye backing 23 is a "
+        "standard antihalation dye backing; such backings have a "
+        "transmission density at normal incidence greater than 0.2'"),
+}
+
+#: ⚠ THE BACKING CEILING IS A PRINTING CONSTRAINT AND NOT AN OPTICAL ONE, and
+#: both Kodak patents say why in the same words 18 years apart: the density
+#: "must not be so great as to slow up the printing to an undesirable extent"
+#: (1931), and "certain films must be exposed through the base and the speed
+#: of the film would be greatly reduced by a high density antihalation layer
+#: coated on the back of the support" (1949). So the number is set by the
+#: PRINTER, which is why an in-pack absorber may be ten times denser.
+_AH_BACKING_CEILING_REASON: str = "printing_through_the_base"
+
+
+def ah_od_band_for(position: str, removable: bool = False,
+                   permanent_tinted: bool = False):
+    """(lo, hi) antihalation optical density for a construction, or None.
+
+    ⚠ A CLASS BAND, NEVER A MEASUREMENT. Returns None for any position the
+    chain does not cover -- in_pack, undercoat and in_base are governed by
+    queue P70's 0.15-2.0 D working range instead, because those absorbers sit
+    in the exposing path and are not limited by printing through the base.
+    """
+    if position != "backing":
+        return None
+    if removable:
+        key = "backing_removable"
+    elif permanent_tinted:
+        key = "backing_permanent_tinted"
+    else:
+        key = "backing_permanent"
+    lo, hi, _what, _src = _AH_OD_BY_POSITION[key]
+    return (lo, hi)
+
+
+#: ⚠⚠ THE ONLY QUANTITATIVE HALATION LADDER IN THIS CORPUS, and it is what
+#: lets the halation model be CHECKED rather than only parameterised.
+#: US 2,481,770 measures "halation latitude" -- a log-exposure range, by
+#: Kuster's objective method (Phot. Korr. 71, No. 5 pp.73-75 and No. 6
+#: pp.65-68) -- on one film in seven constructions. The scale is the paper's
+#: own and only the DIFFERENCES are meaningful, which the patent states.
+#:
+#: (construction, backing OD, low-index sub present, halation latitude)
+_US2481770_HALATION_LADDER: tuple[
+        tuple[str, float, bool, float], ...] = (
+    ("bare film, no dye and no low-index sub",       0.000, False, 1.15),
+    ("low-index sub alone (NaBF4:nitrate 8:10)",     0.000, True,  1.56),
+    ("low-index sub + dye backing",                  0.070, True,  1.65),
+    ("low-index sub + dye backing",                  0.099, True,  1.74),
+    ("low-index sub + dye backing",                  0.100, True,  1.81),
+    ("ordinary high-density dye backing alone",      0.200, False, 2.00),
+    ("ordinary high-density dye backing alone, best", 0.200, False, 2.25),
+)
+
+#: The threshold the patent sets for an antihalation measure to be worth
+#: having at all, on the same scale: a latitude gain from 1.15 to 1.35-1.5.
+_US2481770_WORTHWHILE_LATITUDE: tuple[float, float] = (1.35, 1.50)
+
+#: ⚠ THE PATENT CLAIMS THE TWO MECHANISMS COMBINE MORE THAN ADDITIVELY and
+#: the measured rows above DO NOT ISOLATE the dye-alone case at 0.07-0.1 D, so
+#: the claim is recorded as the patent's and is NOT asserted as measured here.
+#: What the rows do show is a steeply diminishing return in the dye: 0.070 ->
+#: 0.099 buys 0.09 of latitude, 0.099 -> 0.100 buys 0.07, and the patent's own
+#: summary is that "very adequate and useful results are obtained with dye
+#: layer densities much less than 0.2".
+_US2481770_SUPERADDITIVE_CLAIMED: bool = True
+_US2481770_SUPERADDITIVE_MEASURED: bool = False
+
+#: Refractive indices, measured, from US 2,481,770's own table of the layers
+#: it builds. ⚠ THIS IS THE FIRST DIRECT MEASUREMENT OF THE EMULSION INDEX IN
+#: THIS CORPUS and it corroborates the acetate figure `_V34_BASE_OPTICS` has
+#: carried since v34 from a broad patent range: 1.481 measured against the
+#: 1.48 in use, which is 0.07 per cent.
+#:
+#: ⚠ AND IT SAYS THE SILVER DOES NOT MATTER: "Practically all ordinary gelatin
+#: photographic emulsions have refractive indices equal to that of the gelatin
+#: alone (1.541). The presence of the dispersed silver salts does not
+#: influence the refractive index of the system". Only plasticisers, soluble
+#: salts and dyes move it, and then by less than 0.02.
+_US2481770_INDICES: dict[str, float] = {
+    "gelatin_emulsion":        1.541,
+    "emulsion_practical":      1.54,
+    "emulsion_max_observed":   1.56,
+    "cellulose_acetate":       1.481,
+    "cellulose_nitrate":       1.498,
+    "cellulose_ethyl_ether":   1.474,
+    "support_range_lo":        1.480,
+    "support_range_hi":        1.505,
+    "low_index_fluoride_sub":  1.40,
+    "polystyrene":             1.55,
+    "chlorinated_biphenyl":    1.66,
+}
+
+#: The index BREAK the emulsion-side mechanism needs, and the geometry that
+#: goes with it. A break below this gives no useful effect; the patent's
+#: preferred sub is "about 1.4 or less", i.e. a break of 0.14.
+_US2481770_MIN_INDEX_BREAK: float = 0.08
+#: The sub must lie within this of the emulsion to work at all (0.005 inch).
+_US2481770_SUB_REACH_UM: float = 127.0
+#: And be thicker than this, or optical interference appears (0.00005 inch;
+#: 0.00002 inch = 0.508 um is often enough when the subbing solvent cuts into
+#: the support and softens the interface).
+_US2481770_SUB_MIN_UM: float = 1.27
+_US2481770_SUB_MIN_SOFT_UM: float = 0.508
+#: At least this fraction by weight of fluoride salt in the sub vehicle; about
+#: 0.50 is called satisfactory.
+_US2481770_FLUORIDE_FRACTION_MIN: float = 0.30
+
+
+def emulsion_side_critical_angle(n_emulsion: float, n_sub: float):
+    """Critical angle in degrees at the EMULSION/sublayer interface, or None.
+
+    ⚠⚠ THE MODEL HAS ALWAYS HAD ONLY ONE CRITICAL ANGLE AND THERE ARE TWO.
+    `base_fresnel()` gives the one at the base/air interface, which is the
+    mechanism v34 derives the halation radii from. US 2,481,770 is built on a
+    second one, at the interface between the emulsion and whatever is under
+    it: with a low-index sublayer the most oblique scattered rays never reach
+    the support at all, so the halo is cut before the geometry v34 models can
+    act on it.
+
+    Returns None when there is no break to speak of, which is EVERY STOCK IN
+    THIS FILE: an ordinary gelatin subbing has the emulsion's own index
+    (1.54), the break is zero, and no ray is turned back. That is why this is
+    a law with no data rather than a field with a default.
+    """
+    if n_sub >= n_emulsion:
+        return None
+    if (n_emulsion - n_sub) < _US2481770_MIN_INDEX_BREAK:
+        return None
+    return math.degrees(math.asin(n_sub / n_emulsion))
+
+
+#: ⚠⚠ WHAT AN IN-PACK ANTIHALATION LAYER COSTS IN SPEED, MEASURED -- the one
+#: number this corpus had no source for and the reason `position` has always
+#: been stored without a consequence. US 3,445,231 coats the SAME emulsion
+#: three ways and reports the sensitivity of each against the undercoated
+#: reference: an unmordanted dye undercoat loses about half the speed because
+#: the dye migrates into the emulsion, and mordanting it in place with the
+#: 2-methyl-1-vinylimidazole polymer cuts that loss to a fifth.
+#:
+#: ⚠ THE PATENT'S ENGLISH IS AMBIGUOUS AND THE PATENT ITSELF RESOLVES IT.
+#: It reads "reduced to about 50% ... while ... reduced to only 20%", which
+#: taken literally would make the mordanted sample the WORSE of the two. Its
+#: own conclusion settles the direction: "by using Sample A, the sharpness
+#: could be increased with a SMALLER reduction in sensitivity". So these are
+#: reductions BY the stated fraction, not TO it, and the mordanted layer is
+#: the better one. Recorded here rather than silently chosen.
+#: (fraction of speed LOST, description)
+_US3445231_INPACK_SPEED_LOSS: dict[str, tuple[float, str]] = {
+    "unmordanted": (0.50, "dye undercoat with no mordant; the dye is "
+                          "'markedly diffused into the emulsion layer' under "
+                          "the microscope, and about one stop is lost"),
+    "mordanted":   (0.20, "the same dye held in place by a polymer of more "
+                          "than 50 % 2-methyl-1-vinylimidazole; the dye is "
+                          "'scarcely diffused' and about a third of a stop "
+                          "is lost"),
+}
+
+#: The same construction used as a colour INTERLAYER, and the same ratio: the
+#: red-sensitive layer's UNWANTED green sensitivity falls by these fractions.
+#: An antihalation interlayer is therefore also an interimage device.
+_US3445231_INTERLAYER_GREEN_SUPPRESSION: dict[str, float] = {
+    "unmordanted": 0.50,
+    "mordanted":   0.20,
+}
+
+#: Dried layer thicknesses the chain states, micrometres.
+_AH_CHAIN_THICKNESS_UM: dict[str, tuple[float, float, str]] = {
+    "backing_removable": (0.5, 20.0,
+                          "US 2,182,794 -- 'a very thin layer upon the order "
+                          "of 0.5 to 20 p is sufficient for the purpose'"),
+    "undercoat_bw":      (2.0, 2.0,
+                          "US 3,445,231 Example 1 -- antihalation undercoat "
+                          "2 um dried, emulsion 2 um, protective layer 1 um"),
+    "interlayer_colour": (1.0, 1.0,
+                          "US 3,445,231 Example 4 -- 1 um, under the "
+                          "green-sensitive layer of a colour multilayer"),
+}
+
+#: Dye and mordant loading of an in-pack antihalation layer, grams per 100 g
+#: of dried gelatin (US 3,445,231 claim 11).
+_US3445231_LOADING_G_PER_100G_GELATIN: dict[str, tuple[float, float]] = {
+    "dye":     (1.0, 20.0),
+    "polymer": (2.0, 40.0),
+}
+
+#: Which dye colour each sensitisation class needs in a backing, as
+#: US 2,182,794 states it. Not a spectrum -- a construction rule.
+_AH_DYE_COLOUR_BY_CLASS: dict[str, tuple[str, ...]] = {
+    "blue_sensitive": ("black", "red"),
+    "orthochromatic": ("black", "red"),
+    "panchromatic":   ("black", "green", "deep_blue"),
+}
+
+#: ⚠ THE ANTISTATIC HALF OF US 1,908,527, which is a CONSTRUCTION fact and not
+#: a number: a nitrate support generates static as it runs through the camera,
+#: and the cure is a hard, permanent, insoluble varnish of a material with
+#: "opposite electrical characteristics" -- cellulose acetate over cellulose
+#: nitrate -- coated directly over the dye layer, which also stops the dye
+#: flaking off. Nothing in this simulation models triboelectric fog, so this
+#: is stored as provenance for the construction and consumed by nothing.
+_US1908527_ANTISTATIC: dict[str, str] = {
+    "support": "cellulose nitrate",
+    "topcoat": "cellulose acetate varnish",
+    "mechanism": "opposite electrical characteristics; the varnish must be "
+                 "permanent, hard and insoluble under all conditions of use",
+    "second_function": "protects the dye layer from flaking",
+}
+
+#: Neutral dyes the 1931 patent names for a non-colour-selective backing.
+_US1908527_DYES: tuple[str, ...] = (
+    "Nigrosine",
+    "Spirit blue R + Alphazurene",
+    "Zapon black + Metanil yellow + Toluidine blue",
+)
+
+
+@dataclass(frozen=True)
+class AntiHalationSpec:
+    """TIER B -- THE ANTIHALATION LAYER AS A PHYSICAL OBJECT (schema v39).
+
+    ⚠⚠ THIS EXISTS TO SEPARATE THE FILM FROM THE MODEL, AND THE SEPARATION IS
+    THE POINT. `HalationSpec` below is TIER C: a three-Gaussian point-spread
+    function whose radii have been DERIVED from support thickness and
+    refractive index since v34, and whose amplitudes -- `gain_r/g/b` -- are
+    the last hand-set numbers in the halation path. 79 distinct gain triples
+    are in use across 114 stocks and not one of them is traceable to a
+    document.
+
+    The three tiers, so that nothing in them can be confused for another:
+
+      TIER A  the optics of the SUPPORT, shared by every film on it:
+              refractive index, Fresnel reflectance, critical angle.
+              `_V34_BASE_OPTICS` and `base_fresnel()`. Four rows, not 191 --
+              a physical constant written once.
+      TIER B  THIS RECORD. The antihalation layer as the maker built it:
+              where it is, what dye, how thick, how dense, and how that
+              density varies with wavelength. Per film, measured or absent.
+      TIER C  `HalationSpec`. The model. DERIVED, never authored.
+
+    ⚠ WHY R_base(lambda) IS NOT A FIELD HERE, THOUGH IT WAS PROPOSED AS ONE.
+    Past the critical angle the reflectance at the base/air interface is
+    exactly 1 by the definition of total internal reflection, which IS the
+    halation mechanism; below it, it is about 4 % at normal incidence. The
+    dispersion of acetate and of ESTAR across 400-700 nm is under one per
+    cent. Stored per film it would be one constant written 191 times with 191
+    chances to disagree with itself, and it would carry neither per-film nor
+    spectral information. It is Tier A and it is computed, not stored.
+
+    ⚠ AND WHY H(r, lambda) IS NOT A FIELD EITHER. It is the OUTPUT. Storing
+    it beside the quantities it is computed from is the exact conflation this
+    record exists to prevent. If it is ever cached it must be gated the way
+    `mtf_measured` and `printing_matrix_measured` are gated.
+
+    ⚠ POSITION MATTERS AS MUCH AS DENSITY, which is why it is not optional in
+    practice. The same optical density in three different places gives three
+    different halos: a rem-jet backing sits behind the support, a dyed
+    undercoat between emulsion and support, colloidal silver inside the pack.
+    The light crosses each a different number of times over a different path.
+
+    ⚠ THE CONSTRUCTION ITSELF IS NOT DUPLICATED HERE. `EmulsionSpec
+    .antihalation` has held the vocabulary since v29 and is populated on 31
+    of 191 stocks; a second copy in this record would be a second answer to
+    one question, which is the failure `DevelopmentPoint.vessel` and
+    `ProcessingFamily.reference_developer` were both added to prevent.
+
+    Attributes:
+        position: Where the layer sits in the optical path -- "" (not
+            stated), "backing" (behind the support, the rem-jet case),
+            "undercoat" (between emulsion and support), "in_pack" (inside the
+            emulsion stack, the colloidal-silver case), or "in_base" (dyed
+            support).
+        dye: The absorber as the source names it. "" = not stated.
+        thickness_um: Layer thickness. 0.0 = not stated.
+        optical_density: OD at `od_lambda_nm`. 0.0 = not stated.
+        od_lambda_nm: The wavelength `optical_density` was read at. 0.0 when
+            no single-wavelength figure is stored.
+        od_spectrum: OD against wavelength on the module's standard grid, or
+            () when no spectrum is known. THIS is the field the derived gain
+            wants: a neutral carbon backing and a dye tuned to absorb blue
+            and green produce the same scalar OD and completely different
+            halo colours.
+        lambda_start_nm / lambda_step_nm: the grid `od_spectrum` sits on.
+        removable: True where the layer is stripped in processing (rem-jet)
+            or can be absent on a variant of the same emulsion. ⚠ THIS IS THE
+            FIELD THAT MAKES THE ONE CONTROLLED EXPERIMENT IN THIS DATABASE
+            FINDABLE: KODAK_VISION3_500T_5219 and CINESTILL_800T are the same
+            emulsion with and without the rem-jet.
+        measured: True only where the numbers above were READ FROM A DOCUMENT.
+            Same gate idiom as `mtf_measured`: a class inference must never be
+            able to pass itself off as a per-stock measurement.
+        source: The citation, or the reason there is none.
+    """
+
+    position: str = ""
+    dye: str = ""
+    thickness_um: float = 0.0
+    optical_density: float = 0.0
+    od_lambda_nm: float = 0.0
+    od_spectrum: tuple[float, ...] = ()
+    lambda_start_nm: float = 400.0
+    lambda_step_nm: float = 10.0
+    removable: bool = False
+    #: Silver coating weight of a colloidal-silver antihalation layer, g/m2.
+    #: 0.0 = not stated.
+    #:
+    #: ⚠ STORED AS THE COATING WEIGHT AND DELIBERATELY NOT CONVERTED TO AN
+    #: OPTICAL DENSITY. The corpus holds the covering-power constant for
+    #: DEVELOPED FILAMENTARY silver -- about 1 g Ag/m2 to D 1.0 -- and
+    #: colloidal silver is not that material: its particles are far smaller
+    #: and its absorption per gram is correspondingly higher. Applying the
+    #: filamentary constant here would manufacture an OD that looks measured.
+    #: What the patents print is a weight, so a weight is what is stored.
+    silver_g_per_m2: float = 0.0
+    #: True where the source states the absorber is NEUTRAL across the
+    #: visible -- carbon in a rem-jet backing is the case that matters.
+    #:
+    #: ⚠ IT EXISTS SO THAT A SCALAR OD CAN BE USED AT ALL AND ONLY WHERE IT
+    #: IS LEGITIMATE. `od_at` refuses to answer away from `od_lambda_nm`
+    #: precisely because a dyed layer's OD is not flat -- that non-flatness
+    #: is the whole difference between a dyed undercoat and a carbon backing,
+    #: and it is what makes a real halo red. Declaring neutrality is a claim
+    #: about the material and must come from the source, never from the fact
+    #: that only one number was found.
+    neutral: bool = False
+    measured: bool = False
+    source: str = ""
+
+    @property
+    def has_any_data(self) -> bool:
+        """True when the record says ANYTHING about the layer. Wider than
+        `has_density`, because a coating weight or a thickness is a real
+        physical statement that the gain law cannot yet consume."""
+        return bool(self.position or self.dye or self.thickness_um
+                    or self.silver_g_per_m2 or self.has_density)
+
+    @property
+    def has_density(self) -> bool:
+        """True when SOMETHING quantitative is stored -- a scalar OD or a
+        spectrum. False is the honest and overwhelmingly common answer."""
+        return self.optical_density > 0.0 or bool(self.od_spectrum)
+
+    def od_at(self, lambda_nm: float) -> float:
+        """OD at a wavelength: the spectrum where one exists, else the scalar
+        where the wavelength is close enough to the one it was read at, else
+        0.0. ⚠ NEVER EXTRAPOLATES. A scalar OD read at 550 nm says nothing
+        about 650 nm, and the whole reason a dyed layer differs from a carbon
+        one is that its OD is NOT flat."""
+        if self.od_spectrum:
+            k = (lambda_nm - self.lambda_start_nm) / max(self.lambda_step_nm,
+                                                         1e-9)
+            i = int(round(k))
+            if 0 <= i < len(self.od_spectrum):
+                return float(self.od_spectrum[i])
+            return 0.0
+        if self.optical_density > 0.0 and self.od_lambda_nm > 0.0 \
+                and (self.neutral
+                     or abs(lambda_nm - self.od_lambda_nm) <= 25.0):
+            return float(self.optical_density)
+        return 0.0
+
+    def validate(self, label: str = "") -> None:
+        if self.position and self.position not in _AH_POSITIONS:
+            raise ValueError(
+                f"{label}: anti_halation.position {self.position!r} not one "
+                f"of {sorted(_AH_POSITIONS)}")
+        if self.optical_density < 0.0 or self.optical_density > 8.0:
+            raise ValueError(
+                f"{label}: anti_halation.optical_density "
+                f"{self.optical_density} is outside 0..8. An antihalation "
+                "layer at OD 8 would pass one part in 10^8 and no measurement "
+                "in this corpus reaches it")
+        if self.optical_density > 0.0 and self.od_lambda_nm <= 0.0:
+            raise ValueError(
+                f"{label}: a scalar anti_halation.optical_density is stored "
+                "with no od_lambda_nm. An OD without the wavelength it was "
+                "read at cannot be used by `od_at` and cannot be checked "
+                "against a spectrum -- this is the same class of omission "
+                "`DyeImpurity.measurement_mode` was added at v29 to prevent")
+        if self.silver_g_per_m2 < 0.0 or self.silver_g_per_m2 > 5.0:
+            raise ValueError(
+                f"{label}: anti_halation.silver_g_per_m2 "
+                f"{self.silver_g_per_m2} is outside 0..5 g/m2; the complete "
+                "multilayer negatives in this corpus coat 0.236-0.30")
+        if self.silver_g_per_m2 > 0.0 and not self.measured:
+            raise ValueError(
+                f"{label}: anti_halation carries a silver coating weight but "
+                "is not marked measured. Tier B holds READ values only")
+        if self.has_density and not self.measured:
+            raise ValueError(
+                f"{label}: anti_halation carries a density but is not marked "
+                "measured. Tier B holds READ values only; a derived or "
+                "class-inferred density belongs nowhere in this record")
+        if self.measured and not self.source:
+            raise ValueError(
+                f"{label}: anti_halation.measured is True with no source")
+        if self.neutral and self.od_spectrum:
+            raise ValueError(
+                f"{label}: anti_halation declares a NEUTRAL absorber and also "
+                "stores an od_spectrum. If the spectrum is real it decides, "
+                "and the flag is a second answer to the same question; if it "
+                "is flat the flag is redundant. Keep one")
+        if self.neutral and not self.measured:
+            raise ValueError(
+                f"{label}: anti_halation.neutral is a claim about the "
+                "MATERIAL and must come from the source, never from the fact "
+                "that only one wavelength was found")
+
+
 @dataclass(frozen=True, slots=True)
 class HalationSpec:
     """Light that passed through the emulsion, bounced off the base, came back.
@@ -3685,6 +6197,18 @@ class AgingSpec:
     #: How much larger the fade fraction is at D = 0.5 than at D = 1.0.
     #: 1.0 = uniform (the pre-v29 behaviour).
     dye_fade_low_density_factor: float = 1.0
+    # -- schema v43 (2026-09-18c, queue P13) ---------------------------------
+    #: WHICH MAGENTA COUPLER, because `dye_fade_m` has no era-independent
+    #: default and the ranking INVERTS between the 1950s and the 1980s
+    #: chemistries -- see `_MAGENTA_LIGHT_FADE` for the measurement and the
+    #: sources. One of `_MAGENTA_COUPLER_CLASSES`, or "" for "the document
+    #: does not say", which is the honest state of every stock in this file
+    #: today: a coupler class is a statement about the emulsion's chemistry
+    #: and not something that can be inferred from its date.
+    #: ⚠ INERT, AND IT IS A KEY RATHER THAN A QUANTITY. Nothing on the render
+    #: path reads it; `magenta_fade_default()` turns it into a fade fraction
+    #: for a caller that asks, and returns None when it cannot.
+    magenta_coupler_class: str = ""
 
     def fade_fraction_at(self, base_fraction: float, density: float) -> float:
         """`base_fraction`, restated for a density other than 1.0.
@@ -3700,6 +6224,15 @@ class AgingSpec:
             return float(base_fraction)
         d = min(1.0, max(0.0, float(density)))
         return float(base_fraction) * (1.0 + (f - 1.0) * (1.0 - d) / 0.5)
+
+    def validate(self, label: str = "") -> None:
+        """-- schema v43 (queue P13). The coupler class must be a known one."""
+        if (self.magenta_coupler_class
+                and self.magenta_coupler_class not in _MAGENTA_COUPLER_CLASSES):
+            raise ValueError(
+                f"{label}: magenta_coupler_class "
+                f"{self.magenta_coupler_class!r} not one of "
+                f"{sorted(_MAGENTA_COUPLER_CLASSES)}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -3918,6 +6451,39 @@ class SpectralSensitivity:
     log_s_g: tuple[float, ...] = ()
     log_s_b: tuple[float, ...] = ()
     log_s_pan: tuple[float, ...] = ()
+    # -- schema v39 (2026-09-17e, queue S1): THE FOURTH COLOUR RECORD --------
+    #: Cyan-sensitive layer -- Fuji's "4th Colour Layer Technology".
+    #:
+    #: ⚠⚠ THE SCHEMA REFUSED THIS LAYER FOR ELEVEN DAYS AND THE REFUSAL WAS
+    #: THE RIGHT CALL AT THE TIME. `doc/FUJI_FOURTH_LAYER.md` opens with "THIS
+    #: FILE EXISTS BECAUSE THE DATABASE CANNOT HOLD WHAT IS IN IT": five Fuji
+    #: colour negatives draw FOUR sensitive layers and `SpectralSensitivity`
+    #: had three, so the stored set on each was three of the four curves its
+    #: own datasheet prints. The owner's 2026-09-06f decision was to trace it,
+    #: document it and not store it -- measured, published, and outside the
+    #: schema. This field is the schema catching up; the numbers are the same
+    #: numbers, moved from a Markdown file into the record they describe.
+    #:
+    #: ⚠ WHY IT IS ITS OWN FIELD AND NOT A FOURTH ENTRY IN A LIST. The three
+    #: colour records map onto the three dye layers the renderer carries. A
+    #: fourth SENSITIVE layer does not add a fourth dye -- it feeds the
+    #: existing ones -- so promoting the trio to a list would change what
+    #: every consumer means by "record" to buy nothing.
+    #:
+    #: ⚠ IT SITS BETWEEN BLUE AND GREEN, WHICH IS WHY NO GEOMETRIC RULE COULD
+    #: FIND IT. Peak 516-519 nm on all four vector sheets -- a 3 nm spread
+    #: across four films and four separately calibrated panels, against blue
+    #: 463-471, green 529-557 and red 628-630. It is told apart by its DASH
+    #: PATTERN, mechanically, not by position.
+    #:
+    #: ⚠ AND THE RENDER PATH STILL DOES NOT INTEGRATE IT. `spectral_taking`
+    #: is off by default and remains so: integrating four records where the
+    #: taking matrix expects three is a different change, and the warning in
+    #: FUJI_FOURTH_LAYER.md -- that integrating three quarters of a film is
+    #: wrong in a way no tolerance catches -- now applies to the opposite
+    #: mistake as well. What v39 fixes is that the measurement is no longer
+    #: OUTSIDE the database.
+    log_s_c: tuple[float, ...] = ()
     criterion: str = ""
     source: str = ""
     # -- schema v20 (2026-08-30, queue C39) ---------------------------------
@@ -4123,6 +6689,15 @@ class DyeImpurityRatio:
     lo: float = 0.0
     hi: float = 0.0
     criterion: str = ""
+    #: -- schema v41 (queue P36): WHAT THIS IS A RATIO OF.
+    #: "density_ratio" -- unwanted over wanted DENSITY at one point, which is
+    #: what every record in this database currently holds; "gamma_ratio" --
+    #: unwanted over wanted ABSORPTION GAMMA, which is the quantity
+    #: US 2,449,966 defines and the one Hanson's masking rule is written in;
+    #: "" -- the source does not say, and nothing may be derived from it.
+    #: ⚠ THE TWO ARE NOT INTERCHANGEABLE on any film whose unwanted absorption
+    #: does not scale exactly with its wanted one, which is the general case.
+    quantity: str = ""
 
     @property
     def mid(self) -> float:
@@ -4135,6 +6710,10 @@ class DyeImpurityRatio:
             raise ValueError(f"{label}: band must be b/g/r, got {self.band!r}")
         if self.hi < self.lo:
             raise ValueError(f"{label}: ratio range inverted ({self.lo}..{self.hi})")
+        if self.quantity and self.quantity not in _IMPURITY_QUANTITIES:
+            raise ValueError(
+                f"{label}: quantity {self.quantity!r} not one of "
+                f"{sorted(_IMPURITY_QUANTITIES)}")
         # No lower bound: negatives are real (see the class docstring). An
         # upper bound is imposed because a ratio above 1.0 would mean the dye
         # is denser outside its own band than inside it, which is not a dye.
@@ -4237,6 +6816,110 @@ class DyeImpurity:
                     f"which is the useful density, not an unwanted one")
         if not self.source:
             raise ValueError(f"{label}: dye impurity requires a source")
+
+
+# ---------------------------------------------------------------------------
+# Offset-speed sub-layers (schema v43, queue P41)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class SubLayerSet:
+    """One colour record coated as SEVERAL emulsion layers of offset speed.
+
+    ⚠⚠ THE MODEL STORES ONE `ToneCurve` PER RECORD AND THE REAL FILM DOES NOT.
+    EP 0 083 377 A1 (Konishiroku, filed 1982-07-10) is built on the point that
+    a colour record is coated as two or three emulsion layers of DIFFERENT
+    SPEED, and that the latitude of the record is the sum of their offset
+    curves rather than a property of any one of them. Its own Table 2 measures
+    the separation between the low- and high-sensitivity green sub-layers of
+    eight coatings at 0.35 to 0.37 log E, inside its claimed 0.2-1.5 window
+    and its preferred 0.3-0.8 one.
+
+    ⚠ THE ROW THAT ASKED FOR THIS REFUSED AN EMPTY CARRIER, AND THAT REFUSAL
+    IS WHY THIS CLASS HAS A LAW IN IT. Queue P41's own text: adding a
+    `SubLayerSpec` would "put an unpopulated field on all 184 stocks and
+    change no render, which is precisely the collect-but-do-not-enter failure
+    the second pass existed to stop". What makes the difference here is
+    `combined_density`: the structure is not merely storable, it is
+    COMPUTABLE, so a populated set produces a curve that a bare ToneCurve
+    cannot, and the patent's own numbers can be pushed through it and checked.
+
+    ``dloge`` holds each sub-layer's speed offset in log exposure, ASCENDING
+    and starting at 0.0 for the fastest layer -- a positive entry means that
+    layer needs MORE exposure. ``share`` is each sub-layer's fraction of the
+    record's total developed density, summing to 1.0.
+
+    ⚠ ZERO OF THE STOCKS IN THIS FILE POPULATE IT, and that is the honest
+    state rather than an oversight: no specimen in EP 0 083 377 A1 is a stock
+    this database holds, and no datasheet in the corpus publishes a sub-layer
+    breakdown for one that is. See `_EP0083377_RULES` for what the patent
+    does give, which is a window and a measurement of its own coatings.
+    """
+
+    dloge: tuple[float, ...] = ()
+    share: tuple[float, ...] = ()
+    criterion: str = ""
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return len(self.dloge) > 1
+
+    def combined_density(self, density_at, log_e: float) -> float:
+        """Density of the whole record at ``log_e``, summing the sub-layers.
+
+        ``density_at`` is any callable mapping log exposure to density -- the
+        renderer's own curve evaluator, in practice. It is passed in rather
+        than looked up because `ToneCurve` is a description and the evaluator
+        lives in `film_sim`; hard-wiring one here would put two curve models
+        in the file.
+
+        Each sub-layer sees the same exposure shifted by its own offset and
+        contributes its ``share`` of the density. With no sub-layers this is
+        exactly ``density_at(log_e)``, so an unpopulated set cannot move a
+        render -- which is the property that let this carrier ship inert.
+        """
+        if not self.has_data:
+            return float(density_at(log_e))
+        total = 0.0
+        for d, w in zip(self.dloge, self.share):
+            total += w * float(density_at(log_e - d))
+        return total
+
+    def latitude_gain_stops(self) -> float:
+        """How much wider the record's straight line is than one sub-layer's.
+
+        The span between the fastest and the slowest sub-layer, in stops. This
+        is the quantity the patent is claiming: two layers separated by
+        0.36 log E widen the record by 1.2 stops over either alone.
+        """
+        if not self.has_data:
+            return 0.0
+        return (max(self.dloge) - min(self.dloge)) / 0.30103
+
+    def validate(self, label: str = "") -> None:
+        if not self.dloge and not self.share:
+            return                      # inert default
+        if len(self.dloge) != len(self.share):
+            raise ValueError(
+                f"{label}: {len(self.dloge)} offsets against "
+                f"{len(self.share)} shares -- a sub-layer needs both")
+        if len(self.dloge) < 2:
+            raise ValueError(
+                f"{label}: a sub-layer SET needs at least two layers; one "
+                "layer is what a bare ToneCurve already is")
+        if self.dloge[0] != 0.0:
+            raise ValueError(
+                f"{label}: offsets must start at 0.0 for the FASTEST layer, "
+                f"got {self.dloge[0]}")
+        if list(self.dloge) != sorted(self.dloge):
+            raise ValueError(f"{label}: offsets must ascend, got {self.dloge}")
+        if any(w <= 0.0 for w in self.share):
+            raise ValueError(f"{label}: every share must be > 0")
+        if abs(sum(self.share) - 1.0) > 1e-6:
+            raise ValueError(
+                f"{label}: shares sum to {sum(self.share):.4f}, not 1.0")
+        if not self.source:
+            raise ValueError(f"{label}: a sub-layer set requires a source")
 
 
 @dataclass(frozen=True, slots=True)
@@ -4353,6 +7036,24 @@ class DevelopmentPoint:
     #:
     #: ⚠ INERT. Nothing on the render path reads a DevelopmentPoint at all.
     vessel: str = ""
+    #: -- schema v39 (2026-09-17d, queue P54) -------------------------------
+    #: The FILM FORMAT this time was measured on: "" (not stated), "135",
+    #: "120", "sheet".
+    #:
+    #: ⚠⚠ THE FIELD EXISTS BECAUSE A BOOK PRINTS THE AXIS AND 705 VALUES WERE
+    #: HELD FOR WANT OF IT. «Современные фотоматериалы и их обработка»
+    #: tabulates Kodak's T-MAX push times separately for 135 and 120, in
+    #: ROW sub-blocks headed «Для 135 формата» and «Для 120 формата» under one
+    #: developer column, and the two differ -- T-MAX 100 at EI 200 in T-MAX
+    #: developer is 6:00 at 20 degC in 135 and 5:45 in 120. A parser with no
+    #: format axis reads the second block's labels as developer names and the
+    #: physical check then refuses the lot.
+    #:
+    #: ⚠ IT IS A THIRD AXIS BESIDE `vessel` AND `generation`, NOT A REPLACEMENT
+    #: FOR EITHER. The same book prints small-tank against large-tank in the
+    #: COLUMN direction and 135 against 120 in the ROW direction on the same
+    #: page, so a record can need both.
+    film_format: str = ""
     # -- schema v35 (2026-09-16), INERT --------------------------------------
     #: Which GENERATION of the stock this point measures. "" = the generation
     #: the profile itself describes, which is the common case and the default.
@@ -4443,6 +7144,76 @@ class DevelopmentPoint:
 
 
 @dataclass(frozen=True, slots=True)
+class DevelopmentLaw:
+    """ONE developer's rate law inside a family (schema v41, queue P52).
+
+    ⚠⚠ A FAMILY CAN SPAN TWO DEVELOPERS AND THEY DO NOT SHARE A LAW. KODAK
+    T-MAX P3200's nine points are two series -- T-MAX in a small tank and
+    T-MAX RS in a large one -- and each fits the saturating exponential
+    cleanly ON ITS OWN, at gamma_inf 1.183 / k 0.3212 / t0 5.056 (rms 0.0100)
+    and 1.649 / 0.0748 / 3.691 (rms 0.0090): a much slower approach to a much
+    higher limit, which is what a replenished large tank should look like
+    beside a small one. `ProcessingFamily.validate` checked EVERY point
+    against the single family law, so storing the small-tank constants made
+    one point read 0.549 where the law predicted 0.850 and the build refused
+    it -- correctly, because the record was wrong.
+
+    ⚠ THE MEASUREMENTS WERE KEPT AND THE FIT WAS DROPPED at the time, on the
+    rule that a fit can be recomputed from the points and the points cannot be
+    recomputed from the fit. This record is where the fit goes back.
+    """
+
+    developer: str = ""
+    #: Dilution as the source writes it; "" when it states none.
+    dilution: str = ""
+    #: Vessel as `DevelopmentPoint.vessel` spells it -- "small tank",
+    #: "large tank", "tray", "rotary drum" -- or "" for any.
+    vessel: str = ""
+    gamma_infinity: float = 0.0
+    dev_rate_k: float = 0.0
+    induction_t0_min: float = 0.0
+    #: RMS of the fit against the points it was fitted to. ⚠ Stored because a
+    #: law with no residual is a claim with no error bar.
+    fit_rms: float = 0.0
+
+    @property
+    def has_rate_law(self) -> bool:
+        return self.gamma_infinity > 0.0 and self.dev_rate_k > 0.0
+
+    def gamma_at(self, minutes: float) -> float:
+        import math
+        if not self.has_rate_law:
+            raise ValueError("DevelopmentLaw is not parameterised")
+        dt = max(0.0, float(minutes) - self.induction_t0_min)
+        return self.gamma_infinity * (1.0 - math.exp(-self.dev_rate_k * dt))
+
+    def matches(self, developer: str, vessel: str = "") -> bool:
+        """Does this law govern a point measured in this developer and vessel?"""
+        if self.developer and developer and self.developer != developer:
+            return False
+        if self.vessel and vessel and self.vessel != vessel:
+            return False
+        return True
+
+    def validate(self, label: str = "") -> None:
+        if self.gamma_infinity < 0.0 or self.dev_rate_k < 0.0:
+            raise ValueError(f"{label}: negative DevelopmentLaw constant")
+        if self.gamma_infinity > 8.0:
+            raise ValueError(f"{label}: gamma_infinity {self.gamma_infinity} "
+                             "out of range")
+        if self.dev_rate_k > 5.0:
+            raise ValueError(f"{label}: dev_rate_k {self.dev_rate_k} out of "
+                             "range")
+        if bool(self.gamma_infinity) != bool(self.dev_rate_k):
+            raise ValueError(f"{label}: a DevelopmentLaw needs both "
+                             "gamma_infinity and dev_rate_k or neither")
+        if self.has_rate_law and not self.developer:
+            raise ValueError(f"{label}: a DevelopmentLaw must name its "
+                             "developer -- an unnamed law is the family law "
+                             "and belongs in ProcessingFamily")
+
+
+@dataclass(frozen=True, slots=True)
 class ProcessingFamily:
     """The whole processing axis, not one condition (schema v7, INERT).
 
@@ -4459,6 +7230,31 @@ class ProcessingFamily:
     """
 
     points: tuple[DevelopmentPoint, ...] = ()
+    # -- schema v39 (2026-09-17d, queue P54): THE TIME-TEMPERATURE LAW --------
+    #: d ln(time) / d(degrees C), at constant contrast. NEGATIVE: warmer
+    #: developer, shorter time. 0.0 = this family holds one temperature and
+    #: has no slope.
+    #:
+    #: ⚠⚠ THE CONTROL THIS UNBLOCKS SAID IN ITS OWN DOCUMENTATION WHAT IT WAS
+    #: WAITING FOR. AlgoControl.hpp's `developmentCelsius` block has read,
+    #: since it was written: "time-temperature equivalence charts DO exist for
+    #: real developers, but none has been adopted here, and substituting a
+    #: published chart from another developer would be an invented effect".
+    #: One is adopted now, and it is not from another developer -- it is fitted
+    #: to each stock's OWN points.
+    #:
+    #: ⚠ DERIVED AT IMPORT, NEVER STORED TWICE. `_apply_temperature_law`
+    #: least-squares fits ln(minutes) against celsius within each
+    #: (developer, dilution, vessel, format) series that holds four or more
+    #: temperatures, and takes the median slope over the series. A hard-coded
+    #: copy could disagree with the points it came from; this cannot.
+    #:
+    #: MEASURED: 179 such series across 11 stocks, median -0.0854 per degree,
+    #: 10th-90th percentile -0.1098 to -0.0571, i.e. time x0.43 per +10 degC.
+    #: The per-stock medians span x0.33 (AGFA_APX_100) to x0.50
+    #: (KODAK_TRI_X_320TXP), so the population figure is NOT substituted for a
+    #: stock that has its own.
+    temperature_coeff_per_c: float = 0.0
     # -- schema v29 (2026-09-10): THE LAW THE POINTS LIE ON ------------------
     # ⚠ THE POINTS WERE BEING INTERPOLATED LINEARLY AND THE GAMMA-TIME CURVE
     # IS NOT LINEAR. It is a saturating exponential, and it has been known to
@@ -4547,7 +7343,20 @@ class ProcessingFamily:
     reference_developer: str = ""
     #: Dilution of `reference_developer`, in the source's own words.
     reference_dilution: str = ""
+    #: -- schema v41 (queue P52): ONE LAW PER DEVELOPER inside the family.
+    #: ⚠ The family-level `gamma_infinity` / `dev_rate_k` above stay, and stay
+    #: FIRST: they are the law when a family has one developer, which is 29 of
+    #: the 30. These are for the family that does not, and a point is checked
+    #: against the law that MATCHES it before the family law is tried.
+    laws: tuple["DevelopmentLaw", ...] = ()
     source: str = ""
+
+    def law_for(self, developer: str, vessel: str = ""):
+        """The DevelopmentLaw governing a point, or None to use the family."""
+        for law in self.laws:
+            if law.has_rate_law and law.matches(developer, vessel):
+                return law
+        return None
 
     @property
     def has_data(self) -> bool:
@@ -4674,10 +7483,30 @@ class ProcessingFamily:
         # -- law worth storing: a fitted asymptote that contradicts the
         # -- sheet's own tabulated times is a transcription error, and
         # -- without this it would sit in the database looking authoritative.
+        for i, law in enumerate(self.laws):
+            law.validate(f"{label} development law {i}")
+        # ⚠ A POINT IS CHECKED AGAINST THE LAW THAT GOVERNS IT (queue P52). A
+        # family spanning two developers has one law each, and checking a
+        # T-MAX RS point against the T-MAX constants is what refused this
+        # family's fit in the first place.
+        if self.laws:
+            for i, pt in enumerate(self.points):
+                g = pt.gamma or pt.contrast_index
+                law = self.law_for(pt.developer, pt.vessel)
+                if law is None or g <= 0.0 or pt.minutes <= 0.0:
+                    continue
+                pred = law.gamma_at(pt.minutes)
+                if abs(pred - g) > 0.12 * max(g, 0.2):
+                    raise ValueError(
+                        f"{label}: development point {i} measures gamma/CI "
+                        f"{g:.3f} at {pt.minutes} min in {pt.developer!r}, "
+                        f"but that developer's own law predicts {pred:.3f}")
         if self.has_rate_law:
             for i, pt in enumerate(self.points):
                 g = pt.gamma or pt.contrast_index
                 if g <= 0.0 or pt.minutes <= 0.0:
+                    continue
+                if self.law_for(pt.developer, pt.vessel) is not None:
                     continue
                 pred = self.gamma_at(pt.minutes)
                 # 12 % is deliberately loose. The points in one family can
@@ -6546,6 +9375,13 @@ class FilmProfile:
     is_monochrome: bool = False
     aliases: tuple[str, ...] = ()
     halation: HalationSpec = field(default_factory=HalationSpec)
+    # -- schema v39 (2026-09-17d): TIER B, the AH layer as a physical object.
+    # Empty on every stock at v39 and that is the honest state: the corpus
+    # names a CONSTRUCTION on 31 of 191 (`emulsion.antihalation`) and states
+    # an optical density, a thickness or a dye spectrum on none. A row of
+    # explicit absences is worth more than one invented scalar -- see the
+    # record's own docstring.
+    anti_halation: AntiHalationSpec = field(default_factory=AntiHalationSpec)
     couplers: CouplerSpec = field(default_factory=CouplerSpec)
     taking_matrix: Matrix3 = IDENTITY3
     dye_matrix: Matrix3 = IDENTITY3
@@ -6644,15 +9480,46 @@ class FilmProfile:
     #: an 80A costs. Every Fujicolor cine stock is quoted the same way (a
     #: No. 85 for tungsten-type films used in daylight, an 80A for daylight-type
     #: films used under tungsten). Those figures are FILTER FACTORS and must not
-    #: be stored here -- doing so would make a filter look like a sensitisation
-    #: difference. Consequently every entry in _EXPOSURE_INDEX_TUNGSTEN is a
-    #: monochrome stock, and that is a property of the definition, not an
-    #: accident of which sources have been read.
+    #: be stored here UNFILTERED-LOOKING -- doing so would make a filter look
+    #: like a sensitisation difference.
+    #:
+    #: ⚠⚠ WIDENED AT v42 (2026-09-18), AND THE 2026-08-14 RULE ABOVE IS NOT
+    #: REVERSED -- IT IS NOW ENFORCEABLE INSTEAD OF BEING A BAN. The rule
+    #: ended "every entry here is a monochrome stock, and that is a property
+    #: of the definition"; the ban existed because there was no way to say, in
+    #: the record itself, that a given tungsten rating had a filter in the
+    #: light path. `conversion_filter_tungsten` below, added the same day by
+    #: queue P45, is exactly that statement. So this field now holds THE
+    #: TUNGSTEN RATING, and the filter field beside it says which kind of
+    #: number it is: EMPTY means the unfiltered pair the 2026-08-14 note
+    #: described, whose ratio is a sensitisation measurement; NON-EMPTY names
+    #: the conversion filter, and then the ratio is that filter's factor and
+    #: must never be read as a property of the emulsion.
+    #: ⚠ THE TWO POPULATIONS ARE ASSERTED SEPARATELY, in verify.py: the
+    #: unfiltered pairs against their sensitising class's band, the filtered
+    #: ones against the filter's own published factor (the 80A's two stops,
+    #: the 85's two thirds). Mixing them is the error the ban was written to
+    #: prevent and it is now caught by a check rather than by an absence.
     #:
     #: Nothing in the render reads it yet. It is stored because it is
     #: documented and because a future spectral or filter-factor path is the
     #: obvious consumer.
     exposure_index_tungsten: int = 0
+    # -- schema v41 (queue P45, 2026-09-18b) ---------------------------------
+    #: ⚠⚠ `exposure_index` MEANS THE STOCK'S OWN NATIVE RATING and nothing
+    #: else -- tungsten on a 3200 K stock, daylight on a 5500 K one -- so on a
+    #: cine stock there was no field for the CROSS rating at all, and
+    #: `exposure_index_tungsten` could not be used for it without meaning two
+    #: different things on two kinds of film. These two say outright which
+    #: illuminant they belong to, and both are filled wherever the source
+    #: states a pair, so nothing has to be inferred from `balance_kelvin`.
+    exposure_index_daylight: int = 0
+    #: The conversion filter the rating above is taken WITH -- "85", "85A",
+    #: "80A", or "" for none. ⚠ THE FILTER IS PART OF THE RATING: Vision 250D
+    #: is EI 250 in daylight and EI 64 in tungsten only because an 80A is on
+    #: the lens, and the two-stop difference IS the filter.
+    conversion_filter_daylight: str = ""
+    conversion_filter_tungsten: str = ""
     #: The development condition the stored curve represents. See
     #: ProcessingSpec -- all-empty means the source did not state it.
     processing: ProcessingSpec = field(default_factory=ProcessingSpec)
@@ -6806,6 +9673,13 @@ class FilmProfile:
     print_grain_index: PrintGrainIndex = field(
         default_factory=PrintGrainIndex)
     dye_impurity: DyeImpurity = field(default_factory=DyeImpurity)
+    # -- schema v43 (2026-09-18c, queue P41), INERT ON ALL 191 ------------
+    #: The record's OFFSET-SPEED SUB-LAYERS, when a source publishes them.
+    #: Empty on every stock in this file, and `SubLayerSet.combined_density`
+    #: returns the bare ToneCurve's density for an empty set, so no render
+    #: moves. See the class docstring for why an empty carrier was refused
+    #: once and is acceptable now: it arrives with the law that consumes it.
+    sub_layers: SubLayerSet = field(default_factory=SubLayerSet)
     # -- schema v16 (2026-08-27), INERT --------------------------------------
     #: Published push / pull processing latitude. All zeros with an empty
     #: source = no source on file states one, which is true of 160 of the 161
@@ -6863,6 +9737,7 @@ class FilmProfile:
 
     def validate(self) -> None:
         self.curves.validate(self.name)
+        self.anti_halation.validate(self.name)
         self.spectral.validate(self.name)
         self.taking_filter.validate(self.name + ' taking_filter')
         # schema v7 -- inert carriers, but validated so bad data cannot enter
@@ -6871,6 +9746,10 @@ class FilmProfile:
         self.processing_family.validate(self.name)
         self.reciprocity_table.validate(self.name)
         self.dye_impurity.validate(self.name)
+        # -- schema v43 (queue P13): AgingSpec gained a vocabulary field,
+        # and a vocabulary nobody checks is a comment.
+        self.aging.validate(self.name)
+        self.sub_layers.validate(self.name)
         if self.spectral.has_data:
             if self.is_monochrome and not self.spectral.log_s_pan:
                 raise ValueError(
@@ -7144,6 +10023,31 @@ class PrintStock:
     #: `dye_matrix_from_spectra`. 164 of 165 profiles render through SCAN_DI,
     #: so their reader is a scanner, not this film.
     spectral: SpectralSensitivity = field(default_factory=SpectralSensitivity)
+    # -- schema v43 (2026-09-18c, queue M1a) ---------------------------------
+    #: MAY THIS STOCK'S OWN `spectral` SERVE AS STAGE 12's `M_reader`?
+    #:
+    #: ⚠⚠ THE ROW ABOVE SAYS "HAVING IT DOES NOT LICENCE ADOPTING THE MATRIX"
+    #: AND NOTHING IN THE FILE SAID WHEN IT DOES. That is the whole of queue
+    #: M1a after its acquisition half closed: the 2383 spectral panel arrived,
+    #: was traced, and the remaining question was a CONFIGURATION one -- which
+    #: print stocks are real emulsions whose layers read a negative, and which
+    #: are scanner-plus-transform stand-ins whose "reader" is a sensor.
+    #: `SCAN_DI` is the second kind, and 190 of the 191 film profiles render
+    #: through it, which is why `KODAK_2383_RELEASE`'s measured printing
+    #: matrix is correct and unused.
+    #:
+    #: True  -- a real print emulsion; its `spectral` IS the reader that sees
+    #:          the negative's dyes, and `printing_density_matrix` derived
+    #:          from it describes a physical printing step.
+    #: False -- a scanner or a digital-intermediate transform. Its reader is a
+    #:          sensor this corpus has no measurement of (queue M1b, proved
+    #:          absent for all eight scanners in the one document that
+    #:          measures any), so no matrix may be derived from `spectral`
+    #:          even if the field is somehow filled.
+    #:
+    #: ⚠ THIS FLAG DOES NOT ENABLE ANYTHING BY ITSELF. It states what the
+    #: stock is; whether a given FILM is printed onto it is `default_print`.
+    reader_is_emulsion: bool = False
     # -- schema v25 (2026-09-03), LIVE ON THE RENDER PATH --------------------
     #: EFFECTIVE INTEGRAL PRINTING DENSITY: the 3x3 that turns the negative's
     #: STORED densities into the exposure densities THIS print emulsion's three
@@ -7180,6 +10084,27 @@ class PrintStock:
     #: must never be able to pass itself off as a per-stock measurement.
     printing_matrix_measured: bool = False
     printing_matrix_source: str = ""
+    # -- schema v39 (2026-09-17d, queue P66), INERT ---------------------------
+    #: WHICH PROCESS THIS PRINT STOCK'S STORED CURVE REPRESENTS.
+    #:
+    #: ⚠ `FilmProfile` has carried a `ProcessingSpec` since v1 and
+    #: `PrintStock` carried none, so eleven positive stocks held a
+    #: characteristic curve with no statement of the chemistry that produced
+    #: it -- the exact ambiguity `ProcessingSpec`'s own docstring was written
+    #: to end, left standing on one side of the database because of which
+    #: document landed first.
+    #:
+    #: ⚠ THE DATA WAS ALREADY IN THE CORPUS AND HAD NOWHERE TO GO. Kodak's
+    #: «Using KODAK Kit Chemicals in Motion Picture Film Laboratories» prints
+    #: the full nine-step ECP-2E cycle, and `_PROVENANCE_SOURCES`' entry for
+    #: it says in as many words that the cycle "HAS NOWHERE TO LAND". It lands
+    #: here.
+    #:
+    #: Same contract as the film side: DESCRIPTIVE, not predictive. Nothing in
+    #: either renderer reads it; it records what the stored curve already is.
+    #: `None` means the source states no process, which is the honest default
+    #: for the digital-intermediate transforms that are not developed at all.
+    processing: "ProcessingSpec | None" = None
 
     def validate(self) -> None:
         self.spectral.validate(self.name)
@@ -7240,6 +10165,160 @@ class PrintStock:
             raise ValueError(
                 f"{self.name}: mtf_measured is set but no per-record f50 is "
                 f"populated")
+
+
+# ---------------------------------------------------------------------------
+# Colour PAPER spectral records (schema v42, queue P35)
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class PaperSpectralRecord:
+    """A colour PAPER's published spectral panels, with no tone curve.
+
+    ⚠ WHY THIS IS NOT A `PrintStock`, AND THE REASON IS A MISSING CURVE
+    RATHER THAN A MISSING FIELD. `PrintStock` requires `curves: RGBCurves`
+    because a print stock's whole job in the render is its characteristic
+    curve. The three Fujicolor Crystal Archive bulletins are printer-SETUP
+    documents: they print spectral dye density, spectral sensitivity, Dmax
+    aims, storage data and per-printer calibration tables, and NOT ONE
+    CHARACTERISTIC CURVE of any kind. Creating a PrintStock from them would
+    mean inventing the one thing they do not publish and attaching real
+    measurements to it, which is exactly the failure mode the precedence
+    rule exists to prevent. The v31 note on `PrintStock.density_geometry`
+    recorded that refusal on 2026-09-11 and it still stands.
+
+    ⚠ WHAT CHANGED ON 2026-09-18 IS THAT THE REFUSAL WAS BEING USED TO
+    DISCARD THE PANELS AS WELL. Two independent, fully calibrated spectral
+    sets -- three dye curves and three sensitivity curves each -- were
+    sitting unread because the record they would have hung off could not be
+    built. They are the first spectral data in this database for a material
+    class it contains none of, and the measurement does not depend on the
+    curve. So the panels are stored here, in their own carrier, and a future
+    bulletin that prints a characteristic curve can promote one of these
+    into a full `PrintStock` without re-reading anything.
+
+    ⚠ ONE RECORD MAY NAME SEVERAL PRODUCTS, and that is a finding rather
+    than a convenience. The Supreme and Type CA bulletins publish
+    BYTE-IDENTICAL panel images (md5 ff8b62.. for section 12 and 7930fc..
+    for section 13, checked on the extracted PNGs). That is one measurement
+    published twice, and storing it as two would silently double its weight
+    in any later average -- the same artwork-reuse trap the T-MAX P3200 MTF
+    row hit. `names` carries every product the one panel set covers.
+
+    STORAGE IS NOT USE: nothing on the render path reads this today, exactly
+    as for `FilmProfile.dye_density`.
+    """
+
+    key: str
+    names: tuple[str, ...]
+    description: str = ""
+    #: Process the panels were measured through, as the bulletin prints it.
+    process: str = ""
+    surfaces: tuple[str, ...] = ()
+    #: One of `_DENSITY_GEOMETRIES`. For a paper this is always "reflection".
+    density_geometry: str = "reflection"
+    #: Per-channel Dmax AIM, reflection density, glossy/lustre surface.
+    #: These are the numbers the v31 `PrintStock.density_geometry` comment
+    #: quoted from these same three bulletins and could not store.
+    dmax_aim_r: float = 0.0
+    dmax_aim_g: float = 0.0
+    dmax_aim_b: float = 0.0
+    #: Same, matte surface, where the bulletin prints a separate row. 0.0 =
+    #: the bulletin gives one set for every surface.
+    dmax_aim_matte_r: float = 0.0
+    dmax_aim_matte_g: float = 0.0
+    dmax_aim_matte_b: float = 0.0
+    #: Printed correction to every Dmax aim above when the lab runs
+    #: competitive or regenerated chemistry instead of the matched Fuji set.
+    #: Negative, and it applies to all three channels equally.
+    dmax_chemistry_delta: float = 0.0
+    dye_density: SpectralDyeDensity = field(default_factory=SpectralDyeDensity)
+    spectral: SpectralSensitivity = field(default_factory=SpectralSensitivity)
+    impurity: DyeImpurity = field(default_factory=DyeImpurity)
+    #: THE INTER-LAYER BALANCE, which `SpectralSensitivity` cannot hold.
+    #:
+    #: ⚠ THIS IS REAL INFORMATION AND THE STORAGE CONVENTION DESTROYS IT.
+    #: `SpectralSensitivity` normalises EACH layer's peak to log 0.0 and says
+    #: so -- it carries spectral SHAPE only, with absolute speed left to
+    #: `exposure_index`. A paper has no exposure index. But these panels are
+    #: plotted on ONE shared "relative sensitivity" axis whose peaks differ
+    #: between layers (Type II reads 1.449 / 1.083 / 0.592 for blue / green /
+    #: red), so the sheet states the three layers' speeds RELATIVE TO EACH
+    #: OTHER -- which is precisely the printer's RGB light balance. Dividing
+    #: that out into the shape record and not keeping it would have thrown
+    #: away the only speed information these bulletins publish.
+    #: Units are whatever the panel's own axis is; only the RATIOS are
+    #: meaningful, and they are meaningful only within one record.
+    rel_sens_peak_r: float = 0.0
+    rel_sens_peak_g: float = 0.0
+    rel_sens_peak_b: float = 0.0
+    #: Wavelength of each layer's peak, nm, read off the same panel.
+    peak_nm_r: float = 0.0
+    peak_nm_g: float = 0.0
+    peak_nm_b: float = 0.0
+    source: str = ""
+
+    @property
+    def has_dye_density(self) -> bool:
+        return self.dye_density.has_data
+
+    @property
+    def has_spectral(self) -> bool:
+        return bool(self.spectral.log_s_r or self.spectral.log_s_g
+                    or self.spectral.log_s_b)
+
+    @property
+    def shared_artwork(self) -> bool:
+        """True when one panel set is published under several product names."""
+        return len(self.names) > 1
+
+    def validate(self, label: str = "") -> None:
+        label = label or self.key
+        if not self.key:
+            raise ValueError("PaperSpectralRecord: key is required")
+        if not self.names:
+            raise ValueError(f"{label}: at least one product name is required")
+        if self.density_geometry not in _DENSITY_GEOMETRIES:
+            raise ValueError(
+                f"{label}: density_geometry {self.density_geometry!r} not "
+                f"one of {sorted(_DENSITY_GEOMETRIES)}")
+        if not self.source:
+            raise ValueError(f"{label}: a paper spectral record needs a source")
+        self.dye_density.validate(f"{label}.dye_density")
+        self.spectral.validate(f"{label}.spectral")
+        self.impurity.validate(f"{label}.impurity")
+        for ch in "rgb":
+            d = getattr(self, f"dmax_aim_{ch}")
+            if d and not 0.5 <= d <= 3.0:
+                raise ValueError(
+                    f"{label}: dmax_aim_{ch} {d} is outside the reflection "
+                    "range 0.5..3.0 -- a paper is not a transmission stock")
+            m = getattr(self, f"dmax_aim_matte_{ch}")
+            if m and not 0.5 <= m <= 3.0:
+                raise ValueError(
+                    f"{label}: dmax_aim_matte_{ch} {m} is outside 0.5..3.0")
+            if m and not d:
+                raise ValueError(
+                    f"{label}: a matte Dmax aim without a glossy one -- the "
+                    "bulletins never print the second without the first")
+        if self.dmax_chemistry_delta > 0.0:
+            raise ValueError(
+                f"{label}: dmax_chemistry_delta must be <= 0 -- weaker "
+                "chemistry cannot raise Dmax")
+        peaks = [self.rel_sens_peak_r, self.rel_sens_peak_g,
+                 self.rel_sens_peak_b]
+        if any(p < 0.0 for p in peaks):
+            raise ValueError(f"{label}: a relative sensitivity peak is negative")
+        if self.has_spectral and not any(peaks):
+            raise ValueError(
+                f"{label}: spectral curves stored with no rel_sens_peak -- "
+                "the inter-layer balance would be silently lost")
+        order = [(self.peak_nm_b, "b"), (self.peak_nm_g, "g"),
+                 (self.peak_nm_r, "r")]
+        got = [p for p, _ in order if p]
+        if len(got) == 3 and not (got[0] < got[1] < got[2]):
+            raise ValueError(
+                f"{label}: layer peaks {got} are not ordered blue < green < "
+                "red -- the three records have been mislabelled")
 
 
 # ---------------------------------------------------------------------------
@@ -9396,6 +12475,19 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
+        # ⚠ TRACED ENDPOINTS, AND THE PANEL THEY COME FROM WAS UNREADABLE UNTIL
+        # QUEUE P55 WAS RE-DIAGNOSED (2026-09-17e). That row said the three records
+        # on these colour panels are printed on top of each other; they are not.
+        # `drop_text` was deleting them: one dash of a LEVEL plateau is 8 px long and
+        # `min_len` is 14, so the dashed and the dash-dot record vanished exactly
+        # where the D-min is read, and only the solid green record survived. Bridging
+        # the dashes BEFORE dropping the blobs recovers all three. The D-MIN COLUMN IS
+        # THE CHECK ON THE D-MAX COLUMN BESIDE IT: it reproduces this profile's own
+        # stored base densities, which came from an Agfa sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.2759, 0.6864, 0.9247), dmax=(2.1430, 2.5701, 2.9839),
+            gamma=(0.7044, 0.6827, 0.7369),
+            log_e_span=4.89, page=80),
         default_format="ff35",
         # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
         # SUPPORTS. Agfa print 'Total layer thickness (without base)'
@@ -10999,7 +14091,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(42.2, 42.2, 42.2, adjacency=0.2996, adjacency_um=49.8,
+        mtf=MTFSpec(42.2, 42.2, 42.2, adjacency=0.3072, adjacency_um=48.65,
                     mtf_rolloff_q=2.88, mtf_measured=True),
         spectral_weights=(0.32, 0.47, 0.21),
         misregistration_um=0.0,
@@ -11525,7 +14617,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
 # the 4-20 c/mm band only: every stock still passes 50 % at its own measured
 # f50, and every rolloff law and q is untouched. Nothing else in the schema
 # moves and no C++ source changes -- both engines read these constants.
-mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0691, adjacency_um=32.1,
+mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
                     mtf_rolloff_q=1.84, mtf_measured=True),
         spectral_weights=(0.27, 0.54, 0.19),
         misregistration_um=0.0,
@@ -16134,7 +19226,7 @@ mtf=MTFSpec(89.6, 100.0, 108.3, adjacency=0.14, adjacency_um=13.0),
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(27.2, 42.1, 60.9, adjacency=0.0716, adjacency_um=16.4,
+        mtf=MTFSpec(27.2, 42.1, 60.9, adjacency=0.0849, adjacency_um=16.06,
                     mtf_rolloff_q=2.39, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(9.0, 46.0, 210.0),
@@ -17895,6 +20987,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="SVEMA_FOTO_65",
+        # -- schema v43 (2026-09-18c, queue P40). NEG_STILL BECAUSE THE STORED
+        # SPEED IS THE STILL LINE'S: Гурлев 1986 p.296 prints this stock in a
+        # column headed **Foto-65**, and ГОСТ 9160-91 rates a general-purpose
+        # still negative at D_кр 0.15 with K = sqrt(2). The FN cine designation
+        # in the aliases is the same emulsion under another name and carries no
+        # second rating in this corpus; if one is ever found it is a second
+        # number under the neg_cine criterion (0.20 / 1.6) and must be stored
+        # as one rather than replacing this.
+        # ⚠ NO EDITION IS NAMED. Гурлев prints the speed and not the revision
+        # that qualified it, so `gost_speed_edition` stays empty and this stock
+        # is listed in `_GOST_EDITION_UNSTATED`.
+        gost_speed_class="neg_still",
         aliases=("svema", "fn64", "fn-64", "svema fn64",
                  # Still-film designation of the same emulsion class per
                  # Gurlev 1986 (book p296): Svema "Foto-65", S 65 GOST.
@@ -18092,6 +21196,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     # ------------------------------- USSR ----------------------------------
     FilmProfile(
         name="SVEMA_FOTO_250",
+        # -- schema v43 (2026-09-18c, queue P40). NEG_STILL BECAUSE THE STORED
+        # SPEED IS THE STILL LINE'S: Гурлев 1986 p.296 prints this stock in a
+        # column headed **Foto-250**, and ГОСТ 9160-91 rates a general-purpose
+        # still negative at D_кр 0.15 with K = sqrt(2). The FN cine designation
+        # in the aliases is the same emulsion under another name and carries no
+        # second rating in this corpus; if one is ever found it is a second
+        # number under the neg_cine criterion (0.20 / 1.6) and must be stored
+        # as one rather than replacing this.
+        # ⚠ NO EDITION IS NAMED. Гурлев prints the speed and not the revision
+        # that qualified it, so `gost_speed_edition` stays empty and this stock
+        # is listed in `_GOST_EDITION_UNSTATED`.
+        gost_speed_class="neg_still",
         aliases=("foto250", "foto-250", "svema foto 250", "svema fn250",
                  "fn250", "svema 250"),
         description=(
@@ -19429,7 +22545,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(37.2, 83.8, 100.5, adjacency=0.0761, adjacency_um=12.4,
+        mtf=MTFSpec(37.2, 83.8, 100.5, adjacency=0.0857, adjacency_um=11.97,
                     mtf_rolloff_q=2.38, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -19593,7 +22709,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(37.4, 75.1, 111.2, adjacency=0.1014, adjacency_um=13.0,
+        mtf=MTFSpec(37.4, 75.1, 111.2, adjacency=0.1157, adjacency_um=12.38,
                     mtf_rolloff_q=2.51, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -19694,7 +22810,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(36.0, 75.2, 114.6, adjacency=0.1326, adjacency_um=9.1),
+        mtf=MTFSpec(36.0, 75.2, 114.6, adjacency=0.1327, adjacency_um=9.07),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
             weights=(0.58, 0.30, 0.12),
@@ -19852,7 +22968,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(41.1, 73.1, 76.1, adjacency=0.5562, adjacency_um=12.3,
+        mtf=MTFSpec(41.1, 73.1, 76.1, adjacency=0.5562, adjacency_um=12.35,
                     mtf_rolloff_q=0.0, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -20023,7 +23139,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(35.4, 68.8, 74.0, adjacency=0.1998, adjacency_um=17.8,
+        mtf=MTFSpec(35.4, 68.8, 74.0, adjacency=0.2183, adjacency_um=16.73,
                     mtf_rolloff_q=2.94, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -20328,7 +23444,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(32.1, 49.7, 55.5, adjacency=0.1980, adjacency_um=17.7,
+        mtf=MTFSpec(32.1, 49.7, 55.5, adjacency=0.2012, adjacency_um=15.98,
                     mtf_rolloff_q=3.23, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(12.0, 62.0, 320.0),
@@ -20563,7 +23679,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(37.6, 54.6, 69.7, adjacency=0.0315, adjacency_um=16.9,
+        mtf=MTFSpec(37.6, 54.6, 69.7, adjacency=0.0446, adjacency_um=15.55,
                     mtf_rolloff_q=2.50, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -20649,7 +23765,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(33.9, 58.1, 67.4, adjacency=0.1511, adjacency_um=12.6,
+        mtf=MTFSpec(33.9, 58.1, 67.4, adjacency=0.1888, adjacency_um=11.35,
                     mtf_rolloff_q=3.06, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -20735,7 +23851,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(36.0, 55.9, 59.3, adjacency=0.1552, adjacency_um=7.0),
+        mtf=MTFSpec(36.0, 55.9, 59.3, adjacency=0.1553, adjacency_um=6.99),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
             weights=(0.58, 0.30, 0.12),
@@ -21694,6 +24810,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
     ),
     FilmProfile(
         name="TASMA_OCH_45",
+        # ⚠ FILLED 2026-09-18 FROM ГОСТ 10691.0-84 §4.2.2, AND IT RETIRES A
+        # REFUSAL THIS FILE CARRIED SINCE v29. The stored 1.6 is a published
+        # Soviet «коэффициент контрастности», and until this standard was read
+        # nothing in the corpus printed what that term MEANS, so the field was
+        # left empty rather than guessed at. §4.2.2 defines it as the slope of
+        # the STRAIGHT-LINE PORTION taken between the two most widely separated
+        # points on that portion, and §4.2.3 defines the chord separately as
+        # «средний градиент» -- two quantities, one document, no ambiguity.
+        # ⚠ ONLY THIS STOCK OF THE THREE: 10691.0-84 governs BLACK-AND-WHITE
+        # material and SVEMA_CNL_65 and SVEMA_CO_90L are colour films whose
+        # standard is ГОСТ 9160-91. See `_GOST_10691_0_CONTRAST_STOCKS`.
+        gamma_criterion="straight_line",
         gost_speed_class="reversal",
         aliases=("och45", "och-45", "och 45", "tasma och45",
                  "tasma och 45", "tasma och-45", "oc-45", "obrashchaemaya",
@@ -23017,6 +26145,19 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         dye_matrix=_dye(0.07),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
+        # ⚠ TRACED ENDPOINTS, AND THE PANEL THEY COME FROM WAS UNREADABLE UNTIL
+        # QUEUE P55 WAS RE-DIAGNOSED (2026-09-17e). That row said the three records
+        # on these colour panels are printed on top of each other; they are not.
+        # `drop_text` was deleting them: one dash of a LEVEL plateau is 8 px long and
+        # `min_len` is 14, so the dashed and the dash-dot record vanished exactly
+        # where the D-min is read, and only the solid green record survived. Bridging
+        # the dashes BEFORE dropping the blobs recovers all three. The D-MIN COLUMN IS
+        # THE CHECK ON THE D-MAX COLUMN BESIDE IT: it reproduces this profile's own
+        # stored base densities, which came from an Agfa sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.2546, 0.6519, 0.8241), dmax=(1.9894, 2.4065, 2.7707),
+            gamma=(0.6188, 0.6188, 0.6622),
+            log_e_span=4.91, page=81),
         default_format="ff35",
         # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
         # SUPPORTS. Agfa print 'Total layer thickness (without base)'
@@ -23356,6 +26497,19 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         dye_matrix=_dye(0.12),
         base_tint=(1.0, 0.985, 0.955),
         misregistration_um=5.5,
+        # ⚠ TRACED ENDPOINTS, AND THE PANEL THEY COME FROM WAS UNREADABLE UNTIL
+        # QUEUE P55 WAS RE-DIAGNOSED (2026-09-17e). That row said the three records
+        # on these colour panels are printed on top of each other; they are not.
+        # `drop_text` was deleting them: one dash of a LEVEL plateau is 8 px long and
+        # `min_len` is 14, so the dashed and the dash-dot record vanished exactly
+        # where the D-min is read, and only the solid green record survived. Bridging
+        # the dashes BEFORE dropping the blobs recovers all three. The D-MIN COLUMN IS
+        # THE CHECK ON THE D-MAX COLUMN BESIDE IT: it reproduces this profile's own
+        # stored base densities, which came from an Agfa sheet this reader never saw.
+        measured_endpoints=MeasuredEndpoints(
+            dmin=(0.2684, 0.5980, 0.7562), dmax=(1.8405, 2.3184, 2.6480),
+            gamma=(0.5923, 0.6676, 0.7107),
+            log_e_span=4.86, page=84),
         default_format="ff35",
         # ⚠ COATED THICKNESS IS THE WHOLE EmulsionSpec THIS SOURCE
         # SUPPORTS. Agfa print 'Total layer thickness (without base)'
@@ -23794,10 +26948,30 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # emulsion history that can be read off in order -- two of the three
         # cannot both describe the same film, and the sheet the profile cites
         # (F-4043) is the one that yields no number at all.
-        # 72.0 is retained as the estimate. Rule 4: recorded, not averaged --
+        # 72.0 WAS retained as the estimate. Rule 4: recorded, not averaged --
         # averaging 95.9 and 66.7 would give 81.3 and look like a measurement.
-        # Reopens if Kodak's own TMY-2 sheet is found with a curve that crosses.
-        mtf=MTFSpec(72.0, 72.0, 72.0, adjacency=0.10, adjacency_um=15.0),
+        # The note said it "reopens if Kodak's own TMY-2 sheet is found with a
+        # curve that crosses".
+        #
+        # ⚠⚠ IT REOPENED ON 2026-09-17d AND A FOURTH INDEPENDENT DRAWING BROKE
+        # THE TIE. Queue P56 registered four axis label forms the digit bank had
+        # never been shown, and one of the panels that then calibrated is
+        # «Современные фотоматериалы и их обработка» p341 -- this stock's MTF,
+        # traced at f50 98.7 cy/mm, rolloff q 2.163, adjacency 0.1929, rms 3.03.
+        # ⚠ THAT IS NOT A THIRD OPINION IN A THREE-WAY ARGUMENT, IT IS A
+        # CORROBORATION OF ONE BRANCH OF IT: 98.7 agrees with Kodak's own F-32
+        # at 95.9 to 2.9 %, and it satisfies F-4043's traced lower bound of
+        # > 81. The 2007 F-4016 reading of 66.7 was already refused by that
+        # bound and stays refused; it is now outvoted by two independent
+        # drawings rather than by one.
+        # ⚠ THE WHOLE SHAPE COMES FROM ONE CURVE, NOT THREE. f50, rolloff and
+        # adjacency are taken together from the p341 panel, because mixing
+        # F-32's f50 with another drawing's rolloff would describe a curve
+        # nobody measured. The book is tier T2 and a manufacturer sheet
+        # outranks it -- what licenses adopting its panel here is that a T1
+        # sheet CORROBORATES it to 2.9 % rather than competing with it.
+        mtf=MTFSpec(98.7, 98.7, 98.7, adjacency=0.1929, adjacency_um=15.0,
+                    mtf_measured=True, mtf_rolloff_q=2.163),
         # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
         # 126 points, 9 developers, 18/20/21/22/24 degC, from
         # «Современные фотоматериалы и их обработка» pp.306, 307, 325, 326.
@@ -24151,6 +27325,16 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # 125 lines/mm at 1000:1 is a ratio of 1.35 on Tani's f50 ~ RP/2
         # relation, in family with T-MAX 100's 1.23. The misplaced 2018 figure
         # would have implied 1.97 -- the physical shadow of the same error.
+        # ⚠⚠ 84.3 IS F-4001 (2019)'s OWN CURVE AND WAS BRIEFLY OVERWRITTEN ON
+        # 2026-09-18c, WHICH IS A PRECEDENCE ERROR WORTH LEAVING RECORDED.
+        # «Современные фотоматериалы» p347 traces this stock's MTF panel at
+        # f50 85.81 with a clean power-law fit, and the harvest treated the
+        # stored 84.3 as a third-party estimate ripe for replacement. It is
+        # not: it is Kodak's own drawing, and a reference book corroborating
+        # a manufacturer's figure to 1.8 % does not outrank it. The book
+        # reading is recorded in `sovremennye_2004.py`'s REVIEWED_NOT_ADOPTED
+        # set as the corroboration it is. `mtf_measured` stays False for the
+        # reason G-MTFBW3 states -- q 2.03 beats the Gaussian by only 1.3x.
         mtf=MTFSpec(84.3, 84.3, 84.3, adjacency=0.08, adjacency_um=16.0),
         # ⚠ THE FIRST DEVELOPMENT FAMILY IN THIS CORPUS TRACED OFF A
         # CHARACTERISTIC-CURVE PANEL RATHER THAN A GAMMA-TIME ONE, and the
@@ -24178,6 +27362,23 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # monotonic, and exactly the behaviour the field's own docstring
         # predicts from DOUBLE-X's sheet.
         processing_family=ProcessingFamily(
+            # ⚠ TWO DEVELOPERS, TWO LAWS (schema v41, queue P52). These nine
+            # points are two series -- T-MAX in a small tank and T-MAX RS in a
+            # large one -- and a single family law cannot hold both: fitting
+            # the small tank made the 9-minute RS point read 0.549 where the
+            # law predicted 0.850, and the build refused the record. Each fit
+            # reproduces ITS OWN points at the rms stored beside it, and
+            # `validate` now checks every point against the law that governs
+            # it. The slower approach to the higher limit is the large tank,
+            # which is what a replenished bath should look like.
+            laws=(
+                DevelopmentLaw(developer="T-MAX", vessel="small tank",
+                               gamma_infinity=1.183, dev_rate_k=0.3212,
+                               induction_t0_min=5.056, fit_rms=0.0100),
+                DevelopmentLaw(developer="T-MAX RS", vessel="large tank",
+                               gamma_infinity=1.649, dev_rate_k=0.0748,
+                               induction_t0_min=3.691, fit_rms=0.0090),
+            ),
             points=(
                 DevelopmentPoint(developer='T-MAX', dilution='stock',
                                  minutes=8.0, celsius=20.0, gamma=0.729,
@@ -26077,7 +29278,7 @@ grain=GrainSpec(5.5, 1.935, 2.129, 2.581, clump_gain=0.20, fog_grain=0.15),
 #   ⚠ VERIFIED ON THE --overlay RENDER before adoption: the traced points sit on
 # the printed curves over the whole drawn extent, and the R/G/B assignment
 # matches the panel's own printed record labels.
-mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2260, adjacency_um=20.1,
+mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2426, adjacency_um=18.81,
             mtf_rolloff_q=3.10, mtf_measured=True),
         couplers=CouplerSpec(0.20, 48.0, 0.10, 10.0),
         dye_matrix=_dye(-0.13),
@@ -29443,7 +32644,11 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # PRINTS NO NUMERIC RESOLVING POWER -- the caveat the description
         # states. «Современные фотоматериалы и их обработка» p.372 prints the
         # modulation transfer function, and the traced curve falls through 50 %
-        # at 72.3 c/mm, a THIRD BELOW the estimate. The estimate was reasoning
+        # at 73.09 c/mm, a THIRD BELOW the estimate. The estimate was reasoning
+        # ⚠ 72.3 -> 73.09 ON 2026-09-18c AND THE PANEL DID NOT MOVE: queue
+        # P56's six new bank axes made this abscissa's «3» and «600»
+        # readable, so the log fit runs on ELEVEN printed labels instead of
+        # nine. Same trace, same ordinate, a better-determined x scale.
         # from grain to sharpness, which this stock defeats: RMS 5 is the
         # finest grain in the corpus and the estimate read that as the highest
         # f50, but Technical Pan's resolution advantage is in its extreme
@@ -29477,7 +32682,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # can cover a knee and a tail, not a knee, a tail and the long shoulder
         # between them. ALGO_BLUR_MAX_LOBES went 6 -> 9 to make room, since the
         # adjacency band-pass multiplies each base lobe into three.
-        mtf=MTFSpec(72.3, 72.3, 72.3, adjacency=0.1506, adjacency_um=12.0,
+        mtf=MTFSpec(73.09, 73.09, 73.09, adjacency=0.1506, adjacency_um=12.0,
                     mtf_measured=True, mtf_rolloff_q=1.071),
         spectral_weights=(0.40, 0.35, 0.25),   # red-weighted collapse: the
                                 # documented 690 nm extended-red sensitisation
@@ -31394,7 +34599,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "p.372, «Функция передачи модуляции фотопленки Kodak Professional "
         "Technical Pan». The stored f50 was 110 c/mm EST, reasoned from the "
         "RMS 5 granularity class precisely because P-255 prints no numeric "
-        "resolving power. The traced curve falls through 50 % at 72.3 c/mm, "
+        "resolving power. The traced curve falls through 50 % at 73.09 c/mm, "
         "a third below the estimate. A measurement replaces an estimate; no "
         "manufacturer figure is displaced, because there was none.",),
     # ---- 2026-08-15 batch: new vendor sheets landed under PDF/PROFILES ----
@@ -48300,6 +51505,17 @@ def _vignette_for(p: FilmProfile) -> float:
 #: coatings -- no layer stack at all -- and still measures red receivers at
 #: 0.43-0.72 dlogE against blue at 0.24-0.48. A per-hop distance factor, by
 #: contrast, has no numeric support in any of the nine patents surveyed.
+#: ⚠ AND THAT LAST SENTENCE IS STILL TRUE OF DISTANCE AND IS NO LONGER TRUE OF
+#: THE DONOR, 2026-09-17 (v38). Nothing measures inhibition against hop count;
+#: US 6,746,834 TABLE 3 DOES measure it against donor identity, on the one
+#: receiver where it prints both donors -- green takes 0.10 from red and 0.21
+#: from blue. The per-receiver totals below are unchanged; how each total
+#: divides between its two donors is now `_IIE_DONOR_SPLIT`.
+#: ⚠ THE RED GAMMA IS STILL THE ONE ESTIMATED INPUT. EP 0 608 959 B1 publishes
+#: a red-record ratio for a finished Kodak negative and it does NOT replace the
+#: 0.55 here: that number is a white-light GAMMA in Agfa's derivation chain,
+#: while Kodak print a dimensionless RATIO, and the two cannot substitute for
+#: one another. See the conflict note below and queue P69.
 #: STORED IN THE PATENT'S OWN UNITS -- IIE percentage per RECEIVING layer,
 #: (blue, green, red) -- and converted to model coefficients per stock using
 #: that stock's OWN curve gamma, because SUM a = -(IIE/100)/gamma_sep and
@@ -48315,6 +51531,162 @@ _IIE_TIERS: dict[str, tuple[float, float, float]] = {
     "trace": (5.0, 7.0, 7.0),       # half the iodide-only baseline
     "none": (0.0, 0.0, 0.0),
 }
+
+#: ⚠⚠ A SECOND MEASURED SOURCE ARRIVED AT v38, LOOKED LIKE A CONTRADICTION,
+#: AND IS A CORROBORATION. EP 0 608 959 B1 (Kodak) measures the SAME quantity
+#: -- separation gradation against white-light gradation, per record -- on six
+#: complete twelve-layer colour negatives. Read raw, its per-receiver ordering
+#: is the reverse of Agfa's in the red:
+#:
+#:     source                        blue    green     red
+#:     US5273870A Ex.1 invention       25       45       42      (Agfa)
+#:     US4830954A, stated ranges     5-15     8-35    10-30      (Agfa)
+#:     EP0608959B1 #101 control        38       73       14      (Kodak)
+#:     EP0608959B1 #106 invention      61       77       18      (Kodak)
+#:
+#: ⚠⚠ TWO OF THE THREE RECORDS ARE NOT IN CONFLICT AT ALL -- THEY ARE THE SAME
+#: MEASUREMENT READ AT A DIFFERENT POINT ON THE CURVE, AND THE SAME PATENT
+#: SUPPLIES THE CORRECTION. US5273870A reads "at density 1.0 over fog". On a
+#: 0.6-gamma negative anchored at Dmin+0.15 that is ~1.4 log E above the
+#: anchor, which falls inside EP0608959B1's own "mid upper" window (1.1 to 1.8
+#: log E). `_EP0608959_ZONE_RATIOS` measures the ratio in three such windows on
+#: four coatings, so the zone factor is not assumed -- it is
+#: (mid_upper - 1) / (mid - 1), which over those four coatings is
+#: 0.429 to 0.717. Applying that band to EP0608959B1 #101:
+#:
+#:     record   Kodak raw   zone-corrected to Agfa's reading point   Agfa
+#:     blue         38                 16.3  -  27.3                   25   IN
+#:     green        73                 31.3  -  52.4                   45   IN
+#:     red          14                  6.0  -  10.0                   42   OUT
+#:
+#: Blue and green land inside the band with the Agfa ladder near the middle of
+#: each. That is two independent houses agreeing on two of three records once
+#: the measurement zone is matched, and it is why the disagreement is NOT a
+#: shape disagreement.
+#:
+#: ⚠⚠ AND THE RED COLUMN IS EXPLAINED BY THE SAME TABLE, WHICH IS WHAT CLOSES
+#: THIS (queue P69, 2026-09-17d). EP0608959B1's Example 1 varies exactly one
+#: thing: the DIR coupler in the MID-GREEN layer -- the donor whose inhibitor
+#: reaches the red record. Sample 101 is the control and has NONE. Read down
+#: the series:
+#:
+#:     sample  mid-green DIR   g/m2    Rr/Rn   Bb/Bn
+#:      101      none          0.000    1.14    1.38
+#:      102      D-4           0.011    1.20    1.38
+#:      103      D-4           0.022    1.26    1.38
+#:      104      D-1           0.009    1.16    1.46
+#:      105      D-1           0.018    1.18    1.56
+#:      106      D-1           0.027    1.18    1.61
+#:
+#: With the weak untimed inhibitor D-4 the RED ratio climbs monotonically with
+#: loading and blue does not move at all; with the strong timed inhibitor D-1
+#: the BLUE ratio climbs and red barely moves. The red column is therefore a
+#: measurement of how much inhibitor that patent chose to put in the layer
+#: above red, not of how susceptible a red record is. Kodak's 14 % is a
+#: coating with the red record's principal donor deliberately absent.
+#:
+#: ⚠ AND THREE SOURCES MEASURE THE RECEIVER PROPERTY DIRECTLY, ALL AGREEING
+#: WITH AGFA. US4725529A is decisive because it has NO LAYER STACK: inhibitor
+#: in the DEVELOPER, three separate single-layer coatings, so donor loading and
+#: geometry are both eliminated -- red receivers 0.43-0.72 dlogE against blue
+#: 0.24-0.48. US4830954A: cyan 10-30 % against yellow 5-15 %. US6746834 TABLE 3
+#: puts its largest directed term on red as the receiver (green->red 0.25).
+#:
+#: ⚠ VERDICT, and it is why the ladder below is unchanged: EP0608959B1 does
+#: not contradict US5273870A. It confirms blue and green to inside a band the
+#: patent itself defines, and its red column measures a donor that was removed
+#: for the experiment. The ladder stays as Agfa's because Agfa's is the
+#: receiver-susceptibility measurement and Kodak's is a net observable on one
+#: deliberately incomplete design. The arithmetic above is asserted by
+#: `G-V38-EP0608959X` so it cannot rot into prose.
+#: ⚠ WHAT IS STILL NOT CLOSED IS THE ZONE DEPENDENCE ITSELF (queue P68):
+#: TABLE IV prints the BLUE record only, so the model has no green or red zone
+#: profile and stage 8b still applies one flat coefficient per direction.
+
+#: WHICH DONOR A RECEIVER'S COUPLING COMES FROM (schema v38, 2026-09-17;
+#: split by material class and the last assumption removed at v39,
+#: 2026-09-17d).
+#:
+#: ⚠ THIS REPLACED A MODELLING CHOICE THE EVIDENCE CONTRADICTS. Until v38 each
+#: receiver's total was split equally between its two donors --
+#: `a_rg == a_rb`, on every stock -- on the ground that "donor identity
+#: carries no weighting, because no surveyed patent measures one". Two
+#: patents measure one, and they disagree, and the disagreement is by
+#: MATERIAL CLASS:
+#:
+#:   US 6,746,834 TABLE 3 (Fuji, colour REVERSAL) prints four of the six
+#:   directions. On its sample 108 the GREEN record takes 0.10 from red and
+#:   0.21 from blue, and the patent claims IIEgr > IIErg -- green acting on
+#:   red exceeds red acting on green.
+#:
+#:   EP 0 324 471 A2 TABLE 1 (Fuji, colour NEGATIVE) prints ALL FOUR
+#:   cross-directions for four of its twenty-one coatings, including
+#:   ⚠⚠ BLUE ACTING ON RED, which nothing else in this corpus measures. On
+#:   three of those four coatings IE(G/R) > IE(R/G) -- red acting on green
+#:   exceeds green acting on red, the REVERSE of the reversal rule.
+#:
+#: ⚠ SO THE ASYMMETRY'S DIRECTION IS A PROPERTY OF THE MATERIAL, NOT OF
+#: PHOTOGRAPHIC CHEMISTRY IN GENERAL, and forcing one ordering on both classes
+#: would contradict a measurement whichever ordering was chosen. Two branches,
+#: each keyed to the class its own source was measured on.
+#:
+#: NEGATIVE BRANCH -- fully measured, no assumption left. Medians over the
+#: four EP 0 324 471 A2 coatings that print the directed values:
+#:     receiver red    from green 0.5728   from blue 0.4272
+#:     receiver green  from red   0.6000   from blue 0.4000
+#: and the receiver-blue row follows from those two without a new assumption:
+#: the red row fixes d_green/d_blue = 1.3408, the green row fixes
+#: d_red/d_blue = 1.5000, hence d_red/d_green = 1.1187 and receiver blue
+#: splits 0.5280 from red against 0.4720 from green. That is a donor ratio
+#: TRANSFERRED between receivers, which is the one place a product form is
+#: used, and it is used because both of its inputs are measured on the same
+#: four coatings by the same method.
+#:
+#: REVERSAL BRANCH -- one assumption remains and is named. US 6,746,834
+#: constrains d_blue/d_red = 2.1 from its green receiver and says nothing
+#: about d_green, because green never appears as a donor beside another donor
+#: in that table. d_green is set level with d_blue, because green->red 0.25
+#: and green->blue 0.15 are the two largest directed values printed and red is
+#: measurably the weak donor. The consequence is that a reversal stock's RED
+#: receiver keeps an equal pair; a negative's does not.
+#:
+#: ⚠ A FACTORISED donor x receiver FIT OVER A WHOLE TABLE WAS TRIED AND BOTH
+#: SOURCES REFUSED IT. US 6,746,834's samples 106 and 107 are identical in
+#: three of the four directions and differ 0.02 against 0.18 in the fourth;
+#: EP 0 324 471 A2's four rows put the receiver-green split anywhere between
+#: 0.286 and 0.755. Single directed pairs are set independently by chemistry,
+#: so the medians below are a population centre and not a law -- which is why
+#: they are applied to the TIER and not to any individual stock.
+#:
+#: WHAT IT CHANGES AND WHAT IT DOES NOT. The split is applied to the SAME
+#: per-receiver totals, and `_iie_measure` sees only their sum under a neutral
+#: ramp, so every published IIE percentage stays reproduced. What moves is any
+#: exposure in which the two donors differ -- i.e. every colour that is not
+#: grey.
+#:
+#: Stored as `class -> receiver -> (weight from red, from green, from blue)`,
+#: the diagonal structurally zero, each row summing to 1.
+_IIE_DONOR_SPLIT: dict[str, dict[str, tuple[float, float, float]]] = {
+    # -- colour NEGATIVE: EP 0 324 471 A2 TABLE 1, samples 101/119/120/121 --
+    "negative": {
+        #          from red   from green   from blue
+        "r": (0.0,      0.5728,   0.4272),   # measured, IE(R/G) vs IE(R/B)
+        "g": (0.6000,   0.0,      0.4000),   # measured, IE(G/R) vs IE(G/B)
+        "b": (0.5280,   0.4720,   0.0),      # donor ratio transferred
+    },
+    # -- colour REVERSAL: US 6,746,834 TABLE 3, sample 108 ----------------
+    "reversal": {
+        "r": (0.0,        0.5,       0.5),        # d_green = d_blue, assumed
+        "g": (1.0 / 3.1,  0.0,       2.1 / 3.1),  # measured
+        "b": (1.0 / 3.1,  2.1 / 3.1, 0.0),        # d_green = d_blue, assumed
+    },
+}
+
+
+def _iie_split(reversal: bool) -> dict[str, tuple[float, float, float]]:
+    """The donor split for a material class. One lookup, so the renderer, the
+    solver and the generator cannot end up using different ones."""
+    return _IIE_DONOR_SPLIT["reversal" if reversal else "negative"]
 
 
 def _iie_density_at(log_e: float, c: ToneCurve) -> float:
@@ -48400,8 +51772,21 @@ def _iie_measure(curves, coef, iterations: int,
     positive and the patent's metric keeps its published sign.
     """
     span = 0.6
-    m = ((0.0, coef[0], coef[0]), (coef[1], 0.0, coef[1]),
-         (coef[2], coef[2], 0.0))
+    # ⚠ THE DONOR SPLIT IS INSIDE THE SOLVE, 2026-09-17 (v38), AND IT HAS TO
+    # BE. `coef[c]` is the HALF-SUM for receiver c and the two donors carry
+    # their measured shares of twice it. Redistributing a receiver's total
+    # after the solve looked safe -- only the sum enters under a neutral ramp
+    # -- and is not: the three records' densities do not move by the SAME
+    # amount along a neutral ramp, so `adj` weights two unequal deltas and the
+    # measured percentage shifts. Measured: KODAK_PORTRA_400's green came out
+    # 46.6 % against its 45 % target, 1.59 pp, over the 1.0 pp tolerance the
+    # reproduction guard allows. Solving with the real matrix removes it.
+    # With equal weights this reduces to the pre-v38 form exactly.
+    _sp = _iie_split(bool(reversal))
+    _wr, _wg, _wb = _sp["r"], _sp["g"], _sp["b"]
+    m = ((0.0, 2.0 * coef[0] * _wr[1], 2.0 * coef[0] * _wr[2]),
+         (2.0 * coef[1] * _wg[0], 0.0, 2.0 * coef[1] * _wg[2]),
+         (2.0 * coef[2] * _wb[0], 2.0 * coef[2] * _wb[1], 0.0))
     dw = float(density_weighting)
 
     # ---- WHERE ON THE CURVE THE MEASUREMENT SITS ------------------------
@@ -48524,14 +51909,24 @@ def _iie_solve(curves, targets, iterations: int = 1,
             # secant-free damped proportional correction; stable because IIE
             # rises monotonically with |coef|
             coef[c] *= 1.0 + 0.35 * err / max(targets[c], 1e-6)
-            coef[c] = max(min(coef[c], -1e-7), -0.94)
+            # ⚠ -0.94 -> -0.69 AT v38. The clamp guards `validate`'s
+            # (-1, 0] bound on a STORED coefficient, and since v38 the
+            # stored coefficient is up to 2 x 0.677 = 1.355 times this
+            # half-sum. 0.69 x 1.355 = 0.934, the largest directed term
+            # that still fits. Nothing observed comes near it -- the
+            # database's worst half-sum is 0.31 -- so this moves no stock;
+            # it stops the clamp from being the thing that ships an
+            # invalid record if one ever does.
+            coef[c] = max(min(coef[c], -1e-7), -0.69)
         if worst < 0.15:
             break
     return coef
 
 
 def _interimage_for(p: FilmProfile) -> InterimageSpec:
-    """DM-22 (v5). Interimage coupling per stock. Tier 3 throughout.
+    """DM-22 (v5, donor split v38). Interimage coupling per stock. Tier 3
+    throughout: the TIER a stock lands in is reasoned from its generation, and
+    only the tier's numbers and the donor split beneath them are measured.
 
     Monochrome stocks get nothing: one silver layer has no neighbour to
     inhibit. Three-strip Technicolor likewise -- its three records are
@@ -48580,13 +51975,20 @@ def _interimage_for(p: FilmProfile) -> InterimageSpec:
     # speed, which is why manufacturers went to second-developer DIR instead.
     # density_weighting carries that: 0 = uniform across the curve, 1 = fully
     # proportional to the neighbouring layer's density.
-    # Rows are per RECEIVING layer: the red record receives a_r from each of
-    # its two donors, and so on. Donor identity carries no weighting, because
-    # no surveyed patent measures one.
+    #
+    # ⚠ ROWS ARE PER RECEIVING LAYER AND, SINCE v38, THE TWO DONORS IN A ROW
+    # ARE NO LONGER EQUAL. `_iie_solve` returns the HALF-SUM for each
+    # receiver -- the value both of its donors used to carry -- and
+    # `_IIE_DONOR_SPLIT` redistributes that same total between them in the
+    # ratio US 6,746,834 TABLE 3 measures. Doubling before weighting is what
+    # keeps the sum, and therefore every published IIE percentage the solver
+    # was fitted to, exactly where it was.
+    _sp = _iie_split(bool(p.is_reversal))
+    _wr, _wg, _wb = _sp["r"], _sp["g"], _sp["b"]
     return InterimageSpec(
-        a_rg=a_r, a_rb=a_r,
-        a_gr=a_g, a_gb=a_g,
-        a_br=a_b, a_bg=a_b,
+        a_rg=2.0 * a_r * _wr[1], a_rb=2.0 * a_r * _wr[2],
+        a_gr=2.0 * a_g * _wg[0], a_gb=2.0 * a_g * _wg[2],
+        a_br=2.0 * a_b * _wb[0], a_bg=2.0 * a_b * _wb[1],
         iterations=1,
         density_weighting=_dw,      # the SAME value the solve above used
     )
@@ -50969,8 +54371,18 @@ FILM_PROFILES = tuple(
 #     eight vocabulary definitions -- and 86 are this project's own
 #     `estimated`/`assumed` values. Exactly three carry a `stated` published
 #     contrast figure (SVEMA_CNL_65, SVEMA_CO_90L, TASMA_OCH_45) and all
-#     three are the Soviet «коэффициент контрастности». ⚠ NO SOURCE IN THIS
-#     CORPUS PRINTS THE ГОСТ DEFINITION OF THAT QUANTITY, so choosing
+#     three are the Soviet «коэффициент контрастности». ⚠⚠ CORRECTED 2026-09-18:
+#     this paragraph used to continue "NO SOURCE IN THIS CORPUS PRINTS THE
+#     ГОСТ DEFINITION OF THAT QUANTITY". One does. ГОСТ 10691.0-84 §4.2.2
+#     defines it as the slope of the STRAIGHT-LINE PORTION between the two
+#     most widely separated points on that portion, and defines the chord
+#     separately in §4.2.3 as «средний градиент» -- so the choice the
+#     paragraph called a guess is now a reading. TASMA_OCH_45 is
+#     black-and-white and 10691.0-84 governs it, so it now carries
+#     `gamma_criterion = "straight_line"`; the other two are COLOUR films
+#     governed by ГОСТ 9160-91 and keep "" on a narrower reason. The old
+#     wording read
+#     -- so choosing
 #     between "straight_line" and "chord_0.25_1.25" for them would be a
 #     guess dressed as provenance -- which is the precise failure the field
 #     was added to retire. Four other profiles' sheets mention "contrast
@@ -52433,6 +55845,42 @@ _V34_BASE_OPTICS: dict[str, tuple[float, tuple[float, float, float],
         "within dn ~ 0.002, back-computed from the same patent's Rth <= 400 "
         "nm on 40-80 um film. DERIVED, NOT MEASURED: the sigmas are a fit to "
         "the Fresnel-weighted return profile, not a halo measurement."),
+    # -- schema v44 (2026-09-18e, queue P73): CELLULOSE NITRATE ------------
+    #
+    # ⚠⚠ THE THIRD SUPPORT THIS DATABASE HAS ALWAYS HAD AND NEVER NAMED. Every
+    # 1930s stock in this file was coated on nitrate -- US 1,908,527 calls it
+    # "the type now in general use" for motion picture negative in 1931 -- and
+    # the table had two rows, so silence resolved to acetate. Nitrate is NOT
+    # acetate optically: US 2,481,770 measures it at 1.498 against acetate's
+    # 1.481, which tightens the critical angle from 42.51 to 41.88 degrees and
+    # pulls the inner edge of the totally-reflected annulus in by 2.2 per cent.
+    #
+    # ⚠ THE SIGMAS ARE THE ACETATE FIT GEOMETRICALLY RESCALED AND SAY SO. The
+    # acetate triple is a fit to the Fresnel-weighted return profile; that fit
+    # has not been re-run. What has been applied is the one factor the
+    # geometry demands -- the critical radius goes as 2/sqrt(n^2-1), so every
+    # radius scales by 1.7932/1.8331 = 0.97822. A re-fit would also pick up
+    # the 5 per cent change in normal-incidence reflectance, which acts only
+    # BELOW the critical angle where the return is a few per cent of the
+    # total. DERIVED FROM A DERIVATION, and labelled as such.
+    #
+    # ⚠ NO PROFILE NAMES IT, SO NO RENDER MOVES. Assigning a support polymer
+    # from a stock's era would be an inference, and `_v34_support_key`'s own
+    # rule is that silence means acetate because the class-default `base_um`
+    # pass assumed an acetate gauge. The row is here so that the day a source
+    # states nitrate for a stock, the optics are one field away.
+    "nitrate": (
+        1.498,
+        (2.492, 7.189, 19.592),
+        (0.87330, 0.12670, 0.0),
+        "Refractive index 1.498 measured for cellulose nitrate: Eastman Kodak "
+        "Company, US 2,481,770 (Nadeau, granted 1949-09-13) -- 'Cellulose "
+        "nitrate (1.498) is also in this range', the range being the 1.480 to "
+        "1.505 that patent gives for cellulose ester supports generally. The "
+        "same table corroborates this file's acetate index to 0.07 per cent "
+        "(it measures 1.481 against the 1.48 in use). DERIVED, NOT MEASURED, "
+        "for the sigmas: they are the acetate fit scaled by the ratio of "
+        "critical radii, 0.97822, and not an independent fit."),
     "polyester": (
         1.575,
         (2.355, 6.608, 18.644),
@@ -52461,6 +55909,14 @@ def _v34_support_key(material: str) -> str:
         return "acetate"
     if "estar" in m or "polyester" in m or "pet" in m or "terephthalate" in m:
         return "polyester"
+    # -- schema v44 (queue P73). ⚠ "nitrate" MUST BE TESTED BEFORE THE ACETATE
+    # FALLBACK AND NOT AFTER, and it must not be confused with the cellulose
+    # acetate ANTISTATIC VARNISH that US 1,908,527 coats over a nitrate base:
+    # the varnish is microns thick and the support is a hundred, so the
+    # support polymer is what governs the halation geometry. A string naming
+    # both resolves to nitrate here.
+    if "nitrate" in m:
+        return "nitrate"
     return "acetate"
 
 
@@ -53252,6 +56708,1527 @@ def _apply_p63_kodak_1956_sheets(p: "FilmProfile") -> "FilmProfile":
 
 FILM_PROFILES = tuple(_apply_p63_kodak_1956_sheets(_p) for _p in FILM_PROFILES)
 
+#: «Современные фотоматериалы и их обработка» -- THE 705 HELD DEVELOPMENT
+#: TIMES, RE-READ FROM THE PAGE GEOMETRY AND ADOPTED (queue P54, v39).
+#:
+#: ⚠⚠ THE ROW'S OWN DIAGNOSIS WAS WRONG AND THAT IS THE FINDING. It said the
+#: values were held because "a table covering TWO films is split between them
+#: by dividing the temperature list in half". One of the three real causes is
+#: close to that and the other two are not, and no parser built on the stated
+#: one could have recovered the set:
+#:
+#:   (1) THE TWO COLUMN GROUPS ARE SOMETIMES TWO FILMS AND SOMETIMES TWO
+#:       VESSELS. Табл. 3.241 prints Малый бак / Большой бак -- small tank
+#:       against large tank -- for ONE film, while Табл. 3.159 prints T-MAX 100
+#:       against T-MAX 400. Both are ten temperature columns over five
+#:       temperatures, and only the header line tells them apart.
+#:   (2) THERE IS A THIRD AXIS IN THE ROW DIRECTION AND THE SCHEMA HAD NO
+#:       FIELD FOR IT. «Для 135 формата» and «Для 120 формата» are row
+#:       sub-blocks under one developer column, and a parser without a format
+#:       axis reads the second block's label as a developer name.
+#:   (3) A THIRD VESSEL AXIS RUNS IN THE ROW DIRECTION TOO -- «Проявление в
+#:       поддонах», tray development -- on the Agfa pages.
+#:
+#: ⚠ AND THE FIX WAS NOT A BETTER LINE PARSER BUT A DIFFERENT READING MODEL.
+#: The text layer serialises a two-dimensional table into one column of lines,
+#: so the row and column structure is destroyed before any parsing begins.
+#: These values are read from WORD COORDINATES: words clustered into visual
+#: rows, the temperature header cells taken as column anchors, and each body
+#: cell assigned to the anchor it sits under.
+#:
+#: ⚠ WHAT IS ADOPTED IS A WHOLE TABLE OR NOTHING. A table is adopted only when
+#: EVERY developer row in it passes the physical check -- time falls as
+#: temperature rises, no temperature appearing twice -- because a table with
+#: one bad row has a structural misread somewhere and the other rows cannot be
+#: trusted individually. 72 development tables were read, 1122 cells sit in
+#: fully clean tables, and the 861 below are what remains after mapping to a
+#: stock this database holds and de-duplicating.
+#:
+#: `(developer, dilution, minutes, celsius, vessel, film_format,
+#: exposure_index)`; exposure_index 0 means the table states none.
+_SOVREMENNYE_2004_POINTS: dict[
+        str, tuple[tuple[str, str, float, float, str, str, int], ...]] = {
+    # -- queue P54, 2026-09-18b. THE FOUR STOCKS BELOW ARE RE-READ BY
+    # `sovremennye_dev_tables.py` AND THEIR OLD ENTRIES ARE REPLACED, NOT
+    # ADDED TO. It is the same tables off the same pages; what changed is that
+    # the reader now splits the temperature header where it RESTARTS and reads
+    # the vessel caption above each block, so «Малый бак» and «Большой бак» are
+    # two columns of one film rather than one temperature appearing twice.
+    # Keeping both readings would store the same measurement under vessel "" AND
+    # under its real vessel, and `_apply_sovremennye_2004` de-duplicates on a key
+    # that includes the vessel, so both would survive and be counted twice.
+    # ⚠ 384 of these points are new and 688 of the 812 carry a VESSEL, a field
+    # that was empty on every one of the 861 points stored before today.
+    "KODAK_PLUS_X_125": (
+        ('D-76', '', 3.5, 22, '', '', 0),
+        ('D-76', '', 3.5, 24, '', '', 0),
+        ('D-76', '', 3.75, 24, 'small tank', '', 0),
+        ('D-76', '', 4, 21, '', '', 0),
+        ('D-76', '', 4, 24, 'small tank', '', 0),
+        ('D-76', '', 4.5, 22, 'drum', '', 0),
+        ('D-76', '', 4.5, 22, 'small tank', '', 0),
+        ('D-76', '', 4.5, 24, 'large tank', '', 0),
+        ('D-76', '', 4.5, 24, 'drum', '', 0),
+        ('D-76', '', 4.5, 24, 'small tank', '', 0),
+        ('D-76', '', 5, 20, '', '', 0),
+        ('D-76', '', 5, 21, 'drum', '', 0),
+        ('D-76', '', 5, 21, 'small tank', '', 0),
+        ('D-76', '', 5, 22, 'small tank', '', 0),
+        ('D-76', '', 5.25, 22, 'large tank', '', 0),
+        ('D-76', '', 5.5, 18, '', '', 0),
+        ('D-76', '', 5.5, 20, 'small tank', '', 0),
+        ('D-76', '', 5.5, 21, 'small tank', '', 0),
+        ('D-76', '', 5.5, 22, 'large tank', '', 0),
+        ('D-76', '', 5.75, 21, 'large tank', '', 0),
+        ('D-76', '', 6, 20, 'drum', '', 0),
+        ('D-76', '', 6, 20, 'small tank', '', 0),
+        ('D-76', '', 6, 21, 'large tank', '', 0),
+        ('D-76', '', 6, 24, 'large tank', '', 0),
+        ('D-76', '', 6.25, 20, 'large tank', '', 0),
+        ('D-76', '', 6.5, 18, 'small tank', '', 0),
+        ('D-76', '', 6.5, 20, 'large tank', '', 0),
+        ('D-76', '', 7, 18, 'drum', '', 0),
+        ('D-76', '', 7, 18, 'small tank', '', 0),
+        ('D-76', '', 7, 22, 'large tank', '', 0),
+        ('D-76', '', 7.25, 18, 'large tank', '', 0),
+        ('D-76', '', 7.5, 18, 'large tank', '', 0),
+        ('D-76', '', 7.5, 21, 'large tank', '', 0),
+        ('D-76', '', 8, 20, 'large tank', '', 0),
+        ('D-76', '', 9, 18, 'large tank', '', 0),
+        ('D-76', '1:1', 4, 24, 'small tank', '', 0),
+        ('D-76', '1:1', 4.25, 24, 'small tank', '', 0),
+        ('D-76', '1:1', 4.5, 22, 'small tank', '', 0),
+        ('D-76', '1:1', 4.5, 24, 'large tank', '', 0),
+        ('D-76', '1:1', 4.75, 24, 'large tank', '', 0),
+        ('D-76', '1:1', 5, 21, 'small tank', '', 0),
+        ('D-76', '1:1', 5, 22, 'small tank', '', 0),
+        ('D-76', '1:1', 5.25, 22, 'large tank', '', 0),
+        ('D-76', '1:1', 5.5, 20, 'small tank', '', 0),
+        ('D-76', '1:1', 5.5, 21, 'small tank', '', 0),
+        ('D-76', '1:1', 5.5, 22, 'large tank', '', 0),
+        ('D-76', '1:1', 5.75, 21, 'large tank', '', 0),
+        ('D-76', '1:1', 6, 20, 'small tank', '', 0),
+        ('D-76', '1:1', 6, 24, 'small tank', '', 0),
+        ('D-76', '1:1', 6.25, 20, 'large tank', '', 0),
+        ('D-76', '1:1', 6.25, 21, 'large tank', '', 0),
+        ('D-76', '1:1', 6.5, 18, 'small tank', '', 0),
+        ('D-76', '1:1', 6.75, 20, 'large tank', '', 0),
+        ('D-76', '1:1', 6.75, 24, 'large tank', '', 0),
+        ('D-76', '1:1', 7, 18, 'small tank', '', 0),
+        ('D-76', '1:1', 7.25, 18, 'large tank', '', 0),
+        ('D-76', '1:1', 7.25, 22, 'small tank', '', 0),
+        ('D-76', '1:1', 7.75, 18, 'large tank', '', 0),
+        ('D-76', '1:1', 7.75, 21, 'small tank', '', 0),
+        ('D-76', '1:1', 8, 22, 'large tank', '', 0),
+        ('D-76', '1:1', 8.5, 20, 'small tank', '', 0),
+        ('D-76', '1:1', 8.75, 21, 'large tank', '', 0),
+        ('D-76', '1:1', 9.75, 20, 'large tank', '', 0),
+        ('D-76', '1:1', 10, 18, 'small tank', '', 0),
+        ('D-76', '1:1', 11.25, 18, 'large tank', '', 0),
+        ('D-76 (1:1) — — — — —', '', 5, 24, 'small tank', '', 0),
+        ('D-76 (1:1) — — — — —', '', 6, 22, 'small tank', '', 0),
+        ('D-76 (1:1) — — — — —', '', 6.5, 21, 'small tank', '', 0),
+        ('D-76 (1:1) — — — — —', '', 7, 20, 'small tank', '', 0),
+        ('D-76 (1:1) — — — — —', '', 8, 18, 'small tank', '', 0),
+        ('DK-50', '1:1', 3.5, 24, 'small tank', '', 0),
+        ('DK-50', '1:1', 4, 22, 'small tank', '', 0),
+        ('DK-50', '1:1', 4.25, 21, 'small tank', '', 0),
+        ('DK-50', '1:1', 4.5, 20, 'small tank', '', 0),
+        ('DK-50', '1:1', 5, 18, 'small tank', '', 0),
+        ('DK-50', '1:1', 5, 24, 'large tank', '', 0),
+        ('DK-50', '1:1', 5.5, 22, 'large tank', '', 0),
+        ('DK-50', '1:1', 5.75, 21, 'large tank', '', 0),
+        ('DK-50', '1:1', 6, 20, 'large tank', '', 0),
+        ('DK-50', '1:1', 6.5, 18, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 2.5, 24, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 2.75, 22, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 2.75, 24, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 3, 21, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 3.25, 22, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 3.5, 20, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 3.5, 21, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 3.5, 24, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 3.75, 20, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 4, 18, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4, 22, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4, 24, '', '', 0),
+        ('HC-110', 'Dil B', 4, 24, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 4, 24, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4.5, 18, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 4.5, 21, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4.5, 22, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4.75, 21, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4.75, 22, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 5, 20, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 5, 21, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 5, 22, '', '', 0),
+        ('HC-110', 'Dil B', 5.5, 20, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 5.5, 24, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 6, 18, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 6, 21, '', '', 0),
+        ('HC-110', 'Dil B', 6, 22, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 6.5, 18, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 6.5, 21, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 7, 20, '', '', 0),
+        ('HC-110', 'Dil B', 7, 20, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 8, 18, '', '', 0),
+        ('HC-110', 'Dil B', 8, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '', 5.5, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 5.75, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 6, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 6, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 6.5, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 6.5, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 6.75, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 7, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '', 7, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 7, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 7.25, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 7.5, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 7.5, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 8, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '', 8, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '', 8, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '', 8, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 8.25, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '', 9, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '', 9, 20, 'large tank', '', 0),
+        ('MICRODOL-X', '', 9, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 9.25, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '', 9.5, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '', 9.5, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 10, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '', 10, 20, 'large tank', '', 0),
+        ('MICRODOL-X', '', 10, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 10.5, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '', 11, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '', 11, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 11, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 13, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 14, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 3, 24, 'small tank', '', 0),
+        ('T-MAX RS', '', 3.5, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 3.5, 24, 'large tank', '', 0),
+        ('T-MAX RS', '', 3.5, 24, 'small tank', '', 0),
+        ('T-MAX RS', '', 4, 21, 'small tank', '', 0),
+        ('T-MAX RS', '', 4, 22, 'large tank', '', 0),
+        ('T-MAX RS', '', 4, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 4.25, 20, 'small tank', '', 0),
+        ('T-MAX RS', '', 4.5, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 4.5, 21, 'small tank', '', 0),
+        ('T-MAX RS', '', 4.5, 24, 'drum', '', 0),
+        ('T-MAX RS', '', 4.75, 20, 'large tank', '', 0),
+        ('T-MAX RS', '', 5, 18, 'small tank', '', 0),
+        ('T-MAX RS', '', 5, 22, 'drum', '', 0),
+        ('T-MAX RS', '', 5, 24, 'small tank', '', 0),
+        ('T-MAX RS', '', 5.5, 18, 'large tank', '', 0),
+        ('T-MAX RS', '', 5.5, 20, 'small tank', '', 0),
+        ('T-MAX RS', '', 5.5, 21, 'drum', '', 0),
+        ('T-MAX RS', '', 5.5, 24, 'large tank', '', 0),
+        ('T-MAX RS', '', 6, 22, 'large tank', '', 0),
+        ('T-MAX RS', '', 6.5, 18, 'small tank', '', 0),
+        ('T-MAX RS', '', 6.5, 20, 'drum', '', 0),
+        ('T-MAX RS', '', 6.5, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 7, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 7, 24, 'large tank', '', 0),
+        ('T-MAX RS', '', 7.5, 21, 'small tank', '', 0),
+        ('T-MAX RS', '', 7.5, 22, 'large tank', '', 0),
+        ('T-MAX RS', '', 8, 18, 'drum', '', 0),
+        ('T-MAX RS', '', 8, 20, 'large tank', '', 0),
+        ('T-MAX RS', '', 8, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 9, 18, 'large tank', '', 0),
+        ('T-MAX RS', '', 9, 20, 'large tank', '', 0),
+        ('T-MAX RS', '', 9, 20, 'small tank', '', 0),
+        ('T-MAX RS', '', 10, 18, 'large tank', '', 0),
+        ('T-MAX RS', '', 10, 18, 'small tank', '', 0),
+        ('T-MAX RS —', '', 4, 22, '', '', 0),
+        ('T-MAX RS —', '', 4, 22, 'drum', '', 0),
+        ('T-MAX RS —', '', 4, 24, '', '', 0),
+        ('T-MAX RS —', '', 4, 24, 'drum', '', 0),
+        ('T-MAX RS —', '', 4.5, 20, '', '', 0),
+        ('T-MAX RS —', '', 4.5, 20, 'drum', '', 0),
+        ('T-MAX RS —', '', 4.5, 21, '', '', 0),
+        ('T-MAX RS —', '', 4.5, 21, 'drum', '', 0),
+        ('T-MAX —', '', 3.5, 24, '', '', 0),
+        ('T-MAX —', '', 3.5, 24, 'drum', '', 0),
+        ('T-MAX —', '', 4.5, 22, '', '', 0),
+        ('T-MAX —', '', 4.5, 22, 'drum', '', 0),
+        ('T-MAX —', '', 5, 21, '', '', 0),
+        ('T-MAX —', '', 5, 21, 'drum', '', 0),
+        ('T-MAX —', '', 5.5, 20, '', '', 0),
+        ('T-MAX —', '', 5.5, 20, 'drum', '', 0),
+        ('T-MAX — — — — —', '', 4.25, 24, 'small tank', '', 0),
+        ('T-MAX — — — — —', '', 4.75, 22, 'small tank', '', 0),
+        ('T-MAX — — — — —', '', 5.25, 21, 'small tank', '', 0),
+        ('T-MAX — — — — —', '', 5.75, 20, 'small tank', '', 0),
+        ('T-MAX — — — — —', '', 6.75, 18, 'small tank', '', 0),
+        ('XTOL (1:1) — — — — — —', '', 6, 24, 'small tank', '', 0),
+        ('XTOL (1:1) — — — — — —', '', 7, 22, 'small tank', '', 0),
+        ('XTOL (1:1) — — — — — —', '', 7.5, 21, 'small tank', '', 0),
+        ('XTOL (1:1) — — — — — —', '', 8.25, 20, 'small tank', '', 0),
+        ('XTOL —', '', 3, 24, '', '', 0),
+        ('XTOL —', '', 3, 24, 'drum', '', 0),
+        ('XTOL —', '', 4, 21, '', '', 0),
+        ('XTOL —', '', 4, 21, 'drum', '', 0),
+        ('XTOL —', '', 4.5, 20, '', '', 0),
+        ('XTOL —', '', 4.5, 20, 'drum', '', 0),
+        ('XTOL —', '', 5.5, 18, '', '', 0),
+        ('XTOL —', '', 5.75, 18, 'drum', '', 0),
+        ('XTOL —', '', 8, 24, 'drum', '', 0),
+        ('XTOL —', '', 9, 22, 'drum', '', 0),
+        ('XTOL —', '', 10, 21, 'drum', '', 0),
+        ('XTOL — —', '', 4.5, 24, 'small tank', '', 0),
+        ('XTOL — —', '', 4.75, 24, 'large tank', '', 0),
+        ('XTOL — —', '', 5.75, 21, 'small tank', '', 0),
+        ('XTOL — —', '', 6.25, 20, 'small tank', '', 0),
+        ('XTOL — —', '', 6.5, 21, 'large tank', '', 0),
+        ('XTOL — —', '', 7.25, 20, 'large tank', '', 0),
+        ('XTOL — —', '', 7.5, 18, 'small tank', '', 0),
+        ('XTOL — —', '', 8.5, 18, 'large tank', '', 0),
+        ('Не Не', '', 9.25, 24, 'small tank', '', 0),
+        ('Не Не', '', 10.25, 24, 'large tank', '', 0),
+        ('Не Не', '', 10.75, 22, 'small tank', '', 0),
+        ('Не Не', '', 11.75, 21, 'small tank', '', 0),
+        ('Не Не', '', 12, 22, 'large tank', '', 0),
+        ('Не Не', '', 13, 20, 'small tank', '', 0),
+        ('Не Не', '', 13.25, 21, 'large tank', '', 0),
+        ('Не Не', '', 14.75, 20, 'large tank', '', 0),
+        ('—', '', 3, 24, 'drum', '', 0),
+        ('—', '', 4, 21, 'drum', '', 0),
+        ('—', '', 4.5, 20, 'drum', '', 0),
+        ('—', '', 5.5, 18, 'drum', '', 0),
+        ('— —', '', 3.75, 24, 'small tank', '', 0),
+        ('— —', '', 4, 24, 'large tank', '', 0),
+        ('— —', '', 4.5, 24, 'large tank', '', 0),
+        ('— —', '', 4.75, 21, 'small tank', '', 0),
+        ('— —', '', 5, 21, 'small tank', '', 0),
+        ('— —', '', 5.25, 20, 'small tank', '', 0),
+        ('— —', '', 5.5, 20, 'small tank', '', 0),
+        ('— —', '', 6, 21, 'large tank', '', 0),
+        ('— —', '', 6.5, 18, 'small tank', '', 0),
+        ('— —', '', 6.5, 20, 'large tank', '', 0),
+        ('— —', '', 6.75, 18, 'small tank', '', 0),
+        ('— —', '', 6.75, 20, 'large tank', '', 0),
+        ('— —', '', 7.5, 18, 'large tank', '', 0),
+        ('— —', '', 8.5, 18, 'large tank', '', 0),
+    ),
+    "KODAK_TRI_X_320TXP": (
+        ('D-76', '', 4, 24, 'drum', '', 0),
+        ('D-76', '', 4.5, 22, 'drum', '', 0),
+        ('D-76', '', 4.5, 24, 'tray', '', 0),
+        ('D-76', '', 4.75, 21, 'drum', '', 0),
+        ('D-76', '', 5, 22, 'tray', '', 0),
+        ('D-76', '', 5.25, 20, 'drum', '', 0),
+        ('D-76', '', 5.5, 21, 'tray', '', 0),
+        ('D-76', '', 6, 18, 'drum', '', 0),
+        ('D-76', '', 6, 20, 'tray', '', 0),
+        ('D-76', '', 6, 24, 'small tank', '', 0),
+        ('D-76', '', 6.5, 24, 'drum', '', 0),
+        ('D-76', '', 6.5, 24, 'small tank', '', 0),
+        ('D-76', '', 6.75, 18, 'tray', '', 0),
+        ('D-76', '', 7, 22, 'small tank', '', 0),
+        ('D-76', '', 7, 24, 'large tank', '', 0),
+        ('D-76', '', 7.5, 21, 'small tank', '', 0),
+        ('D-76', '', 7.5, 22, 'drum', '', 0),
+        ('D-76', '', 7.5, 22, 'small tank', '', 0),
+        ('D-76', '', 7.5, 24, 'large tank', '', 0),
+        ('D-76', '', 8, 20, 'small tank', '', 0),
+        ('D-76', '', 8, 22, 'large tank', '', 0),
+        ('D-76', '', 8.25, 21, 'drum', '', 0),
+        ('D-76', '', 8.25, 21, 'small tank', '', 0),
+        ('D-76', '', 8.5, 21, 'large tank', '', 0),
+        ('D-76', '', 8.75, 22, 'large tank', '', 0),
+        ('D-76', '', 9, 18, 'small tank', '', 0),
+        ('D-76', '', 9, 20, 'large tank', '', 0),
+        ('D-76', '', 9, 20, 'drum', '', 0),
+        ('D-76', '', 9, 20, 'small tank', '', 0),
+        ('D-76', '', 9.5, 21, 'large tank', '', 0),
+        ('D-76', '', 10, 18, 'large tank', '', 0),
+        ('D-76', '', 10, 18, 'drum', '', 0),
+        ('D-76', '', 10, 18, 'small tank', '', 0),
+        ('D-76', '', 10.25, 20, 'large tank', '', 0),
+        ('D-76', '', 11.5, 18, 'large tank', '', 0),
+        ('D-76', '1:1', 6, 24, 'drum', '', 0),
+        ('D-76', '1:1', 6.75, 22, 'drum', '', 0),
+        ('D-76', '1:1', 6.75, 24, 'tray', '', 0),
+        ('D-76', '1:1', 7.25, 21, 'drum', '', 0),
+        ('D-76', '1:1', 7.75, 22, 'tray', '', 0),
+        ('D-76', '1:1', 8, 20, 'drum', '', 0),
+        ('D-76', '1:1', 8.5, 21, 'tray', '', 0),
+        ('D-76', '1:1', 9, 18, 'drum', '', 0),
+        ('D-76', '1:1', 9, 20, 'tray', '', 0),
+        ('D-76', '1:1', 9.25, 24, 'drum', '', 0),
+        ('D-76', '1:1', 10.25, 18, 'tray', '', 0),
+        ('D-76', '1:1', 10.75, 22, 'drum', '', 0),
+        ('D-76', '1:1', 11.75, 21, 'drum', '', 0),
+        ('D-76', '1:1', 12.75, 20, 'drum', '', 0),
+        ('D-76', '1:1', 14.25, 18, 'drum', '', 0),
+        ('D-76 (1:1) — — — — —', '', 9.25, 24, 'small tank', '', 0),
+        ('D-76 (1:1) — — — — —', '', 10.75, 22, 'small tank', '', 0),
+        ('D-76 (1:1) — — — — —', '', 11.75, 21, 'small tank', '', 0),
+        ('D-76 (1:1) — — — — —', '', 12.75, 20, 'small tank', '', 0),
+        ('D-76 (1:1) — — — — —', '', 14.25, 18, 'small tank', '', 0),
+        ('D-76 —', '', 5.5, 24, '', '', 0),
+        ('D-76 —', '', 6.5, 22, '', '', 0),
+        ('D-76 —', '', 7, 21, '', '', 0),
+        ('D-76 —', '', 7.5, 20, '', '', 0),
+        ('DK-50', '1:1', 2.25, 21, 'drum', '', 0),
+        ('DK-50', '1:1', 2.5, 20, 'drum', '', 0),
+        ('DK-50', '1:1', 2.75, 18, 'drum', '', 0),
+        ('DK-50', '1:1', 4, 24, 'tray', '', 0),
+        ('DK-50', '1:1', 4.5, 21, 'tray', '', 0),
+        ('DK-50', '1:1', 4.5, 22, 'tray', '', 0),
+        ('DK-50', '1:1', 5, 18, 'tray', '', 0),
+        ('DK-50', '1:1', 5, 20, 'tray', '', 0),
+        ('DK-50', '1:1', 6, 24, 'drum', '', 0),
+        ('DK-50', '1:1', 6, 24, 'small tank', '', 0),
+        ('DK-50', '1:1', 7, 22, 'drum', '', 0),
+        ('DK-50', '1:1', 7, 22, 'small tank', '', 0),
+        ('DK-50', '1:1', 7, 24, 'large tank', '', 0),
+        ('DK-50', '1:1', 7.5, 21, 'drum', '', 0),
+        ('DK-50', '1:1', 7.5, 21, 'small tank', '', 0),
+        ('DK-50', '1:1', 8, 20, 'drum', '', 0),
+        ('DK-50', '1:1', 8, 20, 'small tank', '', 0),
+        ('DK-50', '1:1', 8, 22, 'large tank', '', 0),
+        ('DK-50', '1:1', 8.5, 21, 'large tank', '', 0),
+        ('DK-50', '1:1', 9, 18, 'drum', '', 0),
+        ('DK-50', '1:1', 9, 18, 'small tank', '', 0),
+        ('DK-50', '1:1', 9, 20, 'large tank', '', 0),
+        ('DK-50', '1:1', 10, 18, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 2.25, 24, 'drum', '', 0),
+        ('HC-110', 'Dil B', 2.5, 22, 'drum', '', 0),
+        ('HC-110', 'Dil B', 2.5, 24, 'tray', '', 0),
+        ('HC-110', 'Dil B', 2.75, 21, 'drum', '', 0),
+        ('HC-110', 'Dil B', 2.75, 22, 'tray', '', 0),
+        ('HC-110', 'Dil B', 3, 20, 'drum', '', 0),
+        ('HC-110', 'Dil B', 3, 21, 'tray', '', 0),
+        ('HC-110', 'Dil B', 3.25, 18, 'drum', '', 0),
+        ('HC-110', 'Dil B', 3.25, 20, 'tray', '', 0),
+        ('HC-110', 'Dil B', 3.5, 24, 'drum', '', 0),
+        ('HC-110', 'Dil B', 3.5, 24, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 3.75, 18, 'tray', '', 0),
+        ('HC-110', 'Dil B', 3.75, 24, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4, 22, 'drum', '', 0),
+        ('HC-110', 'Dil B', 4, 22, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4, 24, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 4.25, 21, 'drum', '', 0),
+        ('HC-110', 'Dil B', 4.25, 21, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4.5, 22, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 4.75, 20, 'drum', '', 0),
+        ('HC-110', 'Dil B', 4.75, 20, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4.75, 22, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 5, 21, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 5, 24, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 5.25, 18, 'drum', '', 0),
+        ('HC-110', 'Dil B', 5.25, 18, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 5.25, 21, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 5.5, 20, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 5.5, 20, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 5.5, 22, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 5.75, 18, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 6, 21, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 6.25, 18, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 6.25, 20, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 7, 18, 'large tank', '', 0),
+        ('HC-110 (Dil B) —', '', 5, 24, '', '', 0),
+        ('HC-110 (Dil B) —', '', 6.5, 22, '', '', 0),
+        ('HC-110 (Dil B) —', '', 8, 21, '', '', 0),
+        ('HC-110 (Dil B) —', '', 8.5, 20, '', '', 0),
+        ('MICRODOL-X', '', 5, 24, 'drum', '', 0),
+        ('MICRODOL-X', '', 5.75, 22, 'drum', '', 0),
+        ('MICRODOL-X', '', 5.75, 24, 'tray', '', 0),
+        ('MICRODOL-X', '', 6.25, 21, 'drum', '', 0),
+        ('MICRODOL-X', '', 6.75, 20, 'drum', '', 0),
+        ('MICRODOL-X', '', 6.75, 22, 'tray', '', 0),
+        ('MICRODOL-X', '', 7.25, 21, 'tray', '', 0),
+        ('MICRODOL-X', '', 7.5, 24, 'drum', '', 0),
+        ('MICRODOL-X', '', 7.5, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 7.75, 18, 'drum', '', 0),
+        ('MICRODOL-X', '', 7.75, 20, 'tray', '', 0),
+        ('MICRODOL-X', '', 8, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 8.5, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 8.5, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 8.75, 18, 'tray', '', 0),
+        ('MICRODOL-X', '', 8.75, 22, 'drum', '', 0),
+        ('MICRODOL-X', '', 8.75, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 9, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 9, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 9.5, 21, 'drum', '', 0),
+        ('MICRODOL-X', '', 9.5, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 10, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '', 10, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '', 10, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 10.25, 20, 'drum', '', 0),
+        ('MICRODOL-X', '', 10.25, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '', 10.75, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '', 11, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '', 11, 20, 'large tank', '', 0),
+        ('MICRODOL-X', '', 11.5, 18, 'drum', '', 0),
+        ('MICRODOL-X', '', 11.5, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '', 11.75, 20, 'large tank', '', 0),
+        ('MICRODOL-X', '', 12, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '', 13.25, 18, 'large tank', '', 0),
+        ('T-MAX', '', 5.25, 24, 'drum', '', 0),
+        ('T-MAX', '', 6.25, 22, 'drum', '', 0),
+        ('T-MAX', '', 6.75, 21, 'drum', '', 0),
+        ('T-MAX', '', 7.25, 20, 'drum', '', 0),
+        ('T-MAX', '', 8.25, 18, 'drum', '', 0),
+        ('T-MAX RS', '', 2.75, 24, 'drum', '', 0),
+        ('T-MAX RS', '', 2.75, 24, 'small tank', '', 0),
+        ('T-MAX RS', '', 3, 24, 'small tank', '', 0),
+        ('T-MAX RS', '', 3.25, 22, 'drum', '', 0),
+        ('T-MAX RS', '', 3.25, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 3.25, 24, 'large tank', '', 0),
+        ('T-MAX RS', '', 3.5, 21, 'drum', '', 0),
+        ('T-MAX RS', '', 3.5, 21, 'small tank', '', 0),
+        ('T-MAX RS', '', 3.5, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 3.75, 22, 'large tank', '', 0),
+        ('T-MAX RS', '', 4, 20, 'drum', '', 0),
+        ('T-MAX RS', '', 4, 20, 'small tank', '', 0),
+        ('T-MAX RS', '', 4.25, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 4.5, 18, 'drum', '', 0),
+        ('T-MAX RS', '', 4.5, 18, 'small tank', '', 0),
+        ('T-MAX RS', '', 4.5, 20, 'large tank', '', 0),
+        ('T-MAX RS', '', 5, 18, 'large tank', '', 0),
+        ('T-MAX RS', '', 5, 18, 'small tank', '', 0),
+        ('T-MAX RS', '', 5, 24, 'large tank', '', 0),
+        ('T-MAX RS', '', 5.5, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 5.5, 22, 'large tank', '', 0),
+        ('T-MAX RS', '', 6, 20, 'large tank', '', 0),
+        ('T-MAX RS', '', 7, 18, 'large tank', '', 0),
+        ('T-MAX RS —', '', 2, 24, '', '', 0),
+        ('T-MAX RS —', '', 2.5, 22, '', '', 0),
+        ('T-MAX RS —', '', 3, 21, '', '', 0),
+        ('T-MAX RS —', '', 3.5, 20, '', '', 0),
+        ('T-MAX —', '', 6, 24, '', '', 0),
+        ('T-MAX —', '', 7.5, 21, '', '', 0),
+        ('T-MAX —', '', 7.5, 22, '', '', 0),
+        ('T-MAX —', '', 8, 20, '', '', 0),
+        ('XTOL', '', 4, 24, 'drum', '', 0),
+        ('XTOL', '', 4.5, 22, 'drum', '', 0),
+        ('XTOL', '', 4.5, 24, 'tray', '', 0),
+        ('XTOL', '', 4.75, 21, 'drum', '', 0),
+        ('XTOL', '', 5, 22, 'tray', '', 0),
+        ('XTOL', '', 5.25, 20, 'drum', '', 0),
+        ('XTOL', '', 5.5, 21, 'tray', '', 0),
+        ('XTOL', '', 5.75, 24, '', '', 0),
+        ('XTOL', '', 5.75, 24, 'drum', '', 0),
+        ('XTOL', '', 5.75, 24, 'small tank', '', 0),
+        ('XTOL', '', 6, 18, 'drum', '', 0),
+        ('XTOL', '', 6, 20, 'tray', '', 0),
+        ('XTOL', '', 6.5, 22, '', '', 0),
+        ('XTOL', '', 6.5, 22, 'drum', '', 0),
+        ('XTOL', '', 6.5, 22, 'small tank', '', 0),
+        ('XTOL', '', 6.5, 24, '', '', 0),
+        ('XTOL', '', 6.5, 24, 'large tank', '', 0),
+        ('XTOL', '', 6.75, 18, 'tray', '', 0),
+        ('XTOL', '', 7, 21, '', '', 0),
+        ('XTOL', '', 7.25, 21, 'drum', '', 0),
+        ('XTOL', '', 7.25, 21, 'small tank', '', 0),
+        ('XTOL', '', 7.5, 20, '', '', 0),
+        ('XTOL', '', 7.5, 22, '', '', 0),
+        ('XTOL', '', 7.5, 22, 'large tank', '', 0),
+        ('XTOL', '', 7.75, 20, 'drum', '', 0),
+        ('XTOL', '', 7.75, 20, 'small tank', '', 0),
+        ('XTOL', '', 8, 21, '', '', 0),
+        ('XTOL', '', 8, 24, '', '', 0),
+        ('XTOL', '', 8.25, 21, 'large tank', '', 0),
+        ('XTOL', '', 8.5, 18, '', '', 0),
+        ('XTOL', '', 8.75, 18, 'drum', '', 0),
+        ('XTOL', '', 8.75, 18, 'small tank', '', 0),
+        ('XTOL', '', 8.75, 20, '', '', 0),
+        ('XTOL', '', 9, 20, 'large tank', '', 0),
+        ('XTOL', '', 9.25, 22, '', '', 0),
+        ('XTOL', '', 9.75, 18, '', '', 0),
+        ('XTOL', '', 10, 21, '', '', 0),
+        ('XTOL', '', 10.25, 18, 'large tank', '', 0),
+        ('XTOL', '', 10.75, 20, '', '', 0),
+        ('XTOL', '', 12.25, 18, '', '', 0),
+        ('XTOL', '1:1', 5.5, 24, 'drum', '', 0),
+        ('XTOL', '1:1', 6.25, 22, 'drum', '', 0),
+        ('XTOL', '1:1', 6.25, 24, 'tray', '', 0),
+        ('XTOL', '1:1', 6.75, 21, 'drum', '', 0),
+        ('XTOL', '1:1', 7.25, 20, 'drum', '', 0),
+        ('XTOL', '1:1', 7.25, 22, 'tray', '', 0),
+        ('XTOL', '1:1', 7.75, 21, 'tray', '', 0),
+        ('XTOL', '1:1', 7.75, 24, '', '', 0),
+        ('XTOL', '1:1', 8, 24, 'drum', '', 0),
+        ('XTOL', '1:1', 8.25, 18, 'drum', '', 0),
+        ('XTOL', '1:1', 8.5, 20, 'tray', '', 0),
+        ('XTOL', '1:1', 8.75, 22, '', '', 0),
+        ('XTOL', '1:1', 8.75, 24, '', '', 0),
+        ('XTOL', '1:1', 9.5, 18, 'tray', '', 0),
+        ('XTOL', '1:1', 9.5, 21, '', '', 0),
+        ('XTOL', '1:1', 9.5, 22, 'drum', '', 0),
+        ('XTOL', '1:1', 10.25, 21, 'drum', '', 0),
+        ('XTOL', '1:1', 10.25, 22, '', '', 0),
+        ('XTOL', '1:1', 10.5, 20, '', '', 0),
+        ('XTOL', '1:1', 11, 21, '', '', 0),
+        ('XTOL', '1:1', 11.25, 20, 'drum', '', 0),
+        ('XTOL', '1:1', 11.75, 18, '', '', 0),
+        ('XTOL', '1:1', 12, 20, '', '', 0),
+        ('XTOL', '1:1', 12.5, 18, 'drum', '', 0),
+        ('XTOL', '1:1', 13.5, 18, '', '', 0),
+        ('XTOL (1:1) — —', '', 11.5, 24, '', '', 0),
+        ('XTOL (1:1) — —', '', 14.5, 21, '', '', 0),
+        ('XTOL (1:1) — —', '', 15.75, 20, '', '', 0),
+        ('XTOL (1:1) — — — — —', '', 8, 24, 'small tank', '', 0),
+        ('XTOL (1:1) — — — — —', '', 9.5, 22, 'small tank', '', 0),
+        ('XTOL (1:1) — — — — —', '', 10.25, 21, 'small tank', '', 0),
+        ('XTOL (1:1) — — — — —', '', 11.25, 20, 'small tank', '', 0),
+        ('XTOL (1:1) — — — — —', '', 12.5, 18, 'small tank', '', 0),
+        ('XTOL —', '', 8.75, 24, '', '', 0),
+        ('XTOL —', '', 10, 24, '', '', 0),
+        ('XTOL —', '', 11, 21, '', '', 0),
+        ('XTOL —', '', 12, 20, '', '', 0),
+        ('XTOL —', '', 12.5, 21, '', '', 0),
+        ('XTOL —', '', 13.5, 18, '', '', 0),
+        ('XTOL —', '', 13.75, 20, '', '', 0),
+        ('XTOL —', '', 15.75, 18, '', '', 0),
+    ),
+    "KODAK_TRI_X_400TX": (
+        ('D-76', '', 4.5, 24, '', '', 0),
+        ('D-76', '', 4.75, 24, 'drum', '', 0),
+        ('D-76', '', 4.75, 24, 'small tank', '', 0),
+        ('D-76', '', 5, 22, '', '', 0),
+        ('D-76', '', 5.5, 22, 'drum', '', 0),
+        ('D-76', '', 5.5, 22, 'small tank', '', 0),
+        ('D-76', '', 5.5, 24, 'large tank', '', 0),
+        ('D-76', '', 5.5, 24, 'small tank', '', 0),
+        ('D-76', '', 6, 21, '', '', 0),
+        ('D-76', '', 6, 24, 'large tank', '', 0),
+        ('D-76', '', 6.25, 21, 'drum', '', 0),
+        ('D-76', '', 6.25, 21, 'small tank', '', 0),
+        ('D-76', '', 6.5, 22, 'large tank', '', 0),
+        ('D-76', '', 6.5, 22, 'small tank', '', 0),
+        ('D-76', '', 6.75, 20, 'drum', '', 0),
+        ('D-76', '', 6.75, 20, 'small tank', '', 0),
+        ('D-76', '', 7, 20, '', '', 0),
+        ('D-76', '', 7, 21, 'large tank', '', 0),
+        ('D-76', '', 7, 22, 'large tank', '', 0),
+        ('D-76', '', 7.5, 18, '', '', 0),
+        ('D-76', '', 7.5, 21, 'small tank', '', 0),
+        ('D-76', '', 7.75, 20, 'large tank', '', 0),
+        ('D-76', '', 8, 18, 'drum', '', 0),
+        ('D-76', '', 8, 18, 'small tank', '', 0),
+        ('D-76', '', 8, 20, 'small tank', '', 0),
+        ('D-76', '', 8, 21, 'large tank', '', 0),
+        ('D-76', '', 9, 18, 'small tank', '', 0),
+        ('D-76', '', 9, 20, 'large tank', '', 0),
+        ('D-76', '', 9.25, 18, 'large tank', '', 0),
+        ('D-76', '', 10, 18, 'large tank', '', 0),
+        ('D-76', '1:1', 7.75, 24, 'drum', '', 0),
+        ('D-76', '1:1', 7.75, 24, 'small tank', '', 0),
+        ('D-76', '1:1', 8, 24, 'small tank', '', 0),
+        ('D-76', '1:1', 8.5, 22, 'drum', '', 0),
+        ('D-76', '1:1', 8.5, 22, 'small tank', '', 0),
+        ('D-76', '1:1', 8.75, 24, 'large tank', '', 0),
+        ('D-76', '1:1', 9, 21, 'drum', '', 0),
+        ('D-76', '1:1', 9, 21, 'small tank', '', 0),
+        ('D-76', '1:1', 9, 22, 'small tank', '', 0),
+        ('D-76', '1:1', 9, 24, 'large tank', '', 0),
+        ('D-76', '1:1', 9.5, 21, 'small tank', '', 0),
+        ('D-76', '1:1', 9.75, 20, 'drum', '', 0),
+        ('D-76', '1:1', 9.75, 20, 'small tank', '', 0),
+        ('D-76', '1:1', 9.75, 22, 'large tank', '', 0),
+        ('D-76', '1:1', 10, 20, 'small tank', '', 0),
+        ('D-76', '1:1', 10, 22, 'large tank', '', 0),
+        ('D-76', '1:1', 10.5, 21, 'large tank', '', 0),
+        ('D-76', '1:1', 10.75, 18, 'drum', '', 0),
+        ('D-76', '1:1', 10.75, 18, 'small tank', '', 0),
+        ('D-76', '1:1', 11, 18, 'small tank', '', 0),
+        ('D-76', '1:1', 11, 20, 'large tank', '', 0),
+        ('D-76', '1:1', 11, 21, 'large tank', '', 0),
+        ('D-76', '1:1', 12, 20, 'large tank', '', 0),
+        ('D-76', '1:1', 12.25, 18, 'large tank', '', 0),
+        ('D-76', '1:1', 13, 18, 'large tank', '', 0),
+        ('DK-50', '1:1', 4.5, 24, 'small tank', '', 0),
+        ('DK-50', '1:1', 5, 22, 'small tank', '', 0),
+        ('DK-50', '1:1', 5, 24, 'large tank', '', 0),
+        ('DK-50', '1:1', 5.5, 21, 'small tank', '', 0),
+        ('DK-50', '1:1', 5.5, 22, 'large tank', '', 0),
+        ('DK-50', '1:1', 6, 20, 'small tank', '', 0),
+        ('DK-50', '1:1', 6, 21, 'large tank', '', 0),
+        ('DK-50', '1:1', 6.5, 20, 'large tank', '', 0),
+        ('DK-50', '1:1', 7, 18, 'small tank', '', 0),
+        ('DK-50', '1:1', 7.5, 18, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 2.5, 24, 'drum', '', 0),
+        ('HC-110', 'Dil B', 2.5, 24, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 3, 22, 'drum', '', 0),
+        ('HC-110', 'Dil B', 3, 22, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 3, 24, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 3.5, 21, 'drum', '', 0),
+        ('HC-110', 'Dil B', 3.5, 21, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 3.5, 22, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 3.75, 20, 'drum', '', 0),
+        ('HC-110', 'Dil B', 3.75, 20, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4, 21, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 4, 24, '', '', 0),
+        ('HC-110', 'Dil B', 4.5, 18, 'drum', '', 0),
+        ('HC-110', 'Dil B', 4.5, 18, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4.5, 20, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 4.5, 22, '', '', 0),
+        ('HC-110', 'Dil B', 5, 18, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 5.5, 21, '', '', 0),
+        ('HC-110', 'Dil B', 6, 20, '', '', 0),
+        ('HC-110', 'Dil B', 7, 18, '', '', 0),
+        ('MICRODOL-X', '', 7.5, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 8, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 8.25, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 8.5, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 8.75, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 9, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 9, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 9.25, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '', 9.5, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 9.5, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 10, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '', 10, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '', 10, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 10.25, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '', 10.75, 20, 'large tank', '', 0),
+        ('MICRODOL-X', '', 11, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '', 11, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '', 11.75, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '', 12, 20, 'large tank', '', 0),
+        ('MICRODOL-X', '', 13, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '', 13, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 14, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 15, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 15, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 16, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 17, 21, 'large tank', '', 0),
+        ('T-MAX', '', 4.5, 24, '', '', 0),
+        ('T-MAX', '', 4.75, 24, 'drum', '', 0),
+        ('T-MAX', '', 5, 22, '', '', 0),
+        ('T-MAX', '', 5.5, 21, '', '', 0),
+        ('T-MAX', '', 5.5, 22, 'drum', '', 0),
+        ('T-MAX', '', 5.75, 21, 'drum', '', 0),
+        ('T-MAX', '', 6, 20, '', '', 0),
+        ('T-MAX', '', 6, 20, 'drum', '', 0),
+        ('T-MAX', '', 6.5, 18, '', '', 0),
+        ('T-MAX', '', 6.75, 18, 'drum', '', 0),
+        ('T-MAX RS', '', 3.5, 24, 'drum', '', 0),
+        ('T-MAX RS', '', 3.5, 24, 'small tank', '', 0),
+        ('T-MAX RS', '', 4, 22, 'drum', '', 0),
+        ('T-MAX RS', '', 4, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 4, 24, '', '', 0),
+        ('T-MAX RS', '', 4, 24, 'large tank', '', 0),
+        ('T-MAX RS', '', 4.25, 21, 'drum', '', 0),
+        ('T-MAX RS', '', 4.25, 21, 'small tank', '', 0),
+        ('T-MAX RS', '', 4.5, 20, 'drum', '', 0),
+        ('T-MAX RS', '', 4.5, 20, 'small tank', '', 0),
+        ('T-MAX RS', '', 4.5, 22, 'large tank', '', 0),
+        ('T-MAX RS', '', 4.75, 18, 'drum', '', 0),
+        ('T-MAX RS', '', 4.75, 18, 'small tank', '', 0),
+        ('T-MAX RS', '', 4.75, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 5, 20, 'large tank', '', 0),
+        ('T-MAX RS', '', 5, 22, '', '', 0),
+        ('T-MAX RS', '', 5, 24, 'small tank', '', 0),
+        ('T-MAX RS', '', 5.5, 18, 'large tank', '', 0),
+        ('T-MAX RS', '', 5.5, 21, '', '', 0),
+        ('T-MAX RS', '', 5.5, 21, 'small tank', '', 0),
+        ('T-MAX RS', '', 5.5, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 6, 20, '', '', 0),
+        ('T-MAX RS', '', 6, 20, 'small tank', '', 0),
+        ('T-MAX RS', '', 6, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 6.5, 18, '', '', 0),
+        ('T-MAX RS', '', 6.5, 21, 'small tank', '', 0),
+        ('T-MAX RS', '', 6.5, 24, 'large tank', '', 0),
+        ('T-MAX RS', '', 7, 18, 'small tank', '', 0),
+        ('T-MAX RS', '', 7.5, 20, 'small tank', '', 0),
+        ('T-MAX RS', '', 7.5, 22, 'large tank', '', 0),
+        ('T-MAX RS', '', 8, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 8.5, 18, 'small tank', '', 0),
+        ('T-MAX RS', '', 8.5, 20, 'large tank', '', 0),
+        ('T-MAX RS', '', 8.5, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 9.5, 18, 'large tank', '', 0),
+        ('T-MAX RS', '', 10, 20, 'large tank', '', 0),
+        ('T-MAX RS', '', 12, 18, 'large tank', '', 0),
+        ('XTOL', '', 4.75, 24, 'drum', '', 0),
+        ('XTOL', '', 4.75, 24, 'small tank', '', 0),
+        ('XTOL', '', 5.5, 24, 'large tank', '', 0),
+        ('XTOL', '', 5.75, 22, 'drum', '', 0),
+        ('XTOL', '', 5.75, 22, 'small tank', '', 0),
+        ('XTOL', '', 6.25, 21, 'drum', '', 0),
+        ('XTOL', '', 6.25, 21, 'small tank', '', 0),
+        ('XTOL', '', 6.5, 22, 'large tank', '', 0),
+        ('XTOL', '', 7, 20, 'drum', '', 0),
+        ('XTOL', '', 7, 20, 'small tank', '', 0),
+        ('XTOL', '', 7.25, 21, 'large tank', '', 0),
+        ('XTOL', '', 8, 18, 'drum', '', 0),
+        ('XTOL', '', 8, 18, 'small tank', '', 0),
+        ('XTOL', '', 8, 20, 'large tank', '', 0),
+        ('XTOL', '', 9.25, 18, 'large tank', '', 0),
+        ('XTOL', '1:1', 7.25, 24, 'drum', '', 0),
+        ('XTOL', '1:1', 7.25, 24, 'small tank', '', 0),
+        ('XTOL', '1:1', 8, 22, 'drum', '', 0),
+        ('XTOL', '1:1', 8, 22, 'small tank', '', 0),
+        ('XTOL', '1:1', 8.25, 24, 'large tank', '', 0),
+        ('XTOL', '1:1', 8.5, 21, 'drum', '', 0),
+        ('XTOL', '1:1', 8.5, 21, 'small tank', '', 0),
+        ('XTOL', '1:1', 9, 20, 'drum', '', 0),
+        ('XTOL', '1:1', 9, 20, 'small tank', '', 0),
+        ('XTOL', '1:1', 9.25, 22, 'large tank', '', 0),
+        ('XTOL', '1:1', 9.75, 21, 'large tank', '', 0),
+        ('XTOL', '1:1', 10, 18, 'drum', '', 0),
+        ('XTOL', '1:1', 10, 18, 'small tank', '', 0),
+        ('XTOL', '1:1', 10.5, 20, 'large tank', '', 0),
+        ('XTOL', '1:1', 11.5, 18, 'large tank', '', 0),
+        ('Не', '', 13.5, 24, 'small tank', '', 0),
+        ('Не', '', 15, 22, 'small tank', '', 0),
+        ('Не', '', 15.5, 24, 'large tank', '', 0),
+        ('Не', '', 16, 21, 'small tank', '', 0),
+        ('Не', '', 17, 20, 'small tank', '', 0),
+        ('Не', '', 17.25, 22, 'large tank', '', 0),
+        ('Не', '', 18.25, 21, 'large tank', '', 0),
+        ('Не', '', 18.75, 18, 'small tank', '', 0),
+        ('Не', '', 19.5, 20, 'large tank', '', 0),
+    ),
+    "KODAK_VERICHROME_PAN": (
+        ('D-76', '', 4, 24, '', '', 0),
+        ('D-76', '', 4.5, 22, '', '', 0),
+        ('D-76', '', 4.5, 24, 'small tank', '', 0),
+        ('D-76', '', 5, 21, '', '', 0),
+        ('D-76', '', 5, 22, 'small tank', '', 0),
+        ('D-76', '', 5, 24, 'large tank', '', 0),
+        ('D-76', '', 5.5, 21, 'small tank', '', 0),
+        ('D-76', '', 6, 20, '', '', 0),
+        ('D-76', '', 6, 22, 'large tank', '', 0),
+        ('D-76', '', 7, 18, '', '', 0),
+        ('D-76', '', 7, 20, 'small tank', '', 0),
+        ('D-76', '', 7, 21, 'large tank', '', 0),
+        ('D-76', '', 8, 18, 'small tank', '', 0),
+        ('D-76', '', 8, 20, 'large tank', '', 0),
+        ('D-76', '', 9, 18, 'large tank', '', 0),
+        ('D-76', '1:1', 5, 24, '', '', 0),
+        ('D-76', '1:1', 6, 22, '', '', 0),
+        ('D-76', '1:1', 6, 24, 'small tank', '', 0),
+        ('D-76', '1:1', 7, 21, '', '', 0),
+        ('D-76', '1:1', 7, 22, 'small tank', '', 0),
+        ('D-76', '1:1', 7, 24, 'large tank', '', 0),
+        ('D-76', '1:1', 8, 20, '', '', 0),
+        ('D-76', '1:1', 8, 21, 'small tank', '', 0),
+        ('D-76', '1:1', 8, 22, 'large tank', '', 0),
+        ('D-76', '1:1', 9, 20, 'small tank', '', 0),
+        ('D-76', '1:1', 9, 21, 'large tank', '', 0),
+        ('D-76', '1:1', 10, 18, '', '', 0),
+        ('D-76', '1:1', 10, 20, 'large tank', '', 0),
+        ('D-76', '1:1', 11, 18, 'small tank', '', 0),
+        ('D-76', '1:1', 12.5, 18, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 3, 24, '', '', 0),
+        ('HC-110', 'Dil B', 3.5, 22, '', '', 0),
+        ('HC-110', 'Dil B', 4, 21, '', '', 0),
+        ('HC-110', 'Dil B', 4.5, 20, '', '', 0),
+        ('HC-110', 'Dil B', 5, 18, '', '', 0),
+        ('MICRODOL-X', '', 5, 24, '', '', 0),
+        ('MICRODOL-X', '', 6, 22, '', '', 0),
+        ('MICRODOL-X', '', 6, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 7, 21, '', '', 0),
+        ('MICRODOL-X', '', 7, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 7, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 8, 20, '', '', 0),
+        ('MICRODOL-X', '', 8, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 8, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 9, 18, '', '', 0),
+        ('MICRODOL-X', '', 9, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '', 9, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '', 10, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '', 10, 20, 'large tank', '', 0),
+        ('MICRODOL-X', '', 11, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '', 11, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '', 12, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '', 12, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '', 13, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '', 13, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '', 14, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '', 14, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '', 15, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '', 15, 20, 'large tank', '', 0),
+        ('MICRODOL-X', '', 20, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '1:3', 10, 24, '', '', 0),
+        ('MICRODOL-X', '1:3', 11, 22, '', '', 0),
+        ('MICRODOL-X', '1:3', 12, 21, '', '', 0),
+        ('MICRODOL-X', '1:3', 13, 20, '', '', 0),
+        ('MICRODOL-X', '1:3', 14, 18, '', '', 0),
+        ('T-MAX RS', '', 3, 24, '', '', 0),
+        ('T-MAX RS', '', 3.5, 22, '', '', 0),
+        ('T-MAX RS', '', 4, 21, '', '', 0),
+        ('T-MAX RS', '', 4.5, 20, '', '', 0),
+        ('T-MAX RS', '', 5, 18, '', '', 0),
+        ('T-MAX RS — —', '', 3.5, 22, 'small tank', '', 0),
+        ('T-MAX RS — —', '', 3.5, 24, 'small tank', '', 0),
+        ('T-MAX RS — —', '', 4, 20, 'small tank', '', 0),
+        ('T-MAX RS — —', '', 4, 21, 'small tank', '', 0),
+        ('T-MAX RS — —', '', 4, 24, 'large tank', '', 0),
+        ('T-MAX RS — —', '', 4, 24, 'small tank', '', 0),
+        ('T-MAX RS — —', '', 4.75, 22, 'small tank', '', 0),
+        ('T-MAX RS — —', '', 5, 21, 'large tank', '', 0),
+        ('T-MAX RS — —', '', 5, 22, 'large tank', '', 0),
+        ('T-MAX RS — —', '', 5.25, 21, 'small tank', '', 0),
+        ('T-MAX RS — —', '', 5.5, 20, 'large tank', '', 0),
+        ('T-MAX RS — —', '', 6, 20, 'small tank', '', 0),
+        ('T-MAX RS — —', '', 7.5, 18, 'small tank', '', 0),
+        ('НС-110 (Dil B) —', '', 4, 22, 'small tank', '', 0),
+        ('НС-110 (Dil B) —', '', 4.5, 21, 'small tank', '', 0),
+        ('НС-110 (Dil B) —', '', 4.5, 24, 'large tank', '', 0),
+        ('НС-110 (Dil B) —', '', 5, 20, 'small tank', '', 0),
+        ('НС-110 (Dil B) —', '', 5.5, 22, 'large tank', '', 0),
+        ('НС-110 (Dil B) —', '', 6, 18, 'small tank', '', 0),
+        ('НС-110 (Dil B) —', '', 6, 21, 'large tank', '', 0),
+        ('НС-110 (Dil B) —', '', 6.5, 20, 'large tank', '', 0),
+        ('НС-110 (Dil B) —', '', 8, 18, 'large tank', '', 0),
+    ),
+    "FUJI_NEOPAN_1600": (
+        ('Finedol', '', 3.5, 26, '', '', 1250),
+        ('Finedol', '', 4.5, 24, '', '', 1250),
+        ('Finedol', '', 7, 20, '', '', 1250),
+        ('Finedol', '', 9, 18, '', '', 1250),
+        ('Fujidol', '', 3.5, 26, '', '', 1600),
+        ('Fujidol', '', 4.25, 24, '', '', 1600),
+        ('Fujidol', '', 6.5, 20, '', '', 1600),
+        ('Fujidol', '', 8, 18, '', '', 1600),
+        ('Fujidol', '1:1', 4.25, 26, '', '', 1600),
+        ('Fujidol', '1:1', 5.5, 24, '', '', 1600),
+        ('Fujidol', '1:1', 9, 20, '', '', 1600),
+        ('Fujidol', '1:1', 11.5, 18, '', '', 1600),
+        ('Minidol', '', 3.5, 26, '', '', 1600),
+        ('Minidol', '', 4, 24, '', '', 1600),
+        ('Minidol', '', 7, 20, '', '', 1600),
+        ('Minidol', '', 9, 18, '', '', 1600),
+        ('Super Finedol', '', 4.25, 26, '', '', 1250),
+        ('Super Finedol', '', 5, 24, '', '', 1250),
+        ('Super Finedol', '', 7.5, 20, '', '', 1250),
+        ('Super Finedol', '', 9.5, 18, '', '', 1250),
+        ('Super Prodol', '1:1', 3.75, 26, '', '', 1600),
+        ('Super Prodol', '1:1', 4.5, 24, '', '', 1600),
+        ('Super Prodol', '1:1', 6.5, 20, '', '', 1600),
+        ('Super Prodol', '1:1', 8, 18, '', '', 1600),
+    ),
+    "FUJI_NEOPAN_ACROS_100": (
+        ('Finedol', '', 7.5, 24, '', '', 100),
+        ('Finedol', '', 11, 20, '', '', 100),
+        ('Finedol', '', 13.5, 18, '', '', 100),
+        ('Fujidol E', '1:1', 7.25, 26, '', '', 100),
+        ('Fujidol E', '1:1', 8.75, 24, '', '', 100),
+        ('Fujidol E', '1:1', 12.5, 20, '', '', 100),
+        ('Fujidol E', '1:1', 15, 18, '', '', 100),
+        ('Microfine', '', 5.75, 26, '', '', 100),
+        ('Microfine', '', 7, 24, '', '', 100),
+        ('Microfine', '', 10, 20, '', '', 100),
+        ('Microfine', '', 12.5, 18, '', '', 100),
+        ('Microfine', '1:1', 8.25, 26, '', '', 100),
+        ('Microfine', '1:1', 10, 24, '', '', 100),
+        ('Microfine', '1:1', 15, 20, '', '', 100),
+        ('Minidol', '', 6.25, 24, '', '', 100),
+        ('Minidol', '', 9, 20, '', '', 100),
+        ('Minidol', '', 10.5, 18, '', '', 100),
+        ('Neoprodol', '1:1', 4.25, 26, '', '', 200),
+        ('Neoprodol', '1:1', 5, 24, '', '', 200),
+        ('Neoprodol', '1:1', 7, 20, '', '', 200),
+        ('Neoprodol', '1:1', 8.5, 18, '', '', 200),
+        ('Super Finedol', '', 5.75, 24, '', '', 80),
+        ('Super Finedol', '', 8.5, 20, '', '', 80),
+        ('Super Finedol', '', 11, 18, '', '', 80),
+        ('Super Fujidol-L', '', 3.25, 26, '', '', 100),
+        ('Super Fujidol-L', '', 4, 24, '', '', 100),
+        ('Super Fujidol-L', '', 6, 20, '', '', 100),
+        ('Super Fujidol-L', '', 7.25, 18, '', '', 100),
+    ),
+    "KODAK_TMAX_100": (
+        ('D-76', '', 4, 24, '', '', 0),
+        ('D-76', '', 4.75, 22, '', '', 0),
+        ('D-76', '', 4.75, 24, '', '', 0),
+        ('D-76', '', 4.75, 24, '', '120', 0),
+        ('D-76', '', 5, 24, '', '', 0),
+        ('D-76', '', 5.25, 21, '', '', 0),
+        ('D-76', '', 5.5, 22, '', '', 0),
+        ('D-76', '', 5.75, 20, '', '', 0),
+        ('D-76', '', 5.75, 22, '', '', 0),
+        ('D-76', '', 5.75, 22, '', '120', 0),
+        ('D-76', '', 6.5, 21, '', '', 0),
+        ('D-76', '', 6.5, 21, '', '120', 0),
+        ('D-76', '', 6.5, 24, '', '120', 0),
+        ('D-76', '', 6.75, 18, '', '', 0),
+        ('D-76', '', 7, 20, '', '', 0),
+        ('D-76', '', 7.25, 20, '', '', 0),
+        ('D-76', '', 7.25, 20, '', '120', 0),
+        ('D-76', '', 8, 22, '', '120', 0),
+        ('D-76', '', 8.25, 18, '', '', 0),
+        ('D-76', '', 8.25, 18, '', '120', 0),
+        ('D-76', '', 9, 21, '', '120', 0),
+        ('D-76', '', 9.5, 18, '', '', 0),
+        ('D-76', '', 10, 20, '', '120', 0),
+        ('D-76', '', 11.5, 18, '', '120', 0),
+        ('HC-110', 'B', 3.75, 24, '', '', 0),
+        ('HC-110', 'B', 4.5, 22, '', '', 0),
+        ('HC-110', 'B', 4.5, 24, '', '', 0),
+        ('HC-110', 'B', 4.5, 24, '', '120', 0),
+        ('HC-110', 'B', 4.75, 21, '', '', 0),
+        ('HC-110', 'B', 5.25, 22, '', '', 0),
+        ('HC-110', 'B', 5.25, 22, '', '120', 0),
+        ('HC-110', 'B', 5.5, 20, '', '', 0),
+        ('HC-110', 'B', 5.5, 24, '', '', 0),
+        ('HC-110', 'B', 5.5, 24, '', '120', 0),
+        ('HC-110', 'B', 6, 21, '', '', 0),
+        ('HC-110', 'B', 6, 21, '', '120', 0),
+        ('HC-110', 'B', 6.25, 18, '', '', 0),
+        ('HC-110', 'B', 6.5, 20, '', '', 0),
+        ('HC-110', 'B', 6.5, 20, '', '120', 0),
+        ('HC-110', 'B', 6.5, 22, '', '', 0),
+        ('HC-110', 'B', 6.5, 22, '', '120', 0),
+        ('HC-110', 'B', 7, 21, '', '', 0),
+        ('HC-110', 'B', 7, 21, '', '120', 0),
+        ('HC-110', 'B', 7.5, 18, '', '', 0),
+        ('HC-110', 'B', 7.5, 18, '', '120', 0),
+        ('HC-110', 'B', 7.5, 20, '', '', 0),
+        ('HC-110', 'B', 7.5, 20, '', '120', 0),
+        ('HC-110', 'B', 8.5, 18, '', '', 0),
+        ('HC-110', 'B', 8.5, 18, '', '120', 0),
+        ('MICRODOL-X', '', 8.75, 24, '', '120', 0),
+        ('MICRODOL-X', '', 9, 24, '', '120', 0),
+        ('MICRODOL-X', '', 10.75, 22, '', '120', 0),
+        ('MICRODOL-X', '', 11, 22, '', '120', 0),
+        ('MICRODOL-X', '', 11.25, 21, '', '120', 0),
+        ('MICRODOL-X', '', 12, 21, '', '120', 0),
+        ('MICRODOL-X', '', 13, 20, '', '120', 0),
+        ('MICRODOL-X', '', 13.5, 20, '', '120', 0),
+        ('MICRODOL-X', '', 15, 18, '', '120', 0),
+        ('MICRODOL-X', '', 16, 18, '', '120', 0),
+        ('T-MAX', '', 6.5, 24, '', '', 0),
+        ('T-MAX', '', 7, 22, '', '', 0),
+        ('T-MAX', '', 7, 24, '', '', 0),
+        ('T-MAX', '', 7.5, 21, '', '', 0),
+        ('T-MAX', '', 7.5, 22, '', '', 0),
+        ('T-MAX', '', 8, 20, '', '', 0),
+        ('T-MAX', '', 8, 21, '', '', 0),
+        ('T-MAX', '', 8.5, 20, '', '', 0),
+        ('T-MAX RS', '', 5.75, 24, '', '', 0),
+        ('T-MAX RS', '', 6.25, 22, '', '', 0),
+        ('T-MAX RS', '', 6.75, 21, '', '', 0),
+        ('T-MAX RS', '', 7, 24, '', '', 0),
+        ('T-MAX RS', '', 7.25, 20, '', '', 0),
+        ('T-MAX RS', '', 7.5, 24, '', '', 0),
+        ('T-MAX RS', '', 7.75, 22, '', '', 0),
+        ('T-MAX RS', '', 8, 22, '', '', 0),
+        ('T-MAX RS', '', 8, 24, '', '', 0),
+        ('T-MAX RS', '', 8.25, 21, '', '', 0),
+        ('T-MAX RS', '', 8.75, 20, '', '', 0),
+        ('T-MAX RS', '', 9, 21, '', '', 0),
+        ('T-MAX RS', '', 9, 22, '', '', 0),
+        ('T-MAX RS', '', 10, 20, '', '', 0),
+        ('T-MAX RS', '', 10, 21, '', '', 0),
+        ('T-MAX RS', '', 11, 20, '', '', 0),
+        ('XTOL', '', 4.5, 24, '', '', 0),
+        ('XTOL', '', 5, 24, '', '', 0),
+        ('XTOL', '', 5.25, 22, '', '', 0),
+        ('XTOL', '', 5.5, 24, '', '', 0),
+        ('XTOL', '', 6, 21, '', '', 0),
+        ('XTOL', '', 6, 22, '', '', 0),
+        ('XTOL', '', 6.5, 21, '', '', 0),
+        ('XTOL', '', 6.5, 22, '', '', 0),
+        ('XTOL', '', 6.75, 20, '', '', 0),
+        ('XTOL', '', 7.25, 20, '', '', 0),
+        ('XTOL', '', 7.25, 21, '', '', 0),
+        ('XTOL', '', 8, 18, '', '', 0),
+        ('XTOL', '', 8.25, 20, '', '', 0),
+        ('XTOL', '', 8.5, 18, '', '', 0),
+        ('XTOL', '', 9.5, 18, '', '', 0),
+        ('XTOL', '1:1', 6, 24, '', '', 0),
+        ('XTOL', '1:1', 7, 22, '', '', 0),
+        ('XTOL', '1:1', 7.5, 24, '', '', 0),
+        ('XTOL', '1:1', 8, 21, '', '', 0),
+        ('XTOL', '1:1', 9, 20, '', '', 0),
+        ('XTOL', '1:1', 9.5, 21, '', '', 0),
+        ('XTOL', '1:1', 10.5, 18, '', '', 0),
+        ('XTOL', '1:1', 10.5, 20, '', '', 0),
+    ),
+    "KODAK_TMAX_400": (
+        ('D-76', '', 5.5, 24, '', '', 0),
+        ('D-76', '', 6, 22, '', '', 0),
+        ('D-76', '', 6.5, 21, '', '', 0),
+        ('D-76', '', 6.5, 24, '', '120', 0),
+        ('D-76', '', 7, 20, '', '', 0),
+        ('D-76', '', 7, 24, '', '', 0),
+        ('D-76', '', 7.5, 22, '', '120', 0),
+        ('D-76', '', 8, 21, '', '120', 0),
+        ('D-76', '', 8, 22, '', '', 0),
+        ('D-76', '', 9, 20, '', '120', 0),
+        ('D-76', '', 9, 21, '', '', 0),
+        ('D-76', '', 9.5, 18, '', '', 0),
+        ('D-76', '', 10, 18, '', '120', 0),
+        ('D-76', '', 10, 20, '', '', 0),
+        ('D-76', '', 11, 18, '', '', 0),
+        ('HC-110', 'B', 5, 24, '', '120', 0),
+        ('HC-110', 'B', 6, 22, '', '120', 0),
+        ('HC-110', 'B', 6, 24, '', '', 0),
+        ('HC-110', 'B', 6.5, 21, '', '120', 0),
+        ('HC-110', 'B', 6.5, 22, '', '', 0),
+        ('HC-110', 'B', 6.5, 24, '', '', 0),
+        ('HC-110', 'B', 7, 20, '', '120', 0),
+        ('HC-110', 'B', 7, 21, '', '', 0),
+        ('HC-110', 'B', 7, 22, '', '', 0),
+        ('HC-110', 'B', 7.5, 20, '', '', 0),
+        ('HC-110', 'B', 7.5, 21, '', '', 0),
+        ('HC-110', 'B', 8, 18, '', '120', 0),
+        ('HC-110', 'B', 8.5, 20, '', '', 0),
+        ('HC-110', 'B', 9, 18, '', '', 0),
+        ('HC-110', 'B', 10, 18, '', '', 0),
+        ('MICRODOL-X', '', 8, 24, '', '120', 0),
+        ('MICRODOL-X', '', 9, 22, '', '120', 0),
+        ('MICRODOL-X', '', 10, 21, '', '120', 0),
+        ('MICRODOL-X', '', 11.5, 20, '', '120', 0),
+        ('MICRODOL-X', '', 13, 18, '', '120', 0),
+        ('T-MAX', '', 6, 24, '', '', 0),
+        ('T-MAX', '', 6.5, 21, '', '', 0),
+        ('T-MAX', '', 6.5, 22, '', '', 0),
+        ('T-MAX', '', 7, 20, '', '', 0),
+        ('T-MAX RS', '', 6, 24, '', '', 0),
+        ('T-MAX RS', '', 7, 22, '', '', 0),
+        ('T-MAX RS', '', 7, 24, '', '', 0),
+        ('T-MAX RS', '', 7.5, 21, '', '', 0),
+        ('T-MAX RS', '', 7.5, 22, '', '', 0),
+        ('T-MAX RS', '', 8, 20, '', '', 0),
+        ('T-MAX RS', '', 8, 21, '', '', 0),
+        ('T-MAX RS', '', 8.5, 20, '', '', 0),
+        ('T-MAX RS', '', 10, 20, '', '', 0),
+        ('XTOL', '', 5, 24, '', '', 0),
+        ('XTOL', '', 5.75, 22, '', '', 0),
+        ('XTOL', '', 5.75, 24, '', '', 0),
+        ('XTOL', '', 6.25, 21, '', '', 0),
+        ('XTOL', '', 6.75, 22, '', '', 0),
+        ('XTOL', '', 7.25, 20, '', '', 0),
+        ('XTOL', '', 7.25, 21, '', '', 0),
+        ('XTOL', '', 8.5, 18, '', '', 0),
+        ('XTOL', '', 8.5, 20, '', '', 0),
+        ('XTOL', '', 10, 18, '', '', 0),
+        ('XTOL', '1:1', 7.25, 24, '', '', 0),
+        ('XTOL', '1:1', 9.5, 21, '', '', 0),
+        ('XTOL', '1:1', 10.5, 20, '', '', 0),
+    ),
+}
+
+#: The book, as one citation for every point above.
+_SOVREMENNYE_2004_SOURCE = (
+    "«Современные фотоматериалы и их обработка», 717 pp. Tier T2: a reference "
+    "compilation reprinting each maker's own development tables, so a "
+    "manufacturer sheet outranks it wherever both exist. Read from word "
+    "coordinates on the page, not from the text layer -- see "
+    "`_SOVREMENNYE_2004_POINTS`. Queue P54.")
+
+
+def _apply_sovremennye_2004(p: "FilmProfile") -> "FilmProfile":
+    """Append the book's development points to the eight stocks it covers.
+
+    ⚠ APPENDED, NEVER SUBSTITUTED. Every one of the eight already carries
+    points from a manufacturer sheet, and those outrank this book by the
+    precedence rule; a point whose (developer, dilution, celsius, vessel,
+    format) key is already present is DROPPED rather than allowed to sit
+    beside its better-sourced twin as a second answer to one question. That
+    is the same rule v28's `vessel` and v36's `reference_developer` exist to
+    keep enforceable.
+    """
+    rows = _SOVREMENNYE_2004_POINTS.get(p.name)
+    if not rows:
+        return p
+    fam = p.processing_family
+    have = {(q.developer, q.dilution, q.celsius, q.vessel, q.film_format)
+            for q in (fam.points if fam else ())}
+    pts = []
+    for dev, dil, minutes, celsius, vessel, fmt, ei in rows:
+        key = (dev, dil, celsius, vessel, fmt)
+        if key in have:
+            continue
+        have.add(key)
+        pts.append(DevelopmentPoint(
+            developer=dev, dilution=dil, minutes=minutes, celsius=celsius,
+            exposure_index=ei, vessel=vessel, film_format=fmt))
+    if not pts:
+        return p
+    if fam is None:
+        return replace(p, processing_family=ProcessingFamily(
+            points=tuple(pts), source=_SOVREMENNYE_2004_SOURCE))
+    return replace(p, processing_family=replace(
+        fam, points=tuple(fam.points) + tuple(pts),
+        source=(fam.source + "  " + _SOVREMENNYE_2004_SOURCE)
+        if fam.source else _SOVREMENNYE_2004_SOURCE))
+
+
+FILM_PROFILES = tuple(_apply_sovremennye_2004(_p) for _p in FILM_PROFILES)
+
+
+#: Series shorter than this cannot fix a slope worth trusting: two points fit a
+#: line exactly and three leave one degree of freedom.
+_TEMP_LAW_MIN_POINTS = 4
+
+
+def _apply_temperature_law(p: "FilmProfile") -> "FilmProfile":
+    """Fit d ln(t)/dT from a stock's OWN development points.
+
+    ⚠ THE FIT IS PER SERIES AND THE STOCK TAKES THE MEDIAN. A series is one
+    (developer, dilution, vessel, film_format) combination, because those are
+    the things a time-temperature table holds constant down a row. Pooling
+    across developers first would let a developer with many rows outvote one
+    with few, and the sheets do not print them in comparable numbers.
+    """
+    import math
+    fam = p.processing_family
+    if fam is None or not fam.points:
+        return p
+    series: dict[tuple[str, str, str, str], set[tuple[float, float]]] = {}
+    for q in fam.points:
+        if q.minutes <= 0.0 or q.celsius <= 0.0:
+            continue
+        series.setdefault(
+            (q.developer, q.dilution, q.vessel, q.film_format),
+            set()).add((q.celsius, q.minutes))
+    slopes = []
+    for pts in series.values():
+        v = sorted(pts)
+        if len({t for t, _ in v}) < _TEMP_LAW_MIN_POINTS:
+            continue
+        n = len(v)
+        sx = sum(t for t, _ in v)
+        sy = sum(math.log(m) for _, m in v)
+        sxx = sum(t * t for t, _ in v)
+        sxy = sum(t * math.log(m) for t, m in v)
+        den = n * sxx - sx * sx
+        if den <= 0.0:
+            continue
+        slopes.append((n * sxy - sx * sy) / den)
+    if not slopes:
+        return p
+    slopes.sort()
+    k = len(slopes)
+    med = (slopes[k // 2] if k % 2
+           else 0.5 * (slopes[k // 2 - 1] + slopes[k // 2]))
+    # A positive slope would mean a warmer developer needs LONGER, which no
+    # source in this corpus measures and which would invert the control.
+    if med >= 0.0:
+        return p
+    return replace(p, processing_family=replace(
+        fam, temperature_coeff_per_c=round(med, 6)))
+
+
+FILM_PROFILES = tuple(_apply_temperature_law(_p) for _p in FILM_PROFILES)
+
+
+#: Where each named antihalation construction SITS, which follows from the
+#: construction's own name and from nothing else.
+#:
+#: ⚠ THIS IS A DEFINITION, NOT A MEASUREMENT, AND `_apply_ah_position` is
+#: careful never to set `measured` from it. "rem-jet" names a REMOVABLE JET
+#: backing; "dyed_base" names a support that is itself dyed; an undercoat is
+#: under the emulsion by the meaning of the word. Recording the position
+#: costs nothing and buys the one thing the optical density cannot supply on
+#: its own: the same OD behind the support, under the emulsion and inside the
+#: pack gives three different halos, because the light crosses each a
+#: different number of times over a different path.
+#:
+#: `(position, removable)`. `removable` is set only where the construction's
+#: own name states it -- rem-jet is removed in the prebath by definition --
+#: and is left False elsewhere rather than inferred from processing chemistry
+#: no document here describes.
+_AH_CONSTRUCTION_POSITION: dict[str, tuple[str, bool]] = {
+    "remjet": ("backing", True),
+    "dyed_backing": ("backing", False),
+    "dyed_undercoat": ("undercoat", False),
+    "dyed_base": ("in_base", False),
+    "colloidal_ag": ("in_pack", False),
+}
+
+
+def _apply_ah_position(p: "FilmProfile") -> "FilmProfile":
+    """Give each stock that NAMES an antihalation construction the position
+    that construction implies -- and nothing else.
+
+    ⚠ `measured` STAYS FALSE. Position follows from the vocabulary; optical
+    density, thickness, dye and spectrum do not follow from anything and stay
+    absent on all 191 stocks until a document states them. That absence is
+    queue P70 and it is the honest state of the corpus: an antihalation
+    CONSTRUCTION is named on 31 of 191 and an exposure-time optical density
+    on none.
+    """
+    c = p.emulsion.antihalation
+    hit = _AH_CONSTRUCTION_POSITION.get(c)
+    if hit is None or p.anti_halation.position:
+        return p
+    pos, rem = hit
+    return replace(p, anti_halation=replace(
+        p.anti_halation, position=pos, removable=rem,
+        source=("Position implied by the construction "
+                f"`emulsion.antihalation = {c!r}`; NOT a measurement. No "
+                "document in this corpus states an exposure-time optical "
+                "density for this layer -- queue P70.")))
+
+
+FILM_PROFILES = tuple(_apply_ah_position(_p) for _p in FILM_PROFILES)
+
+
+#: QUEUE P47 -- THE 38 STOCKS WHOSE `mask_encoding` SAID `neutral_dmin` WHILE
+#: THEY STORED A REAL ORANGE-MASK LADDER, AND WHOSE LADDER IS TIER-1 BACKED.
+#:
+#: ⚠ THE ROW ASKED FOR "a per-profile confirmation that the stored triple's
+#: provenance really is a mask ladder, before the label is changed to say
+#: so". That audit was run and it SPLIT THE POPULATION, which is why the
+#: relabel is 38 and not 50. Of the 50 stocks carrying a label that
+#: contradicts their own numbers:
+#:
+#:   38 have a tier-1 curve provenance -- traced, measured or stated -- so
+#:      the ladder is a reading of a published curve and the label is simply
+#:      wrong. Those are listed here and relabelled.
+#:   12 have only a tier-2 or tier-3 provenance -- estimated or assumed --
+#:      so their ladder may be an artefact of the estimate that produced it,
+#:      and relabelling them would promote a guess into a claim about a
+#:      measured mask. THEY ARE LEFT ALONE and named in
+#:      `_P47_LADDER_UNCONFIRMED`.
+#:
+#: ⚠ NOTHING RENDERS DIFFERENTLY. `mask_encoding` is metadata: it says what
+#: the stored dmin triple MEANS, not what it is. The numbers are untouched.
+_P47_LADDER_CONFIRMED: frozenset[str] = frozenset({
+    "AGFA_NEG_TYPE_3",
+    "AGFA_OPTIMA_200",
+    "AGFA_OPTIMA_400",
+    "AGFA_PORTRAIT_160",
+    "AGFA_VISTA_PLUS_200",
+    "AGFA_VISTA_PLUS_400",
+    "ANSCOCOLOR_NEG_843",
+    "EASTMANCOLOR_5248_1953",
+    "EASTMAN_5247_1983",
+    "EASTMAN_5293_250T_1982",
+    "EASTMAN_EXR_100T_5248",
+    "EASTMAN_EXR_200T_5293",
+    "EASTMAN_EXR_50D_5245",
+    "FERRANIACOLOR_NEG_82",
+    "FUJICOLOR_PORTRAIT_NPZ_800",
+    "FUJICOLOR_PRO_800Z",
+    "FUJICOLOR_SUPERIA_REALA",
+    "FUJICOLOR_SUPERIA_XTRA_400",
+    "FUJICOLOR_SUPERIA_XTRA_800",
+    "FUJICOLOR_SUPER_F500_8572",
+    "FUJI_SUPER_F125_8532",
+    "GEVACOLOR_NEG_652",
+    "KODAK_EKTAR_125",
+    "KODAK_VISION2_200T_5217",
+    "KODAK_VISION2_250D_5205",
+    "KODAK_VISION2_500T_5218",
+    "KODAK_VISION2_50D_5201",
+    "KODAK_VISION_200T_5274",
+    "KODAK_VISION_250D_5246",
+    "KODAK_VISION_500T_5279",
+    "KONICA_CENTURIA_SUPER_1600",
+    "KONICA_CENTURIA_SUPER_400",
+    "KONICA_IMPRESA_50",
+    "KONICA_VX_100",
+    "SVEMA_CNL_65",
+    "SVEMA_DS_2",
+    "SVEMA_DS_5M",
+    "SVEMA_LN_3",
+})
+
+#: The twelve whose ladder is real in the data and unconfirmed in provenance.
+#: ⚠ KEPT AS A NAMED LIST RATHER THAN A COUNT, because "12 remain" is the
+#: shape of statement this file has twice had to correct; a list can be
+#: re-audited and a count cannot.
+_P47_LADDER_UNCONFIRMED: frozenset[str] = frozenset({
+    "AGFA_ULTRA_50", "EASTMAN_5250_1959", "EASTMAN_5254_1968",
+    "EASTMAN_5294_1983", "FUJICOLOR_PRO_400H", "KODAK_ULTRA_COLOR_100UC",
+    "KODAK_ULTRA_COLOR_400UC", "ORWOCOLOR_NC3", "SVEMA_CNL_32",
+    "SVEMA_LN_8", "SVEMA_LN_9", "SVEMA_LN_9S",
+})
+
+
+def _apply_p47_mask_label(p: "FilmProfile") -> "FilmProfile":
+    """Relabel the 38 confirmed ladders. Metadata only; no number moves."""
+    if p.name not in _P47_LADDER_CONFIRMED:
+        return p
+    if p.mask_encoding != "neutral_dmin":
+        return p
+    return replace(p, mask_encoding="dmin_ladder")
+
+
+FILM_PROFILES = tuple(_apply_p47_mask_label(_p) for _p in FILM_PROFILES)
+
+
+def _apply_impurity_quantity(p: "FilmProfile") -> "FilmProfile":
+    """Queue P36: name what the four populated impurity ratios are ratios OF.
+
+    ⚠ ALL FOUR ARE SOVIET ТУ SHEETS and every one tabulates «коэффициент
+    нежелательного поглощения» as a bounded range per dye and band AT A STATED
+    DENSITY -- a ratio of densities at one point, not of absorption gammas.
+    They are labelled, not rewritten: forming a gamma ratio needs a second
+    curve the sheets do not publish.
+    """
+    di = p.dye_impurity
+    if not (di and di.ratios) or any(q.quantity for q in di.ratios):
+        return p
+    return replace(p, dye_impurity=replace(
+        di, ratios=tuple(replace(q, quantity=_IMPURITY_QUANTITY_DEFAULT)
+                         for q in di.ratios)))
+
+
+#: «СПРАВОЧНИК КИНООПЕРАТОРА» TABLE 2.4 -- THE DAYLIGHT/TUNGSTEN EXPOSURE-INDEX
+#: PAIR AND ITS CONVERSION FILTER, for fifteen cine stocks (queue P45,
+#: 2026-09-18b).
+#:
+#: Artyushin, Barsky & Vinokur, «Справочник кинооператора», 1999, table 2.4
+#: «Светочувствительность негативных цветных кинопленок при дневном свете (ДС)
+#: и при свете ламп накаливания (ЛН)». Columns as printed: 35 mm designation,
+#: 16 mm designation, EI in daylight, the filter it is taken with, EI under
+#: incandescent light, the filter that one is taken with. The book's two
+#: f-number columns are an exposure guide at 2000 lx and are not stored.
+#:
+#: ⚠⚠ THE TABLE CHECKS ITSELF ON THE FILTER FACTOR, WHICH IS WHY IT CAN BE
+#: BELIEVED OFF AN OCR THIS BAD (the text layer renders «Kodak Vision» as
+#: «Косіак Ѵізюп»). Every DAYLIGHT-balanced stock in it is rated under
+#: tungsten through a Wratten 80A, and the published factor for an 80A is two
+#: stops. Measured from the table's own pairs: 250/64 = 1.97 stops, 50/12 =
+#: 2.06, 250/64 = 1.97, 64/16 = 2.00 -- four independent rows agreeing with a
+#: filter constant nothing in the table states.
+#:
+#: ⚠ AND THE 85 ROWS DO NOT AGREE WITH EACH OTHER, which is recorded rather
+#: than averaged: five tungsten stocks lose 0.64-0.68 stop in daylight and two
+#: -- EXR 100T and Primetime 640T -- lose 0.32 and 0.36. That is a real spread
+#: in what the book recommends, not a transcription error, and it is why no
+#: single daylight-conversion constant is derived from this table.
+#:
+#: `(name as printed, 35 mm, 16 mm, EI daylight, filter, EI tungsten, filter)`.
+_KINOOPERATOR_EI_TABLE: tuple[
+        tuple[str, str, str, int, str, int, str], ...] = (
+    ("Kodak Vision 800T", "5289", "", 500, "85A", 800, ""),
+    ("Kodak Vision 500T", "5279", "7279", 320, "85", 500, ""),
+    ("Kodak Vision 320T", "5277", "7277", 200, "85", 320, ""),
+    ("Eastman EXR 100T", "5248", "7248", 80, "85", 100, ""),
+    ("Kodak Vision 250D", "5246", "7246", 250, "", 64, "80A"),
+    ("Eastman EXR 50D", "5245", "7245", 50, "", 12, "80A"),
+    ("Primetime 640T", "5620", "7620", 500, "85", 640, ""),
+    ("Fuji Super F 500", "8572", "8672", 320, "85", 500, ""),
+    ("Fuji Super F 250", "8551", "8651", 160, "85", 250, ""),
+    ("Fuji Super F 125", "8532", "8632", 80, "85", 125, ""),
+    ("Fuji Super F 250D", "8561", "8661", 250, "", 64, "80A"),
+    ("Fuji Super F 64D", "8522", "8622", 64, "", 16, "80A"),
+    ("Agfa XTS 400", "", "", 250, "85", 400, ""),
+    ("Agfa XTR 250", "", "", 160, "85", 250, ""),
+    ("Agfa XT 100", "", "", 64, "85", 100, ""),
+)
+_KINOOPERATOR_SOURCE = (
+    "М. В. Артюшин, Л. А. Барский, В. Г. Винокур, «Справочник кинооператора», "
+    "1999, табл. 2.4, с. 20. Tier T2: a handbook tabulating manufacturer "
+    "ratings, read off a 260 dpi render because the text layer transliterates "
+    "the Latin product names into Cyrillic.")
+#: The six rows whose 35 mm designation is a stock this database holds.
+_KINOOPERATOR_STOCKS: dict[str, str] = {
+    "5279": "KODAK_VISION_500T_5279",
+    "5248": "EASTMAN_EXR_100T_5248",
+    "5246": "KODAK_VISION_250D_5246",
+    "5245": "EASTMAN_EXR_50D_5245",
+    "8572": "FUJICOLOR_SUPER_F500_8572",
+    "8532": "FUJI_SUPER_F125_8532",
+}
+
+
+def _apply_kinooperator_ei(profiles) -> int:
+    """Write the EI pair and its filter onto the six stocks table 2.4 names.
+
+    ⚠ `exposure_index` IS NOT TOUCHED. The book agrees with it on all six --
+    500, 100, 250, 50, 500, 125 -- and where a handbook and a profile agree the
+    profile keeps its own provenance.
+    """
+    by = {p.name: p for p in profiles}
+    n = 0
+    for _nm, c35, _c16, ei_d, f_d, ei_t, f_t in _KINOOPERATOR_EI_TABLE:
+        stock = _KINOOPERATOR_STOCKS.get(c35)
+        p = by.get(stock) if stock else None
+        if p is None:
+            continue
+        object.__setattr__(p, "exposure_index_daylight", ei_d)
+        object.__setattr__(p, "exposure_index_tungsten", ei_t)
+        object.__setattr__(p, "conversion_filter_daylight", f_d)
+        object.__setattr__(p, "conversion_filter_tungsten", f_t)
+        n += 1
+    return n
+
+
+FILM_PROFILES = tuple(_apply_impurity_quantity(_p) for _p in FILM_PROFILES)
+_KINOOPERATOR_APPLIED = _apply_kinooperator_ei(FILM_PROFILES)
+
+#: Queue P11: the Glafkidès / Perrin-Hoadley lens pair, onto the three stocks
+#: it names and no others. Applied here rather than written into the literals
+#: so the table and the mapping stay side by side and a fourth mapping cannot
+#: be added without editing `_GLAFKIDES_LENS_STOCKS`.
+_GLAFKIDES_LENS_APPLIED = _apply_glafkides_lens_pair(FILM_PROFILES)
+
+
+#: THE FOURTH COLOUR LAYER, moved out of `doc/FUJI_FOURTH_LAYER.md` and into
+#: the database (queue S1, schema v39).
+#:
+#: Log sensitivity relative to each record's OWN peak, on the module's
+#: 380-700 nm / 10 nm grid, floored at -4.00 where the panel draws nothing --
+#: the same normalisation all 90 stored sets use. Traced by
+#: `fuji_spectral4_2026.py`, which re-derives them on every build and asserts
+#: the dash-pattern separation; the Markdown file stays as the trace's report
+#: and is no longer the only place the numbers live.
+_FUJI_FOURTH_LAYER: dict[str, tuple[float, ...]] = {
+    "FUJICOLOR_PORTRAIT_NPZ_800": (
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -0.42, -0.24, -0.11, -0.03, 0.00, -0.04,
+        -0.15, -0.38, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00,
+    ),
+    "FUJICOLOR_PRO_800Z": (
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -0.42, -0.24, -0.11, -0.03, 0.00, -0.04,
+        -0.15, -0.38, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00,
+    ),
+    "FUJICOLOR_SUPERIA_REALA": (
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -0.74, -0.50, -0.27, -0.08, -0.01, 0.00, -0.07,
+        -0.22, -0.45, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00,
+    ),
+    "FUJICOLOR_SUPERIA_XTRA_400": (
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -0.59, -0.30, -0.11, -0.01, 0.00, -0.07,
+        -0.22, -0.47, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00,
+    ),
+    "FUJICOLOR_SUPERIA_XTRA_800": (
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -0.42, -0.25, -0.10, -0.01, 0.00, -0.05,
+        -0.17, -0.40, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00,
+    ),
+}
+
+
+def _apply_fuji_fourth_layer(p: "FilmProfile") -> "FilmProfile":
+    """Attach the cyan record to the five stocks that publish one.
+
+    ⚠ REFUSES TO OVERWRITE AND REFUSES TO INVENT. A stock with no spectral
+    set at all does not get one from here -- the fourth record only means
+    anything beside the three it was measured with.
+    """
+    curve = _FUJI_FOURTH_LAYER.get(p.name)
+    if curve is None:
+        return p
+    if not p.spectral.has_data:
+        raise ValueError(
+            f"{p.name}: a fourth colour record cannot be attached to a stock "
+            "with no blue/green/red set -- it is measured relative to them")
+    if p.spectral.log_s_c:
+        return p
+    return replace(p, spectral=replace(p.spectral, log_s_c=curve))
+
+
+FILM_PROFILES = tuple(_apply_fuji_fourth_layer(_p) for _p in FILM_PROFILES)
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -53582,11 +58559,20 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     ),
     PrintStock(
         name="KODAK_2383_RELEASE",
+        reader_is_emulsion=True,   # schema v43, queue M1a
         description=(
             "Theatrical release print emulation. High print gamma gives the "
             "contrasty, crushed-shadow projected look and the characteristic "
             "highlight shoulder."
         ),
+        # -- schema v39 (queue P66). THE FIRST PROCESS STATEMENT ON ANY PRINT
+        # STOCK. The curves below are vector-extracted from the 2015 ECP-2D
+        # edition of Kodak's own 2383 sheet, so ECP-2D is what this record's
+        # curve IS -- not an inference from the product name. Times and
+        # temperatures are NOT filled from `_ECP_2E_CYCLE`: that manual
+        # documents ECP-2E, a different revision, and no document in this
+        # corpus states the two share a developer condition.
+        processing=ProcessingSpec(developer="ECP-2D"),
         # [T1] CURVES VECTOR-EXTRACTED (2026-08-16, queue P1): "KODAK
         # VISION Color Print Film 2383" sheet (2015 ECP-2D edition) p5
         # "Sensitometric Curves" (tungsten + heat-absorbing glass No. 2043
@@ -53758,6 +58744,7 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     ),
     PrintStock(
         name="DUPE_FINE_GRAIN",
+        reader_is_emulsion=True,   # schema v43, queue M1a
         description=(
             "Fine-grain duplicating stock, gamma about 1.0. Used for the "
             "interpositive and dupe negative stages between the camera negative "
@@ -53777,6 +58764,7 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     ),
     PrintStock(
         name="TECHNICOLOR_IB",
+        reader_is_emulsion=True,   # schema v43, queue M1a
         description=(
             "Imbibition dye transfer print. Three gelatin matrices transfer "
             "pure cyan, magenta and yellow dyes onto a blank. Lower Dmax than a "
@@ -53795,6 +58783,7 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     ),
     PrintStock(
         name="KODAK_5302",
+        reader_is_emulsion=True,   # schema v43, queue M1a
         description=(
             "[T2] Kodak 5302, 16 mm FINE GRAIN RELEASE POSITIVE, blue "
             "sensitive -- \"standard positive release printing\" in the BBC's "
@@ -53843,6 +58832,7 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     ),
     PrintStock(
         name="TASMA_POSITIVE_28",
+        reader_is_emulsion=True,   # schema v43, queue M1a
         description=(
             "[T1] Soviet B&W cine POSITIVE film, designation «Позитивная "
             "МЗ-3» (Cyrillic З, so it appears as МЗ-З in OCR of the sources). "
@@ -54010,6 +59000,7 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     # -----------------------------------------------------------------------
     PrintStock(
         name="TSP_1_POSITIVE",
+        reader_is_emulsion=True,   # schema v43, queue M1a
         description=(
             "[T1] Soviet colour positive cine film TsP-1 (ЦП-1), the first of "
             "the family: natural layer order, colloidal-silver yellow filter "
@@ -54035,6 +59026,7 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     ),
     PrintStock(
         name="TSP_3_POSITIVE",
+        reader_is_emulsion=True,   # schema v43, queue M1a
         description=(
             "[T1] Soviet colour positive cine film TsP-3 (ЦП-3). Same layer "
             "order and same dye set as TSP_1_POSITIVE, with ONE documented "
@@ -54057,6 +59049,7 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     ),
     PrintStock(
         name="TSP_6_POSITIVE",
+        reader_is_emulsion=True,   # schema v43, queue M1a
         description=(
             "[T1] Soviet colour positive cine film TsP-6 (ЦП-6), the sharpest "
             "stock in this database: resolving power ABOVE 200 lines/mm on "
@@ -54086,6 +59079,7 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
     ),
     PrintStock(
         name="EASTMANCOLOR_5382_1953",
+        reader_is_emulsion=True,   # schema v43, queue M1a
         description=(
             "[T1] Eastmancolor colour positive Type 5382 (35 mm; 7382 is the "
             "16 mm version), the release-print half of the 1953 Eastmancolor "
@@ -54330,6 +59324,332 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
 
 
 # ---------------------------------------------------------------------------
+# Colour paper spectral panels (schema v42, queue P35)
+# ---------------------------------------------------------------------------
+#: ⚠ THE FIRST SPECTRAL DATA IN THIS DATABASE FOR COLOUR PAPER, a material
+#: class that had no record of any kind. Two entries, not three, because the
+#: Supreme and Type CA bulletins print the SAME TWO IMAGES -- see
+#: `PaperSpectralRecord.shared_artwork`.
+#:
+#: ⚠ THE SENSITIVITY ORDINATE IS LINEAR AND THE SHEET SAYS SO IN WORDS, which
+#: is the one reading decision in this harvest and the one that would corrupt
+#: everything downstream if taken the other way. The axis is captioned
+#: "Relative sensitivity *" and the footnote defines the asterisk:
+#:     "* Sensitivity equals the reciprocal of the exposure (J/cm2) required
+#:        to produce a specified density"
+#: A reciprocal of an exposure is a LINEAR quantity; nothing on either panel
+#: says "log". Compare `SpectralSensitivity.criterion`'s existing
+#: "relative_linear_assumed", which exists for sheets whose axis is
+#: UNLABELLED -- here it is labelled, so the new criterion string
+#: "relative_linear_printed" records that the reading is the document's own
+#: statement rather than this project's assumption. Stored values are
+#: log10(v / layer peak) per the carrier's convention; the linear peaks
+#: themselves survive in `rel_sens_peak_*`.
+PAPER_SPECTRA: tuple[PaperSpectralRecord, ...] = (
+    PaperSpectralRecord(
+        key="FUJICOLOR_CRYSTAL_ARCHIVE_TYPE_II",
+        names=("FUJICOLOR CRYSTAL ARCHIVE PAPER TYPE II",),
+        description=(
+            "Fuji RA-4 colour negative paper, Type II generation. Silver "
+            "halide, resin-coated base, glossy / lustre / matte."),
+        process="CP-48S (also CP49E, RA-4 type)",
+        surfaces=("glossy", "lustre", "matte"),
+        density_geometry="reflection",
+        # p3 'Dmax Aim  R  G  B' = 2.12 2.18 2.05. ⚠ THE BULLETIN PRINTS ONE
+        # ROW FOR ALL THREE SURFACES here; the matte split appears only on the
+        # Supreme / Type CA sheets, so the matte fields stay 0.0 rather than
+        # repeating the glossy figures as if they had been measured.
+        dmax_aim_r=2.12, dmax_aim_g=2.18, dmax_aim_b=2.05,
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0,
+            lambda_step_nm=10.0,
+            # §12, 400-720 nm. Peak of each dye is 1.0 by construction of the
+            # panel; the trace recovers 0.995 / 0.983 / 0.986, which is the
+            # tracer's own error bar on this artwork (0.5-1.7 %).
+            d_cyan=(0.048, 0.048, 0.047, 0.044, 0.043, 0.041, 0.041, 0.041,
+                    0.041, 0.041, 0.046, 0.050, 0.052, 0.064, 0.084, 0.121,
+                    0.181, 0.258, 0.361, 0.488, 0.625, 0.777, 0.902, 0.973,
+                    0.995, 0.983, 0.930, 0.820, 0.676, 0.551, 0.461, 0.388,
+                    0.332),
+            d_magenta=(0.032, 0.035, 0.042, 0.052, 0.064, 0.083, 0.113, 0.159,
+                       0.222, 0.310, 0.430, 0.575, 0.725, 0.868, 0.964, 0.983,
+                       0.892, 0.700, 0.479, 0.293, 0.170, 0.101, 0.062, 0.039,
+                       0.026, 0.021, 0.000, 0.000, 0.000, 0.000, 0.000, 0.000,
+                       0.000),
+            d_yellow=(0.376, 0.583, 0.786, 0.918, 0.982, 0.986, 0.926, 0.790,
+                      0.602, 0.410, 0.247, 0.147, 0.094, 0.063, 0.045, 0.035,
+                      0.029, 0.025, 0.023, 0.020, 0.018, 0.016, 0.015, 0.014,
+                      0.012, 0.014, 0.014, 0.012, 0.011, 0.011, 0.012, 0.013,
+                      0.014),
+            normalisation="peak_1.0",
+            source=(
+                "FUJIFILM Corporation, «FUJICOLOR CRYSTAL ARCHIVE PAPER TYPE "
+                "II -- Product Information Bulletin», Ref. No. AF3-190U2, "
+                "FUJIFILM North America Corporation, Valhalla NY, p4 section "
+                "12 'SPECTRAL DYE DENSITY CURVE' (embedded image xref 13, "
+                "554x435 px). Ordinate printed 'Spectral Reflection Density', "
+                "gridded 0.0 / 0.5 / 1.0; abscissa 400-700 nm with gridlines "
+                "at each hundred. The panel carries 'Process : CP-48S'. "
+                "Calibration was read off those printed gridlines, never "
+                "assumed: x 400 nm at column 95.0 and 700 nm at 515.5, y 1.0 "
+                "at row 88.5 and 0.5 at row 228.0, the third gridline "
+                "confirming linearity to within a pixel. A zero in d_magenta "
+                "beyond 650 nm means the trace fell below the artwork's own "
+                "ink floor, not that the dye absorbs nothing."),
+        ),
+        spectral=SpectralSensitivity(
+            lambda_start_nm=400.0,
+            lambda_step_nm=10.0,
+            # §13, 400-730 nm. -4.0 is the carrier's "at or below the source
+            # plot's floor" sentinel: these curves are DRAWN over one band
+            # each and simply stop, so outside that band the sheet states
+            # nothing at all.
+            log_s_r=(-4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -0.591, -0.516, -0.441, -0.410, -0.392, -0.368, -0.292,
+                     -0.185, -0.092, -0.027, 0.000, -0.034, -0.071),
+            log_s_g=(-4.000, -4.000, -4.000, -0.744, -0.692, -0.570, -0.453,
+                     -0.364, -0.310, -0.244, -0.153, -0.113, -0.115, -0.085,
+                     -0.017, 0.000, -0.128, -0.495, -0.890, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000),
+            log_s_b=(-0.200, -0.179, -0.177, -0.152, -0.112, -0.080, -0.049,
+                     -0.013, 0.000, -0.048, -0.187, -0.417, -0.678, -0.787,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000),
+            criterion="relative_linear_printed",
+            source=(
+                "FUJIFILM Corporation, «FUJICOLOR CRYSTAL ARCHIVE PAPER TYPE "
+                "II -- Product Information Bulletin», Ref. No. AF3-190U2, p4 "
+                "section 13 'SPECTRAL SENSITIVITY CURVES'. ⚠ THE PANEL IS "
+                "SPLIT ACROSS TWO EMBEDDED IMAGES (xrefs 11 and 12, 535x259 "
+                "px each, stacked top over bottom); read separately either "
+                "half is an unreadable fragment, which is why this figure sat "
+                "unharvested. The panel states its own conditions: 'Process : "
+                "CP-48S / Densitometry : Status A / Density : 1.0 above "
+                "Dmin'. Ordinate 'Relative Sensitivity *', gridded 0.0 / 0.5 "
+                "/ 1.0 -- rows 390.0, 266.5 and 143.0 of the stacked image, "
+                "three gridlines confirming a linear axis. The asterisk's own "
+                "footnote defines the quantity: 'Sensitivity equals the "
+                "reciprocal of the exposure (J/cm2) required to produce a "
+                "specified density.' Linear peaks before normalisation: blue "
+                "1.449 at 480 nm, green 1.083 at 550 nm, red 0.592 at 710 "
+                "nm -- kept in rel_sens_peak_*."),
+        ),
+        impurity=DyeImpurity(
+            # Derived from the section 12 trace above, at the OTHER dyes'
+            # peak wavelengths. The criterion names both wavelengths because
+            # a ratio read at a different pair of points is a different
+            # number -- see DyeImpurityRatio.criterion.
+            ratios=(
+                DyeImpurityRatio(dye="y", band="g", lo=0.035, hi=0.035,
+                                 criterion="D(550nm)/D(450nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="y", band="r", lo=0.013, hi=0.013,
+                                 criterion="D(640nm)/D(450nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="m", band="b", lo=0.085, hi=0.085,
+                                 criterion="D(450nm)/D(550nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="m", band="r", lo=0.026, hi=0.026,
+                                 criterion="D(640nm)/D(550nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="c", band="b", lo=0.041, hi=0.041,
+                                 criterion="D(450nm)/D(640nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="c", band="g", lo=0.122, hi=0.122,
+                                 criterion="D(550nm)/D(640nm)",
+                                 quantity="density_ratio"),
+            ),
+            measurement_mode="reflection",
+            source=(
+                "DERIVED, 2026-09-18, from the section 12 spectral reflection "
+                "density panel of AF3-190U2 traced into this record's "
+                "dye_density -- unwanted density at another dye's peak "
+                "divided by the dye's own peak, all three peaks read off the "
+                "same trace (yellow 450, magenta 550, cyan 640 nm). ⚠ THESE "
+                "ARE REFLECTION RATIOS and the DyeImpurity.measurement_mode "
+                "note is the reason that matters: the same dye measures about "
+                "2.5x more unwanted absorption off a print than through a "
+                "film, and that factor is an observation, not a conversion. "
+                "Against the reflection figures already in this file "
+                "(US4675275 / US4684603 give magenta-in-blue 0.36 for "
+                "5-pyrazolone and 0.20 for pyrazolotriazole couplers), Type "
+                "II's 0.085 sits well below even the pyrazolotriazole class, "
+                "which is consistent with a modern paper magenta but is NOT "
+                "evidence of a coupler chemistry the bulletin never names."),
+        ),
+        rel_sens_peak_r=0.592, rel_sens_peak_g=1.083, rel_sens_peak_b=1.449,
+        peak_nm_r=710.0, peak_nm_g=550.0, peak_nm_b=480.0,
+        source=(
+            "FUJIFILM Corporation, «FUJICOLOR CRYSTAL ARCHIVE PAPER TYPE II "
+            "-- Product Information Bulletin», Ref. No. AF3-190U2, FUJIFILM "
+            "North America Corporation, 200 Summit Lake Drive, Valhalla NY "
+            "10595. Six pages. Sections used: 12 (spectral dye density, p4), "
+            "13 (spectral sensitivity, p4), 8 (calibration data for printers, "
+            "p3 -- 'Dmax Aim R G B  2.12 2.18 2.05'), 4 (processing, p2 -- "
+            "'Process CP48S and CP49E or RA-4 type processes'). ⚠ THE "
+            "BULLETIN PRINTS NO CHARACTERISTIC CURVE, which is why this is a "
+            "PaperSpectralRecord and not a PrintStock."),
+    ),
+    PaperSpectralRecord(
+        key="FUJICOLOR_CRYSTAL_ARCHIVE_SUPREME_AND_TYPE_CA",
+        names=("FUJICOLOR CRYSTAL ARCHIVE PAPER SUPREME",
+               "FUJICOLOR CRYSTAL ARCHIVE PAPER TYPE CA"),
+        description=(
+            "Fuji RA-4 colour negative paper. ⚠ ONE RECORD FOR TWO PRODUCTS: "
+            "the Supreme sheet and the Type CA sheet publish byte-identical "
+            "section 12 and section 13 images, so this is one measurement "
+            "under two names. Supreme differs from Type CA in base thickness "
+            "and back print, neither of which the spectral panels see."),
+        process="CP48S (also CP49E, RA-4 type)",
+        surfaces=("glossy", "lustre", "matte"),
+        density_geometry="reflection",
+        # p5 'LUT + Target density RGB' row, glossy/lustre 2.00/2.00/1.95 and
+        # matte 1.95/1.95/1.90 (Type CA prints both; Supreme prints the
+        # glossy/lustre row only, and the two agree where both are printed).
+        dmax_aim_r=2.00, dmax_aim_g=2.00, dmax_aim_b=1.95,
+        dmax_aim_matte_r=1.95, dmax_aim_matte_g=1.95, dmax_aim_matte_b=1.90,
+        # "For competitive and regenerated chemistry the Dmax should be
+        # reduced with -0.10 in all three colors" -- printed on both sheets.
+        dmax_chemistry_delta=-0.10,
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0,
+            lambda_step_nm=10.0,
+            # §12, 400-750 nm -- 50 nm further into the red than the Type II
+            # panel, which is why this record's grid is longer.
+            d_cyan=(0.178, 0.148, 0.113, 0.080, 0.057, 0.043, 0.035, 0.033,
+                    0.034, 0.040, 0.051, 0.068, 0.091, 0.123, 0.167, 0.224,
+                    0.296, 0.379, 0.481, 0.607, 0.748, 0.869, 0.937, 0.968,
+                    0.988, 0.994, 0.964, 0.884, 0.766, 0.631, 0.505, 0.398,
+                    0.312, 0.240, 0.180, 0.145),
+            d_magenta=(0.214, 0.178, 0.137, 0.122, 0.135, 0.162, 0.205, 0.266,
+                       0.349, 0.454, 0.582, 0.719, 0.835, 0.914, 0.968, 0.992,
+                       0.951, 0.823, 0.634, 0.444, 0.299, 0.201, 0.137, 0.095,
+                       0.069, 0.052, 0.041, 0.031, 0.023, 0.015, 0.011, 0.008,
+                       0.007, 0.006, 0.005, 0.005),
+            d_yellow=(0.706, 0.744, 0.836, 0.929, 0.983, 0.990, 0.937, 0.815,
+                      0.652, 0.491, 0.354, 0.251, 0.179, 0.131, 0.099, 0.082,
+                      0.071, 0.062, 0.055, 0.049, 0.044, 0.041, 0.038, 0.036,
+                      0.033, 0.029, 0.023, 0.017, 0.000, 0.000, 0.000, 0.000,
+                      0.000, 0.000, 0.000, 0.000),
+            normalisation="peak_1.0",
+            source=(
+                "FUJIFILM Corporation, «Fujicolor Crystal Archive Paper "
+                "SUPREME» data sheet (6 pp) p3 section 12 'Spectral dye "
+                "density curves', embedded image xref 44, 729x503 px; AND "
+                "«Fujicolor Crystal Archive Paper Type CA» data sheet (6 pp) "
+                "p3 section 12, xref 45 -- THE SAME IMAGE, md5 ff8b623cc70f49"
+                "b2717f42366bd6e8cd on both extractions, so one measurement "
+                "and not two. Ordinate 'Spectral reflection density' gridded "
+                "0 / 0.5 / 1 (dashed), abscissa 400-750 nm with dashed "
+                "gridlines at 500, 600 and 700. Panel legend 'Process: "
+                "CP48S'. Calibration off the printed gridlines: x 400 nm at "
+                "column 53.5 and 700 nm at 586.0; y 1.0 at row 128.5 and 0.0 "
+                "at row 448.5, with the 0.5 gridline at 288.5 confirming "
+                "linear spacing to half a pixel. Zeros in d_yellow beyond 680 "
+                "nm are the artwork's ink floor, not a measured zero."),
+        ),
+        spectral=SpectralSensitivity(
+            lambda_start_nm=400.0,
+            lambda_step_nm=10.0,
+            log_s_r=(-4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -0.874,
+                     -0.719, -0.475, -0.293, -0.183, -0.110, -0.068, -0.042,
+                     -0.021, 0.000, -0.034, -0.240, -0.490, -0.722, -4.000,
+                     -4.000),
+            log_s_g=(-4.000, -4.000, -4.000, -0.770, -0.725, -0.681, -0.645,
+                     -0.603, -0.552, -0.473, -0.365, -0.288, -0.261, -0.202,
+                     -0.069, 0.000, -0.073, -0.252, -0.518, -0.964, -1.287,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000),
+            log_s_b=(-0.440, -0.371, -0.316, -0.296, -0.282, -0.263, -0.210,
+                     -0.111, -0.002, 0.000, -0.167, -0.385, -0.668, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000, -4.000, -4.000, -4.000, -4.000, -4.000, -4.000,
+                     -4.000),
+            criterion="relative_linear_printed",
+            source=(
+                "FUJIFILM Corporation, «Fujicolor Crystal Archive Paper "
+                "SUPREME» p3 section 13 'Spectral sensitivity curves', xref "
+                "45, 780x539 px; AND «...Type CA» p3 section 13, xref 46 -- "
+                "THE SAME IMAGE, md5 7930fc7596dafcd283b337723ca44e95 on both "
+                "extractions. Panel legend 'Densitometry : Status A / Density "
+                ": 1.0 above Dmin'. Ordinate 'Relative sensitivity *' gridded "
+                "0 / 0.5 / 1 at rows 434.0, 282.0 and 130.0 -- evenly spaced, "
+                "so linear. Footnote: 'Sensitivity equals the reciprocal of "
+                "the exposure (j/cm2) requires to produce a specified "
+                "density' (sic). Linear peaks before normalisation: blue "
+                "1.075 at 490 nm, green 1.004 at 550 nm, red 0.568 at 690 nm."),
+        ),
+        impurity=DyeImpurity(
+            ratios=(
+                DyeImpurityRatio(dye="y", band="g", lo=0.083, hi=0.083,
+                                 criterion="D(550nm)/D(450nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="y", band="r", lo=0.029, hi=0.029,
+                                 criterion="D(650nm)/D(450nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="m", band="b", lo=0.163, hi=0.163,
+                                 criterion="D(450nm)/D(550nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="m", band="r", lo=0.053, hi=0.053,
+                                 criterion="D(650nm)/D(550nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="c", band="b", lo=0.043, hi=0.043,
+                                 criterion="D(450nm)/D(650nm)",
+                                 quantity="density_ratio"),
+                DyeImpurityRatio(dye="c", band="g", lo=0.226, hi=0.226,
+                                 criterion="D(550nm)/D(650nm)",
+                                 quantity="density_ratio"),
+            ),
+            measurement_mode="reflection",
+            source=(
+                "DERIVED, 2026-09-18, from this record's dye_density trace "
+                "(peaks yellow 450, magenta 550, cyan 650 nm). ⚠ EVERY RATIO "
+                "IS LARGER THAN TYPE II's, on all six terms, by factors of "
+                "1.0 to 2.4 -- the two papers' panels are separate artwork "
+                "and separate measurements, so this is a real difference in "
+                "dye set and not a tracing artefact. The cyan dye's green "
+                "contamination, 0.226 here against 0.122 on Type II, is the "
+                "largest single term on either paper."),
+        ),
+        rel_sens_peak_r=0.568, rel_sens_peak_g=1.004, rel_sens_peak_b=1.075,
+        peak_nm_r=690.0, peak_nm_g=550.0, peak_nm_b=490.0,
+        source=(
+            "FUJIFILM Corporation, «Fujicolor Crystal Archive Paper SUPREME» "
+            "and «Fujicolor Crystal Archive Paper Type CA», both 6-page data "
+            "sheets. Sections used: 12 and 13 (p3, spectral panels -- "
+            "byte-identical between the two sheets), 17 'Use with Frontier' "
+            "(p5, target density RGB 2.00/2.00/1.95 glossy-lustre and "
+            "1.95/1.95/1.90 matte, with '-0.10 in all three colors' for "
+            "competitive or regenerated chemistry), 4 'Processing' (p2, "
+            "'Fujicolor Paper Process, CP48S and CP49E or RA-4 type "
+            "processes'). ⚠ NEITHER SHEET PRINTS A CHARACTERISTIC CURVE."),
+    ),
+)
+
+
+def paper_spectra_for(name: str) -> PaperSpectralRecord | None:
+    """The paper spectral record naming ``name``, or None.
+
+    Matching is on the normalised product name, so a record that covers two
+    products is found by either of them -- which is the point of storing one
+    shared panel set once.
+    """
+    key = _norm(name)
+    for rec in PAPER_SPECTRA:
+        if _norm(rec.key) == key or any(_norm(n) == key for n in rec.names):
+            return rec
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Lookup
 # ---------------------------------------------------------------------------
 def _norm(s: str) -> str:
@@ -54521,6 +59841,11 @@ _MTF_KERNEL_TABLE: dict[float, tuple[float, float, float]] = {
     2.1100: (+0.266753, 0.387380, 1.222310),   # max|err| 0.0160  vs Gaussian 0.1259
     # 2026-09-06e, FUJICOLOR_SUPERIA_XTRA_800's traced rolloff.
     2.1600: (+0.254947, 0.389192, 1.202470),   # max|err| 0.0146  vs Gaussian 0.1207
+    # ⚠ 2026-09-17d, KODAK_TMAX_400. Added when that stock's four-year
+    # MTF refusal ended -- see G-MTFBW5. Fitted on the same grid as
+    # every row here and verified to be the global optimum over a
+    # 13x9x10 restart grid, not a local one.
+    2.1630: (+0.294628, 0.427464, 1.251526),   # max|err| 0.0181  vs Gaussian 0.1204
     2.1700: (+0.252649, 0.389561, 1.198798),   # max|err| 0.0143  vs Gaussian 0.1197
     2.2000: (+0.245871, 0.390697, 1.188320),   # max|err| 0.0136  vs Gaussian 0.1166
     2.4200: (+0.183481, 0.374924, 1.117107),   # max|err| 0.0114  vs Gaussian 0.0954
@@ -54837,6 +60162,17 @@ def validate_all() -> None:
                 f"{s.name}: density_metric {s.density_metric!r} not in "
                 f"{sorted(_DENSITY_METRICS)}"
             )
+    # -- schema v42 (queue P35) ---------------------------------------------
+    seen_paper: set[str] = set()
+    for rec in PAPER_SPECTRA:
+        rec.validate()
+        for nm in rec.names:
+            k = _norm(nm)
+            if k in seen_paper:
+                raise ValueError(
+                    f"{rec.key}: product {nm!r} is claimed by two paper "
+                    "spectral records -- one product has one panel set")
+            seen_paper.add(k)
 
 
 if __name__ == "__main__":

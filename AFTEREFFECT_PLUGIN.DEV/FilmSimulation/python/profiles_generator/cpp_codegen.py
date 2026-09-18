@@ -52,6 +52,7 @@ from film_profiles import (
     FILM_RENAMES,
     FILM_PROFILES,
     FORMAT_GEOM,
+    PAPER_SPECTRA,
     PRINT_STOCKS,
     SCHEMA_VERSION,
     Feature,
@@ -202,10 +203,11 @@ HPP_TEMPLATE = COPYRIGHT_NOTICE + """\
 #include <string>
 #include <vector>
 
-namespace film {
+/* The schema version, in a header a C translation unit can also include.
+ * The literal lives there and only there; this file adds no second copy. */
+#include "film_schema_version.h"
 
-/// Data-model schema version, mirrored from film_profiles.SCHEMA_VERSION.
-constexpr int kSchemaVersion = @SCHEMA_VERSION@;
+namespace film {
 
 /// Whether the developed film is a negative (needs printing) or already a
 /// positive. Reversal stocks skip the print stage entirely.
@@ -468,6 +470,24 @@ struct MTFSpec {
                             ///< FilmMtfResponse() for why this gate exists.
     float mtf_tail_a;                   ///< Gaussian-core weight; 1.0 = legacy
     float mtf_tail_f_exp;               ///< tail exponent; 0.0 = unused
+    // -- schema v41 (P11, 2026-09-18b): THE LENS REGIME -----------------------
+    /// \warning THE PAIR ABOVE AND THE PAIR HERE ARE DIFFERENT EXPERIMENTS.
+    /// `_lowc` / `_highc` vary the TARGET CONTRAST at a fixed optic; these two
+    /// vary the OPTIC at a fixed target. Glafkides Vol. 1 section 233, after
+    /// Perrin and Hoadley, reads the same emulsion at 40 lines/mm on an
+    /// ordinary Fuess lens and 70 on their apochromat 1381, so copying a
+    /// figure from one axis to the other can be wrong by a factor of two.
+    float resolving_power_lp_mm_fuess;  ///< lp/mm, ordinary Fuess lens
+    float resolving_power_lp_mm_apo;    ///< lp/mm, Perrin-Hoadley apochromat
+    /// Which optic the figure was read through; empty when the source is silent.
+    const char* resolving_optic;
+    /// Target contrast as the source writes it -- "1.6:1", "1000:1" or empty.
+    const char* resolving_target_contrast;
+    /// \warning A RESOLVING POWER WITH NO DENSITY IS THE PEAK OF A CURVE.
+    /// Ooue 1961 Fig. 5 measures resolving power rising, peaking and falling
+    /// with density on three materials, the peaks at D 0.70-1.05. 0 means the
+    /// source states no density, and that band is then what it means.
+    float resolving_density;
 };
 
 /// Modulation transfer at a spatial frequency -- THE ONE DEFINITION (schema v10).
@@ -1081,6 +1101,21 @@ struct AgingSpec {
     float dust_area_ppm;       ///< dust coverage, ppm of frame area
     float mottle_amplitude;    ///< storage mottle amplitude, density fraction
     float mottle_scale_mm;     ///< storage mottle spatial scale, millimetres
+    // -- schema v43 (2026-09-18c), TWO FIELDS THE EMITTER HAD BEEN DROPPING --
+    /// How much larger the fade fraction is at D = 0.5 than at D = 1.0.
+    /// 1.0 = uniform, which is every stock in this file and the pre-v29
+    /// behaviour. Fade destroys a fixed fraction of the DYE, and the low
+    /// density regions carry a thinner layer, so a real faded image loses its
+    /// midtones faster than its shadows -- a uniform fraction cannot do that.
+    float dye_fade_low_density_factor;
+    /// \warning WHICH MAGENTA COUPLER, because `dye_fade_m` has no
+    /// era-independent default and the ranking INVERTS. 1950s chromogenic
+    /// magenta is the MOST light-stable of the three dyes; 1980s
+    /// pyrazoloazole is the LEAST, fading 92-98 % in 400-600 h against
+    /// 60-85 % for the 5-pyrazolone it replaced. One of "nitrile",
+    /// "pyrazolone", "five_pyrazolone", "pyrazoloazole", or "" for "the
+    /// document does not say" -- which is every stock in this file.
+    std::string magenta_coupler_class;
 };
 
 /// Published Arrhenius dark-fade predictions (schema v12, INERT).
@@ -1281,6 +1316,19 @@ struct SpectralSensitivity {
     std::vector<double> log_s_g;
     std::vector<double> log_s_b;
     std::vector<double> log_s_pan;
+    // -- schema v39 (2026-09-17e, queue S1) ---------------------------------
+    /// Cyan-sensitive FOURTH layer -- Fuji's "4th Colour Layer Technology".
+    /// Empty on 186 of 191 stocks; five Fuji colour negatives publish it.
+    ///
+    /// \warning NOT INTEGRATED BY THE SPECTRAL TAKING PATH, DELIBERATELY.
+    /// The taking matrix expects three records and this is a fourth SENSITIVE
+    /// layer feeding the same three dyes, not a fourth dye. Adding it to the
+    /// integration is a separate change; what v39 fixes is that the
+    /// measurement is inside the database instead of only in a Markdown file.
+    /// Its peak lands at 516-519 nm on all four vector sheets -- between the
+    /// blue and green records, which is why no positional rule could find it
+    /// and why it is separated by dash pattern instead.
+    std::vector<double> log_s_c;
     std::string criterion;
     std::string source;
 
@@ -1288,6 +1336,9 @@ struct SpectralSensitivity {
         return !log_s_pan.empty()
             || (!log_s_r.empty() && !log_s_g.empty() && !log_s_b.empty());
     }
+
+    /// True where the stock publishes the fourth colour record.
+    bool hasFourthLayer() const { return !log_s_c.empty(); }
 };
 
 /// Where a profile's numbers come from (schema v2, DM-19). Machine-readable
@@ -1404,12 +1455,51 @@ struct DevelopmentPoint {
     /// page 25 records a safety factor of 2.5 that the 1960 revision removed,
     /// so American Standard 80 and ISO 125 can describe the same coating.
     std::string edition;
+    // -- schema v39 (2026-09-17d), INERT -------------------------------------
+    /// The film FORMAT this time was measured on: "" (not stated), "135",
+    /// "120" or "sheet".
+    ///
+    /// «Современные фотоматериалы и их обработка» tabulates Kodak's T-MAX
+    /// push times separately for 135 and 120 under one developer column, in
+    /// ROW sub-blocks, and the two differ. A reader with no format axis takes
+    /// the second block's label for a developer name, which is how 705 of the
+    /// book's values sat unattributed until queue P54.
+    std::string film_format;
 };
 
 /// The whole published processing axis, not the single condition recorded in
 /// ProcessingSpec. Flat array so no developer name needs to become an enum.
+/// ONE developer's rate law inside a family (schema v41, queue P52).
+///
+/// \warning A FAMILY CAN SPAN TWO DEVELOPERS AND THEY DO NOT SHARE A LAW.
+/// KODAK T-MAX P3200's nine points are T-MAX in a small tank and T-MAX RS in
+/// a large one; each fits the saturating exponential cleanly on its own, and
+/// checking an RS point against the T-MAX constants is what refused the fit
+/// when the family carried a single law.
+struct DevelopmentLaw {
+    std::string developer;
+    std::string dilution;
+    std::string vessel;          ///< "small tank", "large tank", "tray", ...
+    double gamma_infinity;
+    double dev_rate_k;           ///< per minute
+    double induction_t0_min;
+    double fit_rms;              ///< residual against the points fitted
+
+    bool hasRateLaw() const {
+        return gamma_infinity > 0.0 && dev_rate_k > 0.0;
+    }
+};
+
 struct ProcessingFamily {
     std::vector<DevelopmentPoint> points;
+    /// d ln(time) / d(degrees C) at constant contrast, NEGATIVE. 0.0 = this
+    /// family holds one temperature and has no slope.
+    /// \warning FITTED TO THIS STOCK'S OWN POINTS, never borrowed from
+    /// another developer's published chart -- see film_profiles.py
+    /// `_apply_temperature_law`. Populated on 11 stocks, spanning x0.33 to
+    /// x0.50 of the time per +10 degC, which is why no population default is
+    /// substituted for a stock that lacks one.
+    double temperature_coeff_per_c;
     /// The developer, and its dilution, that the SOURCE'S OWN characteristic
     /// curve was measured in. Empty when the source does not say.
     /// \warning NOT ProcessingSpec::developer, which claims the condition the
@@ -1420,6 +1510,9 @@ struct ProcessingFamily {
     /// second developer's points were added.
     std::string reference_developer;
     std::string reference_dilution;
+    // -- schema v41 (queue P52): one law per developer, when the family spans
+    // more than one. Empty on 29 of the 30 families, which have one developer.
+    std::vector<DevelopmentLaw> laws;
     std::string source;
 
     bool hasData() const { return !points.empty(); }
@@ -1479,12 +1572,45 @@ struct PrintGrainIndex {
 /// MEASURING BAND, i.e. the off-diagonal structure of a dye-crosstalk matrix,
 /// measured rather than assumed. NEGATIVE VALUES ARE LEGAL: LN-8 prints
 /// "minus 0.05-0.10" for magenta in blue, an interlayer effect, not an error.
+// -- schema v43 (2026-09-18c, queue P41) -------------------------------------
+/// One colour record coated as SEVERAL emulsion layers of offset speed.
+///
+/// \warning THE MODEL STORES ONE ToneCurve PER RECORD AND THE REAL FILM DOES
+/// NOT. EP 0 083 377 A1 (Konishiroku, 1982) is built on the point that a
+/// colour record is coated as two or three layers of different speed and that
+/// the record's latitude is the SUM of their offset curves. Its Table 2
+/// measures the low-to-high separation of eight coatings at 0.35-0.37 log E,
+/// inside its claimed 0.2-1.5 window and its preferred 0.3-0.8 one.
+///
+/// dloge holds each sub-layer's offset in log exposure, ASCENDING and
+/// starting at 0 for the fastest; share is each layer's fraction of the
+/// record's density and the shares sum to 1.
+///
+/// INERT on all 191 stocks -- no specimen in that patent is a stock this
+/// database holds. An empty set means "this record is the bare ToneCurve".
+struct SubLayerSet {
+    std::vector<float> dloge;
+    std::vector<float> share;
+    std::string criterion;
+    std::string source;
+
+    bool hasData() const { return dloge.size() > 1; }
+};
+
 struct DyeImpurityRatio {
     std::string dye;        ///< "y"|"m"|"c"
     std::string band;       ///< "b"|"g"|"r"
     double lo;
     double hi;
     std::string criterion;  ///< distinguishes two criteria for one dye/band pair
+    // -- schema v41 (queue P36) ----------------------------------------------
+    /// \warning WHAT THIS IS A RATIO OF. "density_ratio" -- unwanted over
+    /// wanted DENSITY at one point, which is what every record here holds;
+    /// "gamma_ratio" -- unwanted over wanted ABSORPTION GAMMA, the quantity
+    /// US 2,449,966 (Hanson, 1944) defines and the one its masking rule is
+    /// written in. The two are not interchangeable on any film whose unwanted
+    /// absorption does not scale exactly with its wanted one.
+    std::string quantity;
 };
 
 /// Measured dye crosstalk as named ratios. The renderer's dye_matrix is built
@@ -1493,6 +1619,19 @@ struct DyeImpurityRatio {
 struct DyeImpurity {
     std::vector<DyeImpurityRatio> ratios;
     std::string source;
+    // -- schema v42 (2026-09-18, queue P35) ----------------------------------
+    /// \warning WHAT INSTRUMENT SAW THESE RATIOS, and the C++ side had been
+    /// dropping it. "transmission" through developed film, one pass;
+    /// "reflection" off a print, two passes plus base scatter -- about 2.5x
+    /// the transmission ratio in this corpus, which is an OBSERVATION and not
+    /// a conversion; "in_film" dye coated in gelatin without a silver image;
+    /// "solution" the dye in a solvent, NOT usable for a dye_matrix; "" the
+    /// source does not state it. The field existed on the Python carrier from
+    /// v29 and was never emitted, which was harmless only while every ratio
+    /// in the file was a transmission one. The first reflection ratios landed
+    /// with the colour-paper records, so a consumer merging this set with the
+    /// film ones would now be averaging two geometries.
+    std::string measurement_mode;
 
     bool hasData() const { return !ratios.empty(); }
 };
@@ -1658,6 +1797,10 @@ struct FilmProfile {
     ProcessingFamily   processing_family;
     ReciprocityTable   reciprocity_table;
     DyeImpurity        dye_impurity;
+    // -- schema v43 (2026-09-18c, queue P41), INERT --------------------------
+    /// The record's offset-speed sub-layers. Empty on every stock; see the
+    /// struct note for why the carrier ships before its first value.
+    SubLayerSet        sub_layers;
     // -- schema v15 (2026-08-26), INERT --------------------------------------
     /// Published Print Grain Index. See the struct note: this is NOT an rms
     /// granularity in other units and must not be converted into one.
@@ -1742,6 +1885,18 @@ struct PrintStock {
     /// that matrix: 164 of 165 profiles render through SCAN_DI, whose reader
     /// is a scanner and not this film.
     SpectralSensitivity spectral;
+    // -- schema v43 (2026-09-18c, queue M1a) ---------------------------------
+    /// \warning MAY THIS STOCK'S OWN `spectral` SERVE AS STAGE 12's M_reader?
+    /// true  -- a real print EMULSION whose layers read the negative's dyes,
+    ///          so a printing matrix derived from `spectral` describes a
+    ///          physical step.
+    /// false -- a scanner or digital-intermediate transform. Its reader is a
+    ///          sensor this corpus has no measurement of, so no matrix may be
+    ///          derived from `spectral` even if that field is filled.
+    /// This states what the stock IS; whether a given film is printed onto it
+    /// is FilmProfile::default_print. 190 of 191 films render through SCAN_DI,
+    /// which is why KODAK_2383_RELEASE's measured matrix is correct and unused.
+    bool reader_is_emulsion;
     // -- schema v25 (2026-09-03), LIVE ON THE RENDER PATH --------------------
     /// EFFECTIVE INTEGRAL PRINTING DENSITY: the 3x3 that turns the negative's
     /// STORED status densities into the exposure densities this print
@@ -1764,6 +1919,16 @@ struct PrintStock {
     Matrix3 printing_density_matrix;
     bool printing_matrix_measured;   ///< derived from measured spectra
     std::string printing_matrix_source;
+    // -- schema v41 (queue P66, 2026-09-18b) ---------------------------------
+    /// \warning THE CHEMISTRY A PRINT STOCK IS PROCESSED IN. The field has
+    /// existed on `FilmProfile` since v1 and `PrintStock` had nowhere to put
+    /// it, which is the whole of queue P66. «Using KODAK Kit Chemicals in
+    /// Motion Picture Film Laboratories» prints the full nine-step ECP-2E
+    /// cycle; the one print stock whose own sheet names a process names
+    /// ECP-2D, so it carries ECP-2D and the ECP-2E cycle stays a reference
+    /// table rather than being copied onto a stock that never claimed it.
+    /// Populated on 1 of 11.
+    ProcessingSpec processing;
 
 };
 
@@ -1792,6 +1957,65 @@ struct FilmFormat {
     }
 };
 
+// -- schema v42 (2026-09-18, queue P35) --------------------------------------
+/// A colour PAPER's published spectral panels, with no tone curve.
+///
+/// \warning NOT A PrintStock, AND THE REASON IS A MISSING CURVE RATHER THAN A
+/// MISSING FIELD. PrintStock exists to hold a characteristic curve; the three
+/// Fujicolor Crystal Archive bulletins are printer-SETUP documents that print
+/// spectral dye density, spectral sensitivity, Dmax aims and per-printer
+/// calibration tables and NOT ONE characteristic curve. Building a PrintStock
+/// from them would mean inventing the one thing they do not publish.
+///
+/// \warning ONE RECORD MAY NAME SEVERAL PRODUCTS. The Supreme and Type CA
+/// bulletins publish byte-identical panel images: one measurement under two
+/// names, stored once so that no later average counts it twice.
+///
+/// INERT -- nothing on the render path reads this.
+struct PaperSpectralRecord {
+    std::string key;
+    std::vector<std::string> names;   ///< every product this panel set covers
+    std::string description;
+    std::string process;              ///< as the bulletin prints it
+    std::vector<std::string> surfaces;
+    std::string density_geometry;     ///< "reflection" for every paper
+
+    /// Per-channel Dmax AIM, reflection density, glossy/lustre surface.
+    float dmax_aim_r;
+    float dmax_aim_g;
+    float dmax_aim_b;
+    /// Same, matte, where the bulletin prints a separate row; 0 = it does not.
+    float dmax_aim_matte_r;
+    float dmax_aim_matte_g;
+    float dmax_aim_matte_b;
+    /// Printed correction to every aim above under competitive or regenerated
+    /// chemistry. Negative, and it applies equally to all three channels.
+    float dmax_chemistry_delta;
+
+    SpectralDyeDensity  dye_density;
+    SpectralSensitivity spectral;
+    DyeImpurity         impurity;
+
+    /// \warning THE INTER-LAYER BALANCE, which SpectralSensitivity cannot
+    /// hold: that carrier normalises EACH layer's peak to log 0 and keeps
+    /// shape only, with absolute speed left to exposure_index -- and a paper
+    /// has none. These panels plot all three layers on ONE relative-
+    /// sensitivity axis, so their differing peaks state the layers' speeds
+    /// relative to each other, which is the printer's RGB light balance.
+    /// Units are the panel's own; only the ratios mean anything, and only
+    /// within one record.
+    float rel_sens_peak_r;
+    float rel_sens_peak_g;
+    float rel_sens_peak_b;
+    /// Wavelength of each layer's peak, nm, off the same panel.
+    float peak_nm_r;
+    float peak_nm_g;
+    float peak_nm_b;
+    std::string source;
+
+    bool sharedArtwork() const { return names.size() > 1; }
+};
+
 /// @return The complete film-stock table, by const reference.
 ///
 /// SIGNATURE CHANGED 2026-08-18 (owner decision): was by value, which forced
@@ -1816,6 +2040,11 @@ const std::vector<PrintStock>& GetPrintStocks();
 
 /// @return All film gauges, by const reference. Same pattern.
 const std::vector<FilmFormat>& GetFilmFormats();
+
+/// @return The colour-PAPER spectral records, by const reference. Same
+/// pattern. Two entries; see PaperSpectralRecord for why they are not
+/// PrintStocks.
+const std::vector<PaperSpectralRecord>& GetPaperSpectra();
 
 }  // namespace film
 """
@@ -1896,6 +2125,7 @@ def _spectral(sp) -> str:
         + f"{_d(sp.lambda_start_nm)}, {_d(sp.lambda_step_nm)}, "
         + f"{_dvec(sp.log_s_r)}, {_dvec(sp.log_s_g)}, "
         + f"{_dvec(sp.log_s_b)}, {_dvec(sp.log_s_pan)}, "
+        + f"{_dvec(sp.log_s_c)}, "
         + f'"{_escape(sp.criterion)}", "{_escape(sp.source)}"'
         + " }"
     )
@@ -1908,16 +2138,23 @@ def _svec(vals) -> str:
     return "{ " + ", ".join(f'"{_escape(v)}"' for v in vals) + " }"
 
 
+def _sub_layers(sl) -> str:
+    """One SubLayerSet initialiser (schema v43, queue P41)."""
+    return ("{ " + _dvec(sl.dloge) + ", " + _dvec(sl.share)
+            + f', "{_escape(sl.criterion)}", "{_escape(sl.source)}"' + " }")
+
+
 def _dye_impurity(di) -> str:
     if not di.ratios:
-        return '{ {}, "" }'
+        return '{ {}, "", "" }'
     rs = ", ".join(
         "{ "
         + f'"{_escape(r.dye)}", "{_escape(r.band)}", {_d(r.lo)}, {_d(r.hi)}, '
-        + f'"{_escape(r.criterion)}"'
+        + f'"{_escape(r.criterion)}", "{_escape(r.quantity)}"'
         + " }"
         for r in di.ratios)
-    return "{ { " + rs + f' }}, "{_escape(di.source)}"' + " }"
+    return ("{ { " + rs + f' }}, "{_escape(di.source)}", '
+            + f'"{_escape(di.measurement_mode)}"' + " }")
 
 
 def _dye_density(dd) -> str:
@@ -1929,6 +2166,34 @@ def _dye_density(dd) -> str:
         + f'"{_escape(dd.normalisation)}", "{_escape(dd.source)}", '
         + f"{_dvec(dd.d_dmin)}"
         + " }"
+    )
+
+
+def _paper_block(r) -> str:
+    """One PaperSpectralRecord initialiser (schema v42, queue P35)."""
+    return (
+        f"        // --- {r.key} ---\n"
+        "        {\n"
+        f'            "{_escape(r.key)}",\n'
+        f"            {_svec(r.names)},\n"
+        f'            "{_escape(r.description)}",\n'
+        f'            "{_escape(r.process)}",\n'
+        f"            {_svec(r.surfaces)},\n"
+        f'            "{_escape(r.density_geometry)}",\n'
+        f"            {_f(r.dmax_aim_r)}, {_f(r.dmax_aim_g)}, "
+        f"{_f(r.dmax_aim_b)},\n"
+        f"            {_f(r.dmax_aim_matte_r)}, {_f(r.dmax_aim_matte_g)}, "
+        f"{_f(r.dmax_aim_matte_b)},\n"
+        f"            {_f(r.dmax_chemistry_delta)},\n"
+        f"            {_dye_density(r.dye_density)},\n"
+        f"            {_spectral(r.spectral)},\n"
+        f"            {_dye_impurity(r.impurity)},\n"
+        f"            {_f(r.rel_sens_peak_r)}, {_f(r.rel_sens_peak_g)}, "
+        f"{_f(r.rel_sens_peak_b)},\n"
+        f"            {_f(r.peak_nm_r)}, {_f(r.peak_nm_g)}, "
+        f"{_f(r.peak_nm_b)},\n"
+        f'            "{_escape(r.source)}",\n'
+        "        },\n"
     )
 
 
@@ -1944,19 +2209,29 @@ def _layer_stack(ls) -> str:
 
 def _processing_family(pf) -> str:
     if not pf.points:
-        return '{ {}, "", "", "" }'
+        return '{ {}, 0.0, "", "", {}, "" }'
     pts = ", ".join(
         "{ "
         + f'"{_escape(q.developer)}", "{_escape(q.dilution)}", '
         + f"{_d(q.minutes)}, {_d(q.celsius)}, "
         + f"{_d(q.contrast_index)}, {_d(q.gamma)}, {q.exposure_index}, "
         + f'{_d(q.base_fog)}, "{_escape(q.vessel)}", '
-        + f'"{_escape(q.edition)}"'
+        + f'"{_escape(q.edition)}", "{_escape(q.film_format)}"'
         + " }"
         for q in pf.points)
+    laws = ", ".join(
+        "{ "
+        + f'"{_escape(q.developer)}", "{_escape(q.dilution)}", '
+        + f'"{_escape(q.vessel)}", '
+        + f"{_d(q.gamma_infinity)}, {_d(q.dev_rate_k)}, "
+        + f"{_d(q.induction_t0_min)}, {_d(q.fit_rms)}"
+        + " }"
+        for q in pf.laws)
     return ("{ { " + pts + " }, "
+            + f"{_d(pf.temperature_coeff_per_c)}, "
             + f'"{_escape(pf.reference_developer)}", '
             + f'"{_escape(pf.reference_dilution)}", '
+            + ("{ " + laws + " }, " if laws else "{}, ")
             + f'"{_escape(pf.source)}"' + " }")
 
 
@@ -2281,6 +2556,13 @@ def _push(x) -> str:
 
 
 def _processing(x) -> str:
+    # ⚠ `PrintStock.processing` is `None` on 10 of 11 -- the field is optional
+    # there and mandatory on `FilmProfile`, so the emitter has to answer for
+    # both. An absent process emits a default-constructed ProcessingSpec, which
+    # is what "not stated" has always looked like on the C++ side.
+    if x is None:
+        return ('{ "", "", 0.0f, 0.0f, "", 0.0f, DevelopmentProgress::Unknown,'
+                ' 0.0f, 0.0f, { 0.0f, 0.0f, 0, 1, "" } }')
     """ProcessingSpec initialiser. Strings are quoted; absent = empty/zero."""
     return (
         "{ "
@@ -2336,8 +2618,10 @@ def _aging(a) -> str:
                 a.dust_area_ppm,
                 a.mottle_amplitude,
                 a.mottle_scale_mm,
+                a.dye_fade_low_density_factor,
             )
         )
+        + f', "{_escape(a.magenta_coupler_class)}"'
         + " }"
     )
 
@@ -2464,7 +2748,7 @@ def _profile_block(p: FilmProfile) -> str:
             {p.balance_kelvin},
             {_curves(p.curves)},
             {{ {_f(g.rms_granularity)}, {_f(g.clump_um_r)}, {_f(g.clump_um_g)}, {_f(g.clump_um_b)}, {_f(g.clump_gain)}, {_f(g.fog_grain)}, {_f(g.anisotropy)}, {_f(g.rms_r)}, {_f(g.rms_g)}, {_f(g.rms_b)}, {_f(g.sigma_shape_toe)}, {_f(g.sigma_shape_mid)}, {_f(g.sigma_shape_dmax)}, {_f(g.sigma_shape_peak)}, {_f(g.sigma_shape_peak_at)}, {_f(g.sigma_shape_toe_at)}, {_f(g.sigma_shape_dmax_at)}, {"true" if g.sigma_shape_measured else "false"}, {_f(g.size_sigma_log)}, {_f(g.cluster_um)}, {_f(g.dye_cloud_um)} }},
-            {{ {_f(m.f50_r)}, {_f(m.f50_g)}, {_f(m.f50_b)}, {_f(m.adjacency)}, {_f(m.adjacency_um)}, {_f(m.resolving_power_lp_mm_lowc)}, {_f(m.resolving_power_lp_mm_highc)}, {_f(m.mtf_rolloff_q)}, {"true" if m.mtf_measured else "false"}, {_f(m.mtf_tail_a)}, {_f(m.mtf_tail_f_exp)} }},
+            {{ {_f(m.f50_r)}, {_f(m.f50_g)}, {_f(m.f50_b)}, {_f(m.adjacency)}, {_f(m.adjacency_um)}, {_f(m.resolving_power_lp_mm_lowc)}, {_f(m.resolving_power_lp_mm_highc)}, {_f(m.mtf_rolloff_q)}, {"true" if m.mtf_measured else "false"}, {_f(m.mtf_tail_a)}, {_f(m.mtf_tail_f_exp)}, {_f(m.resolving_power_lp_mm_fuess)}, {_f(m.resolving_power_lp_mm_apo)}, "{_escape(m.resolving_optic)}", "{_escape(m.resolving_target_contrast)}", {_f(m.resolving_density)} }},
             {{ {_vec3(hal.radii_um)}, {_vec3(hal.weights)}, {_f(hal.gain_r)}, {_f(hal.gain_g)}, {_f(hal.gain_b)}, {_f(hal.threshold_stops)}, {_f(hal.radius_scale_r)}, {_f(hal.radius_scale_g)}, {_f(hal.radius_scale_b)} }},
             {{ {_f(cp.strength)}, {_f(cp.radius_um)}, {_f(cp.edge_strength)}, {_f(cp.edge_um)} }},
             {_matrix(p.taking_matrix)},
@@ -2505,6 +2789,7 @@ def _profile_block(p: FilmProfile) -> str:
             {_processing_family(p.processing_family)},
             {_reciprocity_table(p.reciprocity_table)},
             {_dye_impurity(p.dye_impurity)},
+            {_sub_layers(p.sub_layers)},
             {_print_grain_index(p.print_grain_index)},
             {_push(p.push)},
             {_emulsion(p.emulsion)},
@@ -2532,9 +2817,11 @@ def _print_block(s: PrintStock) -> str:
             {_f(s.mtf_f50_r)}, {_f(s.mtf_f50_g)}, {_f(s.mtf_f50_b)},
             {_f(s.mtf_f50_bound)}, {"true" if s.mtf_measured else "false"},
             {_spectral(s.spectral)},
+            {"true" if s.reader_is_emulsion else "false"},
             {_matrix(s.printing_density_matrix)},
             {"true" if s.printing_matrix_measured else "false"},
-            "{_escape(s.printing_matrix_source)}"
+            "{_escape(s.printing_matrix_source)}",
+            {_processing(s.processing)}
         }},
 """
 
@@ -3147,6 +3434,16 @@ def _cpp_source(stamp: str) -> str:
     out.append("    };\n    return table;\n}\n\n")
 
     out.append(
+        "// Colour-paper spectral records (schema v42, queue P35). Two\n"
+        "// entries, not three: the Supreme and Type CA bulletins publish the\n"
+        "// SAME panel images, so that measurement is stored once and names\n"
+        "// both products.\n"
+        "const std::vector<PaperSpectralRecord>& GetPaperSpectra() {\n"
+        "    static const std::vector<PaperSpectralRecord> table = {\n")
+    out.extend(_paper_block(r) for r in PAPER_SPECTRA)
+    out.append("    };\n    return table;\n}\n\n")
+
+    out.append(
         "const std::vector<FilmFormat>& GetFilmFormats() {\n"
         "    static const std::vector<FilmFormat> table = {\n")
     out.extend(
@@ -3456,6 +3753,73 @@ def write_id_migration(txt_path: Path | str) -> Path:
     return path
 
 
+SCHEMA_VERSION_H_TEMPLATE = COPYRIGHT_NOTICE + """\
+// GENERATED by cpp_codegen.py on @GENERATED@ -- DO NOT EDIT BY HAND.
+// schema_version @SCHEMA_VERSION@
+//
+// The film database's schema version, and nothing else.
+//
+// WHY THIS IS ITS OWN FILE. The request was for a C/C++-callable inline API
+// returning the schema version, in the generated database headers. It cannot
+// live in film_profiles.hpp and still be callable from C: that header is C++
+// throughout -- <array>, <string>, <vector>, classes, namespaces -- so a C
+// translation unit cannot include it at all, and an API a C compiler can
+// never reach is not a C-compatible API. This header includes <stdint.h>
+// only, compiles clean as C99 and as C++, and film_profiles.hpp includes it,
+// so both languages get the same function reading the same literal.
+
+#ifndef FILM_SCHEMA_VERSION_H
+#define FILM_SCHEMA_VERSION_H
+
+#include <stdint.h>
+
+/* THE VERSION LITERAL APPEARS EXACTLY ONCE IN THE PROJECT'S C++ SIDE, and it
+ * is this enumerator. The C++ constant below and both accessors read it, so a
+ * version can never be half bumped. An unscoped enumerator rather than a
+ * macro because a macro has no type and no scope and a debugger cannot see
+ * it; and rather than a constexpr because this line must also be legal C. */
+enum { kFilmDatabaseSchemaVersionValue = @SCHEMA_VERSION@ };
+
+/* The C entry point, and the one a C++ caller wanting extern "C" linkage or a
+ * plain function pointer should use. `static inline` gives a checked return
+ * type where a macro would give none. */
+static inline int32_t FilmDatabaseSchemaVersion(void)
+{
+    return (int32_t)kFilmDatabaseSchemaVersionValue;
+}
+
+#ifdef __cplusplus
+
+namespace film {
+
+/// Data-model schema version, mirrored from film_profiles.SCHEMA_VERSION.
+constexpr std::int32_t kSchemaVersion =
+    static_cast<std::int32_t>(kFilmDatabaseSchemaVersionValue);
+
+/// @return The schema version of the database compiled into this header.
+///
+/// Header-only by design: a caller that linked an older database object file
+/// against a newer header would otherwise get the header's idea of the
+/// version and the object file's idea of the layout, which is the single
+/// mismatch a version check exists to catch. Being constexpr it also answers
+/// at COMPILE time, so a consumer can refuse to build against a database too
+/// old for it instead of finding out at run time:
+///
+///     static_assert(film::GetFilmDatabaseSchemaVersion() >= 44,
+///                   "this code needs the v44 antihalation carriers");
+constexpr std::int32_t GetFilmDatabaseSchemaVersion() noexcept
+{
+    return kSchemaVersion;
+}
+
+}  // namespace film
+
+#endif  /* __cplusplus */
+
+#endif  /* FILM_SCHEMA_VERSION_H */
+"""
+
+
 def generate(outdir: Path | str = ".",
              names_separator: bool = True) -> tuple[Path, Path, Path, Path]:
     """Write film_profiles.hpp and film_profiles.cpp into ``outdir``.
@@ -3473,6 +3837,11 @@ def generate(outdir: Path | str = ".",
     hpp_text = HPP_TEMPLATE.replace("@GENERATED@", stamp).replace(
         "@SCHEMA_VERSION@", str(SCHEMA_VERSION))
     hpp.write_text(hpp_text, encoding="utf-8", newline="\n")
+    schema_h = d / "film_schema_version.h"
+    schema_h.write_text(
+        SCHEMA_VERSION_H_TEMPLATE.replace("@GENERATED@", stamp).replace(
+            "@SCHEMA_VERSION@", str(SCHEMA_VERSION)),
+        encoding="utf-8", newline="\n")
 
     # -- the data slots: consecutive, size-balanced slices ------------------
     blocks = [_wrap_push_back(_profile_block(p)) for p in FILM_PROFILES]

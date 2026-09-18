@@ -161,6 +161,13 @@ ROOT = _default_root()
 #: film_display_order.txt is now the IDENTITY permutation and is kept purely as
 #: a checkable invariant; the paragraph above describes what it used to do.
 GENERATED = ("film_profiles.hpp", "film_profiles.cpp",
+             # ⚠ film_schema_version.h IS THE ONE GENERATED HEADER THAT IS
+             # VALID C AS WELL AS C++ (2026-09-18e). It holds the schema
+             # version literal and both accessors; film_profiles.hpp includes
+             # it rather than restating the number. It syncs like any other
+             # artefact -- a stale copy in the project root would be a header
+             # claiming one schema against a database built to another.
+             "film_schema_version.h",
              "film_enum.hpp", "film_names.txt", "film_display_order.txt",
              "film_id_migration.txt",
              "film_profiles_detail.hpp",

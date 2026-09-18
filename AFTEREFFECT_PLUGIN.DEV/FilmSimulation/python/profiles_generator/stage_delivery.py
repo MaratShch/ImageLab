@@ -34,12 +34,12 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CPP = Path("/root/work/tst")           # the live, editable engine tree
-OUT = Path("/root/work/deliver10")
+OUT = Path("/root/work/deliver11")
 #: ⚠ SUFFIXED. A second delivery was cut on the same day at schema v30,
 #: and two archives named for one date cannot be told apart on disk. 2026-09-17
 #: is the same case again: the 'a' set went out at schema v37 with 186 stocks,
 #: this 'b' set has 191 and the six-archive layout.
-STAMP = date.today().isoformat() + 'b'
+STAMP = date.today().isoformat()
 
 #: Generator sources: everything needed to REGENERATE the database.
 #: ⚠ NOT everything needed to run every audit. Until 2026-09-10d this tuple's
@@ -58,6 +58,11 @@ PY_GLOBS = ("*.py", "*.txt", "*.lock", "*.md")
 #: The generated database, in the layout the Visual Studio project expects.
 DB_FILES = (
     "film_profiles.hpp", "film_profiles_detail.hpp", "film_profiles.cpp",
+    # ⚠ NEW 2026-09-18e. The schema version and both of its accessors, in the
+    # one generated header that is valid C as well as C++. film_profiles.hpp
+    # includes it and restates no digits, so shipping the database without it
+    # would not compile.
+    "film_schema_version.h",
     "film_enum.hpp", "LoadFilmDataBase.h", "LoadFilmDataBase.cpp",
     "film_names.txt", "film_display_order.txt",
     # ⚠ SHIPS WITH THE DATABASE, 2026-09-08. The alphabetical re-sort moved 177
@@ -71,113 +76,172 @@ MANIFEST = """\
 SIX ARCHIVES -- {stamp}
 =======================
 
-Schema v37. 191 film stocks, 11 print stocks, 14 gauges. Verify 749 PASS / 1
-baselined FAIL, build clean, all six engine parity audits green, all 28
-translation units compiling at -Wall -Wextra with zero bytes of output.
+Schema v44. 191 film stocks, 11 print stocks, 2 colour-paper spectral records,
+14 gauges. Verify 809 PASS / 1 baselined FAIL, build clean, every engine parity
+audit green, all 28 translation units compiling at -Wall -Wextra with zero
+bytes of output.
 
-⚠⚠ A SIXTH ARCHIVE JOINS THE FIVE, AND IT IS THE ONE THAT CARRIES NO CODE
-=========================================================================
-The five production archives have always been strictly separated because the
-owner integrates each into a different place in their tree. The UI mockup and
-the two parameter PDFs are a sixth destination and were previously handed over
-outside the numbered set; they are now archive 6, on the same rule -- one
-archive, one place, never a merge.
+ONE SYNCHRONISED STATE, SIX DESTINATIONS
+========================================
+The archives are strictly separated because the owner integrates each into a
+different place: the generator into PYTHON/profile_generator, the database into
+CPP/Algorithm/FilmProfile, the two engines into CPP/Algorithm/Scalar and
+CPP/Algorithm/AVX2, the Markdown into the doc tree, and the mockup and the two
+parameter references into the UI documentation. A single archive would make
+every delivery a merge.
+
+NO TEST CODE IN ANY CODE ARCHIVE
+--------------------------------
+Owner instruction this delivery. The engine archives already excluded the
+thirteen test_*.cpp files and profall.cpp; e2e.cpp JOINS THAT LIST NOW. It is
+the whole-chain dump the Python reference is compared against -- a third entry
+point with its own main() -- and it had been shipping in archives 3 and 4 since
+the exclusion list was written, because it matches neither pattern. The Python
+archive contains no test_*.py and never has; build.py, verify.py and the parity
+harnesses stay, because they are the build gate rather than tests of it.
 
 WHAT CHANGED IN THIS DELIVERY
 =============================
 
-FIVE NEW FILM STOCKS AND ONE FROM EARLIER THE SAME DAY: 186 -> 191
-------------------------------------------------------------------
-185  EASTMAN_5293_250T_1982   the 1982 EI 250T emulsion, beside the 1992 EXR
-                              200T film that reuses the catalogue number.
-                              Traced from Kennel, Sehlin et al., SMPTE J.
-                              91(10) 1982, 922-930: characteristic curves,
-                              spectral sensitivity, spectral dye density,
-                              push-1 sensitometry, MTF and granularity, each
-                              cross-checked against the paper's own stated
-                              numbers on every build.
-186-190  the five 1956 Kodak sheet emulsions -- SUPER PANCHRO-PRESS TYPE B,
-                              PORTRAIT PANCHROMATIC, ROYAL ORTHO, SUPER SPEED
-                              ORTHO PORTRAIT and COMMERCIAL. Every number they
-                              carry had been read before today; what was
-                              missing was a reader for the two blockers.
+TWENTY-TWO QUEUE ROWS CLOSED, NONE OPENED: THE LIVE SET FALLS 32 -> 11
+----------------------------------------------------------------------
+P11 P17 P18 P33 P35 P36 P45 P51 P52 P53 P54 P56 P66 P68, then M1a P12 P13 P14
+P39 P40 P41, then P73 -- opened and closed the same day on four patents the
+owner supplied. Not one document was acquired for the first twenty-one; they
+closed on carriers built, defects found and refusals recorded.
 
-THREE SCHEMA VERSIONS: v34 -> v37
----------------------------------
-v35  DyeStabilitySpec reaches camera negatives, and AlgoControls gains
-     storageYears. A published time to a 10 % dye loss becomes a state through
-     f(t) = 1 - 0.9^(t/T) -- not fitted, and exactly 0.10 at t = T. ONLY THE
-     DYE THE SOURCE NAMES IS FADED, because the differential between dyes IS
-     the effect. Populated on 3 of 191 stocks; inert on the other 188 at any
-     age.
-v36  ProcessingFamily.reference_developer / reference_dilution. The field
-     exists because a stock LOST a control by GAINING data: SUPER-XX PAN came
-     out of the P61 harvest with 17 DK-50 points against 17 DK-60a, and
-     development_family refuses a tie by design.
-v37  ProcessVariant.variant_id -- the database half of the enumeration below.
+FOUR SCHEMA VERSIONS: v40 -> v44
+--------------------------------
+v41  MTFSpec gains a LENS-REGIME resolving-power pair; DevelopmentLaw makes a
+     ProcessingFamily hold a fitted gamma(t) per developer AND vessel;
+     DyeImpurityRatio.quantity says what a ratio is a ratio OF; FilmProfile
+     gains a daylight exposure index and both conversion filters.
+v42  COLOUR PAPER STOPS BEING AN EMPTY CLASS. PaperSpectralRecord and
+     PAPER_SPECTRA carry the Fujicolor Crystal Archive spectral dye density and
+     spectral sensitivity panels -- TWO records covering THREE products,
+     because the Supreme and Type CA bulletins publish byte-identical artwork
+     and one measurement must be stored once. "reflection" joins
+     _DENSITY_GEOMETRIES. No paper PROFILE was built: none of the three
+     bulletins prints a characteristic curve, and four real spectral curves
+     hung off an invented tone curve would look complete and be wrong.
+v43  Six carriers. The GOST speed criteria become an EDITION-keyed table with
+     9160-82 present and empty, because nobody has read it; the magenta
+     light-fade default becomes coupler-keyed, because the ranking INVERTS
+     between the 1950s and 1980s chemistries; SubLayerSet gives a colour record
+     the offset sub-layers EP 0 083 377 A1 describes AND the law that sums
+     them; PrintStock.reader_is_emulsion answers which stocks may serve as
+     stage 12's M_reader; the NIKFI speed scale gets a carrier with NO
+     conversion invented; and both Iofis 1981 summary tables are transcribed.
+v44  THE 1931-1969 ANTIHALATION PATENT CHAIN. See below.
 
-THE PROCESS VARIANT CONTROL IS NO LONGER AN INDEX
---------------------------------------------------
-AlgoControls::processVariant was an int32_t position in whichever stock
-happened to be loaded, so the stored value 2 named "RODINAL 1+50" on an
-AGFAPAN, "ECN-2, the base stock's native process" on CINESTILL 800T and
-"EI 3200 (Push 2)" on PORTRA 800. Every one of them was in range, so no test
-could tell a stale project from a correct one, and inserting a variant
-re-pointed every saved selection in silence.
+THE FOUR PATENTS, AND WHAT THEY SETTLED
+---------------------------------------
+US 1,908,527 (McMaster, Eastman Kodak, 1933) - US 2,182,794 (Dawson, Du Pont,
+1939) - US 2,481,770 (Nadeau, Eastman Kodak, 1949) - US 3,445,231 (Nishio et
+al., Fuji, 1969). A chain, not four opinions: the Fuji patent cites the Du Pont
+one.
 
-It is now ProcessVariantCtrl, a global enumeration in AlgoControlEnums.hpp,
-which is the single authority for three lists that must be one list: the
-enumerators, the pipe-separated ListBox strings, and the database keys the
-resolver matches. Three static_asserts refuse to compile if the three ever
-differ in length, and four verify.py guards bind the header, the generated
-Python mirror, the database and every stamped variant_id together.
+1. AntiHalationSpec.position is a PHYSICAL SYSTEM, not a label. A BACKING is
+   capped at 0.10-0.30 D -- two Kodak patents eighteen years apart give the
+   same reason, that positives are printed THROUGH it -- where an in-path
+   absorber runs to 2.0 D. The bands do not overlap and ah_od_band_for()
+   refuses every position the chain does not cover.
+2. The Fuji patent states in prose the reason P71 made halation_gain_from_od
+   refuse position == "backing": "the presence of a comparatively thick support
+   layer between the light-sensitive layer and the anti-halation layer reduces
+   the anti-halation effect of the layer itself."
+3. THE FIRST QUANTITATIVE HALATION MEASUREMENT IN THE CORPUS. Halation latitude
+   1.15 bare, 1.56 with a low-index sublayer alone, 1.65 / 1.74 / 1.81 as a
+   0.07 / 0.099 / 0.1 D dye backing is added, 2.0-2.25 for an ordinary backing.
+   The spatial model can now be CHECKED, not only fitted.
+4. A SECOND CRITICAL ANGLE. base_fresnel() gives the base/air one the radii are
+   derived from; emulsion_side_critical_angle() adds the emulsion/sublayer one
+   -- 71.5 degrees at the patent's minimum 0.08 index break against acetate's
+   42.5. It answers None for every stock here, which is honest: an ordinary
+   gelatin subbing has the emulsion's own index.
+5. The first measured SPEED COST of an in-pack antihalation layer: 50 per cent
+   unmordanted against 20 per cent mordanted.
+6. _V34_BASE_OPTICS gains a "nitrate" row at the measured 1.498 -- the support
+   every 1930s stock in this database was actually coated on -- and the same
+   1949 table corroborates the acetate index in use to 0.07 per cent.
 
-⚠ TOTAL_PROCESSES IS THE LAST ENUMERATOR AND THE COUNT (21). It sizes the
-string table and bounds the range check and is NEVER a selectable item. A
-value outside [0, TOTAL_PROCESSES), or one the selected stock does not offer,
-resolves to eAS_SHIPPED rather than being clamped: a stale preset should render
-the stock as shipped, not render some other development in its place.
+No band was written onto a profile. 30 stocks name an antihalation position and
+none carries an optical density; a midpoint stamped on nineteen backing stocks
+would be nineteen inventions.
 
-FIVE QUEUE ROWS CLOSED
-----------------------
-P61  the 1956 time-gamma insets: 13 curves, 189 points, four stocks, six
-     developer conditions new to the corpus.
-P62  the thirty 1956 wedge spectrograms. The reader is validated on Kodak's own
-     page-12 three-class reference stack (490 / 587 / 655 nm in that order)
-     before any data-sheet plate is believed, and the vertical scale Kodak
-     never published is recovered from the CIE 1924 V(lambda) curve drawn on
-     that same plate.
-P63  the five sheet emulsions above. 26 characteristic curves traced, checked
-     against the gamma Kodak letters beside each one: 23 of 26 within 3.9 %,
-     three pinned as refusals rather than covered by a wider tolerance.
-P64  the dark-storage control: AlgoStorageAge.hpp turns the published rate into
-     a state. Its second half -- a storage TEMPERATURE -- is refused, because
-     three published temperatures do not define a continuous law.
-P65  the 1938 Kodak Research Laboratories speed scale converts at exactly 4.00
-     on two independently rated panchromatic films and at 1.60 on the one
-     non-colour-sensitive film, so the conversion is adopted for panchromatic
-     sheet film only and the third ratio is recorded as a refusal.
+THIRTEEN STOCKS' RENDERED OUTPUT CHANGED, AND IT IS A CORRECTION
+-----------------------------------------------------------------
+Queue P51 pointed verify.py's overshoot probe at mtf_kernel_response -- the
+kernel the engine actually convolves -- instead of the analytic law nothing
+applies. Ten of the thirteen A4/T2 stocks then stopped reproducing their own
+datasheets, because their adjacency had been fitted to the law. All thirteen
+were re-solved against the kernel and every one is back on its printed
+overshoot in both height and peak frequency. The corrections are small; the
+largest is 5217, amplitude 0.151 -> 0.189.
 
-The live queue goes 43 -> 39 rows.
+Two MTF values moved with a better-calibrated axis: KODAK TECHNICAL PAN f50
+72.3 -> 73.09 (the digit bank learned two more abscissa labels, so the log fit
+runs on eleven printed labels instead of nine) and the T-MAX 400 reading was
+restored to 98.7 after a bank addition briefly degraded it.
 
-THE SIX ARCHIVES
-================
-  1  python_generator     the generator and its audits. NO C++ AT ALL.
-  2  generated_database   include/ + src/, the layout the VS project expects.
-  3  algorithm_scalar     include/ + src/, the double build.
-  4  algorithm_avx2       include/ + src/, the float build.
-  5  documentation_md     the whole doc/ tree.
-  6  ui_mockup_and_pdf    the HTML control-surface mockup and the two parameter
-                          references. No source, no database, no Markdown.
+EVERY ENUMERATED CONTROL VALUE NOW STARTS AT ZERO
+-------------------------------------------------
+Owner requirement. ProcessVariantCtrl::eAS_SHIPPED was -1 and is 0; the
+twenty-one developments run 1-21 and TOTAL_PROCESSES is 22. It was the only
+negative enumerator in AlgoControl's enums; FilmFormatCtrl and PrintStockCtrl
+already started at zero.
 
-⚠ NO TEST SOURCE IN ANY OF THE SIX -- the test translation units, profall.cpp
-and the two harnesses are in the separate optional archive. The .txt files ship
-inside include/ in archives 3 and 4.
+NOTHING BEHAVIOURAL CHANGED and the mechanism is worth stating: the inertness
+of "as shipped" was never the range test, it is the EMPTY DATABASE KEY at entry
+0 of ProcessVariantCtrlKey. Both resolvers look that key up in the selected
+stock's own process_variants, find nothing and return the shipped profile --
+exactly what the out-of-range sentinel did. A static_assert now pins that entry
+empty so a future edit cannot make index 0 select a development.
 
-⚠ THE TWO ENGINE ARCHIVES ARE NEVER MERGED. Scalar computes in double and AVX2
-in float; they are two files carrying one law, and the parity audits compile
-BOTH and compare each to the Python reference, which is what makes keeping them
-separate safe rather than merely tidy.
+⚠ A PRESET SAVED BEFORE THE CHANGE STORES DIFFERENT NUMBERS. -1 is no longer
+legal and takes the same inert path; every other stored value is one LESS than
+its new one, so a host migrating old presets adds one.
+
+The float sentinels are NOT enumerations and are unchanged: flare, vignette,
+developmentMinutes and developmentCelsius still default to -1.0 meaning "use
+the stock's own value", because 0 is a legal value for each of them.
+
+A C/C++ SCHEMA-VERSION API, IN A HEADER C CAN ACTUALLY INCLUDE
+---------------------------------------------------------------
+New generated file: film_schema_version.h, in archive 2 and synced to the
+project root.
+
+  enum {{ kFilmDatabaseSchemaVersionValue = 44 }};          /* the one literal */
+  static inline int32_t FilmDatabaseSchemaVersion(void);  /* C and C++ */
+  constexpr std::int32_t film::GetFilmDatabaseSchemaVersion() noexcept;
+
+⚠ IT IS A SEPARATE HEADER ON PURPOSE. The request was for the API to live in
+the generated database headers, and in film_profiles.hpp it could not be
+C-callable at all: that header is C++ throughout -- <array>, <string>,
+<vector>, classes, namespaces -- so a C translation unit cannot include it, and
+an API a C compiler can never reach is not a C-compatible API. The new header
+includes <stdint.h> and nothing else, compiles clean as C99 and as C++, and
+film_profiles.hpp includes it rather than restating the number. THE VERSION
+LITERAL APPEARS EXACTLY ONCE. Being constexpr, the C++ accessor also answers at
+compile time, so a consumer can static_assert against it.
+
+DOCUMENTATION
+-------------
+All eight named documents were reviewed rather than appended to.
+PROJECT_STATE.md, FilmActiveProfiles.md, FilmCurves.md and FilmControlMatrix.md
+are regenerated from the live module on every build, so they cannot drift.
+DIGITIZATION_QUEUE.md, NotFound.md and PROGRESS.md carry the closures and the
+corrections. Both FilmDatabase_Charecteristics documents had a header claiming
+schema v34 and 184 stocks -- three weeks and ten versions stale -- which is
+CORRECTED rather than annotated, and both gain a section D.14 covering v41-v44.
+
+WHAT IS STILL OPEN
+------------------
+Eleven queue rows, and every one is blocked outside this project:
+C14 F1 K5 K6 M1b P19 P20 P38 need a document nobody here has (K5, K6 and M1b
+are proved absent; P20 is paywalled; P19 needs J-PlatPat PDFs); D1, D2a and D2b
+need scans only the owner can make. The one baselined verify failure is
+unchanged and is documented where it is asserted.
 """
 
 
@@ -200,7 +264,14 @@ def _is_test_source(name: str) -> bool:
     it, which is why this is a function rather than a `startswith` at the
     call site.
     """
-    return name.startswith("test_") or name == "profall.cpp"
+    # ⚠ `e2e.cpp` JOINED THE LIST ON 2026-09-18e. It is the whole-chain dump
+    # the Python reference is compared against -- a third entry point with its
+    # own `main`, writing /tmp/e2e_cpp.bin -- and it had been shipping inside
+    # both engine archives since the list was written, because it matches
+    # neither `test_` nor `profall.cpp`. The owner's instruction this delivery
+    # is that no test code appears in the C++ or Python packages at all.
+    return (name.startswith("test_")
+            or name in ("profall.cpp", "e2e.cpp"))
 
 
 def stage_engine(kind: str) -> Path:
@@ -218,7 +289,14 @@ def stage_engine(kind: str) -> Path:
         shutil.rmtree(dst)
     (dst / "include").mkdir(parents=True)
     (dst / "src").mkdir(parents=True)
+    # ⚠ film_schema_version.h JOINS THE SKIP SET ON 2026-09-18e for the same
+    # reason every other name here is on it: it is the DATABASE's header and
+    # ships in archive 2. film_profiles.hpp includes it, so an engine building
+    # against archive 2 has it; a second copy inside archives 3 and 4 would be
+    # two files carrying one version literal, which is the one thing that
+    # header exists to prevent.
     skip = {"film_profiles.hpp", "film_profiles_detail.hpp", "film_enum.hpp",
+            "film_schema_version.h",
             "LoadFilmDataBase.h", "LoadFilmDataBase.cpp", "film_profiles.cpp"}
     for p in sorted(CPP.iterdir()):
         if not p.is_file() or p.name in skip:
@@ -287,6 +365,16 @@ def main() -> int:
     # convenience was the exception; the separation is the rule.
     py = [p for g in PY_GLOBS for p in HERE.glob(g)]
     py = [p for p in dict.fromkeys(py) if p.is_file()]
+    # ⚠ AND NO TEST APPARATUS ON THE PYTHON SIDE EITHER, 2026-09-18e. There
+    # are no test_*.py modules in this generator and never have been, but
+    # `make_test_chart.py` writes the synthetic ramp-and-disc frame the engines
+    # are rendered against. It is testing apparatus rather than a generator
+    # source, and the owner's instruction this delivery admits no test code in
+    # the Python package. `build.py`, `verify.py` and the parity harnesses
+    # stay: they are the build GATE, invoked by build.py itself, and removing
+    # them would ship a generator that cannot check its own output.
+    py = [p for p in py
+          if not (p.name.startswith("test_") or p.name == "make_test_chart.py")]
     _cxx = [p for p in py if p.suffix in (".cpp", ".hpp", ".h", ".hxx", ".cc")]
     if _cxx:
         raise RuntimeError(
@@ -354,7 +442,7 @@ def main() -> int:
     # rendered output and the mockup it describes.
     ui = Path("/root/work/ui")
     ui_files = [ui / n for n in
-                ("FilmSimulator_Mockup_v4.html",
+                ("FilmSimulator_Mockup_v5.html",
                  "FilmSimulation_EffectControls_EN.pdf",
                  "FilmSimulation_EffectControls_RU.pdf",
                  "README.txt")]

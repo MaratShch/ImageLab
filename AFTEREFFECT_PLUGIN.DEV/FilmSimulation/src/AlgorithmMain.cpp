@@ -510,6 +510,7 @@ void Algorithm_Main
     const film::FilmProfile& profileDeveloped =
         AlgoResolveDevelopmentTime(profileVariant,
                                    algoCtrl.developmentMinutes,
+                                   algoCtrl.developmentCelsius,
                                    developStore);
 
     // -----------------------------------------------------------------------

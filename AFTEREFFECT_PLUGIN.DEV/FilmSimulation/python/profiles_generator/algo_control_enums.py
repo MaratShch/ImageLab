@@ -73,29 +73,29 @@ class ProcessVariantCtrl(IntEnum):
     """A DEVELOPMENT, globally. eAS_SHIPPED is the absence of a
     selection and TOTAL_PROCESSES is a count; neither is selectable."""
 
-    eAS_SHIPPED = -1
-    eAGFA_REFINAL = 0
-    eAGFA_RODINAL_1_25 = 1
-    eAGFA_RODINAL_1_50 = 2
-    eAGFA_RODINAL_SPECIAL = 3
-    eAGFA_STUDIONAL_LIQUID = 4
-    eCINESTILL_C41_AS_SHIPPED = 5
-    eCINESTILL_CS2_TWO_BATH = 6
-    eCINESTILL_ECN2_NATIVE = 7
-    eGEVACHROME_23DIN_160ASA = 8
-    eGEVACHROME_26DIN_320ASA = 9
-    ePORTRA800_EI800 = 10
-    ePORTRA800_EI1600_PUSH1 = 11
-    ePORTRA800_EI3200_PUSH2 = 12
-    eULTRA400UC_EI400_E4035 = 13
-    eULTRA400UC_EI400_E190 = 14
-    eULTRA400UC_EI800_E4035 = 15
-    eULTRA400UC_EI800_E190 = 16
-    eANSCOCHROME_A_14MIN_EI80 = 17
-    eANSCOCHROME_B_16MIN_EI100 = 18
-    eANSCOCHROME_C_19MIN_EI150 = 19
-    eANSCOCHROME_D_22MIN_EI200 = 20
-    TOTAL_PROCESSES = 21
+    eAS_SHIPPED = 0
+    eAGFA_REFINAL = 1
+    eAGFA_RODINAL_1_25 = 2
+    eAGFA_RODINAL_1_50 = 3
+    eAGFA_RODINAL_SPECIAL = 4
+    eAGFA_STUDIONAL_LIQUID = 5
+    eCINESTILL_C41_AS_SHIPPED = 6
+    eCINESTILL_CS2_TWO_BATH = 7
+    eCINESTILL_ECN2_NATIVE = 8
+    eGEVACHROME_23DIN_160ASA = 9
+    eGEVACHROME_26DIN_320ASA = 10
+    ePORTRA800_EI800 = 11
+    ePORTRA800_EI1600_PUSH1 = 12
+    ePORTRA800_EI3200_PUSH2 = 13
+    eULTRA400UC_EI400_E4035 = 14
+    eULTRA400UC_EI400_E190 = 15
+    eULTRA400UC_EI800_E4035 = 16
+    eULTRA400UC_EI800_E190 = 17
+    eANSCOCHROME_A_14MIN_EI80 = 18
+    eANSCOCHROME_B_16MIN_EI100 = 19
+    eANSCOCHROME_C_19MIN_EI150 = 20
+    eANSCOCHROME_D_22MIN_EI200 = 21
+    TOTAL_PROCESSES = 22
 
     @property
     def key(self) -> str:
@@ -175,51 +175,53 @@ PRINT_STOCK_LABEL: dict[int, str] = {
 }
 
 PROCESS_VARIANT_KEY: dict[int, str] = {
-    0: 'AGFA_REFINAL',
-    1: 'AGFA_RODINAL_1_25',
-    2: 'AGFA_RODINAL_1_50',
-    3: 'AGFA_RODINAL_SPECIAL',
-    4: 'AGFA_STUDIONAL_LIQUID',
-    5: 'CINESTILL_C41_AS_SHIPPED',
-    6: 'CINESTILL_CS2_TWO_BATH',
-    7: 'CINESTILL_ECN2_NATIVE',
-    8: 'GEVACHROME_23DIN_160ASA',
-    9: 'GEVACHROME_26DIN_320ASA',
-    10: 'PORTRA800_EI800',
-    11: 'PORTRA800_EI1600_PUSH1',
-    12: 'PORTRA800_EI3200_PUSH2',
-    13: 'ULTRA400UC_EI400_E4035',
-    14: 'ULTRA400UC_EI400_E190',
-    15: 'ULTRA400UC_EI800_E4035',
-    16: 'ULTRA400UC_EI800_E190',
-    17: 'ANSCOCHROME_A_14MIN_EI80',
-    18: 'ANSCOCHROME_B_16MIN_EI100',
-    19: 'ANSCOCHROME_C_19MIN_EI150',
-    20: 'ANSCOCHROME_D_22MIN_EI200',
+    0: '',
+    1: 'AGFA_REFINAL',
+    2: 'AGFA_RODINAL_1_25',
+    3: 'AGFA_RODINAL_1_50',
+    4: 'AGFA_RODINAL_SPECIAL',
+    5: 'AGFA_STUDIONAL_LIQUID',
+    6: 'CINESTILL_C41_AS_SHIPPED',
+    7: 'CINESTILL_CS2_TWO_BATH',
+    8: 'CINESTILL_ECN2_NATIVE',
+    9: 'GEVACHROME_23DIN_160ASA',
+    10: 'GEVACHROME_26DIN_320ASA',
+    11: 'PORTRA800_EI800',
+    12: 'PORTRA800_EI1600_PUSH1',
+    13: 'PORTRA800_EI3200_PUSH2',
+    14: 'ULTRA400UC_EI400_E4035',
+    15: 'ULTRA400UC_EI400_E190',
+    16: 'ULTRA400UC_EI800_E4035',
+    17: 'ULTRA400UC_EI800_E190',
+    18: 'ANSCOCHROME_A_14MIN_EI80',
+    19: 'ANSCOCHROME_B_16MIN_EI100',
+    20: 'ANSCOCHROME_C_19MIN_EI150',
+    21: 'ANSCOCHROME_D_22MIN_EI200',
 }
 
 PROCESS_VARIANT_LABEL: dict[int, str] = {
-    0: 'REFINAL',
-    1: 'RODINAL 1+25',
-    2: 'RODINAL 1+50',
-    3: 'RODINAL SPECIAL',
-    4: 'STUDIONAL LIQUID',
-    5: 'C-41 cross-process, as shipped',
-    6: 'Cs2 two-bath kit',
-    7: "ECN-2, the base stock's native process",
-    8: '23 DIN / 160 ASA (box speed)',
-    9: '26 DIN / 320 ASA (push 1)',
-    10: 'EI 800 (box speed)',
-    11: 'EI 1600 (Push 1)',
-    12: 'EI 3200 (Push 2)',
-    13: 'EI 400 (box speed) -- E-4035',
-    14: 'EI 400 (box speed) -- E-190 (2003)',
-    15: 'EI 800 (Push 1) -- E-4035',
-    16: 'EI 800 (Push 1) -- E-190 (2003)',
-    17: 'A -- 14 min first developer, EI 80',
-    18: 'B -- 16 min first developer, EI 100',
-    19: 'C -- 19 min first developer, EI 150',
-    20: 'D -- 22 min first developer, EI 200',
+    0: 'As shipped',
+    1: 'REFINAL',
+    2: 'RODINAL 1+25',
+    3: 'RODINAL 1+50',
+    4: 'RODINAL SPECIAL',
+    5: 'STUDIONAL LIQUID',
+    6: 'C-41 cross-process, as shipped',
+    7: 'Cs2 two-bath kit',
+    8: "ECN-2, the base stock's native process",
+    9: '23 DIN / 160 ASA (box speed)',
+    10: '26 DIN / 320 ASA (push 1)',
+    11: 'EI 800 (box speed)',
+    12: 'EI 1600 (Push 1)',
+    13: 'EI 3200 (Push 2)',
+    14: 'EI 400 (box speed) -- E-4035',
+    15: 'EI 400 (box speed) -- E-190 (2003)',
+    16: 'EI 800 (Push 1) -- E-4035',
+    17: 'EI 800 (Push 1) -- E-190 (2003)',
+    18: 'A -- 14 min first developer, EI 80',
+    19: 'B -- 16 min first developer, EI 100',
+    20: 'C -- 19 min first developer, EI 150',
+    21: 'D -- 22 min first developer, EI 200',
 }
 
 
@@ -231,7 +233,7 @@ PROCESS_VARIANT_LABEL: dict[int, str] = {
 # them -- so they describe where the model is meaningful, not where it is
 # guarded. See the header for which bounds are enforced and at which stage.
 
-ProcessVariantCtrlCount = 21
+ProcessVariantCtrlCount = 22
 ExposureStopsMin = -4.0
 ExposureStopsMax = 4.0
 ExposureStopsDef = 0.0

@@ -128,13 +128,14 @@ def render(header: Path) -> str:
     # The TOTAL sentinels are a C++ counting idiom and are not selectable.
     fmt_sel = [(n, v) for n, v in fmt if not n.endswith("TOTAL_FORMATS")]
     prn_sel = [(n, v) for n, v in prn if not n.endswith("PRINT_STOCK_TOTAL")]
-    # \u26a0 THE SENTINEL AND THE COUNT ARE BOTH DROPPED HERE, and for different
-    # reasons. eAS_SHIPPED is the ABSENCE of a selection, so it has no key and
-    # no list-box entry; TOTAL_PROCESSES is a COUNT, so it has neither either.
-    # The three tables below must be index aligned over the real developments
-    # and nothing else, which is exactly what this guard checks.
-    pvr_sel = [(n, v) for n, v in pvr
-               if n != "TOTAL_PROCESSES" and not n.endswith("eAS_SHIPPED")]
+    # \u26a0 ONLY THE COUNT IS DROPPED HERE SINCE THE 2026-09-18e REBASE. It
+    # used to drop eAS_SHIPPED too, on the grounds that the sentinel had no key
+    # and no list-box entry. It is no longer a sentinel: it is enumerator ZERO,
+    # it IS the first list-box entry, and it carries an EMPTY key -- so it takes
+    # part in the index alignment like every other value and dropping it would
+    # shift the other twenty-one by one. TOTAL_PROCESSES is still a COUNT and
+    # still has neither a key nor a label.
+    pvr_sel = [(n, v) for n, v in pvr if n != "TOTAL_PROCESSES"]
     for what, sel, keys, lbls in (
         ("film format", fmt_sel, fmt_keys, fmt_lbls),
         ("print stock", prn_sel, prn_keys, prn_lbls),

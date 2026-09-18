@@ -195,6 +195,33 @@ bool AlgoSpectralHasCurves (const film::FilmProfile& profile) noexcept;
 
 
 // ---------------------------------------------------------------------------
+//  AlgoSpectralHasFourthLayer / AlgoSpectralFourthLayerPeakNm
+//
+//  Whether this profile carries the CYAN-SENSITIVE FOURTH LAYER, and where it
+//  peaks. Schema v39, queue S1.
+//
+//  \warning THE FOURTH RECORD IS READ BUT NOT INTEGRATED, AND THAT IS A
+//  DECISION AND NOT AN OMISSION. Fuji's "4th Colour Layer" is a fourth
+//  SENSITIVE layer feeding the same three dyes, not a fourth dye. Every
+//  integrating function in this file sums three records against an illuminant
+//  and divides by a three-record normalisation; handing it a fourth would
+//  change what "record" means to every caller. What v39 buys is that the
+//  measurement is inside the database and reachable, instead of living only
+//  in doc/FUJI_FOURTH_LAYER.md.
+//
+//  Five of 191 stocks publish it. Its peak lands at 516-519 nm on all four
+//  vector sheets, which is BETWEEN the blue and green records -- the reason
+//  no positional rule can find it and it is separated by dash pattern.
+//
+//  Returns 0.0 for the peak when the profile carries no fourth record.
+// ---------------------------------------------------------------------------
+bool AlgoSpectralHasFourthLayer (const film::FilmProfile& profile) noexcept;
+
+double AlgoSpectralFourthLayerPeakNm
+    (const film::FilmProfile& profile) noexcept;
+
+
+// ---------------------------------------------------------------------------
 //  AlgoSpectralBalanceGains
 //
 //  Colour-temperature gains computed from the MEASURED curves.

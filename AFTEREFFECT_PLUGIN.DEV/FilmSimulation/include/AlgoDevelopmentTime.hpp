@@ -1,5 +1,9 @@
 #pragma once
 
+#include <cmath>
+#include <cstddef>
+#include <vector>
+
 // ---------------------------------------------------------------------------
 //  AlgoDevelopmentTime.hpp
 //
@@ -380,15 +384,93 @@ inline HighPrecType AlgoDevelopmentGammaScale
 //  makes for ProcessVariant::gamma_scale, made here for the same reason and
 //  stated in both files so they cannot drift apart. dmin is NOT touched.
 // ---------------------------------------------------------------------------
+//  DEVELOPMENT TEMPERATURE, added 2026-09-17d (schema v39)
+//  ------------------------------------------------------
+//  AlgoControl.hpp's developmentCelsius block stated its own blocker: "time-
+//  temperature equivalence charts DO exist for real developers, but none has
+//  been adopted here, and substituting a published chart from another
+//  developer would be an invented effect". One is adopted now, and it is not
+//  borrowed - ProcessingFamily::temperature_coeff_per_c is fitted to each
+//  stock's OWN points, 179 series across 11 stocks, and is zero on every
+//  stock whose family holds one temperature.
+//
+//  The law is d ln(t)/dT at CONSTANT CONTRAST, so it converts a requested
+//  (time, temperature) into the time at the family's own reference
+//  temperature that develops to the same gamma:
+//
+//      t_equiv = t * exp(coeff * (T_ref - T))
+//
+//  and the existing time-gamma family then reads that equivalent time. The
+//  reference temperature is the one the family's own points were measured at
+//  most often, which is what AlgoDevelopmentRefCelsius returns.
+//
+//  \warning INERT UNLESS BOTH CONTROLS MOVE. celsius < 0 is the sentinel, and
+//  a stock with no fitted coefficient takes the identity path, so every render
+//  before v39 is reproduced bit for bit.
+inline HighPrecType AlgoDevelopmentRefCelsius
+(
+    const film::FilmProfile& base
+) noexcept
+{
+    const std::vector<film::DevelopmentPoint>& pts =
+        base.processing_family.points;
+    if (base.processing.celsius > 0.0)
+        return static_cast<HighPrecType>(base.processing.celsius);
+
+    HighPrecType best = static_cast<HighPrecType>(0);
+    std::size_t bestN = 0;
+    for (std::size_t i = 0; i < pts.size(); ++i)
+    {
+        if (pts[i].celsius <= 0.0) continue;
+        std::size_t n = 0;
+        for (std::size_t j = 0; j < pts.size(); ++j)
+            if (pts[j].celsius == pts[i].celsius) ++n;
+        if (n > bestN)
+        {
+            bestN = n;
+            best  = static_cast<HighPrecType>(pts[i].celsius);
+        }
+    }
+    return best;
+}
+
+//  The requested time, restated at the family's reference temperature.
+//  Returns `minutes` unchanged on every inert path.
+inline HighPrecType AlgoDevelopmentEquivalentMinutes
+(
+    const film::FilmProfile& base,
+    const HighPrecType       minutes,
+    const HighPrecType       celsius
+) noexcept
+{
+    const HighPrecType c = static_cast<HighPrecType>(
+        base.processing_family.temperature_coeff_per_c);
+
+    if (minutes <= static_cast<HighPrecType>(0)) return minutes;
+    if (celsius <= static_cast<HighPrecType>(0)) return minutes;
+    if (c >= static_cast<HighPrecType>(0))       return minutes;
+
+    const HighPrecType ref = AlgoDevelopmentRefCelsius(base);
+    if (ref <= static_cast<HighPrecType>(0))     return minutes;
+    if (ref == celsius)                          return minutes;
+
+    return minutes * std::exp(c * (ref - celsius));
+}
+
 inline const film::FilmProfile& AlgoResolveDevelopmentTime
 (
     const film::FilmProfile& base,
     const double             minutes,
+    const double             celsius,
     film::FilmProfile&       store
 ) noexcept
 {
-    const HighPrecType k =
-        AlgoDevelopmentGammaScale(base, static_cast<HighPrecType>(minutes));
+    const HighPrecType t = AlgoDevelopmentEquivalentMinutes(
+        base,
+        static_cast<HighPrecType>(minutes),
+        static_cast<HighPrecType>(celsius));
+
+    const HighPrecType k = AlgoDevelopmentGammaScale(base, t);
 
     if (k == static_cast<HighPrecType>(1))
         return base;

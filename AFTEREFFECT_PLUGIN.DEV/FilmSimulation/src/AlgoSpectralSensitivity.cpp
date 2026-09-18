@@ -342,6 +342,32 @@ bool AlgoSpectralHasCurves (const film::FilmProfile& profile) noexcept
 
 
 // ---------------------------------------------------------------------------
+bool AlgoSpectralHasFourthLayer (const film::FilmProfile& profile) noexcept
+{
+    return profile.spectral.hasFourthLayer();
+}
+
+
+// ---------------------------------------------------------------------------
+double AlgoSpectralFourthLayerPeakNm
+(
+    const film::FilmProfile& profile
+) noexcept
+{
+    const std::vector<double>& c = profile.spectral.log_s_c;
+    if (c.empty())
+        return 0.0;
+
+    std::size_t best = 0;
+    for (std::size_t i = 1; i < c.size(); ++i)
+        if (c[i] > c[best]) best = i;
+
+    return profile.spectral.lambda_start_nm
+         + profile.spectral.lambda_step_nm * static_cast<double>(best);
+}
+
+
+// ---------------------------------------------------------------------------
 bool AlgoSpectralBalanceGains
 (
     const film::FilmProfile& profile,

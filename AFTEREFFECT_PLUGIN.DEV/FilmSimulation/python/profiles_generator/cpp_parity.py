@@ -931,7 +931,7 @@ int main()
 
         film::FilmProfile store;
         const film::FilmProfile& out =
-            AlgoResolveDevelopmentTime(*p, r.minutes, store);
+            AlgoResolveDevelopmentTime(*p, r.minutes, -1.0, store);
 
         const int copied = (&out == p) ? 0 : 1;
 

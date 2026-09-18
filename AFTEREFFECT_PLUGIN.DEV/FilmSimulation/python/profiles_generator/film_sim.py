@@ -1606,7 +1606,53 @@ def development_gamma_scale(profile, minutes: float) -> float:
     return at(minutes) / g_ref
 
 
-def resolve_development_time(profile, minutes: float):
+def development_ref_celsius(profile) -> float:
+    """The temperature the family's own points were measured at most often.
+
+    `ProcessingSpec.celsius` wins when the source states one; otherwise the
+    modal temperature of the family, which is what an equal-contrast table's
+    own reference column is.
+    """
+    fam = getattr(profile, 'processing_family', None)
+    spec = getattr(profile, 'processing', None)
+    if spec is not None and getattr(spec, 'celsius', 0.0) > 0.0:
+        return float(spec.celsius)
+    if fam is None or not fam.points:
+        return 0.0
+    counts: dict[float, int] = {}
+    for q in fam.points:
+        if q.celsius > 0.0:
+            counts[q.celsius] = counts.get(q.celsius, 0) + 1
+    if not counts:
+        return 0.0
+    return float(max(counts.items(), key=lambda kv: (kv[1], -kv[0]))[0])
+
+
+def development_equivalent_minutes(profile, minutes: float,
+                                   celsius: float) -> float:
+    """`minutes` at `celsius`, restated at the family's reference temperature.
+
+    ⚠ THE LAW IS THE STOCK'S OWN. `ProcessingFamily.temperature_coeff_per_c`
+    is fitted to that stock's points and is 0.0 wherever the family holds one
+    temperature, so this returns `minutes` unchanged on every stock that has
+    no measured slope. It never substitutes the population median, because the
+    eleven fitted stocks span x0.33 to x0.50 of the time per +10 degC and a
+    middle value would be wrong for both ends by a quarter of the effect.
+    """
+    import math
+    fam = getattr(profile, 'processing_family', None)
+    if fam is None or minutes <= 0.0 or celsius <= 0.0:
+        return minutes
+    c = float(getattr(fam, 'temperature_coeff_per_c', 0.0) or 0.0)
+    if c >= 0.0:
+        return minutes
+    ref = development_ref_celsius(profile)
+    if ref <= 0.0 or ref == celsius:
+        return minutes
+    return minutes * math.exp(c * (ref - celsius))
+
+
+def resolve_development_time(profile, minutes: float, celsius: float = -1.0):
     """The profile as a chosen DEVELOPMENT TIME renders it (queue P61b).
 
     Returns `profile` itself on the sentinel path, so the identity test that
@@ -1619,7 +1665,8 @@ def resolve_development_time(profile, minutes: float):
     `DevelopmentPoint.base_fog` exists to hold it, but it is populated on one
     stock in the database and a relation fitted to one stock is not a relation.
     """
-    k = development_gamma_scale(profile, minutes)
+    k = development_gamma_scale(
+        profile, development_equivalent_minutes(profile, minutes, celsius))
     if k == 1.0:
         return profile
     curves = RGBCurves(*[replace(c, gamma=c.gamma * k)
@@ -2631,6 +2678,7 @@ class RenderSettings:
     #: `resolve_development_time`; inert on every stock with no
     #: gamma-bearing development family, which is most of them.
     development_minutes: float = -1.0
+    development_celsius: float = -1.0
     #: Years of DARK STORAGE since processing. 0 = fresh, which is
     #: the default and is inert on every stock. See
     #: `resolve_storage_age`; only stocks carrying a published
@@ -3065,7 +3113,8 @@ def simulate(
     # time is applied to the variant's own curve rather than to a curve
     # the variant then discards.
     profile = resolve_development_time(
-        profile, getattr(settings, 'development_minutes', -1.0))
+        profile, getattr(settings, 'development_minutes', -1.0),
+        getattr(settings, 'development_celsius', -1.0))
     # ⚠ LAST OF THE THREE PROFILE RESOLVERS, AND THE ORDER IS
     # CHRONOLOGICAL: a variant and a development time both describe how
     # the film was PROCESSED, and storage happens after processing. A

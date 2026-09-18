@@ -64,8 +64,29 @@ _A4_FGRID = np.logspace(math.log10(0.1), math.log10(300.0), 20000)
 
 
 def _rendered_peak(_m, _ch):
-    """(peak MTF, frequency of that peak) for one channel of one MTFSpec."""
-    _roll = np.asarray(film_profiles.mtf_response(_m, _ch, _A4_FGRID),
+    """(peak MTF, frequency of that peak) for one channel of one MTFSpec.
+
+    ⚠⚠ THIS PROBES THE KERNEL THE RENDERER CONVOLVES, NOT THE FREQUENCY-DOMAIN
+    LAW, AND THAT CHANGED ON 2026-09-18b (queue P51). It used to evaluate
+    `mtf_response` -- the analytic 1/(1+(f/f50)^q). The engine has no FFT and
+    convolves `mtf_kernel_response` instead, so the law probe was answering a
+    question nobody asks: whether a peak exists in a transfer function the
+    renderer never applies. The honest question is what the renderer does.
+
+    ⚠ IT MOVES FIVE STOCKS AND EVERY ONE IS EXPLAINED BY ITS OWN q. Out of the
+    inert set go FUJI_PROVIA_400X (q 1.500), FUJI_SUPER_F125_8532 (q 1.915) and
+    KODAK_TECHNICAL_PAN (q 1.071) -- the three shallowest rolloffs in the
+    corpus, where the analytic tail falls faster than the band-pass can lift
+    but the discrete kernel, which is truncated, does not. In come
+    AGFA_RSX_II_50 (q 2.310, adjacency 0.047) and GEVACHROME_600 (q 2.090,
+    adjacency 0.090), where the opposite holds: a steep law leaves room for a
+    peak that the kernel's own smoothing then flattens below 1.0002.
+    ⚠ TECHNICAL PAN IS THE CASE THAT DECIDED IT. The book measures its peak at
+    +15.1 % and 5.75 c/mm; the kernel resolves 1.0076 at 5.89 c/mm, agreeing to
+    2.4 % with a figure nothing in the fit was told to reproduce, while the law
+    resolved no peak at all.
+    """
+    _roll = np.asarray(film_profiles.mtf_kernel_response(_m, _ch, _A4_FGRID),
                        dtype=float)
     _g1 = np.exp(-2 * math.pi ** 2 * (_m.adjacency_um * 0.4 / 1000.0) ** 2
                  * _A4_FGRID ** 2)
@@ -1831,6 +1852,17 @@ if _sec_on():
         # queue T2, same day, same method: the first still colour negative
         "KODAK_EKTAR_100":            (1, 1.183, 9.7),
     }
+    # ⚠⚠ ALL THIRTEEN PAIRS WERE RE-SOLVED ON 2026-09-18c AND THE TARGETS
+    # ABOVE DID NOT MOVE. They are the sheets' printed overshoots and they are
+    # not negotiable. What moved is the probe: queue P51 pointed it at
+    # `mtf_kernel_response`, the kernel the engine actually convolves, instead
+    # of the analytic law -- and ten of the thirteen stopped reproducing their
+    # sheet, because their `adjacency` / `adjacency_um` had been fitted to the
+    # law. Re-solving against the kernel puts every one back on its printed
+    # figure, which means the RENDER now carries the measured overshoot rather
+    # than a transfer function nobody applies. The corrections are small (the
+    # largest is 5217, amplitude 0.151 -> 0.189) and no stock lands in the
+    # 70-90 um band that an unresolved red peak solves to.
     _miss = []
     for _n, (_ch, _tp, _tf) in _A4_SOLVED.items():
         _pv, _pf = _rendered_peak(get_profile(_n).mtf, _ch)
@@ -1870,7 +1902,12 @@ if _sec_on():
     _expect_inert = {
         "ILFORD_HPS", "SVEMA_LN_9", "SVEMA_LN_9S", "SVEMA_LN_8", "SVEMA_DS_5M",
         "SVEMA_CNL_32", "SOVIET_PANCHROM_1939", "EASTMAN_ORTHO_1930",
-        "FUJI_SUPER_F125_8532", "FUJICOLOR_SUPER_F500_8572", "GEVACHROME_605",
+        # ⚠ 2026-09-18b, queue P51: FUJI_SUPER_F125_8532 LEAVES. Its q of 1.915
+        # puts it with PROVIA 400X and TECHNICAL PAN on the shallow side of the
+        # law-versus-kernel disagreement -- the analytic tail outruns the
+        # band-pass, the truncated kernel does not. The panel refusal that put
+        # it here is still true and is no longer a statement about this probe.
+        "FUJICOLOR_SUPER_F500_8572", "GEVACHROME_605",
         # ⚠ 2026-09-06: FUJI_PROVIA_400X joins the SAME class as the two Fuji
         # stocks above, for the same stated reason. Its MTF panel was traced
         # that day and the overshoot it measures is +0.047 at 1.0 cycles/mm --
@@ -1879,7 +1916,6 @@ if _sec_on():
         # 0.11 is left untouched (the peak-to-adjacency mapping is undocumented,
         # see KODAK_TMAX_100), so the amplitude is measured, the frequency is
         # not, and the renderer resolves no peak. Refused, not overlooked.
-        "FUJI_PROVIA_400X",
         # ⚠ 2026-09-06h: AGFA_SCALA_200X joins on the AMPLITUDE side of the same
         # argument. Its «Sharpness» panel was traced that day and the overshoot
         # it measures is +2.1 % -- the SMALLEST of the twelve Agfa panels, and
@@ -1912,7 +1948,8 @@ if _sec_on():
         # this one out; RSX II 50 and GEVACHROME 600 in), which is a
         # re-baselining of a guard that has nothing to do with this source.
         # DIGITIZATION_QUEUE P51 carries that decision.
-        "KODAK_TECHNICAL_PAN",
+        "AGFA_RSX_II_50",
+        "GEVACHROME_600",
     }
     # ⚠ 2026-09-15b. TECHNICAL PAN entered this set, left it, and entered it
     # again for a third reason. Its `adjacency` was an 0.01 placeholder, so
@@ -2527,7 +2564,7 @@ if _sec_on():
     # gamma is, whether a dye-impurity ratio was measured in transmission or
     # reflection. Those are ingest-side truth, and each one exists because the
     # harvest actually made that mistake before the field did.
-    chk("schema version is 37", _fpm.SCHEMA_VERSION == 37, f"v={_fpm.SCHEMA_VERSION}")
+    chk("schema version is 44", _fpm.SCHEMA_VERSION == 44, f"v={_fpm.SCHEMA_VERSION}")
 
     # ==== 2026-09-01: THE TWO CARRIERS THAT STOPPED BEING INERT =============
     # `reciprocity_table` and `process_variants` were both listed as "carried,
@@ -2547,12 +2584,18 @@ if _sec_on():
     # sentinel must all return the profile itself, by identity.
     import algo_control_enums as _acev
     _pvtot = int(_acev.ProcessVariantCtrl.TOTAL_PROCESSES)
-    chk("a ProcessVariantCtrl value outside [0, TOTAL_PROCESSES) returns the "
-        "profile itself",
+    # ⚠ 0 JOINS THE LIST ON 2026-09-18e and for a different reason from the
+    # rest: -1, TOTAL_PROCESSES and anything past it are inert because they
+    # are not declared enumerators, while 0 is eAS_SHIPPED, which IS declared
+    # and is inert because its key is empty. Both paths must end at the same
+    # place -- the profile itself, by identity -- and this asserts they do.
+    chk("a ProcessVariantCtrl value outside [0, TOTAL_PROCESSES), and "
+        "eAS_SHIPPED inside it, both return the profile itself",
         all(_fsim.resolve_process_variant(q, v) is q
             for q in _fpm.FILM_PROFILES
-            for v in (-1, -99, _pvtot, _pvtot + 7)),
-        "the sentinel, TOTAL_PROCESSES and anything past it are all inert")
+            for v in (0, -1, -99, _pvtot, _pvtot + 7)),
+        "eAS_SHIPPED (0, empty key), the old -1, TOTAL_PROCESSES and "
+        "anything past it are all inert")
     # ⚠ THREE STOCKS, AND THE NUMBER IS THE POINT. 24 variants exist across 6
     # stocks and only these three carry a measured curve set; the other 19 are
     # the AGFAPAN developer records, which state an exposure index and no second
@@ -2655,12 +2698,29 @@ if _sec_on():
     # f50 > 81 (F-4043 2016, whose curve stops at 51.4 %). The 2016 lower bound
     # rules out the 2007 value. Averaging 95.9 and 66.7 gives 81.3, which would
     # look like a measurement -- so the guard also refuses that specific number.
-    chk("G-MTFBW5  KODAK_TMAX_400 stays an estimate while its three sheets "
-        "contradict each other",
-        (_bw["KODAK_TMAX_400"].mtf.f50s() == (72.0, 72.0, 72.0)
-         and not _bw["KODAK_TMAX_400"].mtf.mtf_measured
-         and abs(_bw["KODAK_TMAX_400"].mtf.f50_g - 81.3) > 1.0),
-        "F-32 95.9 / F-4016 66.7 / F-4043 >81 -- recorded, not averaged (rule 4)")
+    # ⚠⚠ THE REFUSAL ENDED ON 2026-09-17d AND ITS OWN REOPENING CONDITION IS
+    # WHAT ENDED IT. The note above said the value "reopens if Kodak's own
+    # TMY-2 sheet is found with a curve that crosses"; what arrived instead is
+    # a FOURTH independent drawing -- «Современные фотоматериалы и их
+    # обработка» p341, which only calibrated once queue P56 registered four
+    # axis label forms the digit bank had never been shown. It traces f50 98.7,
+    # which agrees with F-32's 95.9 to 2.9 % and satisfies F-4043's traced > 81
+    # bound. That is not a third opinion in a three-way argument; it is a
+    # corroboration of one branch of it, and the 2007 F-4016 reading of 66.7
+    # stays refused by the same bound that already refused it.
+    # ⚠ THE GUARD STILL REFUSES THE AVERAGE. 81.3 is what averaging 95.9 and
+    # 66.7 would give and it would look like a measurement, so it stays
+    # forbidden -- the value had to arrive from a drawing, and it did.
+    chk("G-MTFBW5  KODAK_TMAX_400 is a MEASUREMENT, corroborated across two "
+        "independent drawings, and is still not the average of the two that "
+        "disagreed",
+        (_bw["KODAK_TMAX_400"].mtf.f50s() == (98.7, 98.7, 98.7)
+         and _bw["KODAK_TMAX_400"].mtf.mtf_measured
+         and abs(_bw["KODAK_TMAX_400"].mtf.mtf_rolloff_q - 2.163) < 1e-9
+         and abs(_bw["KODAK_TMAX_400"].mtf.f50_g - 81.3) > 1.0
+         and abs(_bw["KODAK_TMAX_400"].mtf.f50_g - 95.9) / 95.9 < 0.03),
+        "book p341 98.7 against Kodak F-32 95.9, 2.9 % apart, both above "
+        "F-4043's >81 bound; F-4016's 66.7 stays refused")
     # ⚠ THE PROVENANCE MUST AGREE WITH THE VALUE. EKTAR 100 shipped a traced
     # 52.7 with mtf_measured True while its ParamSource still said tier-3
     # 'estimated' from FilmLab and ended 'mtf_measured stays False'. Every
@@ -3168,13 +3228,43 @@ if _sec_on():
     # alone" -- which is how a fixable stale assertion became treated as
     # immovable. Replaced 2026-08-20 with the assertion the evidence supports,
     # which keeps a live check where there was a permanent red.
+    #
+    # ⚠ AND REPLACED AGAIN ON 2026-09-17 (schema v38), FOR THE SAME REASON IT
+    # WAS REPLACED THE FIRST TIME: it asserted a structural identity
+    # (a_rg == a_rb, a_gr == a_gb, a_br == a_bg) whose stated justification was
+    # that no surveyed patent measures a donor weighting. One does.
+    # US 6,746,834 TABLE 3 sample 108 measures the GREEN record receiving 0.10
+    # from red and 0.21 from blue -- one receiver, one coating, one
+    # measurement, two donors 2.1 apart. So the identity is gone, and what is
+    # asserted now is the two things the evidence supports: the per-receiver
+    # asymmetry US4725529A demonstrates with no layer stack at all, and the
+    # measured donor split itself.
     _pp = get_profile("KODAK_PORTRA_400").interimage
-    chk("interimage coupling is per RECEIVER, not per layer distance",
-        (abs(_pp.a_rg - _pp.a_rb) < 1e-12
-         and abs(_pp.a_gr - _pp.a_gb) < 1e-12
-         and abs(_pp.a_br - _pp.a_bg) < 1e-12),
+    chk("interimage is asymmetric per RECEIVER -- blue receives least",
+        abs(_pp.a_br) + abs(_pp.a_bg) < abs(_pp.a_gr) + abs(_pp.a_gb),
         "US4725529A Table 1: no layer stack, asymmetry persists -- "
-        "so donor identity carries no weighting")
+        "so it is the receiving emulsion, not the distance travelled")
+    # ⚠ THE TWO CLASSES ARE CHECKED SEPARATELY BECAUSE THEY ARE MEASURED
+    # SEPARATELY (v39). A colour NEGATIVE takes EP 0 324 471 A2's medians --
+    # receiver green 0.600 from red against 0.400 from blue, receiver red
+    # 0.5728 from green against 0.4272 from blue, and no pair equal, because
+    # that patent measures BLUE ACTING ON RED and nothing else does. A colour
+    # REVERSAL takes US 6,746,834 sample 108, where the green receiver's two
+    # donors sit 2.1 apart and the red receiver's stay level for want of a
+    # measurement.
+    _pv = get_profile("FUJI_VELVIA_50").interimage
+    chk("interimage is also asymmetric per DONOR, in the measured ratio, and "
+        "the ratio differs by material class",
+        (abs(_pp.a_gr) > abs(_pp.a_gb)
+         and abs(abs(_pp.a_gr / _pp.a_gb) - 1.5) < 0.01
+         and abs(_pp.a_rg) > abs(_pp.a_rb)
+         and abs(_pv.a_gb) > abs(_pv.a_gr)
+         and abs(abs(_pv.a_gb / _pv.a_gr) - 2.1) < 0.01
+         and abs(_pv.a_rg - _pv.a_rb) < 1e-12),
+        "negative PORTRA_400 green takes r/b %.3f (EP0324471A2 0.600/0.400); "
+        "reversal VELVIA_50 green takes b/r %.3f (US6746834 #108 0.21/0.10) "
+        "and its red pair stays level"
+        % (abs(_pp.a_gr / _pp.a_gb), abs(_pv.a_gb / _pv.a_gr)))
 
     # ---- C21, 2026-08-23: schema v11, per-channel halation radii ------------
     # ⚠ THE POINT OF THESE GUARDS IS THAT THE FIELDS ARE ALL 1.0 AND MUST STAY
@@ -4198,9 +4288,26 @@ if _sec_on():
     # ---- measured endpoints (2026-09-15b) ---------------------------------
     # ⚠ THESE ARE THE ONLY DIRECTLY MEASURED D-MAX VALUES IN THE CORPUS. Every
     # other Dmax in this project is a CONSEQUENCE of evaluating a four-parameter
-    # ToneCurve fit; these nine are the top of a traced curve. The guard asserts
-    # the three properties a mis-trace breaks, and one that ties them to data
-    # this reader did not produce.
+    # ToneCurve fit; these twelve are the top of a traced curve. The guard
+    # asserts the three properties a mis-trace breaks, and one that ties them
+    # to data this reader did not produce.
+    #
+    # ⚠ NINE BECAME TWELVE ON 2026-09-17e, AND THE THREE THAT ARRIVED CAME FROM
+    # A DEFECT BEING FOUND RATHER THAN A DOCUMENT BEING SOURCED. Queue P55 held
+    # that the three records on the book's colour panels are printed on top of
+    # each other; they are not, and `drop_text` was erasing the two dashed ones
+    # wherever they ran level. See the comment on AGFA_OPTIMA_100.
+    #
+    # ⚠ AND THREE MORE WERE TRACED THE SAME DAY AND ARE DELIBERATELY NOT HERE.
+    # AGFA_VISTA_200 traced a blue D-min of 0.820 against the 1.050 this
+    # database stores from an Agfa sheet -- a 0.23 D disagreement that test 4
+    # below refuses, so it is recorded as a conflict rather than stored.
+    # KODAK_T400CN and KODAK_BW400CN are chromogenic B&W: their panels DO print
+    # three status-M records and both traced cleanly, but the profiles are
+    # monochrome and their stored `curves` carry ONE base density replicated
+    # three times, so test 4 has nothing to check them against. A record that
+    # cannot be checked is not stored -- the same rule that keeps
+    # EKTACHROME_160T's dye pair out of the database.
     _ep = {q.name: q.measured_endpoints for q in FILM_PROFILES
            if q.measured_endpoints.dmax[2] > 0.0}
     _epbad = []
@@ -4218,19 +4325,53 @@ if _sec_on():
         if _e.log_e_span < 2.5:
             _epbad.append("%s spans only %.2f decades" % (_n, _e.log_e_span))
         # 4. ⚠ AND THE TRACED D-MIN MUST REPRODUCE THE DATABASE'S OWN, which is
-        # what licenses the D-max column beside it. Six of these nine base
+        # what licenses the D-max column beside it. Nine of these twelve base
         # densities came from manufacturer sheets this reader never saw.
         _dbd = (_p.curves.r.dmin, _p.curves.g.dmin, _p.curves.b.dmin)
         if max(abs(a - b) for a, b in zip(_dbd, _e.dmin)) > 0.12:
             _epbad.append("%s traced dmin %s disagrees with the stored %s"
                           % (_n, tuple(round(v, 3) for v in _e.dmin),
                              tuple(round(v, 3) for v in _dbd)))
-    chk("the nine measured endpoint records are ordered, spanned, and their "
+    chk("the twelve measured endpoint records are ordered, spanned, and their "
         "D-min reproduces the database's own",
-        not _epbad and len(_ep) == 9,
+        not _epbad and len(_ep) == 12,
         "; ".join(_epbad[:3]) if _epbad
         else "%d stocks, worst dmax %.3f, all r<g<b" % (
             len(_ep), max(max(e.dmax) for e in _ep.values())))
+
+    # ---- G-V40-P55: the three records queue P55 said could not be separated
+    # ⚠ PINNED BY VALUE, because the whole row turned on a claim about what the
+    # panels contain. If a future edit to `sovremennye_2004.drop_text` or to the
+    # bridging order silently loses the dashed records again, these numbers move
+    # and this guard fails before any document says the panels are unreadable.
+    _P55_NEW = {
+        "AGFA_OPTIMA_100": ((0.2759, 0.6864, 0.9247),
+                            (2.1430, 2.5701, 2.9839), 80),
+        "AGFA_OPTIMA_200": ((0.2546, 0.6519, 0.8241),
+                            (1.9894, 2.4065, 2.7707), 81),
+        "AGFA_PORTRAIT_160": ((0.2684, 0.5980, 0.7562),
+                              (1.8405, 2.3184, 2.6480), 84),
+    }
+    _p55 = []
+    for _n, (_dn, _dx, _pg) in sorted(_P55_NEW.items()):
+        _e = get_profile(_n).measured_endpoints
+        if _e.page != _pg:
+            _p55.append("%s page %d, expected %d" % (_n, _e.page, _pg))
+        if max(abs(a - b) for a, b in zip(_e.dmin, _dn)) > 1e-4:
+            _p55.append("%s dmin moved to %s" % (_n, _e.dmin))
+        if max(abs(a - b) for a, b in zip(_e.dmax, _dx)) > 1e-4:
+            _p55.append("%s dmax moved to %s" % (_n, _e.dmax))
+        # and the property that makes the record worth having: the book's own
+        # blue-minus-red separation at D-max must still be the mask, not noise
+        if _e.dmax[2] - _e.dmax[0] < 0.55:
+            _p55.append("%s mask separation at Dmax collapsed to %.3f"
+                        % (_n, _e.dmax[2] - _e.dmax[0]))
+    chk("G-V40-P55: the three Agfa endpoint records recovered by bridging the "
+        "dashes before dropping the blobs are unchanged",
+        not _p55, "; ".join(_p55[:3]) if _p55 else
+        "3 stocks, mask separation at Dmax %.3f to %.3f" % (
+            min(v[1][2] - v[1][0] for v in _P55_NEW.values()),
+            max(v[1][2] - v[1][0] for v in _P55_NEW.values())))
 
     _lo = [v[0] for k, v in film_profiles._MTF_KERNEL_TABLE.items() if k < 3.05]
     _hi = [v[0] for k, v in film_profiles._MTF_KERNEL_TABLE.items() if k >= 3.05]
@@ -4363,8 +4504,17 @@ if _sec_on():
     # panchromatic emulsion loses about 1/3 stop under tungsten, a blue-sensitive
     # one loses far more. If a later edit puts a tungsten index above the daylight
     # one, or invents an implausible ratio, this catches it.
+    # ⚠ THE UNFILTERED POPULATION ONLY, and the split is the v42 widening of
+    # `exposure_index_tungsten`. A pair with a conversion filter named beside
+    # it measures the FILTER and not the emulsion -- its ratio is asserted
+    # against that filter's own published factor in G-V41-P45 instead. Before
+    # v42 such a pair could not be stored at all, so this list was the whole
+    # field and the restriction never had to be written down here.
     _tung = [(p.name, p.exposure_index, p.exposure_index_tungsten)
-             for p in FILM_PROFILES if p.exposure_index_tungsten]
+             for p in FILM_PROFILES
+             if p.exposure_index_tungsten
+             and not p.conversion_filter_tungsten
+             and not p.conversion_filter_daylight]
     # ⚠ THE PLAUSIBLE BAND IS PER SENSITIZING CLASS, AND IT HAD TO BECOME SO
     # ON 2026-09-17. A single 1.0-4.0 window was fine while the only
     # blue-sensitive pairs on file were the two Polaroids at 3.20 and 3.33;
@@ -4456,17 +4606,37 @@ if _sec_on():
         % (_fr.schwarzschild_p_r, _fr.schwarzschild_p_g, _fr.schwarzschild_p_b,
            _fr.onset_s))
 
-    # exposure_index_tungsten is defined as UNFILTERED pairs only. A colour
-    # film's second index is quoted through a conversion filter and is therefore
-    # a filter factor, not a film property -- so every entry must be monochrome.
-    # If a later batch adds a colour stock here, this fails and the definition
-    # in the field docstring has been violated.
+    # ⚠ THE RULE SURVIVES v42 IN THE FORM THAT CAN ACTUALLY BE CHECKED. It
+    # used to read "every entry is a monochrome stock", which was a proxy for
+    # the real rule -- an UNFILTERED pair is a property of the emulsion, a
+    # filtered one is a property of the filter -- enforced by the only means
+    # available before `conversion_filter_tungsten` existed: banning the
+    # colour stocks outright. Now the record says which kind it is, so the
+    # check is the rule itself. A COLOUR stock with a tungsten index and NO
+    # filter named is still the violation it always was: it would put a
+    # filter factor into the sensitisation population.
     _tw = [p.name for p in FILM_PROFILES
-           if p.exposure_index_tungsten and not p.is_monochrome]
-    chk("every tungsten exposure index is a monochrome stock (unfiltered pairs)",
-        not _tw, ", ".join(_tw) or
-        "%d entries, all monochrome"
-        % sum(1 for p in FILM_PROFILES if p.exposure_index_tungsten))
+           if p.exposure_index_tungsten and not p.is_monochrome
+           and not (p.conversion_filter_tungsten
+                    or p.conversion_filter_daylight)]
+    _twf = [p.name for p in FILM_PROFILES
+            if p.exposure_index_tungsten
+            and (p.conversion_filter_tungsten or p.conversion_filter_daylight)]
+    # And the converse: a MONOCHROME stock needs no conversion filter, so one
+    # named on a monochrome pair would mean the harvest mislabelled it.
+    _twm = [p.name for p in FILM_PROFILES
+            if p.is_monochrome and (p.conversion_filter_tungsten
+                                    or p.conversion_filter_daylight)]
+    chk("every unfiltered tungsten pair is monochrome and every filtered one "
+        "names its conversion filter -- the two populations never mix",
+        not _tw and not _twm,
+        ", ".join(_tw + _twm) or
+        "%d unfiltered pairs, all monochrome; %d filtered colour pairs, "
+        "every one naming its filter (checked against the filter's own "
+        "published factor in G-V41-P45)"
+        % (sum(1 for p in FILM_PROFILES
+               if p.exposure_index_tungsten and not p.conversion_filter_tungsten
+               and not p.conversion_filter_daylight), len(_twf)))
 
 
     # -----------------------------------------------------------------------
@@ -4738,8 +4908,13 @@ if _sec_on():
              # recording film. A colour negative fades in storage too, and it
              # is the negative's fade that decides what a scan of a thirty-
              # year-old roll looks like.
-             "dye_stability"))
-        and film_profiles.SCHEMA_VERSION == 37
+             "dye_stability",
+             # ⚠ v43, 2026-09-18c (queue P41). The offset-speed
+             # sub-layer set: inert on all 191, and the point of
+             # this probe is that an inert carrier is still
+             # reachable and validated on a real profile.
+             "sub_layers"))
+        and film_profiles.SCHEMA_VERSION == 44
         and all(hasattr(_ps, "spectral") for _ps in film_profiles.PRINT_STOCKS)
         # ⚠ v25, and it is the first entry in this probe that is NOT a carrier.
         # The others are here to prove an inert field is reachable; this one is
@@ -6174,14 +6349,16 @@ if _sec_on():
     #   numeric resolving power -- a caveat the profile's own description
     #   already carried. «Современные фотоматериалы и их обработка» p.372
     #   prints the modulation transfer function; the traced curve peaks at
-    #   115.1 % and falls through 50 % at 72.3 c/mm, a third BELOW the
+    #   115.1 % and falls through 50 % at 73.09 c/mm (72.3 until 2026-09-18c,
+#   when queue P56's new bank axes made two more abscissa labels readable
+#   and the log fit gained them), a third BELOW the
     #   estimate. This is the owner's 2026-09-07b instruction applied to a
     #   reference source rather than a vendor one: a measurement is better
     #   than an estimate, and nothing from Kodak is displaced because Kodak
     #   published nothing here.
     # ⚠ 49 -> 50 ON 2026-09-17: EASTMAN_5293_250T_1982, Fig. 14 traced,
     # rolloff exponent fitted from 210 samples above 8 cycles/mm.
-    chk("exactly the 50 traced stocks are flagged mtf_measured",
+    chk("exactly the 51 traced stocks are flagged mtf_measured",
         _mmeas == [
                    # ⚠ 2026-09-06h, TEN AT ONCE: the AGFA «Sharpness» panels,
                    # readable ever since queue G6 closed on 2026-09-05 and
@@ -6263,6 +6440,10 @@ if _sec_on():
                    "KODAK_PORTRA_800",
                    "KODAK_TECHNICAL_PAN",
                    "KODAK_TMAX_100",
+                   # ⚠ 50 -> 51 ON 2026-09-17d: KODAK_TMAX_400. Its own
+                   # refusal's reopening condition was met by a fourth
+                   # drawing -- see G-MTFBW5.
+                   "KODAK_TMAX_400",
                    "KODAK_TRI_X_400TX",
                    "KODAK_VISION2_200T_5217",
                    "KODAK_VISION2_500T_5218",
@@ -8631,15 +8812,46 @@ if _sec_on():
     # letters on its own curve, transcribed -- and re-derived off the raster
     # by kodak_1956_curves.py on every build, which is the only reason they
     # can be trusted as transcription.
-    chk("1175 development points across 30 stocks -- 521 carrying a measured "
-        "contrast, 654 carrying a temperature instead, and 260 tagged with "
-        "the emulsion generation they measure",
-        _n_pts == 1175 and len(_pf) == 30 and _n_ct == 521 and _n_ed == 260
+    # ⚠ 1175 -> 1606 ON 2026-09-17d (queue P54), AND EVERY ONE OF THE 431 IS
+    # A TIME AT A STATED TEMPERATURE. «Современные фотоматериалы и их
+    # обработка» held 705 values its own parser could not attribute; re-read
+    # from the page GEOMETRY rather than the text layer, 1122 sit in tables
+    # that pass the physical check in every row, and 431 survive mapping to a
+    # stock this database holds and de-duplicating against the manufacturer
+    # points already on it. The contrast count does NOT move: an
+    # equal-contrast time table states no gamma of its own.
+    # ⚠⚠ 1606 -> 1833 ON 2026-09-18b, AND THE 227 ARRIVE WITH A FIELD THAT WAS
+    # EMPTY ON ALL 1606. Queue P54 held that the remaining values were lost to
+    # "a table covering TWO films split between them by dividing the
+    # temperature list in half". They are not two films. Table 3.241 on p.392
+    # is ONE film with TWO VESSEL columns -- «Малый бак» and «Большой бак» --
+    # each carrying its own 18/20/21/22/24, so the repeated temperature is the
+    # vessel and the old reader refused the table for a structure it had
+    # misread. `sovremennye_dev_tables.py` splits the header where it RESTARTS
+    # and reads the caption above each block. 1539 points now carry a VESSEL
+    # and 30 a FILM FORMAT, against 0 and 0 before.
+    # ⚠ 1833 -> 1818 LATER THE SAME DAY, AND THE FIFTEEN WERE NEVER NEW.
+    # The reader emitted «роторно-барабанном» as the string 'rotary drum'
+    # while the same physical process was already on file as 'drum' from the
+    # Agfa sheets, so `DevelopmentPoint.vessel`'s validator refused it -- one
+    # process about to be stored under two enum values. Mapping it onto the
+    # existing 'drum' made fifteen of the new points EQUAL to points already
+    # there, and the de-duplication key includes the vessel, so they merged.
+    # A merge here is the correct outcome: two sources printing the same
+    # developer, time, temperature and vessel are one measurement.
+    chk("1818 development points across 30 stocks -- 521 carrying a measured "
+        "contrast, 1297 carrying a temperature instead, 260 tagged with the "
+        "emulsion generation they measure, and 1524 naming their vessel",
+        _n_pts == 1818 and len(_pf) == 30 and _n_ct == 521 and _n_ed == 260
+        and sum(1 for p in _pf for q in p.processing_family.points
+                if q.vessel) == 1524
         and all((q.contrast_index > 0.0 or q.gamma > 0.0)
                 or (q.celsius > 0.0 and q.minutes > 0.0 and q.developer)
                 for p in _pf for q in p.processing_family.points),
-        "%d stocks, %d points, %d with contrast, %d time-only, %d tagged"
-        % (len(_pf), _n_pts, _n_ct, _n_pts - _n_ct, _n_ed))
+        "%d stocks, %d points, %d with contrast, %d time-only, %d tagged, "
+        "%d with a vessel"
+        % (len(_pf), _n_pts, _n_ct, _n_pts - _n_ct, _n_ed,
+           sum(1 for p in _pf for q in p.processing_family.points if q.vessel)))
 
     # ⚠ THE GENERATION TAG IS ONLY WORTH HAVING IF IT IS NEVER AMBIGUOUS, so
     # the guard is that a tagged point ALSO states the speed of the generation
@@ -8963,14 +9175,25 @@ if _sec_on():
                 if n not in ("eAS_SHIPPED", "TOTAL_PROCESSES")]
     _pv_db = list(film_profiles._PROCESS_VARIANT_IDS)
 
+    # ⚠⚠ THE ENUMERATION REBASED TO ZERO ON 2026-09-18e (owner requirement:
+    # no AlgoControl enumerated value may start below zero). eAS_SHIPPED was
+    # -1 and is now 0, so the twenty-one developments run 1..21 and
+    # TOTAL_PROCESSES is 22. The database list is unchanged -- it never held
+    # the sentinel -- so the alignment is now OFFSET BY ONE and this guard
+    # asserts the offset explicitly rather than the identity it used to.
     chk("ProcessVariantCtrl and the database's _PROCESS_VARIANT_IDS are one "
-        "list in one order, and TOTAL_PROCESSES counts it",
+        "list in one order, offset by the eAS_SHIPPED entry at zero, and "
+        "TOTAL_PROCESSES counts both",
         [n for n, _v in _pv_real] == ["e" + k for k, _d in _pv_db]
-        and [v for _n, v in _pv_real] == list(range(len(_pv_db)))
-        and int(_ace.ProcessVariantCtrl.TOTAL_PROCESSES) == len(_pv_db)
-        and int(_ace.ProcessVariantCtrl.eAS_SHIPPED) == -1,
-        "%d developments, TOTAL_PROCESSES %d, sentinel %d"
-        % (len(_pv_db), int(_ace.ProcessVariantCtrl.TOTAL_PROCESSES),
+        and [v for _n, v in _pv_real] == list(range(1, len(_pv_db) + 1))
+        and int(_ace.ProcessVariantCtrl.TOTAL_PROCESSES) == len(_pv_db) + 1
+        and int(_ace.ProcessVariantCtrl.eAS_SHIPPED) == 0
+        # and the rebase must not have left a negative anywhere
+        and min(v for _n, v in _pv_enum) == 0,
+        "%d developments at 1..%d, TOTAL_PROCESSES %d, eAS_SHIPPED %d and no "
+        "negative enumerator"
+        % (len(_pv_db), len(_pv_db),
+           int(_ace.ProcessVariantCtrl.TOTAL_PROCESSES),
            int(_ace.ProcessVariantCtrl.eAS_SHIPPED)))
 
     # ⚠ AND THE SENTINEL AND THE COUNT ARE NOT DEVELOPMENTS. Offering either
@@ -8978,17 +9201,24 @@ if _sec_on():
     # storing either as a selection would mean "as shipped" on one path and
     # "out of range" on another. Both tables are therefore sized to the real
     # developments and neither carries a row for those two.
-    chk("the display and key tables hold exactly the developments -- neither "
-        "the eAS_SHIPPED sentinel nor the TOTAL_PROCESSES count",
-        len(_ace.PROCESS_VARIANT_KEY) == len(_pv_db)
-        and len(_ace.PROCESS_VARIANT_LABEL) == len(_pv_db)
-        and -1 not in _ace.PROCESS_VARIANT_KEY
-        and len(_pv_db) not in _ace.PROCESS_VARIANT_KEY
-        and all(_ace.PROCESS_VARIANT_KEY[i] == _pv_db[i][0]
+    # ⚠ AND SINCE THE REBASE eAS_SHIPPED IS IN THE TABLES, at index 0, with an
+    # EMPTY KEY. That empty key is the whole mechanism: both resolvers look the
+    # key up in the stock's own process_variants, find nothing, and return the
+    # shipped profile -- which is exactly what the out-of-range sentinel used
+    # to do. A non-empty key at index 0 would silently select a development.
+    # TOTAL_PROCESSES is still a COUNT and still absent from both tables.
+    chk("the display and key tables hold the developments AND the "
+        "eAS_SHIPPED entry at index 0 with an empty key, and not the "
+        "TOTAL_PROCESSES count",
+        len(_ace.PROCESS_VARIANT_KEY) == len(_pv_db) + 1
+        and len(_ace.PROCESS_VARIANT_LABEL) == len(_pv_db) + 1
+        and _ace.PROCESS_VARIANT_KEY[0] == ""
+        and _ace.PROCESS_VARIANT_LABEL[0] == "As shipped"
+        and all(_ace.PROCESS_VARIANT_KEY[i + 1] == _pv_db[i][0]
                 for i in range(len(_pv_db)))
-        and all(_ace.PROCESS_VARIANT_LABEL[i] == _pv_db[i][1]
+        and all(_ace.PROCESS_VARIANT_LABEL[i + 1] == _pv_db[i][1]
                 for i in range(len(_pv_db))),
-        "%d keys, %d labels, both index aligned with the enumeration"
+        "%d keys, %d labels, index aligned with the enumeration from zero"
         % (len(_ace.PROCESS_VARIANT_KEY), len(_ace.PROCESS_VARIANT_LABEL)))
 
     # ⚠ EVERY RECORDED DEVELOPMENT MUST BE REACHABLE AND NO ENUMERATOR MAY
@@ -10745,7 +10975,18 @@ if _sec_on():
         # silent edit inside a harvest. The blue rule is asserted because it
         # already holds and must not regress; the red/green count is PINNED
         # so any change to the generator shows up here as a number moving.
-        _iie_bg_bad, _iie_rg_bad, _iie_n = [], 0, 0
+        # ⚠⚠ SPLIT BY MATERIAL CLASS AT v39 (2026-09-17d), BECAUSE A SECOND
+        # DIRECTIONAL SOURCE ARRIVED AND IT MEASURES THE OPPOSITE ORDERING ON
+        # THE OTHER CLASS. US 6,746,834 is a colour REVERSAL patent and claims
+        # IIEgr > IIErg. EP 0 324 471 A2 TABLE 1 is a colour NEGATIVE patent
+        # and prints all four cross-directions for four coatings: on three of
+        # the four, IE(G/R) > IE(R/G) -- red acting on green EXCEEDS green
+        # acting on red. Asserting one ordering across both classes would
+        # contradict a measurement whichever ordering was chosen, so each
+        # class is checked against the source measured on it.
+        _rev_rg, _rev_n = 0, 0
+        _neg_rg, _neg_n = [], 0
+        _iie_bg_bad, _iie_n = [], 0
         for _p in FILM_PROFILES:
             _ii = _p.interimage
             if not _ii.active:
@@ -10753,45 +10994,48 @@ if _sec_on():
             _iie_n += 1
             if abs(_ii.a_gb) <= abs(_ii.a_bg):      # IIEbg vs IIEgb
                 _iie_bg_bad.append(_p.name)
-            if abs(_ii.a_rg) <= abs(_ii.a_gr):      # IIEgr vs IIErg
-                _iie_rg_bad += 1
-        # ⚠ 70 -> 71 ON 2026-09-15, AND THE CAUSE IS AN ERA CORRECTION, NOT A
-        #   NEW MODELLING DEFECT. ORWOCOLOR_NC19 (formerly the invented
-        #   "NC 24") had a fabricated era of "1980s-1990s". Kaufmann's Wolfen
-        #   timeline dates the product to 1969, so the era became "1969-1991",
-        #   and `_interimage_for` keys its chemistry tier off the era START:
-        #   1980 -> "medium", 1969 -> "trace". The coefficients fall with it,
-        #   from a_rg -0.25712 / a_gr -0.24876 to -0.06507 / -0.06562, and the
-        #   pair crosses the symmetry line on the way down.
-        #
-        #   ⚠ THE MARGIN IS 0.8 PER CENT, which is what this guard exists to
-        #   record: the population is NEAR-SYMMETRIC where US 6,746,834 TABLE 3
-        #   measures 1.7-2.5:1, so a stock sitting a hair either side of parity
-        #   is the defect being pinned rather than a separate finding. The old
-        #   era cleared the test by accident, not by evidence -- at the correct
-        #   1969 start, and equally at the 1972 improved-type start (-0.13039 /
-        #   -0.13155), the stock violates.
-        # ⚠ 71 -> 72 ON 2026-09-17, AND IT IS THE POPULATION GROWING, NOT
-        # THE DEFECT WORSENING. EASTMAN_5293_250T_1982 is the 108th stock with
-        # an active interimage stage and takes the same ESTIMATED coefficient
-        # pair every colour negative of its era takes -- a_rg -0.20078 against
-        # a_gr -0.20870, near-symmetric where US 6,746,834 TABLE 3 measures
-        # 1.7-2.5:1. It violates for exactly the reason the other seventy-one
-        # do, which is the reason this count is pinned rather than asserted.
-        _IIE_RG_BASELINE = 72
+            if _p.is_reversal:
+                _rev_n += 1
+                if abs(_ii.a_rg) <= abs(_ii.a_gr):  # IIEgr vs IIErg
+                    _rev_rg += 1
+            else:
+                _neg_n += 1
+                if abs(_ii.a_gr) <= abs(_ii.a_rg):  # IE(G/R) vs IE(R/G)
+                    _neg_rg.append(_p.name)
+        chk("G-IIE-ASYM-rg-rev  on REVERSAL stocks green acting on red "
+            "exceeds red acting on green, as US 6,746,834 TABLE 3 measures "
+            "on a reversal material",
+            _rev_rg == 0,
+            "holds on all %d reversal stocks with an active stage" % _rev_n
+            if _rev_rg == 0 else "%d of %d violate" % (_rev_rg, _rev_n))
+        # ⚠ THE NEGATIVE COUNT IS PINNED AND THE REASON IS ONE TIER. The
+        # ordering follows from the tier's own red and green targets, and
+        # "medium" is the only row of `_IIE_TIERS` whose RED target (35)
+        # exceeds its GREEN one (33). Stocks in it sit on the line, and which
+        # side of it a given stock lands on is decided by its own curve shape
+        # inside `_iie_solve` rather than by the tier. Both offenders are
+        # within 8 % of parity. Pinned rather than asserted so that a change
+        # to the ladder or the solver shows up here as a number moving.
+        _NEG_RG_BASELINE = 2
+        chk("G-IIE-ASYM-rg-neg  on NEGATIVE stocks red acting on green "
+            "exceeds green acting on red, as EP 0 324 471 A2 TABLE 1 "
+            "measures on 3 of its 4 directional coatings",
+            len(_neg_rg) == _NEG_RG_BASELINE,
+            "%d of %d violate, baseline %d (%s -- all in the 'medium' tier, "
+            "the only one whose red target exceeds its green one)"
+            % (len(_neg_rg), _neg_n, _NEG_RG_BASELINE, _neg_rg[:3]))
+        # ⚠ 0 -> 2 AT v39 AND IT IS THE SPLIT, NOT A REGRESSION. The blue
+        # rule's only source is the reversal patent; on negatives the receiver
+        # blue row is now 0.528/0.472 rather than 0.323/0.677, which moves
+        # `a_bg` up against `a_gb` on the two stocks whose blue and green
+        # receiver totals were already closest. Both are within 1 % of parity.
+        _IIE_BG_BASELINE = 2
         chk("G-IIE-ASYM-b  blue acting on green exceeds green acting on blue "
-            "on every stock (US 6,746,834's IIEbg > IIEgb)",
-            not _iie_bg_bad,
-            "holds on all %d stocks with an active stage" % _iie_n
-            if not _iie_bg_bad
-            else "%d violate: %s" % (len(_iie_bg_bad), _iie_bg_bad[:3]))
-        chk("G-IIE-ASYM-rg  the red/green asymmetry violation count is "
-            "UNCHANGED -- a known defect pinned, not a passing property",
-            _iie_rg_bad == _IIE_RG_BASELINE,
-            "%d of %d violate IIEgr > IIErg, baseline %d (near-symmetric "
-            "where US 6,746,834 TABLE 3 measures 1.7-2.5:1 on its three "
-            "invention coatings)"
-            % (_iie_rg_bad, _iie_n, _IIE_RG_BASELINE))
+            "(US 6,746,834's IIEbg > IIEgb), with the negative-branch "
+            "exceptions pinned",
+            len(_iie_bg_bad) == _IIE_BG_BASELINE,
+            "%d of %d violate, baseline %d (%s)"
+            % (len(_iie_bg_bad), _iie_n, _IIE_BG_BASELINE, _iie_bg_bad[:3]))
 
         # ------------------------------------------------------------------
         #  schema v32 -- the MEASURED REFERENCE DATA section.
@@ -10917,6 +11161,1363 @@ if _sec_on():
             len(_dl) == 17 and not _bad_dl
             and [s for s, *_ in _dl] == list(range(101, 118)),
             "%d rows, %d violating" % (len(_dl), len(_bad_dl)))
+        # ⚠ AND ONE CELL IS PINNED BY VALUE, 2026-09-17. Sample 105's
+        # dloge_r_1.5 was stored 0.00 until the page image was read; the
+        # patent prints 0.01 and the difference identity closes on it
+        # (0.06 - 0.01 = 0.05, the printed difference). The identity guard
+        # above cannot catch a value of 0.00 because 0.06 >= 0.00 holds, so
+        # the corrected cell is asserted directly.
+        _s105 = [r for r in _dl if r[0] == 105][0]
+        chk("G-V32-US5262287C  sample 105's dlogE(R1.5) is 0.01, read off "
+            "the page image -- the text layer drops the trailing digit and "
+            "the difference identity alone does not catch a zero",
+            abs(_s105[2] - 0.01) < 1e-12
+            and abs((_s105[1] - _s105[2]) - 0.05) < 1e-9,
+            "0.06 - %.2f = %.2f" % (_s105[2], _s105[1] - _s105[2]))
+
+        # ---- v38: EP 0 608 959 B1, the second house to publish the
+        # separation-over-neutral gamma ratio, and the only complete
+        # multilayer negative measured on all three records -------------------
+        #
+        # ⚠⚠ THIS PAIR CARRIES A RESOLVED CONFLICT AND THE ARITHMETIC THAT
+        # RESOLVES IT (queue P69, closed 2026-09-17d). Read raw, the Kodak
+        # numbers put the red receiver at 14-26 % where Agfa's US5273870A puts
+        # it at 35-42 %, and that looked like two houses disagreeing about the
+        # shape of the effect. It is not.
+        #
+        #   1. US5273870A reads "at density 1.0 over fog", which on a
+        #      0.6-gamma negative anchored at Dmin+0.15 is ~1.4 log E above
+        #      the anchor -- inside EP0608959B1's own "mid upper" window.
+        #      TABLE IV measures the zone factor rather than leaving it to be
+        #      assumed: (mid_upper - 1)/(mid - 1) over its four coatings is
+        #      0.429 to 0.717. Applied to TABLE III #101 that gives blue
+        #      16.3-27.3 and green 31.3-52.4, and the Agfa ladder's 25 and 45
+        #      sit inside both. TWO OF THREE RECORDS AGREE ONCE THE ZONE IS
+        #      MATCHED, which is asserted below rather than argued.
+        #   2. Red does not, and the same table says why. Example 1 varies one
+        #      thing -- the DIR coupler in the MID-GREEN layer, the donor whose
+        #      inhibitor reaches red -- and sample 101 is the control with
+        #      none. With the weak untimed D-4 the RED ratio climbs
+        #      monotonically with loading (1.14/1.20/1.26) while blue is
+        #      pinned at 1.38; with the strong timed D-1 blue climbs
+        #      (1.38/1.46/1.56/1.61) while red barely moves. Kodak's red
+        #      column measures a coating whose red donor was removed for the
+        #      experiment, not a red record's susceptibility.
+        #
+        # The ladder therefore stays Agfa's, and these guards are what stop
+        # that conclusion decaying into a comment nobody re-checks.
+        _ep = _fpm._EP0608959_GAMMA_RATIOS
+        _pct = [(round((b - 1) * 100), round((g - 1) * 100),
+                 round((r - 1) * 100)) for _, _, _, _, r, g, b in _ep]
+        chk("G-V38-EP0608959  TABLE III has 6 coatings, every ratio above "
+            "1.0 as inhibition requires, and the green record receives most "
+            "on all six",
+            len(_ep) == 6
+            and all(r > 1.0 and g > 1.0 and b > 1.0
+                    for *_, r, g, b in _ep)
+            and all(g > b > r for *_, r, g, b in _ep),
+            "as IIE %%, blue/green/red: %s" % (_pct[0],))
+        # --- the reconciliation, as arithmetic -------------------------------
+        _zf = [(mu - 1.0) / (mid - 1.0)
+               for _s, _m, _lo, mid, mu in _fpm._EP0608959_ZONE_RATIOS]
+        _zlo, _zhi = min(_zf), max(_zf)
+        _kb, _kg, _kr = _pct[0]                    # #101, the control
+        _ab, _ag, _ar = _fpm._IIE_TIERS["strong"]  # Agfa Ex.1 invention
+        chk("G-V38-EP0608959X  Kodak and Agfa AGREE on blue and green once "
+            "the measurement zone is matched -- the zone factor is measured "
+            "by the same patent, not assumed (queue P69)",
+            (_zlo * _kb <= _ab <= _zhi * _kb
+             and _zlo * _kg <= _ag <= _zhi * _kg),
+            "zone factor %.3f-%.3f; blue %.1f-%.1f vs Agfa %.0f, "
+            "green %.1f-%.1f vs Agfa %.0f"
+            % (_zlo, _zhi, _zlo * _kb, _zhi * _kb, _ab,
+               _zlo * _kg, _zhi * _kg, _ag))
+        # And the red column is a donor-loading series, which is the half of
+        # the resolution that is NOT a zone effect. If this monotonicity ever
+        # broke, the explanation above would be wrong and P69 would reopen.
+        _d4 = [r for _s, _t, c, _l, r, _g, _b in _ep if c in ("none", "D-4")]
+        _d1b = [b for _s, _t, c, _l, _r, _g, b in _ep if c in ("none", "D-1")]
+        _d4r = [r for _s, _t, c, _l, r, _g, _b in _ep if c == "D-4"]
+        _d4b = [b for _s, _t, c, _l, _r, _g, b in _ep if c == "D-4"]
+        chk("G-V38-EP0608959R  TABLE III's RED column tracks the mid-green "
+            "DIR loading while blue stays pinned -- so Kodak's low red is an "
+            "absent donor, not an insusceptible receiver (queue P69)",
+            (_d4 == sorted(_d4) and len(_d4) == 3
+             and len(set(_d4b)) == 1
+             and _d4r[-1] > _d4[0]
+             and _d1b == sorted(_d1b) and len(_d1b) == 4),
+            "D-4 0/0.011/0.022 g/m2: Rr/Rn %s with Bb/Bn flat at %.2f; "
+            "D-1 raises Bb/Bn %s instead"
+            % (["%.2f" % v for v in _d4], _d4b[0],
+               ["%.2f" % v for v in _d1b]))
+        # ⚠ AND THE ZONE TABLE IS THE ONE PIECE OF EVIDENCE THE MODEL CANNOT
+        # YET USE. One record of one coating moves by a factor of 1.4 across
+        # three exposure zones, and the interimage stage has no term for the
+        # receiver's own position on its curve. Asserted so the gap stays
+        # measurable; queue P66.
+        _ez = _fpm._EP0608959_ZONE_RATIOS
+        _spread = max(max(r[2:]) / min(r[2:]) for r in _ez)
+        chk("G-V38-EP0608959Z  the interimage ratio is NOT constant along "
+            "the curve -- mid zone strongest on all four coatings, spread up "
+            "to 1.4x, and stage 8b has no term for it (queue P66)",
+            len(_ez) == 4
+            and all(r[3] > r[4] > r[2] for r in _ez)
+            and 1.3 < _spread < 1.5,
+            "worst spread %.2fx, mid/low %.2f" % (_spread, _ez[0][3] / _ez[0][2]))
+
+        # ---- v39: EP 0 324 471 A2 TABLE 1 -- the third house, and the
+        # largest white-versus-separation set in the corpus ------------------
+        #
+        # ⚠ TWENTY-ONE COLOUR NEGATIVE COATINGS WITH BOTH GAMMAS ON ALL THREE
+        # RECORDS, recovered from a sideways image-only page. The reason it
+        # matters is the per-receiver SHAPE: blue receives least on 21 of 21,
+        # which is Agfa's ordering and not Kodak's, so it is a third
+        # independent house corroborating the ladder the database ships.
+        _e3 = _fpm._EP0324471_TABLE1
+        _e3p = [((pb / b - 1) * 100, (pg / g - 1) * 100, (pr / r - 1) * 100)
+                for _s, _t, pr, pg, pb, r, g, b in _e3]
+        _blue_least = sum(1 for ib, ig, ir in _e3p if ib < ig and ib < ir)
+        _inv = [r for r in _e3 if r[1] == "Inv"]
+        chk("G-V39-EP0324471  TABLE 1 has 21 coatings and the BLUE record "
+            "receives least on every one -- a third house agreeing with the "
+            "Agfa ladder's shape, against Kodak's blue-high ordering",
+            len(_e3) == 21 and _blue_least == 21 and len(_inv) == 8,
+            "blue least on %d of %d; #101 as IIE %% b/g/r %.0f/%.0f/%.0f"
+            % (_blue_least, len(_e3), *_e3p[0]))
+        # ⚠ AND THE DIRECTIONAL HALF IS WHAT REMOVED v38's ASSUMPTION. Four
+        # coatings print all four cross-directions, and the fourth --
+        # IE(R/B), blue acting on red -- is measured nowhere else here.
+        _e3i = _fpm._EP0324471_IE
+        _rev_dir = sum(1 for _s, rg, gr, gb, _q in _e3i if gr > rg)
+        chk("G-V39-EP0324471D  the four directional coatings put RED acting "
+            "on GREEN above green acting on red on 3 of 4 -- the reverse of "
+            "the reversal rule, which is why the donor split is class-keyed",
+            len(_e3i) == 4 and _rev_dir == 3
+            and all(0.0 < q < 2.0 for *_r, q in _e3i),
+            "IE(G/R) > IE(R/G) on %d of %d" % (_rev_dir, len(_e3i)))
+        # The split actually shipped must be the one derived from that table,
+        # or the derivation above is decoration.
+        _spn = _fpm._IIE_DONOR_SPLIT["negative"]
+        _spr = _fpm._IIE_DONOR_SPLIT["reversal"]
+        chk("G-V39-SPLIT  the negative donor split is the EP 0 324 471 A2 "
+            "median and the reversal one is the US 6,746,834 sample, every "
+            "row sums to 1 and every diagonal is structurally zero",
+            all(abs(sum(v) - 1.0) < 1e-9 for v in _spn.values())
+            and all(abs(sum(v) - 1.0) < 1e-9 for v in _spr.values())
+            and _spn["r"][0] == 0.0 and _spn["g"][1] == 0.0
+            and _spn["b"][2] == 0.0
+            and abs(_spn["r"][1] - 0.5728) < 1e-4
+            and abs(_spn["g"][0] - 0.6000) < 1e-4
+            and abs(_spr["r"][1] - 0.5) < 1e-9,
+            "negative r %.4f/%.4f  g %.4f/%.4f  b %.4f/%.4f"
+            % (_spn["r"][1], _spn["r"][2], _spn["g"][0], _spn["g"][2],
+               _spn["b"][0], _spn["b"][1]))
+
+        # ---- v39: EP 1 033 620 A1 TABLE 2-1 -- spectral shape against a
+        # MEASURED colour error, the only such pairing in the corpus ---------
+        _e1 = _fpm._EP1033620_TABLE2_1
+        _ok = [r for r in _e1 if r[1] == "Inv"]
+        _no = [r for r in _e1 if r[1] == "Cmp"]
+        chk("G-V39-EP1033620  TABLE 2-1's three inventive coatings all meet "
+            "the claimed spectral window and all score under 3.3 colour "
+            "error, while every comparative breaks one and scores over 7",
+            len(_e1) == 7 and len(_ok) == 3
+            and all(r[5] > 65 and r[6] >= 60 and r[2] <= 620 for r in _ok)
+            and all(r[10] < 3.3 for r in _ok)
+            and all(r[10] > 7.0 for r in _no)
+            and all(not (r[5] > 65 and r[6] >= 60 and r[2] <= 620)
+                    for r in _no),
+            "inventive error %s against comparative %s"
+            % ([r[10] for r in _ok], [r[10] for r in _no]))
+
+        # ---- v39, queue P66: the print side gets a process statement -------
+        _pwith = [q for q in _fpm.PRINT_STOCKS if q.processing is not None]
+        _cyc = _fpm._ECP_2E_CYCLE
+        _dev = [c for c in _cyc if c[0] == "developer"][0]
+        chk("G-V39-P66  PrintStock carries a ProcessingSpec, exactly the one "
+            "stock whose own source names a process has it, and the ECP-2E "
+            "cycle is stored as a reference rather than copied onto it",
+            len(_pwith) == 1
+            and _pwith[0].name == "KODAK_2383_RELEASE"
+            and _pwith[0].processing.developer == "ECP-2D"
+            and _pwith[0].processing.minutes == 0.0
+            and _pwith[0].processing.celsius == 0.0
+            and len(_cyc) == 9
+            and abs(_dev[1] - 3.0) < 1e-9 and abs(_dev[2] - 36.7) < 1e-9,
+            "%d of %d print stocks state a process; ECP-2E developer "
+            "%.2f min at %.1f +/- %.1f degC, %d steps"
+            % (len(_pwith), len(_fpm.PRINT_STOCKS), _dev[1], _dev[2],
+               _dev[3], len(_cyc)))
+        # ⚠ AND THE REVISION LETTER IS ASSERTED, because copying ECP-2E's
+        # times onto an ECP-2D record is the one wrong thing this row could
+        # have done and it would look right.
+        chk("G-V39-P66X  no print stock carries a developer time or "
+            "temperature taken from a process revision its own source does "
+            "not name",
+            all(q.processing is None
+                or q.processing.developer != "ECP-2E"
+                for q in _fpm.PRINT_STOCKS),
+            "ECP-2D named on the record, ECP-2E kept in _ECP_2E_CYCLE")
+
+        # ---- v39: HALATION SPLIT INTO THREE TIERS --------------------------
+        #
+        # ⚠⚠ THE POINT OF THESE GUARDS IS THAT TIER B IS EMPTY AND MUST STAY
+        # HONEST WHILE IT IS. The proposal these fields implement is that
+        # halation stop being an amplitude somebody chose: Tier A is the
+        # optics of the support (computed, four rows), Tier B is the
+        # antihalation layer as a physical object (per film, measured or
+        # absent), Tier C is the model (derived, never authored). Today Tier B
+        # is populated on ZERO stocks, so every render is bit-identical to a
+        # v38 one -- and the guards below are what stop the empty carrier
+        # being filled by inference rather than by a document.
+        _ah = [q for q in FILM_PROFILES if q.anti_halation.has_density]
+        chk("G-V39-AH-EMPTY  the antihalation Tier B carrier is populated "
+            "from documents only, so it is empty today and no render moves",
+            not _ah and all(q.anti_halation.measured or
+                            not q.anti_halation.has_density
+                            for q in FILM_PROFILES),
+            "%d of %d stocks state an antihalation density; construction is "
+            "named on %d" % (len(_ah), len(FILM_PROFILES),
+                             sum(1 for q in FILM_PROFILES
+                                 if q.emulsion.antihalation)))
+        # Tier A is Fresnel and Snell on an index the module already holds.
+        # If either ever became a stored per-film number this fails.
+        _fa = _fpm.base_fresnel(1.48)
+        _fp2 = _fpm.base_fresnel(1.575)
+        chk("G-V39-AH-TIERA  the support optics are COMPUTED from the two "
+            "refractive indices, not stored per film -- R 3.75 %% / 5.0 %% "
+            "and a critical angle of 42.5 / 39.4 degrees",
+            abs(_fa[0] - 0.0375) < 5e-4 and abs(_fa[1] - 42.507) < 0.01
+            and abs(_fp2[0] - 0.0499) < 5e-4 and abs(_fp2[1] - 39.414) < 0.01
+            and set(_fpm._V34_BASE_OPTICS) == {"acetate", "nitrate",
+                                               "polyester"},
+            "acetate R %.4f theta_c %.2f deg; polyester R %.4f theta_c %.2f"
+            % (_fa[0], _fa[1], _fp2[0], _fp2[1]))
+        # And the derived-gain law must actually do the thing it exists for:
+        # a neutral absorber gives an equal triple, a blue/green-absorbing dye
+        # leaves red standing. Probed off-database so no stock moves.
+        # ⚠ THIS PROBE USED `position="backing"` UNTIL 2026-09-18 AND NOW USES
+        # "undercoat". The position was incidental to what the check is about
+        # -- that a neutral absorber gives an equal triple -- but it is no
+        # longer legal input: queue P71 established that a rear backing is not
+        # an in-path absorber and the law refuses one, so a probe built on
+        # "backing" would be asserting properties of None.
+        _neutral = _fpm.AntiHalationSpec(
+            position="undercoat", dye="carbon", optical_density=1.0,
+            od_lambda_nm=550.0, neutral=True, measured=True, source="probe")
+        _dyed = _fpm.AntiHalationSpec(
+            position="undercoat", dye="probe",
+            od_spectrum=tuple(0.2 if 400 + 10 * i > 600 else 1.6
+                              for i in range(31)),
+            measured=True, source="probe")
+        _gn = _fpm.halation_gain_from_od(_neutral, 1.48)
+        _gd = _fpm.halation_gain_from_od(_dyed, 1.48)
+        chk("G-V39-AH-GAIN  the derived gain law returns None without a "
+            "density, an EQUAL triple for a neutral absorber, and a red-"
+            "dominated one for a blue/green-absorbing dye -- so the red halo "
+            "is a consequence of a spectrum and not three chosen numbers",
+            _fpm.halation_gain_from_od(_fpm.AntiHalationSpec(), 1.48) is None
+            and _gn is not None and max(_gn) - min(_gn) < 1e-12
+            and _gd is not None and _gd[0] > 100.0 * _gd[1]
+            and _gd[1] == _gd[2],
+            "neutral %s; dyed r/g ratio %.0f" % (
+                tuple(round(x, 4) for x in _gn), _gd[0] / max(_gd[1], 1e-12)))
+        # ⚠ AND OOUE 1961 IS THE BOUND THE DERIVATION WILL BE CHECKED AGAINST.
+        _oo = _fpm._OOUE_1961_IMAGE_SPREAD
+        _r1 = [q.halation.radii_um[0] for q in FILM_PROFILES]
+        _r1.sort()
+        chk("G-V39-OOUE  the only published halation spatial scale in the "
+            "corpus is stored as a BAND and the two terms do not overlap -- "
+            "halation 100-200 um, turbidity below 100 um (Ooue 1961)",
+            _oo["halation_exposure"] == (100.0, 200.0)
+            and _oo["turbidity_spread"][1] == _oo["halation_exposure"][0]
+            and _fpm._OOUE_1961_SOURCE,
+            "derived sigma1 median %.0f um against Ooue's 100-200 um band; "
+            "the tension is recorded at _OOUE_1961_IMAGE_SPREAD, not resolved"
+            % _r1[len(_r1) // 2])
+
+        # ---- v39, queue P70/P71: what the patent sweep found, and the
+        # contradiction the pair already exposes -------------------------
+        #
+        # ⚠ THE SWEEP'S RESULT IS A NEGATIVE AND IT IS ASSERTED AS ONE. Not
+        # one document in the corpus states an EXPOSURE-TIME optical density
+        # for an antihalation layer. What it states is a silver coating
+        # weight and a bound on the POST-PROCESSING RESIDUAL density, and
+        # those are different quantities -- a removable absorber is opaque
+        # during exposure and near-clear afterwards. If the residual bound
+        # ever leaks into `optical_density` this fails.
+        _ahref = _fpm._AH_COATING_REFERENCE
+        _perm = _fpm._US6531271_PERMANENT_AH_DENSITY
+        chk("G-V39-AH-SWEEP  the corpus states a colloidal-silver COATING "
+            "WEIGHT and a PERMANENT residual density, and no exposure-time "
+            "optical density anywhere -- the two are not conflated",
+            abs(_ahref["colloidal_ag"][0] - 0.236) < 1e-9
+            and abs(_ahref["colloidal_ag"][1] - 2.44) < 1e-9
+            and _ahref["remjet"][0] == 0.0
+            and _perm == (0.6, 0.3, 0.1, 0.05)
+            and not any(q.anti_halation.has_density for q in FILM_PROFILES),
+            "colloidal_ag 0.236 g Ag/m2 with 2.44 g gelatin (EP0608959B1, "
+            "two coatings); rem-jet named and never quantified; permanent "
+            "residual bound %s Status M" % (_perm,))
+
+        # ---- v40, queue P70: the working antihalation density ---------------
+        #
+        # ⚠⚠ THIS GUARD REPLACES ONE WRITTEN THE SAME DAY THAT ASSERTED THE
+        # OPPOSITE, AND THE ERROR IS PINNED HERE SO IT CANNOT RECUR. The first
+        # version swept the owner's 277-document library, found no working
+        # antihalation density, computed 0.24-0.30 D from the coating weights
+        # and REFUSED it on the ground that it fell "below" US 6,531,271's 0.6.
+        # That 0.6 is an UPPER BOUND on what may REMAIN after processing --
+        # "up to about 0.6" -- so it constrains nothing about the density that
+        # did the absorbing, and the refusal compared a number to a ceiling as
+        # though it were a floor. 0.24-0.30 was very nearly the right answer.
+        #
+        # ⚠⚠ AND THE LIBRARY IS NOT THE LITERATURE. Three patents state the
+        # number and none of them is on the owner's disk.
+        #
+        # Three independent routes, and the guard asserts they agree:
+        #   US 3,392,021  a removable layer wants a density as high as 1.0, one
+        #                 that stays in the film as low as 0.15, at 5-100 mg
+        #                 per square foot of Carey Lea silver
+        #   US 4,977,070  at least 0.3, preferably 0.5, 1.0, 2.0 to white light
+        #   derived       four coating weights against the covering-power band
+        #                 US 3,392,021's own two ranges imply, 0.93-2.79 D per
+        #                 g Ag/m2 -- which brackets Glafkides' 1.0 and sits
+        #                 above Mees's 0.5 exactly as Mees's grain-size law
+        #                 requires for a sol
+        _cw = [w for w, _ in _fpm._AH_SILVER_COATING_WEIGHTS]
+        _cp = _fpm._AH_COVERING_POWER_BAND_D_PER_G_M2
+        _derived = [(w * _cp[0], w * _cp[1]) for w in _cw]
+        _stated_lo = min(_fpm._US3392021_AH_OD[1],
+                         min(_fpm._US4977070_AH_WORKING_OD))
+        _stated_hi = max(_fpm._US3392021_AH_OD[0],
+                         max(_fpm._US4977070_AH_WORKING_OD))
+        _inside = all(_stated_lo - 0.02 <= hi and lo <= _stated_hi + 0.02
+                      for lo, hi in _derived)
+        _def = _fpm._AH_WORKING_OD_DEFAULT["colloidal_ag"]
+        chk("G-V40-P70  the working antihalation density is on file from two "
+            "patents and re-derived from four coating weights, and the three "
+            "routes agree -- while the number is still written onto no stock, "
+            "because the law that would consume it is defined for an in-path "
+            "absorber and 17 of the 31 stocks that name a construction carry a "
+            "rear BACKING instead (queue P71)",
+            len(_cw) == 4
+            and _cp[0] < _fpm._GLAFKIDES_COVERING_POWER_D_PER_G_M2 < _cp[1]
+            and _fpm._MEES_COVERING_POWER_D_PER_G_M2 < _cp[0]
+            and _inside
+            and _def == (0.15, 1.00, 2.00)
+            and _fpm._US4581323_AH_TOPCOAT_OD[1] < _def[1]
+            and _fpm._AH_OD_WRITTEN_TO_PROFILES is False
+            and not any(q.anti_halation.has_density for q in FILM_PROFILES),
+            "stated %.2f-%.2f D; four coating weights %s g Ag/m2 give %s at "
+            "%.2f-%.2f D per g/m2, every one inside the stated range; Tier B "
+            "still populated on 0 of %d stocks, and what gates the wiring is "
+            "the construction split, not a missing number"
+            % (_stated_lo, _stated_hi, [round(w, 3) for w in _cw],
+               [(round(a, 2), round(b, 2)) for a, b in _derived],
+               _cp[0], _cp[1], len(FILM_PROFILES)))
+        # ⚠ AND THE POSITION IS RECORDED WITHOUT EVER CLAIMING TO BE MEASURED.
+        _pos = sum(1 for q in FILM_PROFILES if q.anti_halation.position)
+        _named = sum(1 for q in FILM_PROFILES if q.emulsion.antihalation
+                     and q.emulsion.antihalation != "none")
+        chk("G-V39-AH-POS  every stock that NAMES an antihalation "
+            "construction carries the position that construction implies, "
+            "and not one of them is flagged measured",
+            _pos == _named
+            and not any(q.anti_halation.measured for q in FILM_PROFILES),
+            "%d of %d stocks positioned; measured on %d"
+            % (_pos, len(FILM_PROFILES),
+               sum(1 for q in FILM_PROFILES if q.anti_halation.measured)))
+        # ⚠⚠ THE PAIR CONVICTS THE ESTIMATES BEFORE ANY FRAME IS SCANNED.
+        _od = _fpm.cinestill_implied_remjet_od()
+        chk("G-V39-PAIR  the 5219 / CineStill gains imply a rem-jet optical "
+            "density that is neither neutral nor opaque, so the two hand-set "
+            "triples cannot both be right -- pinned, not tuned away (P71)",
+            max(_od) - min(_od) > 0.05 and max(_od) < 0.5,
+            "implied OD r %.3f g %.3f b %.3f -- carbon black is neutral and "
+            "a rem-jet backing is opaque; OD 0.2 passes 63 %% of the beam"
+            % _od)
+
+        # ---- v40, queue P71: the pair tests a construction the law omits ----
+        #
+        # ⚠⚠ THE 5219 / CINESTILL PAIR CANNOT VALIDATE THIS LAW, AND THE REASON
+        # IS NOT THE MISSING FRAMES. 5219 carries a REM-JET BACKING: carbon
+        # black on the far side of the support, beyond the very interface that
+        # does the reflecting. The law applies 10^(-2*OD), which is the
+        # attenuation of a ray that crosses an absorber, REFLECTS, and crosses
+        # it again -- the geometry of an undercoat. A backing does not attenuate
+        # the returning ray at all; it removes the total internal reflection by
+        # replacing the base/air boundary with an index-matched absorber.
+        # Inverting the pair through this law was therefore a category error,
+        # and the nonsense implied OD was measuring the error. The law now
+        # refuses `position == "backing"` outright, using a field the schema
+        # has carried since v39.
+        #
+        # ⚠⚠ AND THE "TWO DIFFERENT SCALES" READING WRITTEN EARLIER THE SAME DAY
+        # WAS WRONG, which is pinned here so it is not rediscovered as news.
+        # Stage 5 computes pO = pE + g*(blur(A) - A) with kernel weights summing
+        # to one, so the operator REDISTRIBUTES and g is the scattered FRACTION
+        # of the above-threshold exposure. A fraction cannot exceed 1 and
+        # neither can T_pack*10^(-2*OD): it is ONE scale. CineStill's stored
+        # 1.05 is out of range for the engine as much as for the law.
+        _cs = get_profile("CINESTILL_800T")
+        _v3 = get_profile("KODAK_VISION3_500T_5219")
+        _csg = (_cs.halation.gain_r, _cs.halation.gain_g, _cs.halation.gain_b)
+        _sp = tuple([1.0] * 31)
+        _mk = film_profiles.AntiHalationSpec
+        _probe = {q: film_profiles.halation_gain_from_od(
+            _mk(position=q, od_spectrum=_sp, lambda_start_nm=400.0,
+                lambda_step_nm=10.0), 1.48)
+            for q in ("undercoat", "in_pack", "in_base", "backing")}
+        chk("G-V40-P71  the halation gain law is defined for an absorber IN "
+            "the optical path and now refuses a rear BACKING, which is what "
+            "the 5219 / CineStill pair differs in -- and the engine's gain "
+            "ceiling is the law's own, not a second scale",
+            _v3.emulsion.antihalation == "remjet"
+            and _v3.anti_halation.position == "backing"
+            and _cs.emulsion.antihalation == "none"
+            and _probe["backing"] is None
+            and all(_probe[q] is not None for q in
+                    ("undercoat", "in_pack", "in_base"))
+            and _fpm._HALATION_GAIN_LAW_POSITIONS
+            == frozenset({"in_pack", "undercoat", "in_base"})
+            and _fpm._HALATION_ENGINE_GAIN_CEILING
+            == _fpm._HALATION_GAIN_LAW_CEILING == 1.0
+            and max(_csg) > _fpm._HALATION_GAIN_LAW_CEILING
+            and _fpm._CINESTILL_GAIN_OUT_OF_RANGE is True
+            and _fpm._AHU_BEATS_REMJET_STATED is True,
+            "the law returns a gain for undercoat / in_pack / in_base and None "
+            "for backing; CineStill stores %.2f in red against a ceiling of "
+            "%.1f that the engine and the law share. The experiment that WOULD "
+            "work is the VISION3 AHU redesign against the rem-jet generation, "
+            "and this corpus holds only the rem-jet one"
+            % (max(_csg), _fpm._HALATION_GAIN_LAW_CEILING))
+
+        # ---- v39, queues P42 and P48: two audits whose result is a NEGATIVE
+        #
+        # ⚠ P42 ASKED TO SORT THE 86 COLOUR NEGATIVES INTO TRACED AND
+        # ESTIMATED "before anything is changed", on the premise that the
+        # widest latitudes might be an artefact of estimation. Sorted: 48 are
+        # tier-1, 15 tier-2, 23 tier-3 -- and of the 64 wider than 3.0 log E,
+        # 36 ARE TIER-1 TRACED. The wide latitudes are measured as often as
+        # they are estimated, so the premise is false and there is nothing to
+        # re-derive. EP 0 083 377's 2.57-3.03 log E is one 1982 Konishiroku
+        # patent's own coatings, not a bound on a modern C-41 film.
+        _neg = [q for q in FILM_PROFILES
+                if not q.is_monochrome and not q.is_reversal]
+        def _ctier(q):
+            best = 9
+            for rec in _fpm._PARAM_SOURCES.get(q.name, ()):
+                if any(k in rec.param for k in ("curve", "tone", "dmin")):
+                    best = min(best, rec.tier)
+            return best
+        _wide = [q for q in _neg
+                 if (q.curves.g.shoulder_x - q.curves.g.toe_x) > 3.0]
+        _wide_t1 = sum(1 for q in _wide if _ctier(q) == 1)
+        chk("G-V39-P42  the widest colour-negative latitudes are MEASURED as "
+            "often as estimated, so the row's premise that they are an "
+            "estimation artefact is false and nothing is re-derived",
+            len(_neg) == 86 and _wide_t1 >= 30
+            and _wide_t1 / max(len(_wide), 1) > 0.5,
+            "%d negatives, %d wider than 3.0 log E, %d of those tier-1 traced"
+            % (len(_neg), len(_wide), _wide_t1))
+        # ⚠ P48 FEARED THAT A DEVELOPMENT TIME WOULD BE ATTACHED TO A CURVE
+        # MEASURED UNDER A DIFFERENT CONDITION. Audited: 13 stocks carry both
+        # a family and a stated condition, and on 10 of those the stated
+        # developer appears in the family. The 3 that do not are NAMING
+        # VARIANTS of the same developer -- ILFORD_PAN_F's "ID-11" against the
+        # family's "ID-11 (D-76 type)" is the clearest -- and not conflicts.
+        # ⚠ THEY ARE NOT NORMALISED. Each string is the SOURCE'S OWN WORDING,
+        # and rewriting a source's words to make a join succeed is the error
+        # this project refuses; the join is the thing that should widen.
+        _both = [q for q in FILM_PROFILES
+                 if q.processing_family and q.processing_family.points
+                 and q.processing and q.processing.developer]
+        _mismatch = [q.name for q in _both
+                     if q.processing.developer
+                     not in {r.developer for r in q.processing_family.points}]
+        chk("G-V39-P48  every stock holding both a development family and a "
+            "stated curve condition agrees on the developer, except three "
+            "naming variants that are recorded rather than rewritten",
+            len(_both) == 13 and len(_mismatch) == 3
+            and "ILFORD_PAN_F" in _mismatch,
+            "%d stocks hold both; %d differ only in spelling: %s"
+            % (len(_both), len(_mismatch), sorted(_mismatch)))
+
+        # ---- v39, queue P34: ГОСТ 10691.6-88, read by OCR off the render --
+        #
+        # ⚠ IT PRINTS THE SAME TWO SPEED CRITERIA AS ГОСТ 9160-91 FOR A
+        # DIFFERENT MATERIAL CLASS, which is what makes it evidence rather
+        # than a citation. Conflict I-24 was settled at v31 by showing that
+        # fog+0.2 and fog+0.85 are two rows of one colour table; a second
+        # standard, for black-and-white technical film, prints both numbers
+        # again. The pair is a property of Soviet sensitometry, not of 9160.
+        _g6 = _fpm._GOST_10691_6_CRITERIA
+        _dkr9 = {round(r[1], 2) for r in _fpm._GOST_9160_SPEED.values()} \
+            if hasattr(_fpm, "_GOST_9160_SPEED") else set()
+        chk("G-V39-P34  ГОСТ 10691.6-88 states S = K / H_kr with criteria "
+            "D_kr 0.85 and 0.20 at K = 1, and its published amendment "
+            "tightens the rounding rule rather than loosening it",
+            _g6 == ((0.85, 1.0), (0.20, 1.0))
+            and "members of a geometric progression"
+            in _fpm._GOST_10691_6_ROUNDING
+            and "amendment" in _fpm._GOST_10691_6_ROUNDING
+            and "OCR" in _fpm._GOST_10691_6_SOURCE,
+            "criteria %s; the 10691.0-84 companion is read -- see G-V40-P34"
+            % (_g6,))
+
+        # ---- v40, queue P53: the dye panels have SEVEN ordinates ------------
+        #
+        # ⚠⚠ THE ROW ASKED WHICH ORDINATE THESE PANELS USE. They do not share
+        # one. 115 panels, 65 of them calibrating, on SEVEN different vertical
+        # frames under a single caption -- and the split between them is
+        # physics rather than bookkeeping: a frame whose floor is ZERO is a
+        # linear density axis and keeps its curves above the axis, a frame
+        # whose floor is -1, -2 or -3 is carrying a LOGARITHM, because an
+        # optical density cannot be negative and a wing that falls without
+        # limit is a log. The rule is therefore per panel and derivable from
+        # the frame alone.
+        _yf = _fpm._SOVREMENNYE_DYEABS_Y_FRAMES
+        _xf = _fpm._SOVREMENNYE_DYEABS_X_FRAMES
+        _lin = sum(v for k, v in _yf.items() if k[0] >= 0)
+        _log = sum(v for k, v in _yf.items() if k[0] < 0)
+        chk("G-V40-P53  the book's dye-absorption panels are drawn on seven "
+            "different ordinates, and the floor of each frame decides which "
+            "of the two kinds it is",
+            len(_yf) == 7
+            and sum(_yf.values()) == sum(_xf.values())
+            and sum(_yf.values()) + _fpm._SOVREMENNYE_DYEABS_NO_CAL
+            == _fpm._SOVREMENNYE_DYEABS_TOTAL
+            and _lin == 23 and _log == 42
+            and _fpm.sovremennye_dyeabs_is_log(-1.0)
+            and not _fpm.sovremennye_dyeabs_is_log(0.0)
+            # ⚠ THE BLOCKER IS GONE AND THE FLAG RECORDS THAT, which is why
+            # this reads `is False` where it once read `is True`. `interior`
+            # used to blank the panel GRID along with the frame and cut every
+            # curve into fragments; it now finds the grid by morphological
+            # opening UNION the ink test, blanks it, and MENDS the gaps with
+            # a closing written back only inside the blanked bands. All 23
+            # zero-floor panels band, and none is refused.
+            and _fpm._SOVREMENNYE_GRID_CHOPS_CURVES is False
+            and _fpm._SOVREMENNYE_DYEABS_BANDED == (_lin, 0)
+            and not any(q.dye_density.d_cyan and "Современные" in
+                        (q.dye_density.source or "")
+                        for q in FILM_PROFILES),
+            "%d of %d panels calibrate: %d on a zero-floor LINEAR density "
+            "axis, %d on a negative-floor LOG axis; all %d linear panels now "
+            "band with y < m < c peaks and 0 are refused, and nothing is "
+            "stored against a profile -- the ordinate question the row asked "
+            "is answered per panel, not per book"
+            % (sum(_yf.values()), _fpm._SOVREMENNYE_DYEABS_TOTAL, _lin, _log,
+               _fpm._SOVREMENNYE_DYEABS_BANDED[0]))
+
+        # ---- v40, queue P34: ГОСТ 10691.0-84, the densitometry base ---------
+        #
+        # ⚠⚠ THE ROW SAID THIS DOCUMENT WAS OUT OF REACH "BECAUSE THE FILE NAME
+        # IS CYRILLIC". The alphabet was never the problem. That copy is named
+        # with its full 232-character Russian title -- about 330 bytes in UTF-8
+        # against a 255-byte limit on one path component -- so the transfer
+        # completed and the write did not; and the same library holds the whole
+        # 10691.0-84 -- 10691.4-84 booklet under the short name «МАТЕРИАЛЫ
+        # ФОТОГРАФИЧЕСКИЕ.pdf», 14 pages WITH a text layer.
+        #
+        # ⚠⚠ BOTH OF ITS DENSITOMETER TABLES DECODE THEMSELVES, and that is the
+        # only reason a 1984 scan could be believed to two decimals: each prints
+        # the response as the SUM of a receiver column and a source column, so
+        # every row checks its own arithmetic. Table 1 then checks against
+        # something this project holds independently -- its receiver column is
+        # CIE 1924 V(λ) shifted by a constant, and `kodak_1956_spectro.V_LAMBDA`
+        # was digitised for an unrelated purpose two days earlier.
+        _v0 = _fpm._GOST_10691_0_VISUAL
+        _c0 = _fpm._GOST_10691_0_COPY
+        _vbad = [r for r in _v0 if abs(r[1] + r[2] - r[3]) > 1e-9]
+        # ⚠ ONE COPY ROW IS OFF BY 0.01 AND IT IS ROUNDING, NOT A MISREAD: at
+        # 480 nm 4.13 + 0.93 = 5.06 against a printed 5.05, which is what two
+        # independently rounded columns do. The tolerance is 0.011 and the
+        # count of rows needing it is pinned at one, so a genuinely mis-typed
+        # row cannot hide behind it.
+        _cbad = [r for r in _c0
+                 if abs(r[1] + r[2] - r[4]) > 1e-9 or abs(r[1] + r[3] - r[5]) > 1e-9]
+        _cworst = max(max(abs(r[1] + r[2] - r[4]), abs(r[1] + r[3] - r[5]))
+                      for r in _c0)
+        from kodak_1956_spectro import V_LAMBDA as _VL
+        _vres = max(abs(math.log10(_VL[nm]) + _fpm._GOST_10691_0_VISUAL_OFFSET - v)
+                    for nm, v, _, _ in _v0 if nm >= 420)
+        chk("G-V40-P34  ГОСТ 10691.0-84's two densitometer tables reproduce "
+            "their own printed sums, and the visual one reproduces CIE 1924 "
+            "V(lambda) far inside the standard's own 0.05 tolerance",
+            not _vbad and len(_cbad) == 1 and _cworst <= 0.011
+            and len(_v0) == 16 and len(_c0) == 21
+            and _vres <= 0.02,
+            "visual 16 rows, 0 sum violations, worst V(lambda) residual %.4f "
+            "against a permitted 0.05; copy 21 rows, %d rounding row(s), worst "
+            "%.3f" % (_vres, len(_cbad), _cworst))
+
+        # ⚠ AND THE CLAUSE THAT COST THE MOST: §4.2.2 prints the DEFINITION of
+        # «коэффициент контрастности», which this file had recorded as
+        # unavailable in the whole corpus.
+        _oc = get_profile("TASMA_OCH_45")
+        chk("G-V40-P34B  the Soviet contrast coefficient has a printed "
+            "definition at last -- the straight-line slope, with the chord "
+            "defined separately in the next clause as the mean gradient",
+            _fpm._GOST_10691_0_CONTRAST_COEFF == "straight_line"
+            and _fpm._GOST_10691_0_CONTRAST_STOCKS == ("TASMA_OCH_45",)
+            and _oc.gamma_criterion == "straight_line"
+            and get_profile("SVEMA_CNL_65").gamma_criterion == ""
+            and get_profile("SVEMA_CO_90L").gamma_criterion == ""
+            and _fpm._GOST_10691_0_GRADIENT_POINT == (0.10, 1.3),
+            "TASMA_OCH_45 filled; the two COLOUR stocks stay empty because "
+            "10691.0-84 governs black-and-white only; mean gradient is "
+            "Dmin+0.10 over 1.3 decades against 9160's +0.15 / +0.20")
+
+        # ⚠ AND THE MISMATCH THE SAME READING EXPOSES, SURFACED NOT SILENCED.
+        _mism = [p.name for p in FILM_PROFILES
+                 if p.is_monochrome and p.gost_speed_class]
+        chk("G-V40-P34C  the six monochrome Soviet stocks carrying a ГОСТ "
+            "9160-91 material class are named, because 9160-91 is the COLOUR "
+            "standard and 10691.0-84 is the one that covers them",
+            tuple(sorted(_mism)) == tuple(sorted(_fpm._GOST_BW_CLASS_MISMATCH))
+            and all(get_profile(n).speed_criterion == "iso6" for n in _mism),
+            "%d stocks: %s -- every one also carries speed_criterion 'iso6', "
+            "so the two fields disagree about which system rated it; nothing "
+            "is relabelled" % (len(_mism), sorted(_mism)))
+
+        # ---- v39, queue P72: the three Ooue 1961 figures -------------------
+        #
+        # ⚠⚠ FIG. 7 CORROBORATES THIS MODULE'S OWN ARITHMETIC FROM A 1961
+        # DRAWING. `base_fresnel(1.48)` computes the acetate critical angle
+        # from Snell's law as 42.51 degrees; Ooue's section drawing prints
+        # 約42度 on the same geometry. Two independent routes, half a degree
+        # apart, and the second is a picture of the mechanism v34 assumes.
+        _og = _fpm._OOUE_1961_GEOMETRY
+        chk("G-V39-OOUE7  Fig. 7's drawn critical angle agrees with the "
+            "angle this module computes from its own refractive index, and "
+            "its base range brackets the gauge 155 of 191 stocks carry",
+            abs(_og["critical_angle_deg"][0] - _fpm.base_fresnel(1.48)[1])
+            < 0.6
+            and _og["base_um"] == (100.0, 150.0)
+            and _og["emulsion_um"] == (10.0, 20.0),
+            "drawn 42.0 deg against computed %.2f deg; base %s um, emulsion "
+            "%s um" % (_fpm.base_fresnel(1.48)[1], _og["base_um"],
+                       _og["emulsion_um"]))
+        # ⚠ AND FIG. 8 IS THE ONLY PER-LAYER SHARPNESS MEASUREMENT IN THE
+        # CORPUS. What is asserted is the ORDERING, because that is what
+        # survives a +/- 1.5 lines/mm eye reading; the absolute values carry
+        # their uncertainty beside them and are NOT applied to any stock.
+        _f8 = {n: v for n, _nm, v in _fpm._OOUE_1961_FIG8}
+        # ⚠ AND THE COUNT IS THE POINT: 115 of 191 DO carry a per-record
+        # spread, so the schema has always been able to hold one -- what it
+        # has never had is a MEASUREMENT of how the spread arises from layer
+        # depth. Fig. 8 is that measurement, on a 1961 Fujicolor negative,
+        # and it is not transferred to a modern stock.
+        _split = sum(1 for q in FILM_PROFILES if len(set(q.mtf.f50s())) > 1)
+        chk("G-V39-OOUE8  the yellow, magenta and cyan layers of one "
+            "Fujicolor negative measure 1.9x apart in the order top-to-"
+            "bottom -- and every stock in this database still stores ONE f50 "
+            "for all three records",
+            _f8[4] > _f8[5] > _f8[6]
+            and _f8[4] / _f8[6] > 1.7
+            and _fpm._OOUE_1961_FIG8_READ_UNCERTAINTY >= 1.0
+            and _split == 115,
+            "yellow %.1f / magenta %.1f / cyan %.1f lines per mm at R = 0.5, "
+            "+/- %.1f by eye; %d of %d stocks already carry a per-record "
+            "spread and none of it is derived from layer depth (queue P72)"
+            % (_f8[4], _f8[5], _f8[6],
+               _fpm._OOUE_1961_FIG8_READ_UNCERTAINTY, _split,
+               len(FILM_PROFILES)))
+
+        # ---- v40, queue P72: Fig. 5, resolving power against density --------
+        #
+        # ⚠⚠ THE FIGURE THAT SETTLES WHAT A PUBLISHED RESOLVING POWER MEANS.
+        # This corpus stores one resolving power per stock with no density
+        # attached to it, and Ooue's Fig. 5 shows the quantity RISING, PEAKING
+        # and FALLING over 0.1-1.35 D on three different materials. A number
+        # quoted without a density is therefore the PEAK of such a curve, and
+        # the peak sits at 0.70-1.05 D -- not at D-min, which is where a
+        # renderer would naturally apply it.
+        #
+        # ⚠ THE CHECK IS THE PAPER'S OWN PROSE, NOT A REPEATED COLUMN. Ooue
+        # states that a THINNER emulsion reaches a HIGHER maximum and loses
+        # resolving power FASTER as density rises. Neither ordering was fitted;
+        # both fall out of the three traces.
+        _f5 = _fpm._OOUE_1961_FIG5
+        _pk = _fpm._OOUE_1961_FIG5_PEAKS
+        _order = ["minicopy_copinal_1_1", "neopan_ss_microfine",
+                  "xray_direct_rendol"]
+        _hi = [_pk[k][1] for k in _order]
+        _drop = []
+        for k in _order:
+            pd, pv = _pk[k]
+            _tail = [v for d, v in _f5[k] if d > pd]
+            _drop.append(pv - (_tail[-1] if _tail else pv))
+        _peakbad = [k for k in _order
+                    if abs(max(v for _, v in _f5[k]) - _pk[k][1]) > 0.05
+                    or not (_fpm._OOUE_1961_FIG5_PEAK_BAND[0] - 1e-9
+                            <= _pk[k][0]
+                            <= _fpm._OOUE_1961_FIG5_PEAK_BAND[1] + 1e-9)]
+        chk("G-V40-P72  Ooue Fig. 5 makes resolving power a non-monotone "
+            "function of density, and the three traces reproduce the paper's "
+            "own statement that a thinner coating peaks higher and falls "
+            "faster",
+            not _peakbad
+            and _hi[0] > _hi[1] > _hi[2]
+            and _drop[0] > _drop[1] and _drop[0] > _drop[2]
+            and all(len(v) >= 13 for v in _f5.values())
+            and _fpm._OOUE_1961_FIG5_WIRED is False,
+            "peaks %s lines/mm at D %s, all inside the %s band; fall past the "
+            "peak %s; stored and INERT -- no stage makes resolving power a "
+            "function of density"
+            % ([round(v, 1) for v in _hi],
+               [_pk[k][0] for k in _order],
+               _fpm._OOUE_1961_FIG5_PEAK_BAND,
+               [round(v, 1) for v in _drop]))
+
+        # ---- v39, queue S1: the fourth colour record -----------------------
+        #
+        # ⚠⚠ THE SCHEMA USED TO BE THE REASON THIS DATA WAS OUTSIDE IT.
+        # doc/FUJI_FOURTH_LAYER.md opens "THIS FILE EXISTS BECAUSE THE
+        # DATABASE CANNOT HOLD WHAT IS IN IT" -- five Fuji colour negatives
+        # draw FOUR sensitive layers and SpectralSensitivity had three. The
+        # numbers were traced, checked and documented, and stored nowhere.
+        # They are stored now.
+        _f4 = [q for q in FILM_PROFILES if q.spectral.log_s_c]
+        _pk = []
+        for q in _f4:
+            c = q.spectral.log_s_c
+            i = max(range(len(c)), key=lambda k: c[k])
+            _pk.append(q.spectral.lambda_start_nm
+                       + q.spectral.lambda_step_nm * i)
+        chk("G-V39-S1  five Fuji colour negatives carry the cyan fourth "
+            "record, every one on the same grid as its own three, and all "
+            "five peak in the blue-green gap between blue and green",
+            len(_f4) == 5
+            and all(len(q.spectral.log_s_c) == len(q.spectral.log_s_g)
+                    for q in _f4)
+            and all(510.0 <= v <= 530.0 for v in _pk)
+            and all(q.spectral.has_data for q in _f4),
+            "peaks %s nm; blue and green records unchanged on all five"
+            % sorted(set(_pk)))
+        # ⚠ AND IT IS NOT INTEGRATED, WHICH IS THE PART A LATER PASS COULD GET
+        # WRONG. A fourth SENSITIVE layer feeds the same three dyes; the
+        # taking path sums three records and normalises over three. If the
+        # fourth ever enters that sum without the normalisation changing with
+        # it, this fails.
+        chk("G-V39-S1-INERT  the fourth record is stored and reachable and "
+            "the spectral taking path still integrates exactly three",
+            not any(q.spectral.log_s_c and q.spectral.log_s_pan
+                    for q in FILM_PROFILES)
+            and all(len(q.spectral.log_s_r) == len(q.spectral.log_s_c)
+                    for q in _f4),
+            "%d of %d stocks carry it; none is monochrome, so no record can "
+            "be counted twice" % (len(_f4), len(FILM_PROFILES)))
+
+        # ---- v42, queue P35: colour paper gets a spectral record ----------
+        #
+        # ⚠⚠ THE FIRST SPECTRAL DATA OF ANY KIND FOR COLOUR PAPER, and the
+        # reason it took eight days is recorded in the v31 comment on
+        # `PrintStock.density_geometry`: the three Fujicolor Crystal Archive
+        # bulletins print no characteristic curve, PrintStock cannot exist
+        # without one, so the panels had nowhere to go and were left unread.
+        # The refusal to invent a curve was right; using it to discard the
+        # measurements was not.
+        #
+        # ⚠ THE ARTWORK-REUSE CHECK IS THE POINT OF THE SECOND ASSERTION.
+        # Supreme and Type CA publish byte-identical panel images, so this is
+        # ONE measurement under two names. Two records covering three products
+        # is correct; three records would double-count it in any later
+        # average, which is the trap the T-MAX P3200 MTF row already hit once.
+        _ps = _fpm.PAPER_SPECTRA
+        _names = [n for r in _ps for n in r.names]
+        _shared = [r for r in _ps if r.shared_artwork]
+        # Each panel normalises every dye to unit peak, so a trace that did
+        # not recover ~1.0 on all three did not follow the curve it was on.
+        _pkerr = []
+        for r in _ps:
+            for t in (r.dye_density.d_cyan, r.dye_density.d_magenta,
+                      r.dye_density.d_yellow):
+                _pkerr.append(abs(max(t) - 1.0))
+        # Sensitivity: peak normalised to log 0.0 per layer, and the physical
+        # ordering blue < green < red asserted on the stored curves, not on
+        # the convenience fields.
+        _ordbad = []
+        for r in _ps:
+            sp = r.spectral
+            pk = []
+            for t in (sp.log_s_b, sp.log_s_g, sp.log_s_r):
+                i = max(range(len(t)), key=lambda k: t[k])
+                pk.append(sp.lambda_start_nm + sp.lambda_step_nm * i)
+            if not (pk[0] < pk[1] < pk[2]):
+                _ordbad.append(r.key)
+            if abs(max(sp.log_s_b) - 0.0) > 1e-9:
+                _ordbad.append(r.key + " blue not normalised")
+        chk("G-V42-P35  two colour-paper spectral records cover three "
+            "Fujicolor Crystal Archive products, every dye trace recovers "
+            "its panel's unit peak, and no record carries a characteristic "
+            "curve it was never given",
+            len(_ps) == 2 and len(_names) == 3 and len(set(_names)) == 3
+            and len(_shared) == 1 and len(_shared[0].names) == 2
+            and max(_pkerr) < 0.02 and not _ordbad
+            and all(r.density_geometry == "reflection" for r in _ps)
+            and all(r.spectral.criterion == "relative_linear_printed"
+                    for r in _ps)
+            and all(r.impurity.measurement_mode == "reflection" for r in _ps)
+            and not any(getattr(r, "curves", None) for r in _ps),
+            "3 products / 2 panel sets (Supreme and Type CA share one), "
+            "worst dye peak error %.3f, reflection geometry throughout, "
+            "%d impurity ratios in reflection mode"
+            % (max(_pkerr), sum(len(r.impurity.ratios) for r in _ps)))
+
+        # ⚠ AND THE DMAX AIMS ARE REFLECTION DENSITIES, WHICH IS THE WHOLE
+        # REASON `density_geometry` GAINED A FOURTH VALUE. A paper's 2.0-2.2
+        # and a print film's ~4.0 are not the same scale; stored side by side
+        # without the geometry they would make the paper look catastrophic.
+        _aims = [(r.key, r.dmax_aim_r, r.dmax_aim_g, r.dmax_aim_b)
+                 for r in _ps if r.dmax_aim_r]
+        _filmdmax = [max(c.dmax for c in s.curves.as_tuple())
+                     for s in PRINT_STOCKS]
+        chk("G-V42-P35B  every paper Dmax aim sits in the reflection range "
+            "and every print-FILM Dmax sits above it, so the two populations "
+            "never overlap and cannot be compared by accident",
+            len(_aims) == 2
+            and all(1.8 <= v <= 2.3 for a in _aims for v in a[1:])
+            and min(_filmdmax) > 2.3
+            and "reflection" in _fpm._DENSITY_GEOMETRIES
+            and all(s.density_geometry != "reflection" for s in PRINT_STOCKS),
+            "papers %s; %d print films, lowest Dmax %.2f"
+            % ([(a[0].split('_')[-1], a[1], a[2], a[3]) for a in _aims],
+               len(PRINT_STOCKS), min(_filmdmax)))
+
+        # ---- v41, queue P45: the Soviet handbook's EI pairs ----------------
+        #
+        # ⚠⚠ THE TABLE VALIDATES ITSELF AND NOBODY PRINTED THE VALIDATION.
+        # «Справочник кинооператора» table 2.4 gives each stock a daylight EI,
+        # a tungsten EI and the conversion filter between them, and never
+        # states a filter factor. The factors fall out: every 80A row recovers
+        # the Wratten 80A's published TWO stops and every 85 / 85A row
+        # recovers its published TWO THIRDS of a stop. Two independent filter
+        # families, ten rows, no fitting -- a transcription error in any EI
+        # would break one of them.
+        _ki = _fpm._KINOOPERATOR_EI_TABLE
+        _f80 = [math.log2(r[3] / r[5]) for r in _ki if r[6] == "80A"]
+        _f85 = [math.log2(r[5] / r[3]) for r in _ki if r[4] in ("85", "85A")]
+        # ⚠ THE TWO FAMILIES ARE CHECKED DIFFERENTLY BECAUSE THEY ARE
+        # DIFFERENT CLAIMS, and the first attempt at this guard got the
+        # second one wrong. The 80A rows recover the filter's factor exactly:
+        # four independent pairs, all within a twentieth of a stop of two
+        # stops, which is the Wratten 80A's published cost. The 85 rows do
+        # NOT all sit at the 85's two thirds, and they should not: nine do,
+        # but EASTMAN EXR 100T is rated 100 tungsten / 80 daylight and
+        # PRIMETIME 640T 640 / 500, which are ONE third-stop steps. A film
+        # rated through a conversion filter is rated on the 1/3-stop ISO
+        # ladder, and the emulsion's own daylight response pays part of the
+        # filter's cost. So the assertion is that every 85 ratio is a WHOLE
+        # NUMBER of third-stops, one or two -- which a transcription error
+        # in any EI would break just as surely, without claiming a uniformity
+        # the handbook does not print.
+        _f85t = [v * 3.0 for v in _f85]
+        chk("G-V41-P45  the handbook's daylight/tungsten EI pairs recover the "
+            "80A's two stops exactly, and every No. 85 pair lands on a whole "
+            "third-stop of the ISO ladder",
+            len(_ki) == 15 and len(_f80) == 4 and len(_f85) == 11
+            and all(abs(v - 2.0) < 0.10 for v in _f80)
+            and all(abs(v - round(v)) < 0.08 and round(v) in (1, 2)
+                    for v in _f85t)
+            and sum(1 for v in _f85t if round(v) == 2) == 9
+            and _fpm._KINOOPERATOR_APPLIED == 6
+            and len(_fpm._KINOOPERATOR_STOCKS) == 6,
+            "80A recovers %s stops (published 2); the eleven 85/85A pairs "
+            "recover %s third-stops, nine at 2/3 and two at 1/3; 6 of 15 "
+            "rows map onto stocks this database holds"
+            % ([round(v, 3) for v in _f80],
+               sorted(round(v, 2) for v in _f85t)))
+
+        # ---- v41, queue P11: resolving power is a LENS-PAIR figure ---------
+        #
+        # ⚠ A RESOLVING POWER WITHOUT ITS OPTIC IS TWO DIFFERENT NUMBERS.
+        # Glafkides tabulates the same nine emulsions twice, once through a
+        # Fuess objective and once through an apochromat, and the apochromat
+        # reads HIGHER on every single row -- so a corpus that stores one
+        # figure per stock is storing whichever lens that source happened to
+        # use. The ordering is the check: it was never fitted.
+        _gl = _fpm._GLAFKIDES_LENS_PAIR
+        _glbad = [k for k, (fu, ap) in _gl.items() if not ap > fu]
+        _glst = [q for q in FILM_PROFILES
+                 if q.mtf.resolving_power_lp_mm_apo > 0.0]
+        chk("G-V41-P11  the apochromat reads higher than the Fuess objective "
+            "on every one of the nine emulsions, and the three stocks this "
+            "database holds carry both figures with the optic named",
+            len(_gl) == 9 and not _glbad
+            and _fpm._GLAFKIDES_LENS_APPLIED == 3 and len(_glst) == 3
+            and all(q.mtf.resolving_power_lp_mm_apo
+                    > q.mtf.resolving_power_lp_mm_fuess > 0.0
+                    and q.mtf.resolving_optic for q in _glst),
+            "9 emulsion pairs, ratio %.2f-%.2f; %d stocks carry the pair"
+            % (min(ap / fu for fu, ap in _gl.values()),
+               max(ap / fu for fu, ap in _gl.values()), len(_glst)))
+
+        # ---- v41, queue P36: a ratio needs to say what it is a ratio OF ----
+        #
+        # ⚠ DENSITY RATIO AND GAMMA RATIO ARE NOT INTERCHANGEABLE and the
+        # file held both under one field name. Hanson's masking rule is
+        # written in gamma ratios; every Soviet ТУ figure in this file is a
+        # density ratio. The default exists so that no legacy record silently
+        # becomes a gamma ratio, and every record must now name its quantity.
+        _rat = [r for q in FILM_PROFILES for r in q.dye_impurity.ratios]
+        _rat += [r for rec in _fpm.PAPER_SPECTRA for r in rec.impurity.ratios]
+        _noq = [r for r in _rat if not r.quantity]
+        chk("G-V41-P36  every stored dye-impurity ratio names the quantity "
+            "it is a ratio of, and the Hanson masking rule is on file as the "
+            "gamma-ratio case it is",
+            bool(_rat) and not _noq
+            and _fpm._IMPURITY_QUANTITY_DEFAULT == "density_ratio"
+            and _fpm._IMPURITY_QUANTITIES == frozenset(
+                {"density_ratio", "gamma_ratio"})
+            and _fpm._HANSON_MASK_RULE == (-1.0, 2),
+            "%d ratios, %d unlabelled; Hanson's rule stored as %s"
+            % (len(_rat), len(_noq), (_fpm._HANSON_MASK_RULE,)))
+
+        # ---- v41, queue P52: gamma(t) as a LAW, not a scatter of points ----
+        #
+        # ⚠ TWO VESSELS, TWO LAWS, AND AVERAGING THEM WOULD DESCRIBE NEITHER.
+        # A ProcessingFamily used to hold development POINTS only, so a stock
+        # tabulated in a small tank and a large one had one cloud with two
+        # branches in it. The fitted rate law separates them: the large
+        # replenished tank runs slower (smaller k) and reaches further
+        # (higher gamma at infinity), which is the physics and not the fit.
+        _law = [ln for q in FILM_PROFILES for ln in q.processing_family.laws]
+        _lbad = [ln for ln in _law
+                 if not (ln.gamma_infinity > 0.0 and ln.dev_rate_k > 0.0
+                         and ln.fit_rms > 0.0 and ln.has_rate_law)]
+        _tm = _fpm.get_profile("KODAK_TMAX_P3200").processing_family
+        _small = _tm.law_for("T-MAX", vessel="small tank")
+        _large = _tm.law_for("T-MAX RS", vessel="large tank")
+        chk("G-V41-P52  the fitted development laws separate the small tank "
+            "from the large one in both directions the chemistry predicts, "
+            "and every law fits to better than 0.02 gamma rms",
+            len(_law) == 2 and not _lbad
+            and _small is not None and _large is not None
+            and _large.gamma_infinity > _small.gamma_infinity
+            and _large.dev_rate_k < _small.dev_rate_k
+            and max(ln.fit_rms for ln in _law) < 0.02,
+            "small tank gamma_inf %.3f k %.4f, large tank %.3f / %.4f; "
+            "worst rms %.4f"
+            % (_small.gamma_infinity, _small.dev_rate_k,
+               _large.gamma_infinity, _large.dev_rate_k,
+               max(ln.fit_rms for ln in _law)))
+
+        # ---- v41, queue P66: a print stock's own chemistry -----------------
+        _pproc = [s for s in PRINT_STOCKS
+                  if s.processing is not None and s.processing.developer]
+        chk("G-V41-P66  the release print stock names the process it is "
+            "developed in, which no print stock could state before v41",
+            len(_pproc) == 1 and _pproc[0].processing.developer.startswith(
+                "ECP-2"),
+            "%s in %s" % (_pproc[0].name, _pproc[0].processing.developer))
+
+        # ---- v41, queue P68: the interimage zone profile, REFUSED ----------
+        #
+        # ⚠ THE MEASUREMENT IS KEPT AND THE GENERALISATION IS NOT. One house,
+        # one record (blue), three points: enough to state that the interimage
+        # effect varies with exposure zone, nowhere near enough to give every
+        # stock a zone profile. The guard asserts the refusal so that a later
+        # pass cannot quietly adopt it without moving this line.
+        chk("G-V41-P68  the exposure-zone interimage spread is stored as a "
+            "measurement and NOT wired into any profile",
+            _fpm._IIE_ZONE_PROFILE_ADOPTED is False
+            and _fpm._IIE_ZONE_RECORDS == ("b",)
+            and _fpm._IIE_ZONE_SPREAD[1] > _fpm._IIE_ZONE_SPREAD[0] > 1.0,
+            "spread %s on record %s; adopted False"
+            % (_fpm._IIE_ZONE_SPREAD, _fpm._IIE_ZONE_RECORDS))
+
+        # ---- v44, queue P73: the 1931-1969 antihalation patent chain -------
+        #
+        # ⚠⚠ THE CHAIN SETTLES THAT `position` IS A PHYSICAL SYSTEM AND NOT A
+        # LABEL. Queue P70 fixed a working antihalation density of 0.15-2.0 D
+        # from in-path absorbers; these four patents show a BACKING capped an
+        # order of magnitude lower, because positives are printed through it.
+        # Two Kodak patents eighteen years apart give the same reason in the
+        # same words, and the guard asserts the two bands do not overlap --
+        # if they ever did, one number would be being used for two systems.
+        _pos = _fpm._AH_OD_BY_POSITION
+        _perm = _fpm.ah_od_band_for("backing")
+        _p70_lo = min(_fpm._US4977070_AH_WORKING_OD)
+        chk("G-V44-P73  the backing antihalation band sits an order of "
+            "magnitude below the in-path working range, and the accessor "
+            "refuses every position the chain does not cover",
+            len(_pos) == 4
+            and _perm == (0.10, 0.30)
+            and _fpm.ah_od_band_for("backing", removable=True) == (0.80, 0.80)
+            and _fpm.ah_od_band_for("backing",
+                                    permanent_tinted=True) == (0.04, 0.08)
+            and _fpm.ah_od_band_for("in_pack") is None
+            and _fpm.ah_od_band_for("undercoat") is None
+            and _fpm.ah_od_band_for("in_base") is None
+            and _perm[1] < _p70_lo * 3.0
+            and _fpm._AH_BACKING_CEILING_REASON
+                == "printing_through_the_base",
+            "permanent backing %s against P70's in-path working range from "
+            "%.2f D; removable %s; 1/10-1/20 tinted %s"
+            % (_perm, _p70_lo,
+               _fpm.ah_od_band_for("backing", removable=True),
+               _fpm.ah_od_band_for("backing", permanent_tinted=True)))
+
+        # ⚠ AND NOT ONE OF THOSE BANDS IS WRITTEN ONTO A PROFILE. 30 stocks
+        # name an antihalation POSITION and none carries an optical density;
+        # stamping a band midpoint onto nineteen backing stocks would be
+        # nineteen inventions. Absence stays absence.
+        _ah_pos = [q for q in FILM_PROFILES if q.anti_halation.position]
+        _ah_od = [q.name for q in _ah_pos if q.anti_halation.optical_density]
+        chk("G-V44-P73B  the class bands stay class bands -- every stock that "
+            "names an antihalation position still carries no optical density",
+            len(_ah_pos) == 30 and not _ah_od
+            and _fpm._AH_OD_WRITTEN_TO_PROFILES is False,
+            "%d stocks name a position, %d carry a density"
+            % (len(_ah_pos), len(_ah_od)))
+
+        # ⚠⚠ THE ONLY QUANTITATIVE HALATION MEASUREMENT IN THIS CORPUS, and it
+        # behaves: latitude rises monotonically with the antihalation measure,
+        # the bare film is the floor, and the dye's return diminishes -- which
+        # is the patent's own conclusion that "very adequate and useful
+        # results are obtained with dye layer densities much less than 0.2".
+        _lad = _fpm._US2481770_HALATION_LADDER
+        _bare = [r for r in _lad if not r[2] and r[1] == 0.0][0]
+        _sub = [r for r in _lad if r[2] and r[1] == 0.0][0]
+        _dye = sorted([r for r in _lad if r[2] and r[1] > 0.0],
+                      key=lambda r: r[1])
+        chk("G-V44-P73C  the 1949 halation ladder is monotone in the "
+            "antihalation measure, the low-index sublayer alone clears the "
+            "patent's own worthwhile threshold, and the dye's return "
+            "diminishes",
+            len(_lad) == 7
+            and abs(_bare[3] - 1.15) < 1e-9
+            and _sub[3] > _fpm._US2481770_WORTHWHILE_LATITUDE[1]
+            and [r[3] for r in _dye] == sorted(r[3] for r in _dye)
+            and _dye[0][3] > _sub[3]
+            and (_dye[-1][3] - _dye[-2][3]) < (_dye[1][3] - _dye[0][3])
+            and _fpm._US2481770_SUPERADDITIVE_CLAIMED is True
+            and _fpm._US2481770_SUPERADDITIVE_MEASURED is False,
+            "bare %.2f, sublayer alone %.2f (threshold %s), dye rows %s -- "
+            "super-additivity is the patent's claim and is NOT asserted as "
+            "measured here, because the rows do not isolate the dye-alone case"
+            % (_bare[3], _sub[3], _fpm._US2481770_WORTHWHILE_LATITUDE,
+               [(r[1], r[3]) for r in _dye]))
+
+        # ⚠⚠ THE SECOND CRITICAL ANGLE. `base_fresnel()` gives the one at the
+        # base/air interface, which is what v34 derives the halation radii
+        # from; US 2,481,770 is built on one at the EMULSION/sublayer
+        # interface that this model never had. It returns None for every stock
+        # in this file, because an ordinary gelatin subbing has the emulsion's
+        # own index and there is no break at all -- a law with no data, which
+        # is the honest state and not an oversight.
+        _nem = _fpm._US2481770_INDICES["gelatin_emulsion"]
+        _brk = _fpm._US2481770_MIN_INDEX_BREAK
+        _ang = _fpm.emulsion_side_critical_angle(_nem, _nem - _brk)
+        _base_ang = _fpm.base_fresnel(
+            _fpm._US2481770_INDICES["cellulose_acetate"])[1]
+        chk("G-V44-P73D  the emulsion-side critical angle exists, refuses a "
+            "break below the patent's 0.08 threshold, and is far more oblique "
+            "than the base-side one it supplements",
+            _fpm.emulsion_side_critical_angle(_nem, _nem) is None
+            and _fpm.emulsion_side_critical_angle(_nem, _nem - 0.05) is None
+            and _ang is not None and abs(_ang - 71.46) < 0.1
+            and _ang > _base_ang + 25.0
+            and _fpm.emulsion_side_critical_angle(_nem, 1.40) is not None,
+            "at the minimum 0.08 break the emulsion turns back rays beyond "
+            "%.1f deg where acetate turns them back beyond %.1f deg, so the "
+            "sublayer removes the MOST oblique rays -- which the patent says "
+            "are 'the source of the more objectionable halation'"
+            % (_ang, _base_ang))
+
+        # ⚠ AND THE 1949 INDEX TABLE CORROBORATES THE ONE THIS FILE HAS USED
+        # SINCE v34 FROM A BROAD PATENT RANGE: 1.481 measured against 1.48 in
+        # use. Nitrate joins as its own row -- it is 1.2 per cent higher than
+        # acetate, which is not nothing on a critical angle.
+        _opt = _fpm._V34_BASE_OPTICS
+        _ix = _fpm._US2481770_INDICES
+        chk("G-V44-P73E  the measured 1949 indices corroborate the acetate "
+            "figure in use and give nitrate its own row, and no profile "
+            "names nitrate so no render moves",
+            abs(_opt["acetate"][0] - _ix["cellulose_acetate"]) < 0.002
+            and set(_opt) == {"acetate", "nitrate", "polyester"}
+            and abs(_opt["nitrate"][0] - 1.498) < 1e-9
+            and _fpm._v34_support_key("cellulose nitrate") == "nitrate"
+            and _fpm._v34_support_key("") == "acetate"
+            and not [q for q in FILM_PROFILES
+                     if _fpm._v34_support_key(q.emulsion.base_material)
+                     == "nitrate"]
+            and _ix["support_range_lo"] <= _ix["cellulose_nitrate"]
+                <= _ix["support_range_hi"],
+            "acetate 1.48 in use against 1.481 measured (0.07 %%); nitrate "
+            "1.498 gives a critical angle of %.2f deg against acetate's "
+            "%.2f; 0 of %d stocks name it"
+            % (_fpm.base_fresnel(1.498)[1], _base_ang, len(FILM_PROFILES)))
+
+        # ⚠⚠ THE FIRST MEASURED COST OF AN IN-PACK ANTIHALATION LAYER, and the
+        # reason `position` could be stored with no consequence until now.
+        # Fuji coat one emulsion three ways: an unmordanted dye undercoat
+        # loses about a stop because the dye migrates into the emulsion, and
+        # mordanting it cuts the loss to a third of a stop.
+        _loss = _fpm._US3445231_INPACK_SPEED_LOSS
+        _sup = _fpm._US3445231_INTERLAYER_GREEN_SUPPRESSION
+        chk("G-V44-P73F  mordanting an in-pack antihalation layer costs less "
+            "speed than letting its dye migrate, by the same ratio in the "
+            "black-and-white and the colour-interlayer experiments",
+            set(_loss) == {"unmordanted", "mordanted"}
+            and _loss["mordanted"][0] < _loss["unmordanted"][0]
+            and abs(_loss["unmordanted"][0] - 0.50) < 1e-9
+            and abs(_loss["mordanted"][0] - 0.20) < 1e-9
+            and _sup == {"unmordanted": 0.50, "mordanted": 0.20},
+            "%.0f %% of the speed lost unmordanted against %.0f %% mordanted "
+            "-- about one stop against a third of one; the same 0.50/0.20 "
+            "pair suppresses the red layer's unwanted green sensitivity when "
+            "the construction is used as a colour interlayer"
+            % (_loss["unmordanted"][0] * 100.0, _loss["mordanted"][0] * 100.0))
+
+        # ---- v43, queue P12: the GOST criterion is two revisions -----------
+        #
+        # ⚠⚠ THE CONFLICT WAS NEVER BETWEEN TWO OPINIONS. Glafkides gives
+        # D = fog + 0.2 with S = 1/E; ГОСТ 9160-91 gives fog + 0.85 with
+        # S = K/H. Forty years apart, and the criteria are now stored keyed by
+        # EDITION so that no stock's speed can be qualified by a standard that
+        # postdates it. The guard's real content is the two REFUSALS: 9160-82
+        # is a key with no rows because nobody has read it, and the 1950s
+        # criterion is NOT filed as an edition of 9160 because ГОСТ 9160 did
+        # not exist in that form.
+        _cri = _fpm._GOST_SPEED_CRITERIA
+        _f91 = {c: _fpm.gost_speed_criterion("9160-91", c)
+                for c in sorted(_fpm._GOST_SPEED_CLASSES)}
+        _f82 = [c for c in _fpm._GOST_SPEED_CLASSES
+                if _fpm.gost_speed_criterion("9160-82", c) is not None]
+        chk("G-V43-P12  the five ГОСТ 9160-91 speed criteria are data keyed by "
+            "EDITION, the unread 1982 edition answers None rather than "
+            "borrowing them, and the 1950s criterion is filed apart from both",
+            len(_cri["9160-91"]) == 6 and _cri["9160-82"] == {}
+            and not _f82
+            and _f91["neg_cine"] == (0.20, 1.6)
+            and abs(_f91["neg_still"][1] - 2.0 ** 0.5) < 1e-12
+            and _f91["aerial_negative"] == (0.85, 20.0)
+            and _fpm.gost_speed_criterion("9160-59", "neg_cine") is None
+            and abs(_fpm._GOST_1950S_CRITERION["d_kr_above_fog"] - 0.20) < 1e-12
+            and _fpm._GOST_1950S_CRITERION["speed_law"] == "S = 1/E"
+            and "9160-82" in _fpm._GOST_EDITIONS_UNREAD,
+            "six 1991 rows on file; 1982 has none and returns None for all "
+            "%d classes; the 1950s reading is stored as its own constant, "
+            "not as a third edition key" % len(_fpm._GOST_SPEED_CLASSES))
+
+        # ⚠ AND THE SIX STOCKS THAT NAME A CLASS AND NO EDITION ARE A LIST,
+        # not a silence. A class is a statement about the MATERIAL, which no
+        # edition disputes; the edition is a statement about which revision
+        # qualified the stored speed, and their sources do not say.
+        _cls = [q for q in FILM_PROFILES if q.gost_speed_class]
+        _noed = {q.name for q in _cls if not q.gost_speed_edition}
+        chk("G-V43-P12B  every classed stock that names no ГОСТ edition is on "
+            "the recorded list, and the list has no stock that does name one",
+            _noed == set(_fpm._GOST_EDITION_UNSTATED),
+            "%d stocks carry a class, %d of them name an edition; the other "
+            "%d are listed" % (len(_cls), len(_cls) - len(_noed), len(_noed)))
+
+        # ---- v43, queue P13: the magenta default that cannot exist ---------
+        #
+        # ⚠⚠ THE RANKING INVERTS BETWEEN ERAS, so a single `dye_fade_m`
+        # default would be wrong in OPPOSITE directions on the two coupler
+        # chemistries. The guard asserts the inversion itself -- the 1980s
+        # replacement is WORSE than the dye it replaced, on both ends of its
+        # band -- and that the 1950s half stays a ranking, because Glafkides
+        # publishes an order and no fraction.
+        _mf = _fpm._MAGENTA_LIGHT_FADE
+        chk("G-V43-P13  the magenta light-fade default is keyed to the coupler "
+            "class, the 1980s replacement is measurably worse than the dye it "
+            "replaced, and the 1950s half stays a ranking with no invented "
+            "number",
+            set(_mf) == {"five_pyrazolone", "pyrazoloazole"}
+            and _mf["pyrazoloazole"][0] > _mf["five_pyrazolone"][1]
+            and _fpm._MAGENTA_STABILITY_RANK_1950S == ("pyrazolone", "nitrile")
+            and all(c not in _mf for c in _fpm._MAGENTA_STABILITY_RANK_1950S)
+            and _fpm.magenta_fade_default("pyrazolone") is None
+            and _fpm.magenta_fade_default("") is None
+            and abs(_fpm.magenta_fade_default("pyrazoloazole") - 0.95) < 1e-9
+            and all(c in _fpm._MAGENTA_COUPLER_CLASSES for c in _mf)
+            and not [q for q in FILM_PROFILES if q.aging.magenta_coupler_class],
+            "pyrazoloazole %s against 5-pyrazolone %s, disjoint bands; the "
+            "two 1950s classes carry an ORDER and no fraction; 0 of %d stocks "
+            "name a coupler class, which is the honest state"
+            % (_mf["pyrazoloazole"], _mf["five_pyrazolone"], len(FILM_PROFILES)))
+
+        # ---- v43, queue P14: the Iofis 1981 tables --------------------------
+        #
+        # ⚠⚠ THE ROW CARRIED THIRTEEN FILM NAMES FOR A WEEK AND NONE OF THEIR
+        # NUMBERS. Both tables are transcribed now, INCLUDING the four rows
+        # that correspond to stocks this file already holds -- which is what
+        # makes the transcription checkable against something other than
+        # itself. Two of the four agree on speed exactly and a third to a
+        # sixth of a stop.
+        _bw = _fpm._IOFIS_1981_BW
+        _col = {r[0]: r for r in _fpm._IOFIS_1981_COLOUR}
+        _names = {r[0] for r in _bw} | set(_col)
+        _spd = []
+        for _d, _st in _fpm._IOFIS_1981_MAPPED.items():
+            _q = get_profile(_st)
+            _s = (_col[_d][1] if _d in _col
+                  else next(r[1] for r in _bw if r[0] == _d))
+            _spd.append((_d, _s, _q.exposure_index))
+        _spd_bad = [t for t in _spd if abs(math.log2(t[1] / t[2])) > 0.25]
+        chk("G-V43-P14  both Iofis 1981 summary tables are transcribed, the "
+            "thirteen unprofiled films are named, and every row that maps "
+            "onto a stock in this file agrees with its stored speed to "
+            "within a quarter stop",
+            len(_bw) == 9 and len(_col) == 9
+            and len(_fpm._IOFIS_1981_UNPROFILED) == 13
+            and set(_fpm._IOFIS_1981_UNPROFILED) <= _names
+            and not _spd_bad
+            # the thirteen really are absent -- no alias of a live profile
+            and not [n for n in _fpm._IOFIS_1981_UNPROFILED
+                     if any(n.lower() in (a.lower() for a in q.aliases)
+                            for q in FILM_PROFILES)]
+            and "TERTIARY SUMMARY" in _fpm._IOFIS_1981_SOURCE,
+            "9 + 9 rows, 13 unprofiled and none of them reachable as an "
+            "alias; speed check %s"
+            % [(d, s, ei) for d, s, ei in _spd])
+
+        # ⚠ AND ONE MAPPED ROW DISAGREES, WHICH IS RECORDED RATHER THAN
+        # RECONCILED. ЦО-90Л's stored contrast is 1.90 from its ТУ; the
+        # encyclopedia prints 1.5. Method rule 25 gives the ТУ precedence, so
+        # the profile does not move -- and the disagreement is asserted so
+        # that nobody later "fixes" the profile to match a tertiary summary.
+        _co90 = get_profile("SVEMA_CO_90L").curves.g.gamma
+        chk("G-V43-P14B  the one contrast disagreement between Iofis 1981 and "
+            "a ТУ-sourced profile stays unreconciled, with the ТУ winning",
+            abs(_col["ЦО-90Л"][2] - 1.5) < 1e-9
+            and abs(_co90 - 1.90) < 1e-9
+            and abs(_co90 - _col["ЦО-90Л"][2]) > 0.3,
+            "encyclopedia 1.5 against the stored 1.90 -- 0.40 apart, ТУ "
+            "outranks a tertiary summary (method rule 25)")
+
+        # ---- v43, queue P39: the NIKFI scale --------------------------------
+        #
+        # ⚠ THE UNIT IS PRESERVED AND THE CONVERSION IS REFUSED. Two stocks'
+        # only published speed is "20-26 NIKFI units"; this corpus holds no
+        # NIKFI definition, so no ГОСТ or ISO number may be derived and none
+        # is. Both stocks therefore keep their `gost_speed_class` refusal.
+        _nk = _fpm._NIKFI_SPEED
+        chk("G-V43-P39  the NIKFI figures are stored in their own unit, and "
+            "both stocks that carry one still refuse a ГОСТ speed class",
+            set(_nk) == {"SVEMA_DS_2", "SVEMA_LN_3"}
+            and all(v == (20.0, 26.0) for v in _nk.values())
+            and all(not get_profile(n).gost_speed_class for n in _nk)
+            and all(n in _fpm._GOST_CLASS_WITHHELD for n in _nk)
+            and "NOT IN THIS CORPUS" in _fpm._NIKFI_SCALE_DEFINITION,
+            "%d stocks at 20-26 NIKFI units; no conversion constant exists in "
+            "this file and none was fitted" % len(_nk))
+
+        # ---- v43, queue P40: the two merged SVEMA identities ---------------
+        #
+        # ⚠⚠ THE ROW'S OWN REMEDY WAS TO SPLIT THE RECORDS AND SPLITTING WOULD
+        # HAVE BEEN WRONG. Both profiles' sensitometry comes from Гурлев 1986
+        # p.296's FOTO- columns, i.e. the still line, so there is one dataset
+        # and one criterion; two records would be one measurement counted
+        # twice. The class is now written and the refusal is gone.
+        _p40 = [get_profile(n) for n in ("SVEMA_FOTO_65", "SVEMA_FOTO_250")]
+        chk("G-V43-P40  both merged SVEMA entries carry neg_still, neither is "
+            "withheld any more, and neither was duplicated into a second "
+            "record to get there",
+            all(q.gost_speed_class == "neg_still" for q in _p40)
+            and all(q.name not in _fpm._GOST_CLASS_WITHHELD for q in _p40)
+            and all(q.name in _fpm._GOST_EDITION_UNSTATED for q in _p40)
+            and len([q for q in FILM_PROFILES
+                     if q.name.startswith("SVEMA_FOTO_")]) == 4,
+            "neg_still on both, from Гурлев's Foto-65 / Foto-250 columns; "
+            "%d SVEMA_FOTO_* records, unchanged"
+            % len([q for q in FILM_PROFILES
+                   if q.name.startswith("SVEMA_FOTO_")]))
+
+        # ---- v43, queue P41: the offset-speed sub-layers -------------------
+        #
+        # ⚠⚠ THE ROW REFUSED AN EMPTY CARRIER AND THIS ONE ARRIVES WITH ITS
+        # LAW. `combined_density` on an empty set returns the bare curve's
+        # density, so shipping it inert cannot move a render -- and a
+        # populated set computes the thing a single ToneCurve cannot. The
+        # patent's own measured separation is pushed through it here.
+        _sl_empty = _fpm.SubLayerSet()
+        _sl = _fpm.SubLayerSet(dloge=(0.0, 0.36), share=(0.5, 0.5),
+                               criterion="fog+0.10",
+                               source="EP 0 083 377 A1 TABLE 2")
+        _lin = lambda x: 1.0 + 0.6 * x
+        _pop = [q.name for q in FILM_PROFILES if q.sub_layers.has_data]
+        _rules = _fpm._EP0083377_RULES
+        chk("G-V43-P41  a colour record can now hold offset-speed sub-layers, "
+            "an empty set is exactly the bare curve, and the patent's "
+            "measured 0.36 log E separation buys the 1.2 stops it claims",
+            not _sl_empty.has_data and not _pop
+            and abs(_sl_empty.combined_density(_lin, 0.4) - _lin(0.4)) < 1e-12
+            and _sl.has_data
+            and abs(_sl.latitude_gain_stops() - 1.196) < 0.01
+            and _rules["sublayer_dloge_measured_table2"] == (0.35, 0.37)
+            and (_rules["sublayer_dloge_preferred"][0]
+                 <= _rules["sublayer_dloge_measured_table2"][0]
+                 <= _rules["sublayer_dloge_preferred"][1]),
+            "0 of %d stocks populate it, which is honest -- no specimen in "
+            "EP 0 083 377 A1 is a stock this database holds; the measured "
+            "0.35-0.37 sits inside the patent's own preferred 0.3-0.8 window"
+            % len(FILM_PROFILES))
+
+        # ---- v43, queue M1a: which print stock's spectral IS the reader ----
+        #
+        # ⚠⚠ THE ACQUISITION HALF CLOSED ON 2026-08-31 AND THE CONFIGURATION
+        # HALF IS THIS. 2383 carries a traced spectral panel and a measured
+        # printing matrix, and 190 of the 191 films render through SCAN_DI,
+        # whose "reader" is a scanner sensor nothing in this corpus measures
+        # (M1b). So the matrix is correct, reachable and UNUSED, and the flag
+        # now says why rather than a comment saying it.
+        _emul = [x for x in PRINT_STOCKS if x.reader_is_emulsion]
+        _xform = [x for x in PRINT_STOCKS if not x.reader_is_emulsion]
+        _2383 = next(x for x in PRINT_STOCKS if x.name == "KODAK_2383_RELEASE")
+        _through = {q.default_print for q in FILM_PROFILES}
+        chk("G-V43-M1A  every real print EMULSION is flagged as its own "
+            "reader and the two digital-intermediate transforms are not, and "
+            "the one stock with a measured printing matrix is reachable but "
+            "unused by configuration rather than by omission",
+            len(_emul) == 9 and len(_xform) == 2
+            and {x.name for x in _xform} == {"SCAN_DI", "KODAK_VISION3_DI_2254"}
+            and _2383.reader_is_emulsion
+            and bool(_2383.spectral.log_s_r)
+            and _2383.printing_matrix_measured
+            and "KODAK_2383_RELEASE" not in _through
+            and not any(x.spectral.log_s_r for x in _xform),
+            "9 emulsions / 2 transforms; films render through %s, so 2383's "
+            "matrix describes a printing step nothing currently takes"
+            % sorted(_through))
+
+        # ---- v40, queue P46: the Gevaert catalogue, decoded not eye-read ---
+        #
+        # ⚠ THE ROW EXPECTED A PAGE-IMAGE READ AND THE DOCUMENT DECODES
+        # ITSELF. Gevaert print every resolving power twice, in lines/mm and
+        # in lines/inch, and only the first copy is mangled by the OCR. Both
+        # decoders are asserted here, because a transcription that cannot be
+        # re-derived is the thing this suite exists to refuse.
+        _gv = _fpm._GEVAERT_MANUAL_CATALOGUE
+        _gvbad = [r for r in _gv if abs(r[3] / 25.4 - r[2]) > 1.2]
+        _LADDER = {17: 40, 22: 125, 25: 250, 27: 400, 19: 64, 13: 16, 10: 8}
+        _gvspeed = [r for r in _gv
+                    if _LADDER.get(r[4]) != r[5]
+                    or (r[6] and _LADDER.get(r[6]) != r[7])]
+        chk("G-V40-P46  every Gevaert resolving power re-derives from its "
+            "own lines/inch figure to within 1.2 lp/mm, and every DIN sits "
+            "on the standard ladder against its printed ASA",
+            len(_gv) == 16 and not _gvbad and not _gvspeed
+            and _fpm._GEVAERT_SHEET_ANTIHALATION,
+            "16 entries, %d decoder mismatches, %d speed-pair mismatches"
+            % (len(_gvbad), len(_gvspeed)))
+        # ⚠ AND NOT ONE OF THEM BECOMES A PROFILE. The manual prints no
+        # characteristic curve, so a resolving power and a speed cannot make
+        # one, and none of these products overlaps the seven Gevaert stocks
+        # this database holds -- those are cine, these are still.
+        _gev = [q.name for q in FILM_PROFILES if "GEVA" in q.name.upper()]
+        chk("G-V40-P46X  the catalogue adds no profile, because the manual "
+            "prints no curve and none of its products is a stock this "
+            "database holds",
+            len(_gev) == 7
+            and not any("GEVAPAN" in n for n in _gev),
+            "7 Gevaert stocks held, all cine: %s" % (sorted(_gev)[:3],))
 
         # ⚠ THE MTF NUMBERS ASSERT A PROPERTY OF THE ENGINE, NOT OF A STOCK.
         # US 4,248,962 measures 108 % and 112 % response at 20 cy/mm from
@@ -10961,11 +12562,18 @@ if _sec_on():
         # two rated on the NIKFI scale, two whose entry merges a cine and a
         # still designation, and one stored as a PrintStock, which holds no
         # speed for a criterion to qualify.
-        chk("G-V32-GOSTCLASS  gost_speed_class is populated on 13 Soviet "
+        # ⚠ 13 -> 15 AND 5 -> 3 ON 2026-09-18c (queue P40). SVEMA_FOTO_65 and
+        # SVEMA_FOTO_250 left the withheld list and gained `neg_still`: both
+        # profiles' sensitometry comes from Гурлев 1986's FOTO- columns, i.e.
+        # the still line, so the record has one criterion and never needed the
+        # split the queue row proposed. The three that remain withheld are the
+        # two NIKFI-rated stocks (queue P39, whose scale this corpus cannot
+        # convert) and the PrintStock that holds no speed at all.
+        chk("G-V32-GOSTCLASS  gost_speed_class is populated on 15 Soviet "
             "stocks, 7 of them carrying the edition their own ТУ sheet "
-            "names, and none of the 5 withheld stocks has been filled in",
-            len(_gost_set) == 13 and len(_gost_ed) == 7
-            and len(_fpm._GOST_CLASS_WITHHELD) == 5
+            "names, and none of the 3 withheld stocks has been filled in",
+            len(_gost_set) == 15 and len(_gost_ed) == 7
+            and len(_fpm._GOST_CLASS_WITHHELD) == 3
             and not _withheld_set,
             "%d classed, %d with an edition, %d on the withheld list"
             % (len(_gost_set), len(_gost_ed),
@@ -11323,13 +12931,25 @@ if _sec_on():
         # -- and inherits `neutral_dmin` from the same default every one of the
         # other forty-nine carries. The baseline moves with the population
         # because it pins a known metadata defect, not a property.
-        _MISLABEL_BASELINE = 50
+        _MISLABEL_BASELINE = 12
         _mislab = sorted(p.name for p in FILM_PROFILES
                          if p.kind == StockKind.NEGATIVE and not p.is_monochrome
                          and p.mask_encoding == "neutral_dmin"
                          and p.curves.b.dmin > p.curves.g.dmin > p.curves.r.dmin)
-        chk("G-MASKENC  the mask_encoding mislabel count is UNCHANGED -- a "
-            "known metadata defect pinned, not a passing property",
+        # ⚠⚠ 50 -> 12 ON 2026-09-17e, AND THE AUDIT THE ROW ASKED FOR IS WHY
+        # IT IS NOT 0. Queue P47 wanted "a per-profile confirmation that the
+        # stored triple's provenance really is a mask ladder, before the label
+        # is changed to say so". Run, that confirmation SPLIT the population:
+        # 38 of the 50 have a tier-1 curve provenance -- traced, measured or
+        # stated -- so their ladder is a reading of a published curve and the
+        # label was simply wrong; those are relabelled. The other 12 have only
+        # an estimated or assumed provenance, so their ladder may be an
+        # artefact of the estimate that produced it, and relabelling them
+        # would promote a guess into a claim about a measured mask. They are
+        # named in `_P47_LADDER_UNCONFIRMED` and stay pinned here.
+        chk("G-MASKENC  the mask_encoding mislabel count is UNCHANGED -- 38 "
+            "relabelled on tier-1 provenance, 12 held because theirs is an "
+            "estimate",
             len(_mislab) == _MISLABEL_BASELINE,
             "%d stocks say neutral_dmin and store a ladder, baseline %d%s"
             % (len(_mislab), _MISLABEL_BASELINE,

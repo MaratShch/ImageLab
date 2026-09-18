@@ -235,13 +235,33 @@ constexpr DupeStockCtrl DupeStockCtrlDef = DupeStockCtrl::eDUPE_FINE_GRAIN;
 //  the two disagree in either direction.
 enum class ProcessVariantCtrl : int32_t
 {
-    //  \warning NOT A VARIANT AND NOT AN ITEM IN THE LIST BOX. It is the
-    //  absence of a selection: the development the stored curves already
-    //  represent. Negative so it can never collide with an enumerator, and
-    //  outside the [0, TOTAL_PROCESSES) range every validity test uses.
-    eAS_SHIPPED = -1,
+    //  The absence of an ALTERNATE selection: the development the stored
+    //  curves already represent. It IS an item in the list box, and it is the
+    //  first one.
+    //
+    //  \warning IT WAS -1 UNTIL 2026-09-18e AND THE REBASE IS AN OWNER
+    //  REQUIREMENT, not a tidy-up: every enumerated value in the AlgoControl
+    //  structure starts from zero. The old comment argued that a negative
+    //  value "can never collide with an enumerator" and sits "outside the
+    //  [0, TOTAL_PROCESSES) range every validity test uses" -- both true, and
+    //  both bought with a value that a plain unsigned control, a list-box
+    //  index or a serialiser writing a size_t cannot represent at all.
+    //
+    //  NOTHING BEHAVIOURAL CHANGES, and the mechanism is the KEY table rather
+    //  than the range test. `ProcessVariantCtrlKey[eAS_SHIPPED]` is the empty
+    //  string, `AlgoResolveProcessVariant` looks that key up in the stock's
+    //  own process_variants and finds nothing, and returns the shipped
+    //  profile by reference -- which is exactly what the sentinel did when it
+    //  failed the validity test instead. The static_assert below pins the
+    //  empty key so the two can never come apart.
+    //
+    //  \warning A PROJECT SAVED BEFORE THE REBASE STORES DIFFERENT NUMBERS.
+    //  -1 is no longer a legal value and is rejected by the range test, which
+    //  takes the same inert as-shipped path; every other old value is one
+    //  LESS than its new one. A host that migrates saved projects adds one.
+    eAS_SHIPPED = 0,
 
-    eAGFA_REFINAL = 0,
+    eAGFA_REFINAL = 1,
     eAGFA_RODINAL_1_25,
     eAGFA_RODINAL_1_50,
     eAGFA_RODINAL_SPECIAL,
@@ -281,12 +301,15 @@ constexpr ProcessVariantCtrl ProcessVariantCtrlDef =
 
 //  Display strings for the list box, pipe separated in enumerator order, in
 //  the same form as every other control's string in this header.
-//  \warning TOTAL_PROCESSES AND eAS_SHIPPED ARE ABSENT BY DESIGN. The first is
-//  a count; the second is the absence of a selection and belongs in the host's
-//  own "no variant" affordance, not in the list of developments. Its label is
-//  ProcessVariantCtrlNoneStr below, kept separate for exactly that reason.
+//  \warning TOTAL_PROCESSES IS ABSENT BY DESIGN -- it is a count, not a
+//  process. eAS_SHIPPED IS PRESENT AND IS THE FIRST ENTRY, as of the
+//  2026-09-18e rebase: it is a legal selection meaning "the development the
+//  stored curves already represent", so the list box offers it like any other
+//  and the string, name and key tables are index aligned with the enumeration
+//  from zero. ProcessVariantCtrlNoneStr below is kept, and is now the same
+//  text as entry 0.
 constexpr char ProcessVariantCtrlStr[] =
-    "AS SHIPPED|"
+    "As shipped|"
     "REFINAL|"
     "RODINAL 1+25|"
     "RODINAL 1+50|"
@@ -300,14 +323,14 @@ constexpr char ProcessVariantCtrlStr[] =
     "EI 800 (box speed)|"
     "EI 1600 (Push 1)|"
     "EI 3200 (Push 2)|"
-    "EI 400 (box speed) - E-4035|"
-    "EI 400 (box speed) - E-190 (2003)|"
-    "EI 800 (Push 1) - E-4035|"
-    "EI 800 (Push 1) - E-190 (2003)|"
-    "A- 14 min first developer, EI 80|"
-    "B- 16 min first developer, EI 100|"
-    "C- 19 min first developer, EI 150|"
-    "D- 22 min first developer, EI 200";
+    "EI 400 (box speed) -- E-4035|"
+    "EI 400 (box speed) -- E-190 (2003)|"
+    "EI 800 (Push 1) -- E-4035|"
+    "EI 800 (Push 1) -- E-190 (2003)|"
+    "A -- 14 min first developer, EI 80|"
+    "B -- 16 min first developer, EI 100|"
+    "C -- 19 min first developer, EI 150|"
+    "D -- 22 min first developer, EI 200";
 
 constexpr const char* const ProcessVariantCtrlNoneStr = "As shipped";
 
@@ -315,6 +338,7 @@ constexpr const char* const ProcessVariantCtrlNoneStr = "As shipped";
 //  than the whole list.
 constexpr const char* const ProcessVariantCtrlName[] =
 {
+    "As shipped",
     "REFINAL",
     "RODINAL 1+25",
     "RODINAL 1+50",
@@ -344,6 +368,10 @@ constexpr const char* const ProcessVariantCtrlName[] =
 //  change independently.
 constexpr const char* const ProcessVariantCtrlKey[] =
 {
+    //  \warning ENTRY 0 IS EMPTY AND MUST STAY EMPTY. eAS_SHIPPED names no
+    //  film::ProcessVariant, so the resolver's search finds nothing and
+    //  returns the shipped profile. A key here would select a development.
+    "",
     "AGFA_REFINAL",
     "AGFA_RODINAL_1_25",
     "AGFA_RODINAL_1_50",
@@ -380,12 +408,20 @@ static_assert(
     "ProcessVariantCtrlKey must have exactly TOTAL_PROCESSES entries");
 
 static_assert(
-    static_cast<int32_t>(ProcessVariantCtrl::eAS_SHIPPED) < 0,
-    "the sentinel must stay outside [0, TOTAL_PROCESSES)");
+    static_cast<int32_t>(ProcessVariantCtrl::eAS_SHIPPED) == 0,
+    "every enumerated control value starts at zero (owner requirement, "
+    "2026-09-18e); eAS_SHIPPED is the first list-box entry");
 
-//  True for a value that names an actual development. The sentinel and
-//  TOTAL_PROCESSES both answer false, which is what every caller wants: one is
-//  "nothing selected" and the other is a count.
+static_assert(
+    ProcessVariantCtrlKey[static_cast<int32_t>(ProcessVariantCtrl::eAS_SHIPPED)]
+        [0] == '\0',
+    "eAS_SHIPPED must carry an EMPTY database key -- that empty key is what "
+    "makes the resolver fall through to the shipped profile");
+
+//  True for a value the tables can be indexed by. Since the 2026-09-18e
+//  rebase that INCLUDES eAS_SHIPPED, which is a legal selection at index 0;
+//  TOTAL_PROCESSES and any out-of-range value answer false. "Names an actual
+//  development" is answered by the KEY being non-empty, not by this test.
 constexpr bool ProcessVariantCtrlValid (const ProcessVariantCtrl v) noexcept
 {
     return (static_cast<int32_t>(v) >= 0)
@@ -698,7 +734,6 @@ constexpr double SpliceAndTearsEventstMin = 0.0;
 constexpr double SpliceAndTearsEventstMax = 2.0;
 constexpr double SpliceAndTearsEventstDef = 0.20;
 constexpr double SpliceAndTearsEventsttep = 0.01;
-
 // Discrete damage event rate. Floor enforced at stage 16. An implicit
 // switch-off exists far above the advisory range: once the derived interval
 // falls below one frame the generator stops entirely.

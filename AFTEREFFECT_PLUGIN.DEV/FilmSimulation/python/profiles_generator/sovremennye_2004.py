@@ -172,6 +172,51 @@ BANK_SOURCES = [
     (401, 'kinet', 'TRI-X 320 / 320TXP', 'x', ['0', '5', '10', '15', '20', '25']),
     (401, 'kinet', 'TRI-X 320 / 320TXP', 'y',
      ['0,9', '0,8', '0,7', '0,6', '0,5', '0,4', '0,3']),
+    # -- queue P56, 2026-09-17d. FOUR PANELS FAILED CALIBRATION, NOT TRACING,
+    # and the cause was a LABEL FORM the bank had never been shown: the ten
+    # axes above all label WHOLE steps, while the Fujichrome reversal panels
+    # label the density axis in HALF steps (0,0 / 0,5 / 1,0 ...) and the Konica
+    # panel labels only every other gridline. Every value below was read off a
+    # 200 dpi render of the page, which is how the first ten got here.
+    (105, 'char', 'Konica Color VX 100', 'x',
+     ['-3,0', '-2,0', '-1,0', '0,0', '1,0']),
+    (105, 'char', 'Konica Color VX 100', 'y', ['3,0', '2,0', '1,0']),
+    (277, 'char', 'Fujichrome Provia 100F Professional', 'x',
+     ['-3,0', '-2,0', '-1,0', '0,0']),
+    (277, 'char', 'Fujichrome Provia 100F Professional', 'y',
+     ['4,0', '3,5', '3,0', '2,5', '2,0', '1,5', '1,0', '0,5', '0,0']),
+    (280, 'char', 'Fujichrome Provia 400 Professional', 'x',
+     ['-4,0', '-3,0', '-2,0', '-1,0', '0,0']),
+    (280, 'char', 'Fujichrome Provia 400 Professional', 'y',
+     ['3,5', '3,0', '2,5', '2,0', '1,5', '1,0', '0,5', '0,0']),
+    # -- queue P56 finished, 2026-09-18b. The fourth panel the row named,
+    # Fujichrome 64T Type II, was never a template gap at all: its frame is
+    # printed in GREY, at levels 156-199 against the reader's 128 cutoff, so
+    # `find_frame` saw no border and nothing downstream ran. With the
+    # threshold ladder in `find_frame` it reads, and its axes are added here
+    # because two more samples of the same half-step ladder are what the
+    # remaining two panels need.
+    (269, 'char', 'Fujichrome 64T Type II Professional', 'x',
+     ['-3,0', '-2,0', '-1,0', '0,0', '1,0']),
+    (269, 'char', 'Fujichrome 64T Type II Professional', 'y',
+     ['4,0', '3,5', '3,0', '2,5', '2,0', '1,5', '1,0', '0,5', '0,0']),
+    # and the dye-panel wavelength axis, which is where the bank's 6 and 7 are
+    # thinnest -- four templates for 6 and two for 7 across the whole book.
+    (68, 'dyeabs', 'Ultra 100', 'x', ['400', '500', '600', '700']),
+    (71, 'dyeabs', 'Vista 200', 'x', ['400', '500', '600', '700']),
+    # ⚠⚠ 2026-09-18c, AND THIS ONE IS HERE BECAUSE THE SIX ABOVE MADE THE BANK
+    # WORSE ON ONE PAGE. Adding the dye-panel wavelength axes gave the bank
+    # exemplars of «6» in the WAVELENGTH face; p341's MTF abscissa prints its
+    # «600» and its «3» in the frequency face, and after the addition the bank
+    # read that «600» as «0» and that «3» as nothing -- where before it read
+    # the 600 correctly. A zero cannot sit on a log axis, so `fit_axis` then
+    # dropped the label and f50 moved from 98.67 to 96.48: a real measurement
+    # degraded by a change meant to recover four other panels.
+    # ⚠ THE REMEDY IS MORE EXEMPLARS OF THE CONFUSED GLYPHS IN THIS FACE, not
+    # fewer of the other. Every value below was read off a 150 dpi render of
+    # the page, which is how all sixteen axes above got here.
+    (341, 'mtf', 'Kodak Professional T-MAX 400', 'x',
+     ['1', '2', '3', '4', '5', '10', '20', '50', '100', '200', '600']),
 ]
 
 # ---------------------------------------------------------------------------
@@ -184,6 +229,17 @@ BANK_SOURCES = [
 # stocks of the same family (EASTMAN PLUS X 5231 is not Kodak Plus-X Pan).
 # ---------------------------------------------------------------------------
 STOCK_MAP = {
+    # -- queue P54, 2026-09-18b. THE TABLE CAPTIONS SPELL THE FILM DIFFERENTLY
+    # FROM THE FIGURE CAPTIONS this map was built from: a figure says «TRI-X
+    # 400 / 400TX», the development table above it says «Kodak Professional
+    # TRI-X 400 / 400TX». `sovremennye_dev_tables.stock_of` strips the house
+    # prefix, and these are the remaining spellings that need naming outright.
+    'Kodak Professional Plus-X 125 / 125PX': 'KODAK_PLUS_X_125',
+    'Kodak Plus-X Pan / PX': 'KODAK_PLUS_X_125',
+    'Kodak Plus-X Pan Professional / PXE': 'KODAK_PLUS_X_125',
+    'Kodak Plus-X Pan Professional / PXT': 'KODAK_PLUS_X_125',
+    'T-MAX P3200 Professional': 'KODAK_TMAX_P3200',
+
     'Vista 200': 'AGFA_VISTA_200',
     'Optima 100': 'AGFA_OPTIMA_100',
     'Optima 200': 'AGFA_OPTIMA_200',
@@ -278,6 +334,11 @@ CARRIER = (r'(?:фотопленки|фотоплёнки|кинопленки|�
            r'материала|бумаги|пленки|плёнки|фотопленок)')
 CAPTION_OFFSET = 45      # a caption block starts within this many pt of the
                          # bitmap it belongs to (measured: 12 pt, every time)
+CAPTION_WRAP_GAP = 8.0   # a wrapped caption's second line starts this close
+                         # below the first (measured: 0.0 pt, every time -- the
+                         # blocks abut, and 8 pt is a full line of slack)
+CAPTION_WRAP_MAX = 60    # and a continuation that is a FILM NAME is short; a
+                         # longer block is body text and is not joined
 
 
 def _kind(body):
@@ -298,12 +359,28 @@ def build_index(doc):
     rows = []
     for i in range(doc.page_count):
         page = doc[i]
+        blocks = sorted((b[1], b[3], ' '.join(b[4].split()))
+                        for b in page.get_text('blocks'))
         caps = []
-        for b in page.get_text('blocks'):
-            m = CAPTION.search(b[4])
-            if m:
-                caps.append((b[1], int(m.group(1)), int(m.group(2)),
-                             ' '.join(b[4].split())))
+        for bi, (by0, by1, btxt) in enumerate(blocks):
+            m = CAPTION.search(btxt)
+            if not m:
+                continue
+            # ⚠ A CAPTION THAT WRAPS LOSES THE FILM NAME, AND FOR ONE FIGURE
+            # KIND IT LOSES IT ALMOST EVERY TIME (queue P53, 2026-09-17e).
+            # «Спектральное поглощение красителями (оптическая плотность)
+            # фотопленки» is long enough that the NAME lands in the next text
+            # block, so 110 of 115 dye-absorption panels were indexed with
+            # film=None and `harvest` skipped every one of them before it ever
+            # reached a tracer. The rule is narrow on purpose: the carrier word
+            # must END the block, and the continuation must be the very next
+            # block, close below, and short enough to be a name rather than a
+            # paragraph.
+            if (re.search(CARRIER + r'\s*$', btxt) and bi + 1 < len(blocks)):
+                ny0, _, ntxt = blocks[bi + 1]
+                if ny0 - by1 < CAPTION_WRAP_GAP and len(ntxt) <= CAPTION_WRAP_MAX:
+                    btxt = btxt + ' ' + ntxt
+            caps.append((by0, int(m.group(1)), int(m.group(2)), btxt))
         if not caps:
             continue
         imgs = []
@@ -441,10 +518,44 @@ def band_filter(cs, axis):
 
 
 def find_frame(im, dark=128):
+    """The plot frame, tolerant of a border broken by the scan.
+
+    ⚠ A BORDER THAT IS NOT CONTINUOUS IS STILL A BORDER, and requiring 55 % of
+    a row to be ink lost whole panels to nothing worse than a faint scan --
+    Fujichrome 64T Type II (p.269) among them, the last of queue P56's four.
+    A rule is recognised by the LONGEST UNBROKEN RUN along it as well as by the
+    total ink in it: a frame side is one continuous stroke over most of its
+    length even when the scan has eaten pieces out of the rest of the row.
+    """
+    # ⚠ AND THE INK THRESHOLD IS A LADDER, NOT A CONSTANT. Some panels in this
+    # book are printed with a GREY rule -- Fujichrome 64T Type II's frame sits
+    # at levels 156-199 against a 128 cutoff -- so at `dark` the border is not
+    # ink at all and the strongest row in the whole panel carries 37 % of the
+    # width. Each step up is tried in turn and the FIRST that yields a frame is
+    # taken, so a black-ruled panel is read exactly as before and a grey-ruled
+    # one is read at all.
+    for _cut in (dark, 170, 205):
+        _f = _find_frame_at(im, _cut)
+        if _f is not None:
+            return _f
+    return None
+
+
+def _find_frame_at(im, dark):
     b = (im < dark).astype(np.uint8)
     h, w = b.shape
-    rc = [y for y in range(h) if b[y].sum() > 0.55 * w]
-    cc = [x for x in range(w) if b[:, x].sum() > 0.55 * h]
+
+    def longest_run(v):
+        best = cur = 0
+        for q in v:
+            cur = cur + 1 if q else 0
+            best = max(best, cur)
+        return best
+
+    rc = [y for y in range(h)
+          if b[y].sum() > 0.55 * w or longest_run(b[y]) > 0.45 * w]
+    cc = [x for x in range(w)
+          if b[:, x].sum() > 0.55 * h or longest_run(b[:, x]) > 0.45 * h]
     if not rc or not cc:
         return None
 
@@ -549,6 +660,16 @@ class Bank:
 # ===========================================================================
 # 3. axis calibration
 # ===========================================================================
+def _digits_of(value, places=1):
+    """The multiset of decimal digits of a printed axis label, sign dropped.
+
+    «-0,1» and «-1,0» both give ('0', '1'); «-0,1» and «-0,2» do not. That is
+    the whole test the digit-swap repair below is allowed to make.
+    """
+    s = "%.*f" % (places, abs(float(value)))
+    return tuple(sorted(ch for ch in s if ch.isdigit()))
+
+
 def fit_axis(pairs, log=False):
     """value = a*px + b over the largest consistent subset of the labels."""
     if len(pairs) < AXIS_MIN_LABELS:
@@ -556,8 +677,23 @@ def fit_axis(pairs, log=False):
     v = np.array([p[0] for p in pairs], float)
     p = np.array([p[1] for p in pairs], float)
     if log:
-        if (v <= 0).any():
-            return None
+        # ⚠⚠ A ZERO ON A LOG AXIS IS A MISREAD LABEL, NOT A REASON TO REFUSE
+        # THE WHOLE PANEL, AND THE OLD `return None` COST A MEASUREMENT.
+        # Found 2026-09-18c: p341's MTF abscissa runs 1 2 4 5 10 20 50 100 200
+        # 500 and the bank reads that final «500» as «0» -- one glyph group
+        # lost, one impossible value. Refusing the axis discarded the other TEN
+        # labels and with them KODAK T-MAX 400's f50, which is the measurement
+        # that broke a documented three-way Kodak conflict on that stock.
+        # A logarithmic axis cannot carry a zero tick, so such a label is
+        # known-bad by construction and dropping it keeps strictly more
+        # information than dropping the panel. ⚠ THIS IS NOT A TOLERANCE:
+        # only values a logarithm cannot take are removed, and what survives
+        # still has to meet AXIS_MIN_LABELS and the residual gate below.
+        _pos = v > 0
+        if not _pos.all():
+            if int(_pos.sum()) < AXIS_MIN_LABELS:
+                return None
+            v, p = v[_pos], p[_pos]
         v = np.log10(v)
     o = np.argsort(p)
     v, p = v[o], p[o]
@@ -573,6 +709,32 @@ def fit_axis(pairs, log=False):
             keep = np.abs(a * p + b - v) <= AXIS_RESID_TOL * span
             if best is None or keep.sum() > best.sum():
                 best = keep
+    # ⚠⚠ THE DIGIT-SWAP REPAIR, AND IT RECOVERS FORTY-SEVEN PANELS (queue P56 /
+    # P53, 2026-09-18b). One whole figure family in this book prints «-0,1»
+    # where its own uniformly spaced ladder requires «-1,0» -- the same
+    # misprint on every panel, a transposition around the comma. The bank reads
+    # the glyphs correctly; the fit then drops the label as an outlier, which
+    # leaves TWO labels on a three-label axis, and `AXIS_MIN_LABELS` refuses
+    # the panel. The panel is perfectly legible and the axis is not in doubt.
+    #
+    # ⚠ THE REPAIR IS NOT A TOLERANCE AND MUST NEVER BECOME ONE. A dropped
+    # label is repaired ONLY when the geometry predicts a value whose decimal
+    # digits are a PERMUTATION of the digits actually printed -- so «-0,1» may
+    # become «-1,0» and nothing may become anything else. A misread digit, a
+    # mis-grouped label or a genuinely non-linear axis all fail that test,
+    # because none of them produces an anagram of the right answer.
+    if best is not None and best.sum() >= 2:
+        _keep = best.copy()
+        _a = (v[_keep][-1] - v[_keep][0]) / max(p[_keep][-1] - p[_keep][0], 1e-9)
+        _b = float(v[_keep][0] - _a * p[_keep][0])
+        for _i in range(n):
+            if _keep[_i]:
+                continue
+            _pred = _a * p[_i] + _b
+            if _digits_of(_pred) == _digits_of(v[_i]) and abs(_pred - v[_i]) > 1e-9:
+                v[_i] = _pred
+                _keep[_i] = True
+        best = _keep
     if best is None or best.sum() < AXIS_MIN_LABELS or best.sum() < AXIS_MIN_KEEP * n:
         return None
     A = np.vstack([p[best], np.ones(int(best.sum()))]).T
@@ -610,17 +772,110 @@ def calibrate(im, bank, xlog=False, ylog=False):
 # ===========================================================================
 # 4. curve tracing
 # ===========================================================================
-def interior(im, f, dark=140):
+def _thin_lines(idx, maxthick):
+    """Keep only those indices whose contiguous run is at most ``maxthick``.
+
+    A printed rule is one to three pixels thick; a traced curve lying flat is
+    thicker. Used to stop the line-opening in `interior` from mistaking an
+    MTF curve's 100 % plateau for a gridline -- see the note there.
+    """
+    out = set()
+    run = []
+    for i in sorted(idx) + [None]:
+        if run and i is not None and i == run[-1] + 1:
+            run.append(i)
+            continue
+        if run and len(run) <= maxthick:
+            out.update(run)
+        run = [] if i is None else [i]
+    return out
+
+
+def interior(im, f, dark=140, mend=True, grid=True):
+    """The plot interior with the frame and any GRID removed, curves intact.
+
+    ⚠⚠ THE GRID REMOVAL USED TO DESTROY THE FIGURE IT WAS CLEANING, and that is
+    queue P53's fourth defect (found 2026-09-18). Blanking every row that is
+    over 80 % ink removes the frame -- and on a panel drawn over a grid it
+    removes the GRID too, which is correct, except that the grid CROSSES the
+    curves. Each crossing left a one-pixel cut, so a curve a thousand pixels
+    long arrived downstream as a dozen fragments and every component-based test
+    rejected it: on p.139 the largest surviving piece was 221 px.
+    ⚠ THE FIX IS TO MEND WHAT THE BLANKING CUT. A blanked row is one or two
+    pixels tall and a curve is two to four wide, so closing ACROSS the blanked
+    line in the perpendicular direction rejoins the curve and cannot bridge two
+    different curves, which on these panels are tens of pixels apart. The mend
+    is applied ONLY on the blanked lines, never over the whole mask, so no
+    dashed stroke is silently closed along its own direction.
+    """
     y0, y1 = f['top'] + 2, f['bot'] - 1
     x0, x1 = f['left'] + 2, f['right'] - 1
     sub = (im[y0:y1, x0:x1] < dark).astype(np.uint8)
     h, w = sub.shape
-    for y in range(h):
-        if sub[y].sum() > 0.80 * w:
-            sub[y] = 0
-    for x in range(w):
-        if sub[:, x].sum() > 0.80 * h:
-            sub[:, x] = 0
+    # ⚠ THE LINES ARE FOUND BY OPENING, NOT BY COUNTING INK IN A ROW. A row
+    # count only catches a gridline that runs the FULL width and is unbroken;
+    # the same grid drawn a shade lighter, or interrupted where a curve crosses
+    # it, falls under any threshold and survives as a one-pixel-wide component
+    # that every downstream test then has to cope with. An opening with a long
+    # line kernel finds a line by its GEOMETRY and catches both.
+    lin_h = cv2.morphologyEx(sub, cv2.MORPH_OPEN,
+                             np.ones((1, max(9, int(0.55 * w))), np.uint8))
+    lin_v = cv2.morphologyEx(sub, cv2.MORPH_OPEN,
+                             np.ones((max(9, int(0.55 * h)), 1), np.uint8))
+    # ⚠ AND BOTH TESTS ARE KEPT, BECAUSE THEY CATCH DIFFERENT LINES. The
+    # opening finds a faint or interrupted rule that no threshold on an ink
+    # COUNT would reach; the count finds a rule so broken by curve crossings
+    # that no single line kernel spans it. Either alone loses panels -- the
+    # opening alone took p.139's largest surviving component DOWN from 800 px
+    # to 202, because that panel's grid is cut at every crossing.
+    # ⚠⚠ AND THE OPENING MUST BE THICKNESS-LIMITED OR IT EATS THE CURVE, which
+    # cost a measured overshoot before it was caught (2026-09-18c). An MTF
+    # curve is FLAT at 100 % across the low-frequency end of its own panel, so
+    # a long horizontal line kernel finds it and the blanking deletes it: KODAK
+    # TECHNICAL PAN's overshoot came back 0.1969 against the +15.1 % its own
+    # book prints, and the mend was rebuilding a curve the grid removal had
+    # just destroyed. A printed rule is ONE to THREE pixels thick and a traced
+    # curve is three or more, so a candidate line that sits inside a thicker
+    # band of ink is part of a curve and is left alone. The 80 %-ink test is
+    # not filtered: a row that is four fifths ink across the full width is a
+    # rule whatever its thickness.
+    if not grid:
+        # ⚠⚠ THE OPENING IS OFF FOR CONTRAST-TRANSFER PANELS, AND THE REASON IS
+        # A MEASUREMENT IT DESTROYED. An MTF curve runs FLAT along its own
+        # 100 % line at low frequency, and a long line kernel cannot tell that
+        # plateau from a printed rule: on KODAK TECHNICAL PAN p372 the removal
+        # cut the top of the curve and the tracer then latched onto the 120 %
+        # gridline, reporting an overshoot of 0.1969 where the book prints
+        # +15.1 %. The ink test alone reads 0.1564 and always did. ⚠ These
+        # panels have no interior grid to remove in the first place, so the
+        # opening was buying nothing here and costing a number.
+        lin_h = np.zeros_like(sub)
+        lin_v = np.zeros_like(sub)
+    _oh = _thin_lines({y for y in range(h) if lin_h[y].any()}, 3)
+    _ov = _thin_lines({x for x in range(w) if lin_v[:, x].any()}, 3)
+    rows = sorted(_oh | {y for y in range(h) if sub[y].sum() > 0.80 * w})
+    cols = sorted(_ov | {x for x in range(w) if sub[:, x].sum() > 0.80 * h})
+    _keep_h = np.zeros(h, bool)
+    _keep_h[list(_oh)] = True
+    _keep_v = np.zeros(w, bool)
+    _keep_v[list(_ov)] = True
+    sub[(lin_h & _keep_h[:, None]) | (lin_v & _keep_v[None, :]) > 0] = 0
+    for y in rows:
+        sub[y] = 0
+    for x in cols:
+        sub[:, x] = 0
+    if mend and (rows or cols):
+        # vertical closing repairs a horizontal cut, horizontal closing a
+        # vertical one; each is written back only into the blanked band, so a
+        # dashed stroke is never closed along its own direction
+        if rows:
+            vert = cv2.morphologyEx(sub, cv2.MORPH_CLOSE, np.ones((7, 1), np.uint8))
+            for y in rows:
+                sub[y] = np.maximum(sub[y], vert[y])
+        if cols:
+            horz = cv2.morphologyEx(sub, cv2.MORPH_CLOSE, np.ones((1, 7), np.uint8))
+            for x in cols:
+                sub[:, x] = np.maximum(sub[:, x], horz[:, x])
     return sub, (x0, y0)
 
 
@@ -690,6 +945,48 @@ def text_row_boxes(raw, min_members=5, min_span=55):
         y0 = min(q[3] for q in b); y1 = max(q[4] for q in b)
         boxes.append((max(0, x0 - 3), max(0, y0 - 3), x1 + 3, y1 + 3))
     return boxes
+
+
+def drop_leaders(sub, boxes, resid=1.6, min_len=18, reach=14):
+    """Delete the LEADER LINES that point from an in-plot label to its curve.
+
+    ⚠ THE LABELS COME OFF AND THE LINES POINTING AT THEM DO NOT, which is the
+    other half of queue P53's reader problem. `text_row_boxes` removes the
+    words; each word on these panels is tied to its curve by a thin straight
+    rule, and that rule survives into the curve mask, where it is long enough
+    to pass every size test and steep enough to be mistaken for a crest by a
+    flatness test -- measured on 7 of 19 Kodak-frame dye panels.
+
+    A leader is identified by two properties together, neither sufficient
+    alone: it is STRAIGHT along its whole length, which no spectral curve or
+    characteristic curve is, and one of its ends REACHES a box that held text.
+    """
+    if not len(boxes):
+        return sub
+    n, lab, st, _ = cv2.connectedComponentsWithStats(sub, 8)
+    out = sub.copy()
+    for i in range(1, n):
+        x, y, w, h, a = (int(st[i, k]) for k in range(5))
+        if max(w, h) < min_len:
+            continue
+        ys, xs = np.nonzero(lab == i)
+        if len(xs) < 8:
+            continue
+        # straightness: total least squares residual about the principal axis
+        px = np.stack([xs - xs.mean(), ys - ys.mean()]).astype(float)
+        u, s, _ = np.linalg.svd(px @ px.T)
+        rms = float(np.sqrt(max(s[1], 0.0) / len(xs)))
+        if rms > resid:
+            continue
+        near = False
+        for bx0, by0, bx1, by1 in boxes:
+            if (xs.min() <= bx1 + reach and xs.max() >= bx0 - reach
+                    and ys.min() <= by1 + reach and ys.max() >= by0 - reach):
+                near = True
+                break
+        if near:
+            out[lab == i] = 0
+    return out
 
 
 def bridge_dashes(sub, k):
@@ -1303,13 +1600,22 @@ def dye_panel(im, f, cal, kind):
     """One dye panel -> the traces `SpectralDyeDensity` is shaped to hold."""
     lo_nm = cal['x']['a'] * (f['left'] + 2) + cal['x']['b']
     hi_nm = cal['x']['a'] * (f['right'] - 1) + cal['x']['b']
-    if not (300.0 <= min(lo_nm, hi_nm) <= 460.0 and 620.0 <= max(lo_nm, hi_nm) <= 820.0):
+    # ⚠ THE LOWER BOUND WAS 300 nm AND IT REFUSED FIFTY LEGIBLE PANELS (queue
+    # P53, 2026-09-17e). The book prints dye panels in two frames: an Agfa /
+    # Konica one running 350-750 nm, and a Kodak one running 250-750. Measured
+    # across the 115: the second frame calibrates to 249-251 nm at the left
+    # edge on every one of the fifty panels that carry it, with an axis
+    # residual under 0.5 %. A frame that starts at 250 nm is not a bad
+    # calibration, it is a wider plot, and the gate has to admit it.
+    if not (235.0 <= min(lo_nm, hi_nm) <= 460.0 and 620.0 <= max(lo_nm, hi_nm) <= 820.0):
         return None
     n = 3 if kind == 'dyeabs' else 2
     raw, org = interior(im, f)
+    boxes = text_row_boxes(raw)
     sub = drop_text(raw)
-    for tx0, ty0, tx1, ty1 in text_row_boxes(raw):
+    for tx0, ty0, tx1, ty1 in boxes:
         sub[ty0:ty1, tx0:tx1] = 0
+    sub = drop_leaders(sub, boxes)
     got = None
     for k in (1, 3, 5, 7):
         t = sub if k == 1 else bridge_dashes(sub, k)
@@ -1373,20 +1679,48 @@ def harvest(doc, index, bank):
             fam = dev_family(im, cal['frame'], cal, None)
             if fam:
                 families.setdefault(stock, []).append(dict(page=r['page'], **fam))
-            sub, org = interior(im, cal['frame'])
-            sub = drop_text(sub)
+            raw, org = interior(im, cal['frame'])
+            boxes = text_row_boxes(raw)
             got = None
-            for k in (1, 3, 5, 7):
-                s = sub if k == 1 else bridge_dashes(sub, k)
+            # ⚠ BRIDGE THE DASHES BEFORE DROPPING THE BLOBS, NEVER AFTER, AND
+            # THIS ORDERING IS THE WHOLE OF QUEUE P55 (2026-09-17e). `drop_text`
+            # deletes any component whose longest side is under `min_len` = 14
+            # px, and ONE DASH OF A FLAT PLATEAU IS 8 px LONG. So on a colour
+            # panel the dashed and dash-dot records were deleted wherever they
+            # ran level -- which is exactly the D-min plateau the ladder is read
+            # from -- while the solid record survived intact. The measurement
+            # that opened P55 ("304 of 374 columns show a single run") was
+            # therefore reading the mask this function had emptied, and the row's
+            # diagnosis, that the three records COINCIDE, was wrong: on Optima
+            # 100 they are 0.93 / 0.69 / 0.28 apart and never touch. Closing the
+            # dashes first turns each broken plateau back into one long stroke,
+            # which then clears `min_len` on its own merit.
+            for k in (1, 3, 5, 7, 9, 11):
+                s = drop_text(raw if k == 1 else bridge_dashes(raw, k))
+                for tx0, ty0, tx1, ty1 in boxes:
+                    s[ty0:ty1, tx0:tx1] = 0
                 got = trace(s, 3)
                 if got:
-                    d = [base_density(to_values(got[0][j], org, cal)[1])
-                         for j in range(3)]
+                    vv = [to_values(got[0][j], org, cal) for j in range(3)]
+                    d = [base_density(v[1]) for v in vv]
                     if (d[0] > d[1] > d[2] and d[0] - d[2] >= LADDER_MIN
                             and d[0] <= DMIN_MAX and d[2] >= DMIN_MIN):
+                        # the same three estimators `dev_family` uses, so a
+                        # colour ladder and a development family report a Dmax
+                        # and a gamma that mean the same thing
+                        dmx = [float(np.median(np.sort(v[1])[-max(3, len(v[1]) // 18):]))
+                               for v in vv]
+                        gam = [gamma_of(*v) for v in vv]
+                        span = min(float(v[0].max() - v[0].min()) for v in vv)
                         ladders.setdefault(stock, dict(
                             page=r['page'], cover=round(got[1], 3), bridge=k,
-                            b=round(d[0], 4), g=round(d[1], 4), r=round(d[2], 4)))
+                            b=round(d[0], 4), g=round(d[1], 4), r=round(d[2], 4),
+                            dmax_b=round(dmx[0], 4), dmax_g=round(dmx[1], 4),
+                            dmax_r=round(dmx[2], 4),
+                            gam_b=(round(gam[0], 4) if gam[0] else None),
+                            gam_g=(round(gam[1], 4) if gam[1] else None),
+                            gam_r=(round(gam[2], 4) if gam[2] else None),
+                            span=round(span, 2)))
                         break
                     got = None
         elif r['kind'] == 'mtf':
@@ -1394,7 +1728,10 @@ def harvest(doc, index, bank):
             cal = calibrate(im, bank, xlog=True, ylog=True)
             if not cal:
                 continue
-            sub, org = interior(im, cal['frame'])
+            # grid=False: see the note in `interior`. A contrast-transfer
+            # panel's own 100 % plateau is the thing the line opening mistakes
+            # for a rule.
+            sub, org = interior(im, cal['frame'], grid=False, mend=False)
             sub = drop_text(sub)
             got = trace(sub, 1) or trace(bridge_dashes(sub, 5), 1)
             if not got:
@@ -1541,11 +1878,37 @@ def main(argv):
     ADOPTED = {
         ('ladder', 'KODAK_EKTAPRESS_PJ400'): (1.020, 0.803, 0.382),
         ('ladder', 'KODAK_VERICOLOR_III_160'): (0.784, 0.568, 0.209),
-        ('mtf', 'KODAK_TECHNICAL_PAN'): 72.3,
+        # ⚠ 72.3 -> 73.09 ON 2026-09-18c, AND THE AXIS GOT BETTER RATHER THAN
+        # THE NUMBER GETTING LOOSER. Queue P56 taught the digit bank six more
+        # axes; on this panel that takes the abscissa from NINE readable
+        # labels to ELEVEN -- the «3» and the «600» were unreadable before --
+        # and an eleven-point log fit is what moved f50 by 1.1 %. The panel,
+        # the trace and the ordinate are unchanged.
+        ('mtf', 'KODAK_TECHNICAL_PAN'): 73.09,
+        # -- reviewed and ADOPTED 2026-09-17d. This panel only calibrated once
+        # queue P56 taught the digit bank the four label forms it had never
+        # seen, and it broke a documented three-way Kodak conflict on this
+        # stock (F-32 95.9, F-4016 66.7, F-4043 > 81) by agreeing with F-32 to
+        # 2.9 % -- see the profile comment. The stock held an estimate of 72.0
+        # and now holds a measurement.
+        # ⚠ UNCHANGED AT 98.7 THROUGH THE 2026-09-18c BANK CHURN, AND THE
+        # ROUND TRIP IS THE LESSON. Adding six dye-panel axes to BANK_SOURCES
+        # gave the bank «6» exemplars in the WAVELENGTH face and it then
+        # misread this panel's «600» -- in the frequency face -- as «0». A
+        # zero cannot sit on a log axis, `fit_axis` dropped the label, and the
+        # nine-label fit gave 96.48 against the eleven-label 98.68. Adding
+        # THIS axis to the bank restored both the «600» and the «3».
+        ('mtf', 'KODAK_TMAX_400'): 98.7,
     }
     # and the two numbers the same panel supplies beside f50
     ADOPTED_MTF_EXTRA = {
+        # ⚠ THE OVERSHOOT PIN IS THE GATE ON `interior`'s GRID REMOVAL and it
+        # earned that job on 2026-09-18c. With the line-opening left on for
+        # this panel the trace climbed onto the 120 % gridline and reported
+        # 0.1969; the book prints +15.1 %. The MTF path now passes grid=False
+        # and the reading is 0.1564, inside this pin's own 0.01 window.
         'KODAK_TECHNICAL_PAN': dict(q=1.071, adj=0.1506),
+        'KODAK_TMAX_400': dict(q=2.163, adj=0.1929),
     }
     got = {}
     for r in rows:
@@ -1562,8 +1925,35 @@ def main(argv):
         elif abs(have - want) > 0.5:
             problems.append("%s f50 moved: %.2f against the adopted %.2f"
                             % (key[1], have, want))
+    # ⚠⚠ REVIEWED, CORROBORATING, AND DELIBERATELY NOT ADOPTED. `compare()`
+    # calls an MTF row a FILL whenever the stored f50 is not flagged
+    # `mtf_measured`, which is a proxy for "the database has only an estimate
+    # here" -- and on ONE stock that proxy is wrong. KODAK T-MAX P3200's 84.3
+    # is F-4001 (2019)'s own drawing; `mtf_measured` is False on it for a
+    # different reason entirely (its q beats the Gaussian by only 1.3x, under
+    # the threshold for switching the carrier -- see verify.py G-MTFBW3).
+    # The book's p347 panel traces 85.81, which CORROBORATES Kodak to 1.8 %
+    # and does not outrank it. Listed here so the gate keeps watching the
+    # number without the harvest overwriting a manufacturer's figure with a
+    # reference book's -- which it briefly did on 2026-09-18c.
+    REVIEWED_NOT_ADOPTED = {
+        ('mtf', 'KODAK_TMAX_P3200'): (85.81, 84.3),
+    }
+    for key, (book, db) in REVIEWED_NOT_ADOPTED.items():
+        row = next((r for r in rows
+                    if (r['kind'], r['stock']) == key), None)
+        if row is None:
+            problems.append("the reviewed-not-adopted %s for %s is no longer "
+                            "produced" % key)
+        elif abs(row['book'] - book) > 0.5:
+            problems.append("%s moved: %.2f against the reviewed %.2f"
+                            % (key[1], row['book'], book))
+        elif abs(row['book'] - db) / db > 0.05:
+            problems.append("%s no longer corroborates the stored %.1f "
+                            "(book %.2f)" % (key[1], db, row['book']))
     for r in rows:
-        if r['verdict'] == 'FILL' and (r['kind'], r['stock']) not in ADOPTED:
+        if (r['verdict'] == 'FILL' and (r['kind'], r['stock']) not in ADOPTED
+                and (r['kind'], r['stock']) not in REVIEWED_NOT_ADOPTED):
             problems.append("a NEW fill appeared that nothing has reviewed: "
                             "%s %s" % (r['kind'], r['stock']))
     for stock, want in ADOPTED_MTF_EXTRA.items():
@@ -1664,6 +2054,27 @@ def main(argv):
             if not (b > g > rr):
                 problems.append("%s adopted ladder is not ordered" % r['stock'])
     n_fill = len(ADOPTED)
+
+    # ⚠ THE CAPTION-WRAP FIX IS PINNED BY COUNT, because a silent regression in
+    # it costs no trace and raises no error -- it just makes a whole figure kind
+    # anonymous again, and `harvest` then skips every panel without a word
+    # (queue P53, 2026-09-17e). Before the fix five of the 115 dye-absorption
+    # captions carried a film name; after it, 114 do, and 29 of those resolve to
+    # a database stock. The one that does not is «Рис. 4.122 ... фотобумаги»,
+    # a PAPER panel whose caption names no product.
+    _dye = [r for r in index if r['kind'] == 'dyeabs']
+    _named = [r for r in _dye if r['film']]
+    _mapped = [r for r in _named if STOCK_MAP.get(r['film'])]
+    if len(_dye) != 115 or len(_named) != 114 or len(_mapped) != 29:
+        problems.append("dye-absorption index moved: %d panels, %d named, "
+                        "%d mapped; expected 115 / 114 / 29"
+                        % (len(_dye), len(_named), len(_mapped)))
+    # ⚠ AND THE LADDER COUNT IS PINNED FOR THE SAME REASON, on the other side of
+    # queue P55: bridging the dashes before dropping the blobs took the colour
+    # panels that yield a three-record ladder from 2 to 18. A change that loses
+    # them again fails here rather than quietly shrinking the harvest.
+    if len(ladders) != 18:
+        problems.append("%d ladders traced, expected 18" % len(ladders))
 
     if problems:
         for p in problems:
