@@ -693,6 +693,12 @@ constexpr double WeaveAmountMax  = 2.0;
 constexpr double WeaveAmountDef  = 0.50;
 constexpr double WeaveAmountStep = 0.01;
 
+// Gate weave amplitude. Floor enforced at stage 15.
+constexpr double SpliceAndTearsEventstMin = 0.0;
+constexpr double SpliceAndTearsEventstMax = 2.0;
+constexpr double SpliceAndTearsEventstDef = 0.20;
+constexpr double SpliceAndTearsEventsttep = 0.01;
+
 // Discrete damage event rate. Floor enforced at stage 16. An implicit
 // switch-off exists far above the advisory range: once the derived interval
 // falls below one frame the generator stops entirely.
