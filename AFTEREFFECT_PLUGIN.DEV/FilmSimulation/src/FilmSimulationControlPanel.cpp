@@ -320,6 +320,102 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     ///////////////////////////////////////////////////////////////////
     // GROUP START: EMULSION CHARACTER                               //
     ///////////////////////////////////////////////////////////////////
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_TOPICX(
+        itemNames[23],
+        ui_flags,
+        UnderlyingType(FilmSimulationCtrl::GROUP_START_EMULSION_CHARACTER));
+    totalParams++;
+
+    // Grain float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[24],
+        GrainScaleMin,
+        GrainScaleMax,
+        GrainScaleMin,
+        GrainScaleMax,
+        GrainScaleDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::GRAIN));
+    totalParams++;
+
+    // Halation float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[25],
+        HalationScaleMin,
+        HalationScaleMax,
+        HalationScaleMin,
+        HalationScaleMax,
+        HalationScaleDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::HALATION));
+    totalParams++;
+
+    // Halation float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[26],
+        CouplerScaleMin,
+        CouplerScaleMax,
+        CouplerScaleMin,
+        CouplerScaleMax,
+        CouplerScaleDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::DIR_COUPLERS));
+    totalParams++;
+
+    // Misregistration float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[27],
+        MisregScaleMin,
+        MisregScaleMax,
+        MisregScaleMin,
+        MisregScaleMax,
+        MisregScaleDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::MISREGISTRATION));
+    totalParams++;
+
+    // Coating Unevenness float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[28],
+        CoatingScaleMin,
+        CoatingScaleMax,
+        CoatingScaleMin,
+        CoatingScaleMax,
+        CoatingScaleDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::COATING_UNEVENNESS));
+    totalParams++;
+
+    // Reseau Reconstruction check-box
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_CHECKBOXX(
+        itemNames[29],
+        TRUE,
+        0,
+        UnderlyingType(FilmSimulationCtrl::RESEAU_RECONSTRUCTION));
+    totalParams++;
+
+    // Close group item
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_EMULSION_CHARACTER));
+    totalParams++;
+
 
     // Assign totalnumber of control items
     out_data->num_params = totalParams;

@@ -34,6 +34,14 @@ enum class FilmSimulationCtrl : int32_t
     INTERMEDIATE_STOCK,
     PRINT_GRAIN,
     GROUP_STOP_PRINT_AND_DUPLICATION,
+    GROUP_START_EMULSION_CHARACTER,
+    GRAIN,
+    HALATION,
+    DIR_COUPLERS,
+    MISREGISTRATION,
+    COATING_UNEVENNESS,
+    RESEAU_RECONSTRUCTION,
+    GROUP_STOP_EMULSION_CHARACTER,
     TOTAL_PARAMS
 };
 
@@ -60,7 +68,14 @@ constexpr char itemNames[][32] = {
     "Print Stock",
     "Duplication Generation",
     "Intermediate Stock",
-    "Print Grain"
+    "Print Grain",
+    "Emulsion Character",
+    "Grain",
+    "Halation",
+    "DIR Couplers",
+    "Misregistration",
+    "Coating Unevenness",
+    "Reseau Reconstruction"
 };
 
 #endif // __IMAGE_LAB2_ALGO_ADOBE_CONTROL_ENUMERATORS__
