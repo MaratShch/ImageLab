@@ -64,6 +64,7 @@ import struct
 import sys
 import zlib
 from dataclasses import dataclass, replace
+from enum import IntEnum
 from pathlib import Path
 
 import numpy as np
@@ -2460,6 +2461,168 @@ def sigma_transmittance_from_density(sigma_d: float,
     return r
 
 
+# ===========================================================================
+# COUNTER-BASED RANDOMNESS -- schema v48 (FGS-DDS-001 Rev. A C1, §12.5)
+# ===========================================================================
+#
+# ⚠⚠ THIS CLOSES FINDING F1, THE ONE CRITICAL DEFECT IN THE GRAIN STAGE, AND
+# IT WAS INVISIBLE TO EVERY PARITY HARNESS THIS PROJECT HAS.
+#
+# Until now the reference renderer drew grain from `np.random.default_rng(seed)`
+# -- one stateful generator, seeded once per render, with NO frame index in it.
+# Render frame 0 and frame 1 of the same clip and you get THE SAME GRAIN FIELD,
+# pixel for pixel. The C++ engines have always used the counter generator below
+# and produce an independent field per frame, as real film does. So the
+# reference and the production engines were modelling different physics -- one
+# with grain welded to the frame, one with grain that lives -- and both passed
+# every test, because every harness in this repository compares ONE frame.
+#
+# A single-frame comparison is structurally blind to a temporal defect. That is
+# the lesson, and `cpp_parity`'s new two-frame probe is the answer to it.
+#
+# WHY A COUNTER GENERATOR RATHER THAN A SEEDED SEQUENCE. Every value is a PURE
+# FUNCTION of (seed, frame, stage, ordinal). The host renders frames out of
+# order, speculatively, twice, and from several threads; a sequential generator
+# would answer differently each time and the grain would crawl under scrubbing.
+# There is no state to carry, share or lock.
+#
+# ⚠ THIS IS A LINE-FOR-LINE PORT OF `AlgoCounterRng.hpp` AND IT IS VERIFIED AS
+# ONE, not merely intended as one: `cpp_parity`'s RNG probe compiles the real
+# header and compares counters, uniforms and Box-Muller normals against these
+# functions, including negative frame indices, which occur legitimately when a
+# defect's birth frame is searched backwards from the start of a clip.
+
+#: SplitMix64 finalising constants. Published values, selected by search for
+#: avalanche quality; 0x9E3779B97F4A7C15 is 2^64/phi and doubles as the stream
+#: increment. ⚠ Not interchangeable with any other odd constants: substituting
+#: them still gives a bijection but degrades the statistics.
+RNG_GOLDEN = np.uint64(0x9E3779B97F4A7C15)
+RNG_MIX_1 = np.uint64(0xBF58476D1CE4E5B9)
+RNG_MIX_2 = np.uint64(0x94D049BB133111EB)
+RNG_SHIFT_1 = np.uint64(30)
+RNG_SHIFT_2 = np.uint64(27)
+RNG_SHIFT_3 = np.uint64(31)
+
+#: 2^-53. The uniform is built from the top 53 bits of the mixed value, which
+#: is what a double's mantissa holds exactly, so every representable value in
+#: [0,1) is reachable and none is favoured. ⚠ Taking fewer bits -- following
+#: float32 down, say -- would reduce the generator to about 8 million distinct
+#: values, which bands visibly in any field built from it.
+RNG_TWO_POW_M53 = 1.0 / 9007199254740992.0
+
+
+class RngStage(IntEnum):
+    """Which generator stream a consumer draws from.
+
+    ⚠ MIRRORS `eALGO_RNG_STAGE` AND THE VALUES ARE FROZEN. They are arbitrary
+    but must be distinct and must never be reused or renumbered, because doing
+    so changes the appearance of every existing render. Spaced by 0x100 so a
+    stage needing sub-streams can take a small offset without colliding.
+
+    Separate streams are not tidiness: without them the coating field and the
+    grain field would draw the same numbers and the grain would visibly follow
+    the coating streaks.
+    """
+
+    COATING_STATIC = 0x0100
+    COATING_DRIFT = 0x0200
+    FLICKER = 0x0300
+    NEG_DEFECTS = 0x0400
+    GRAIN_R = 0x0500
+    GRAIN_G = 0x0600
+    GRAIN_B = 0x0700
+    PRINT_GRAIN = 0x0800
+    DUPE_GRAIN = 0x0900
+    MISREG = 0x0A00
+    WEAVE = 0x0B00
+    GATE_DEFECTS = 0x0C00
+
+
+def rng_mix64(z):
+    """The SplitMix64 finalising bijection. Equal in, equal out; distinct in,
+    distinct out -- so distinct coordinates can never collide onto one value."""
+    z = np.asarray(z, dtype=np.uint64)
+    with np.errstate(over="ignore"):
+        z = z + RNG_GOLDEN
+        z = (z ^ (z >> RNG_SHIFT_1)) * RNG_MIX_1
+        z = (z ^ (z >> RNG_SHIFT_2)) * RNG_MIX_2
+        return z ^ (z >> RNG_SHIFT_3)
+
+
+def rng_counter(seed: int, frame_index: int, stage: "RngStage", ordinal):
+    """Pack (seed, frame, stage, ordinal) into one 64-bit counter.
+
+        bits 63..32   seed
+        bits 31..24   stage identifier (the HIGH BYTE of the enumerator)
+        bits 23..00   ordinal
+
+    ⚠ `frame_index` HAS NO FIELD OF ITS OWN; it is folded into the seed field
+    by multiplication with the golden constant. Two reasons, both load-bearing.
+    24 bits of ordinal is 16.7 million draws per stage per frame -- ample for a
+    4K plane -- and taking bits away from it to house a frame counter would cap
+    the render size. And multiplying rather than adding keeps successive frames
+    far apart in counter space, which matters because the mixer is being fed
+    values that differ in one low bit.
+
+    `frame_index` is SIGNED and may be negative. The cast to unsigned wraps,
+    which is well defined here and harmless, because the mixer treats all
+    64-bit values alike.
+    """
+    with np.errstate(over="ignore"):
+        frame_salt = np.uint64(np.uint32(int(frame_index) & 0xFFFFFFFF)) * RNG_GOLDEN
+        seed_field = (np.uint64(int(seed) & 0xFFFFFFFF) << np.uint64(32)) ^ frame_salt
+        stage_field = np.uint64((int(stage) >> 8) & 0xFF) << np.uint64(24)
+        ord_field = np.asarray(ordinal, dtype=np.uint64) & np.uint64(0x00FFFFFF)
+        return (seed_field ^ stage_field) ^ ord_field
+
+
+def rng_uniform01(counter):
+    """Uniform in [0,1) from the top 53 bits of the mixed counter."""
+    return (rng_mix64(counter) >> np.uint64(11)).astype(np.float64) * RNG_TWO_POW_M53
+
+
+def rng_normal(counter):
+    """Standard normal by Box-Muller, cosine branch only.
+
+        z = sqrt(-2 ln u1) * cos(2 pi u2)
+
+    The two uniforms come from two counters rather than from a sequence, because
+    there is no sequence -- the second is displaced by the golden constant so
+    the mixer's two inputs are far apart despite sharing a request. The sine
+    branch would give a second independent value for free but keeping it needs
+    state, so it is discarded; that doubles the cost and is accepted.
+
+    u1 is floored at 2^-53. log(0) is -inf and one infinity destroys an entire
+    frame; the probability is 2^-53 per draw, which is negligible and not zero.
+
+    ⚠ Box-Muller rather than the ziggurat: this has to be a pure function of its
+    counter with no rejection loop, and ziggurat's variable draw count per value
+    cannot be indexed deterministically.
+    """
+    counter = np.asarray(counter, dtype=np.uint64)
+    u1 = rng_uniform01(counter)
+    u2 = rng_uniform01(counter ^ RNG_GOLDEN)
+    u1 = np.where(u1 < RNG_TWO_POW_M53, RNG_TWO_POW_M53, u1)
+    return np.sqrt(-2.0 * np.log(u1)) * np.cos(
+        6.283185307179586476925286766559 * u2)
+
+
+def counter_normal_plane(h: int, w: int, seed: int, frame_index: int,
+                         stage: "RngStage") -> np.ndarray:
+    """An h x w plane of unit-variance white noise from the counter generator.
+
+    ⚠ THE ORDINAL IS `y * w + x`, WHICH PINS A PARITY CONTRACT. The C++ twins
+    use `y * pitch + x` with the PADDED pitch, so the two agree pixel for pixel
+    only when the engine's pitch equals its active width. `cpp_parity` drives
+    the engines at pitch == width for exactly this reason, and a region render
+    at a different pitch draws different numbers by design -- that is what makes
+    a region render's grain independent of the region, rather than of the frame.
+    """
+    ordinal = np.arange(h * w, dtype=np.uint64).reshape(h, w)
+    return rng_normal(rng_counter(seed, frame_index, stage, ordinal)).astype(
+        np.float32)
+
+
 def _trapz(y: np.ndarray, x: np.ndarray) -> float:
     """Trapezoidal integration, tolerating the numpy 1.x / 2.x rename."""
     fn = getattr(np, "trapezoid", None) or np.trapz
@@ -2505,46 +2668,311 @@ def grain_reference_energy(
     return energy
 
 
-def make_grain_field(
-    grid: FreqGrid,
-    rng: np.random.Generator,
-    clump_um: float,
-    clump_gain: float,
-    rms_granularity: float,
-    band_limit: np.ndarray | None = None,
-) -> np.ndarray:
-    """Spectrally-shaped, granularity-calibrated grain field.
+def _bessel_j1(x: np.ndarray) -> np.ndarray:
+    """J1(x) to about 1e-7 absolute, Abramowitz and Stegun 9.4.4 / 9.4.6.
 
-    Returns a zero-mean density-domain field whose amplitude is fixed by the
-    stock's RMS granularity, band-limited by ``band_limit`` (the scanner MTF,
-    acting as the pre-sampling anti-alias filter that real scanner optics are).
+    ⚠ HAND-ROLLED ON PURPOSE. `numpy` ships no Bessel function of the first
+    kind of order one and `math` ships none either, so a SciPy dependency
+    would be the alternative -- on the REFERENCE engine, for one function, in
+    a form neither C++ twin could use. The polynomial is the standard one, it
+    is exact enough for a spectrum compared against a traced plot, and it
+    ports to C++ verbatim if this ever reaches the render path.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    ax = np.abs(x)
+    out = np.empty_like(ax)
 
-    The original script instead resized small uniform-noise grids with bilinear
-    interpolation, which gives an anisotropic triangular spectrum and visible
-    axis-aligned diamond artefacts.
+    small = ax < 8.0
+    if np.any(small):
+        y = x[small] ** 2
+        num = x[small] * (
+            72362614232.0
+            + y * (-7895059235.0
+                   + y * (242396853.1
+                          + y * (-2972611.439
+                                 + y * (15704.48260 + y * (-30.16036606)))))
+        )
+        den = (
+            144725228442.0
+            + y * (2300535178.0
+                   + y * (18583304.74
+                          + y * (99447.43394 + y * (376.9991397 + y))))
+        )
+        out[small] = num / den
+
+    big = ~small
+    if np.any(big):
+        z = 8.0 / ax[big]
+        y = z * z
+        xx = ax[big] - 2.356194491
+        p = (
+            1.0
+            + y * (0.183105e-2
+                   + y * (-0.3516396496e-4
+                          + y * (0.2457520174e-5 + y * (-0.240337019e-6))))
+        )
+        q = (
+            0.04687499995
+            + y * (-0.2002690873e-3
+                   + y * (0.8449199096e-5
+                          + y * (-0.88228987e-6 + y * (0.105787412e-6))))
+        )
+        out[big] = (np.sqrt(0.636619772 / ax[big])
+                    * (np.cos(xx) * p - z * np.sin(xx) * q)
+                    * np.sign(x[big]))
+    return out
+
+
+#: First zero of the normalised jinc in units of 1 / diameter: the first zero
+#: of J1 is at 3.8317, and pi * f * d = 3.8317 puts it at f = 1.2197 / d.
+BOOLEAN_GRAIN_FIRST_ZERO_OVER_D: float = 3.8317059702075123 / math.pi
+
+
+def boolean_grain_shape(f_mm, grain_um: float) -> np.ndarray:
+    """The Boolean / random-dot grain AMPLITUDE transfer, in closed form.
+
+    ⚠⚠ THIS IS THE PHYSICALLY DERIVED ALTERNATIVE TO `FreqGrid.grain_shape`,
+    AND IT IS AN ANALYSIS FUNCTION -- NOTHING ON THE RENDER PATH CALLS IT.
+    Added 2026-09-18g from the three granularity papers; see the v46 block in
+    `film_profiles`.
+
+    WHERE IT COMES FROM. In a Boolean model of disks of radius r at Poisson
+    intensity lambda the two-point covariance of the coverage indicator is
+
+        C(h) = (1 - p)^2 * (exp(lambda * A_bar(h)) - 1)
+
+    with A_bar(h) the mean area of a grain intersected with its own translate
+    by h. At low coverage exp(x) - 1 -> x, so C(h) is proportional to A_bar(h)
+    -- THE AUTOCORRELATION OF THE DISK -- whose Fourier transform is the
+    squared modulus of the disk's own transform. The amplitude transfer is
+    therefore the normalised jinc
+
+        h(f) = | 2 J1(pi f d) / (pi f d) |,        d = grain diameter
+
+    with NO FREE PARAMETER beyond d. Contrast `FreqGrid.grain_shape`, which is
+    a Gaussian rolloff plus an empirical low-frequency lobe and has two.
+
+    ⚠⚠ THE TWO SHAPES DIFFER IN A WAY THAT MATTERS AND IS TESTABLE. The
+    Gaussian has infinite support in space and never reaches zero in
+    frequency; the jinc has ZEROS, the first at f = 1.2197 / d, and its
+    covariance is identically zero beyond one grain diameter. That compact
+    support is the theorem `_BOOLEAN_NO_LONG_RANGE_LOBE` records: a Boolean
+    model cannot produce long-range correlation at all, so a non-zero
+    `clump_gain` is a departure from the physical model rather than a
+    parameter within it.
+
+    ⚠ WHY IT IS NOT THE DEFAULT. Switching the render path to it would move
+    every rendered pixel on 191 stocks, and would need the same owner decision
+    queue C45 needed for a grain rescale -- plus `_bessel_j1` in both C++
+    twins. It is here so the two shapes can be COMPARED against a measured
+    Wiener spectrum on equal terms, which this corpus has for exactly one
+    stock (ILFORD_HPS, BBC Monograph 54 Fig. 8).
 
     Args:
-        band_limit: Real-valued half-spectrum transfer applied before sampling.
-            Must not include a phase term such as misregistration -- shifting an
-            independent random field is a no-op statistically, and a complex
-            transfer here would make the field complex.
+        f_mm: spatial frequency, cycles per millimetre.
+        grain_um: imaging-centre DIAMETER in micrometres -- the random-dot
+            quantity from `film_profiles.random_dot_disk_diameter_um`, NOT
+            `GrainSpec.clump_um_*`, which the v46 block measures at about five
+            times larger on the 186 stocks whose value is an estimate.
+
+    Returns the amplitude transfer, 1.0 at DC.
     """
-    shape_t = grid.grain_shape(clump_um, clump_gain)
-    if band_limit is not None:
-        shape_t = (shape_t * band_limit).astype(np.float32)
+    if grain_um <= 0.0:
+        raise ValueError("grain_um must be positive")
+    # f is cycles/mm and d is micrometres, so d converts to mm here.
+    x = np.pi * np.asarray(f_mm, dtype=np.float64) * (grain_um / 1000.0)
+    out = np.ones_like(x)
+    nz = x > 1e-12
+    out[nz] = np.abs(2.0 * _bessel_j1(x[nz]) / x[nz])
+    return out.astype(np.float32)
 
-    # Unit-variance white noise on this grid has a flat spectrum whose discrete
-    # mean relates to the continuous integral by 1/px_per_mm**2, hence the
-    # factor below.
-    scale = (
-        (rms_granularity / 1000.0)
-        * grid.px_per_mm
-        / math.sqrt(grain_reference_energy(clump_um, clump_gain))
-    )
 
-    white = rng.standard_normal((grid.h, grid.w), dtype=np.float32)
-    field = apply_transfer(white, shape_t)
-    return (field * np.float32(scale)).astype(np.float32)
+def kernel_axis_transfer(sigma_px: float, n: int, half: bool) -> np.ndarray:
+    """Exact DFT of ONE AXIS of the C++ engines' truncated separable Gaussian.
+
+    ⚠⚠ THIS, NOT THE ANALYTIC TRANSFER, IS WHAT THE PRODUCTION ENGINES APPLY,
+    AND THE TWO ARE NOT THE SAME OPERATOR. `AlgoGaussianBlurPlaneWrapXY`
+    convolves with a Gaussian SAMPLED at integer offsets, truncated at
+    ceil(4 sigma) taps either side (minimum 1) and renormalised to unit sum.
+    A sampled kernel's transfer is PERIODIC in frequency, so what it applies is
+    the periodised analytic transfer, sum over m of T(f + m). At Nyquist the
+    m = -1 image lands exactly on the m = 0 term and the transfer is DOUBLED --
+    measured at exactly 2.00x for every sigma from 0.6 to 1.2 px (queue C16).
+
+    Until v48 the reference multiplied by the ANALYTIC Gaussian instead, so
+    every render disagreed with both C++ engines at the top of the band. It was
+    tolerated because the disagreement vanishes as T(Nyquist) itself goes to
+    zero, which it does above about 1.2 px. ⚠ THE GRAIN REBASE MAKES THAT
+    TOLERANCE UNSAFE: the physical spectrum's sigmas are SMALLER than the
+    legacy ones -- by a median factor of 6.7 -- so the rebased stage lands
+    squarely in the sigma range where the two operators differ by 2x.
+
+    Since a wrap-around separable convolution is exactly a circular convolution,
+    multiplying by this transfer in the frequency domain is not an approximation
+    of the C++ blur; it is the same operator, evaluated the cheap way. That is
+    what lets the reference run one FFT pair instead of ten spatial blurs and
+    still be the same algorithm.
+
+    ⚠ The taps are built and transformed rather than the analytic transfer being
+    periodised, because below about 0.8 px the truncation and the renormalisation
+    stop being negligible -- at sigma 0.4 the support is 5 taps and a periodised
+    prediction is 8.5e-02 away from the real kernel. For a five-tap renormalised
+    kernel only the taps themselves are the truth.
+
+    Args:
+        sigma_px: standard deviation in pixels; <= 0 returns the identity, which
+            is the correct limit and matches the C++ early-out.
+        n: axis length in pixels.
+        half: True for the rfft axis (returns n//2 + 1 bins), False for the
+            full-fft axis (returns n bins).
+    """
+    m = (int(n) // 2 + 1) if half else int(n)
+    if not (sigma_px > 0.0):
+        return np.ones(m, dtype=np.float64)
+    cutoff = float(fp.GRAIN_BLUR_SIGMA_CUTOFF)
+    hw = max(1, int(math.ceil(cutoff * float(sigma_px))))
+    hw = min(hw, int(fp.GRAIN_BLUR_MAX_HALF_TAPS))
+    x = np.arange(-hw, hw + 1, dtype=np.float64)
+    k = np.exp(-0.5 * (x / float(sigma_px)) ** 2)
+    k /= k.sum()
+    lag = np.zeros(int(n), dtype=np.float64)
+    for i, xx in enumerate(x.astype(int)):
+        lag[xx % int(n)] += k[i]
+    return (np.real(np.fft.rfft(lag)) if half
+            else np.real(np.fft.fft(lag)))
+
+
+def grain_axis_blur_transfer(sigma_px: float, h: int, w: int, aniso: float):
+    """The separable truncated blur's transfer on the rfft2 grid, or None.
+
+    Returns None when the blur is the identity, so the caller can skip it
+    instead of multiplying by ones -- which in the engines is a full pass over
+    the plane to multiply by one, and is where most of the grain stage's time
+    was going before v48's factoring.
+    """
+    if fp.grain_blur_is_identity(sigma_px) and fp.grain_blur_is_identity(
+            sigma_px * aniso):
+        return None
+    tx = kernel_axis_transfer(sigma_px, w, half=True)
+    ty = kernel_axis_transfer(sigma_px * aniso, h, half=False)
+    return ty[:, None] * tx[None, :]
+
+
+def grain_transfer(spec, h: int, w: int, px_per_mm: float,
+                   scan_sigma_px: float, anisotropy: float):
+    """Assemble the FACTORED grain transfer on the rfft2 grid.
+
+        T = [ sum_k w_k B(s_k) ] . [ 1 + g B(s_lobe) ] . B(s_scan)
+
+    ⚠ THE THREE BRACKETS ARE THREE SEPARATE OPERATORS AND THAT IS THE POINT.
+    Until v48 the lobe doubled the term count and the scan band limit was folded
+    into every term's sigma, so a ten-term stock ran ten full-plane blurs at
+    roughly the scan sigma. Both fold out exactly -- a product of Gaussian
+    transfers is a Gaussian whose variances add -- leaving the bare grain
+    sigmas, which at 4K are 0.289 down to 0.018 px and mostly identities.
+
+    ⚠ ANISOTROPY IS APPLIED TO EVERY BRACKET, band limit included. The model of
+    record evaluates the whole product on one pre-stretched frequency grid, so
+    stretching the crystal term alone would stretch the emulsion and not the
+    scanner. Written out per bracket it is the same law, because
+    a*sqrt(sx^2+ss^2) == sqrt((a*sx)^2+(a*ss)^2).
+    """
+    a = max(float(anisotropy), 1e-6)
+
+    mix = np.zeros((h, w // 2 + 1), dtype=np.float64)
+    flat_weight = 0.0
+    for s_mm, wgt in spec.terms:
+        t = grain_axis_blur_transfer(float(s_mm) * px_per_mm, h, w, a)
+        if t is None:
+            flat_weight += float(wgt)          # an identity blur is a scalar
+        else:
+            mix += float(wgt) * t
+    if flat_weight != 0.0:
+        mix += flat_weight
+
+    if spec.lobe_gain > 0.0 and spec.lobe_sigma_mm > 0.0:
+        t = grain_axis_blur_transfer(
+            float(spec.lobe_sigma_mm) * px_per_mm, h, w, a)
+        mix = mix * (1.0 + spec.lobe_gain * (1.0 if t is None else t))
+
+    t = grain_axis_blur_transfer(max(float(scan_sigma_px), 0.0), h, w, a)
+    if t is not None:
+        mix = mix * t
+
+    return mix
+
+
+def make_grain_field(
+    h: int,
+    w: int,
+    px_per_mm: float,
+    spec,
+    rms_granularity: float,
+    scan_sigma_px: float,
+    anisotropy: float,
+    seed: int,
+    frame_index: int,
+    stage: "RngStage",
+    aperture=None,
+) -> np.ndarray:
+    """Spectrally-shaped, granularity-calibrated, frame-keyed grain field.
+
+    Returns a zero-mean density-domain field whose amplitude is fixed by the
+    stock's RMS granularity and whose spectrum is `spec` -- the factored
+    `film_profiles.GrainSpectrum`, which is the ONE definition of the grain
+    spectrum and the only thing about it any engine knows.
+
+    ⚠ THE SIGNATURE CHANGED IN v48 AND THE OLD ONE COULD NOT BE KEPT. It took a
+    `FreqGrid` and a stateful `rng`, and both had to go: the grid carried the
+    analytic transfer this stage no longer applies, and the generator had no
+    frame index in it, which is finding F1 -- every frame of a clip got the same
+    grain in the reference while the C++ engines re-rolled it, so the two were
+    modelling different physics and no single-frame harness could see it.
+
+    The field is built exactly as the C++ engines build it:
+
+        1. white noise from the counter generator at (seed, frame, stage, pixel)
+        2. one separable truncated-Gaussian blur per mixture term, skipping the
+           terms whose kernel is the identity
+        3. one blur for the clustering lobe, applied to their weighted sum
+        4. one blur for the scan band limit, applied to the result
+        5. mean removed, then the amplitude applied
+
+    Steps 2 to 4 run here as a single frequency-domain multiply, which is not an
+    approximation of the blurs but the identical circular convolution, and step
+    5's mean removal is the DC bin zeroed, which is the same operation the
+    engines perform as a subtraction.
+
+    ⚠ THE AMPLITUDE IS CALIBRATED AGAINST A CONTINUOUS INTEGRAL, NOT AGAINST
+    THIS GRID, and that is the part that is invisible until it is measured. A
+    grid-referred calibration over-amplifies any stock whose grain is finer than
+    a pixel, because all of its spectral energy folds back into the sampled band
+    and the calibration inflates the amplitude to compensate for detail the grid
+    cannot hold. The symptom is VISION3 50D at rms 2.6 rendering as grainy as
+    500T at rms 6.6 -- backwards, and it was happening until it was measured.
+
+    Consequence, and it is physics rather than an artefact: a 2K render genuinely
+    shows less granularity than a 6K render of the same negative, converging
+    upward as the band widens. That is why 4K scans of old negatives look
+    grainier than the 2K masters everyone remembers.
+    """
+    if rms_granularity <= 0.0 or px_per_mm <= 0.0 or not spec.terms:
+        return np.zeros((h, w), dtype=np.float32)
+
+    energy = fp.grain_reference_energy_terms(spec, aperture)
+    scale = (rms_granularity / 1000.0) * px_per_mm / math.sqrt(energy)
+
+    transfer = grain_transfer(spec, h, w, px_per_mm, scan_sigma_px, anisotropy)
+
+    # Zero mean, exactly. A field with a non-zero mean would shift the overall
+    # density of the frame, so the grain control would double as an exposure
+    # control.
+    transfer = np.array(transfer, dtype=np.float64, copy=True)
+    transfer[0, 0] = 0.0
+
+    white = counter_normal_plane(h, w, seed, frame_index, stage)
+    field = np.fft.irfft2(np.fft.rfft2(white) * transfer, s=(h, w))
+    return (field * scale).astype(np.float32)
 
 
 # ===========================================================================
@@ -2854,11 +3282,90 @@ class RenderSettings:
     #: Scales all three CoatingSpec defects together (coating field, gate
     #: buckling, edge fog). 0.0 disables them; 1.0 = as profiled.
     coating_scale: float = 1.0
-    #: Frame number within the clip. Only the coating field uses it, to slide
-    #: its machine-direction structure by one frame pitch per frame. Any frame
-    #: can be rendered independently and out of order -- the field is a pure
-    #: function of (seed, absolute web position).
+    #: Frame number within the clip.
+    #:
+    #: ⚠ SINCE v48 THE GRAIN STAGE USES IT TOO, AND THAT IS THE FIX FOR F1.
+    #: Until then only the coating field read it -- to slide its
+    #: machine-direction structure by one frame pitch -- and grain was drawn
+    #: from a generator seeded once per render, so every frame of a clip carried
+    #: an IDENTICAL grain field while both C++ engines re-rolled it per frame.
+    #: The reference and the production engines were modelling different
+    #: physics, and no harness in this repository could see it, because every
+    #: harness compares one frame.
+    #:
+    #: Any frame can still be rendered independently and out of order: every
+    #: field is a pure function of (seed, frame, stage, ordinal).
     frame_index: int = 0
+    # -- schema v48 (FGS-DDS-001 Rev. A §18.4) -------------------------------
+    #: Which grain spectrum to render (`fp.GRAIN_SPECTRUM_MODELS`).
+    #:
+    #: ⚠ THE DEFAULT IS THE PHYSICAL MODEL, WHICH IS A DEPARTURE FROM THE
+    #: SPECIFICATION AND IS THE OWNER'S INSTRUCTION. Spec §10.3 keeps
+    #: `boolean_jinc` opt-in until gate S5 and §18.1 requires v48 defaults to
+    #: reproduce v47 bit-identically (R-N2). The instruction of 2026-09-19 was
+    #: to REPLACE the existing grain model, so the physical spectrum is the
+    #: default and `legacy_gaussian` is retained, exact, as the comparison path.
+    #: R-N2 is therefore re-expressed rather than met: v48 in `legacy_gaussian`
+    #: reproduces the v47 SPECTRUM exactly, not the v47 pixels, because the
+    #: frame-keyed generator that closes F1 necessarily changes every pixel.
+    #:
+    #: ⚠⚠ SWITCHING TO `boolean_jinc` IS A VISIBLE CHANGE ON 186 STOCKS AND IS
+    #: NOT A REFINEMENT. The physical diameter is a median 6.7x smaller than
+    #: `clump_um`, so the spectrum's half-power frequency moves UP by that
+    #: factor, and because the calibration is pinned through the 48 um aperture
+    #: -- which sees almost none of the band that moved -- the VISIBLE variance
+    #: goes UP, not down. Measured over the whole corpus with the shipped code,
+    #: new/old rendered variance at three scanner bandwidths:
+    #:
+    #:     f50 = 40 c/mm    median 1.148    range 1.015 - 1.711
+    #:     f50 = 80 c/mm    median 1.533    range 1.016 - 3.515
+    #:     f50 = 120 c/mm   median 2.196    range 1.018 - 5.398
+    #:
+    #: Per stock at 40 / 80 / 120:
+    #:
+    #:     VISION3 50D      1.044 / 1.102 / 1.200
+    #:     PORTRA 400       1.077 / 1.215 / 1.453
+    #:     VISION3 500T     1.133 / 1.494 / 2.104
+    #:     T-MAX 400        1.212 / 1.894 / 3.021
+    #:     SVEMA FOTO 250   1.222 / 1.889 / 2.706
+    #:     ILFORD HPS       1.028 / 1.033 / 1.043
+    #:
+    #: ⚠ ILFORD HPS IS THE ONE THAT VALIDATES THE REST. It is one of the five
+    #: stocks whose `clump_um` is a BBC T-101 measurement rather than an
+    #: estimate, so its diameter barely moves and neither does its render. The
+    #: stocks that move are exactly the ones whose grain size was a guess.
+    #:
+    #: Up to five times more visible grain at high scan bandwidth, which is the
+    #: opposite of the intuitive "finer grain, less visible" and is stated
+    #: nowhere in the specification. It is the single largest adoption risk in
+    #: this change: on a 4K scan it will read as a regression to anyone who has
+    #: not been told.
+    spectrum_model: str = "boolean_jinc"
+    #: still | motion | frozen (spec §14.4).
+    #:
+    #: ⚠ `still` IS THE PHYSICALLY FAITHFUL DEFAULT AND THE PRIOR DOCUMENT WAS
+    #: WRONG ABOUT THIS. That document argued independent frames at still
+    #: amplitude render 2.19x too loud in motion, because the eye integrates
+    #: ~0.2 s. It does -- but a real scanned motion frame ALSO carries full
+    #: still-frame granularity, and the viewer integrates real footage and
+    #: simulated footage identically, so the factor cancels. `motion` remains
+    #: available as a PERCEPTUAL MATCHING control and is not emulsion physics;
+    #: `frozen` pins one field for the whole clip, for stills work and A/B.
+    grain_temporal_mode: str = "still"
+    #: Frames per second. ⚠ 0.0 MEANS "THE HOST DID NOT SUPPLY ONE", AND THAT
+    #: IS R-T3 IN LITERAL TERMS: the motion amplitude scale applies "only when
+    #: the host explicitly supplies a frame rate; it shall never be a silent
+    #: default." A default of 24.0 was exactly the silent default the
+    #: requirement forbids -- `motion` mode without an fps would quietly have
+    #: assumed cinema and scaled the amplitude by 0.456. Now it raises.
+    frame_rate: float = 0.0
+    #: gaussian | hybrid (spec §18.4). `hybrid` enables the count-gated
+    #: compound-Poisson marginal of R-S6. Default ON, because the gate is
+    #: computed per pixel and is inert wherever the Gaussian marginal is
+    #: defensible -- which is most of most images, and all of a bright one.
+    marginal_model: str = "hybrid"
+    #: legacy | measured_pchip | saturating (spec §18.4).
+    sigma_model: str = "measured_pchip"
 
     def flare_for(self, profile: FilmProfile) -> float:
         """Veiling flare fraction to use, honouring the per-stock default."""
@@ -3165,20 +3672,18 @@ def simulate(
     # `grid` is therefore isotropic, and is what every optical stage uses.
     grid = FreqGrid(h, w, px_per_mm)
 
-    # `grain_grid` carries the stretch and is used ONLY by the camera
-    # negative's grain field.
+    # ⚠ THE SECOND, ANISOTROPIC `grain_grid` IS GONE IN v48, AND ITS ABSENCE IS
+    # THE POINT. Stage 11 no longer evaluates a transfer on a frequency grid at
+    # all: it blurs with the Gaussian mixture, and anisotropy is a ratio between
+    # the two axis sigmas of each blur -- which is exactly how the C++ engines
+    # have always applied it. Same law, one implementation instead of two, and
+    # one fewer h x w float32 grid allocated per render.
     #
-    # ⚠ IT IS DELIBERATELY NOT USED FOR DUPE OR PRINT GRAIN. Those are
-    # different emulsions coated in different factories; the print stock and
-    # the duplication stock carry no anisotropy of their own, and attributing
-    # the camera negative's coating flow to them would be inventing a
-    # measurement. The C++ twins pass ALGO_GRAIN_ANISOTROPY_NONE at exactly
-    # those two call sites, for exactly this reason.
-    #
-    # When the stock is isotropic the two names are the same object, so the
-    # common case allocates nothing extra.
-    grain_grid = (grid if profile.grain.anisotropy == 1.0
-                  else FreqGrid(h, w, px_per_mm, profile.grain.anisotropy))
+    # It stays confined to the camera negative's grain. Dupe and print emulsions
+    # are coated in different factories and carry no anisotropy of their own;
+    # attributing the camera negative's coating flow to them would be inventing
+    # a measurement, which is why those two call sites pass 1.0 and the C++
+    # twins pass ALGO_GRAIN_ANISOTROPY_NONE.
 
     # -- 2. relative exposure ------------------------------------------------
     exposure = (linear_rgb / np.float32(MID_GREY)).astype(np.float32)
@@ -3564,15 +4069,70 @@ def simulate(
     gs = profile.grain
     if settings.grain_scale > 0.0:
         clumps = gs.clumps()
+        grain_um = gs.grain_um_rgb()
+        # ⚠ THE STAGE NO LONGER KNOWS WHAT THE SPECTRUM IS. It asks
+        # `film_profiles.grain_gauss_terms` for a Gaussian mixture and blurs
+        # with it. Both spectral models arrive through the same call and the
+        # same mixture, so there is no second code path to keep in step and no
+        # way for `legacy_gaussian` to drift from `boolean_jinc` in anything
+        # except the coefficients -- which is the whole point of the
+        # representation (spec §10.3, and this project's v48 block).
+        spec_model = settings.spectrum_model
+        aperture = fp.grain_aperture_model(spec_model)
+        # ⚠ The C++ stage forms its stream seed as `params.seed ^ seed`, where
+        # the second operand is the per-call seed the host supplies. The
+        # reference has one seed, so the two agree when the host passes zero --
+        # which `cpp_parity` drives it to do, and which is the contract.
+        grain_seed = int(settings.seed) & 0xFFFFFFFF
+        # The scan MTF band-limits grain BEFORE the sensor samples it, because
+        # the scanner lens sits between the film and the sensor. That is why
+        # stage 10 runs before this one, and why the band limit is folded into
+        # every mixture term's sigma rather than applied afterwards.
+        scan_sigma_px = fp.scan_sigma_mm(scan_f50) * px_per_mm
+        # ⚠ THE FRAME INDEX IS WHAT CLOSES F1. Until v48 this stage drew from a
+        # generator seeded once per render, so every frame of a clip carried
+        # the SAME grain -- welded to the image, while the C++ engines re-rolled
+        # it per frame. Real film is a fresh emulsion sample every frame.
+        frame_index = int(settings.frame_index)
+        # Temporal mode (spec §14.4). `still` is the default and is the
+        # physically faithful one -- see the RenderSettings note. `frozen` pins
+        # one field for the whole clip; `motion` keeps independent fields and
+        # scales the amplitude for perceptual matching only.
+        temporal_scale = 1.0
+        if settings.grain_temporal_mode == "frozen":
+            frame_index = 0
+        elif settings.grain_temporal_mode == "motion":
+            # ⚠ R-T3: refuse rather than assume. A silent 24 fps here would be
+            # a 0.456x amplitude change nobody asked for.
+            if not (settings.frame_rate > 0.0):
+                raise ValueError(
+                    "grain_temporal_mode='motion' needs an explicit "
+                    "frame_rate; the perceptual scale is 1/sqrt(fps * 0.2) and "
+                    "defaulting it would silently rescale grain (R-T3)")
+            temporal_scale = temporal_grain_scale(settings.frame_rate)
+        # ⚠⚠ NO scanner_fixed_pattern FREEZE HERE, AND ITS ABSENCE IS THE
+        # POINT. Spec §18.2 asks the stage to freeze the grain field for a
+        # stock whose traced noise is the scanner's; R-T5 says the grain stage
+        # "shall introduce no frame-locked noise component". A frozen field is
+        # exactly such a component, so the two cannot both be honoured and R-T5
+        # wins -- it is a requirement, §18.2 is a schema note, and freezing
+        # would in any case render the wrong quantity very steadily rather than
+        # fixing the mis-attributed measurement underneath.
+        # `GrainSpec.grain_temporal_class` is declarative and `validate`
+        # refuses any value but "emulsion".
+
         if profile.is_monochrome or reseau_mask is not None:
             # One silver image means one grain field, identical in all three
             # channels -- not three independent ones. This covers the additive
             # colour stocks too: a reseau stock has a single panchromatic
             # emulsion behind the filter grid, so it cannot have per-layer grain.
+            terms = fp.grain_gauss_terms(
+                spec_model, clump_um=clumps[1], clump_gain=gs.clump_gain,
+                grain_um=grain_um[1], size_sigma_log=gs.size_sigma_log)
             field = make_grain_field(
-                grain_grid, rng, clumps[1], gs.clump_gain,
-                gs.rms_granularity, scan_t
-            )
+                h, w, px_per_mm, terms, gs.rms_granularity, scan_sigma_px,
+                gs.anisotropy, grain_seed, frame_index, RngStage.GRAIN_G,
+                aperture)
             fields = (field, field, field)
         else:
             # Per-channel RMS: rms_rgb() falls back to the scalar where the
@@ -3582,11 +4142,16 @@ def simulate(
             # (The schema always promised this; the renderer used the scalar
             # for all three channels until 2026-08-01 -- silent bug.)
             rms_c = gs.rms_rgb()
+            streams = (RngStage.GRAIN_R, RngStage.GRAIN_G, RngStage.GRAIN_B)
             fields = tuple(
                 make_grain_field(
-                    grain_grid, rng, clumps[c], gs.clump_gain, rms_c[c],
-                    scan_t
-                )
+                    h, w, px_per_mm,
+                    fp.grain_gauss_terms(
+                        spec_model, clump_um=clumps[c],
+                        clump_gain=gs.clump_gain, grain_um=grain_um[c],
+                        size_sigma_log=gs.size_sigma_log),
+                    rms_c[c], scan_sigma_px, gs.anisotropy,
+                    grain_seed, frame_index, streams[c], aperture)
                 for c in range(3)
             )
         # sigma(D) SHAPE (queue item C1, 2026-08-18) and its LEVEL (C1b, same
@@ -3615,6 +4180,31 @@ def simulate(
         # anchors heuristically for 137 profiles and BOTH branches of that
         # heuristic are known wrong in sign. `sigma_shape_measured` is what keeps
         # them out; see the GrainSpec docstring.
+        # ------------------------------------------------------------------
+        #  THE COUNT GATE (R-S6, spec ch. 12), applied to the field's MARGINAL.
+        #
+        #  A Gaussian field has zero skewness at every density. Real film does
+        #  not: where the developed grains are countable the marginal is
+        #  compound Poisson and positively skewed, and on this corpus that
+        #  region starts at net D 0.058 for the median stock and 0.87 for the
+        #  coarsest -- the shadows of a negative, and exactly where real film
+        #  shows discrete salt-like grain instead of smooth noise.
+        #
+        #  ⚠ THE GATE IS COMPUTED, NEVER CHOSEN. N_elem comes from the physical
+        #  diameter through Nutting's relation and the noise-equivalent element
+        #  area; nothing in it reads a stock name or a taste setting.
+        #
+        #  ⚠⚠ AND THE FIELD IS TRANSFORMED RATHER THAN REPLACED BY A DOT
+        #  RENDERER, WHICH IS A DEPARTURE FROM SPEC §12.4.2 AND IS COSTED. The
+        #  specification places every grain: at 4K that is about 5 million
+        #  grains per channel over 5 % of the frame at the gate's lower edge and
+        #  four times that at its upper, i.e. 25-100 ms of scatter against an
+        #  8 ms whole-frame budget. The transform reproduces the spec's own
+        #  blend in mean, variance and skewness exactly, at O(1) per pixel; see
+        #  `fp.grain_marginal_coeff` for what it does not reproduce.
+        # ------------------------------------------------------------------
+        elem_um2 = fp.grain_element_area_um2(fp.scan_sigma_mm(scan_f50),
+                                             1.0 / px_per_mm)
         for c in range(3):
             dmin = curves[c].dmin
             # Poisson statistics of discrete developed crystals: sigma grows
@@ -3622,8 +4212,29 @@ def simulate(
             # perfectly clean blacks are one of the loudest digital tells.
             amp = fp.grain_sigma(
                 gs, dmin, curves[c].dmax, dens[:, :, c]).astype(np.float32)
+
+            field = fields[c]
+            if settings.marginal_model == "hybrid" and elem_um2 > 0.0:
+                net = np.maximum(dens[:, :, c] - np.float32(dmin), 0.0)
+                n_elem = fp.grain_n_elem(net, grain_um[c], gs.size_sigma_log,
+                                         elem_um2)
+                coeff = fp.grain_marginal_coeff(n_elem, gs.size_sigma_log)
+                if float(np.max(coeff)) > 0.0:
+                    # Standardise by the field's own RMS, transform, restore.
+                    # The RMS is a property of this plane and this transfer, so
+                    # both engines measure it the same way -- one reduction,
+                    # the same one `AlgoPlaneMean` already performs.
+                    rms = float(np.sqrt(np.mean(
+                        np.square(field.astype(np.float64)))))
+                    if rms > 0.0:
+                        z = field.astype(np.float64) / rms
+                        z = ((z + coeff * (z * z - 1.0))
+                             / np.sqrt(1.0 + 2.0 * coeff * coeff))
+                        field = (z * rms).astype(np.float32)
+
             dens[:, :, c] += (
-                np.float32(settings.grain_scale) * fields[c] * amp
+                np.float32(settings.grain_scale * temporal_scale)
+                * field * amp
             )
         del fields
 
@@ -3704,8 +4315,27 @@ def simulate(
                 # softens every generation's grain by its own MTF and makes a
                 # dupe chain come out cleaner than the original.
                 if settings.grain_scale > 0.0 and dupe.grain_rms > 0.0:
+                    # ⚠ THE DUPE AND PRINT EMULSIONS STAY ON THE LEGACY
+                    # SPECTRUM WHATEVER `spectrum_model` SAYS, AND THAT IS NOT
+                    # AN OVERSIGHT. `boolean_jinc` needs a physical grain
+                    # diameter, and the only route to one in this corpus is the
+                    # random-dot inversion of a PUBLISHED rms granularity. A
+                    # duplicating stock's `grain_rms` is not that: it is a
+                    # look, fitted, with no datasheet behind it, so inverting
+                    # it would manufacture a diameter and present it as
+                    # physics. They also carry no anisotropy -- the camera
+                    # negative's coating flow is not theirs -- which is why the
+                    # C++ twins pass ALGO_GRAIN_ANISOTROPY_NONE here.
                     gfield = make_grain_field(
-                        grid, rng, dupe.grain_clump_um, 0.30, dupe.grain_rms, scan_t
+                        h, w, px_per_mm,
+                        fp.grain_gauss_terms(
+                            "legacy_gaussian",
+                            clump_um=dupe.grain_clump_um, clump_gain=0.30),
+                        dupe.grain_rms,
+                        fp.scan_sigma_mm(scan_f50) * px_per_mm,
+                        1.0, int(settings.seed) & 0xFFFFFFFF,
+                        int(settings.frame_index), RngStage.DUPE_GRAIN,
+                        fp.grain_aperture_legacy,
                     )
                     for c in range(3):
                         amp = np.sqrt(
@@ -3781,7 +4411,15 @@ def simulate(
         # get compressed by the shoulder -- a subtle difference in how grain
         # behaves in highlights that single-stage models cannot produce.
         pfield = make_grain_field(
-            grid, rng, print_stock.grain_clump_um, 0.25, print_stock.grain_rms, scan_t
+            h, w, px_per_mm,
+            fp.grain_gauss_terms("legacy_gaussian",
+                                 clump_um=print_stock.grain_clump_um,
+                                 clump_gain=0.25),
+            print_stock.grain_rms,
+            fp.scan_sigma_mm(scan_f50) * px_per_mm,
+            1.0, int(settings.seed) & 0xFFFFFFFF,
+            int(settings.frame_index), RngStage.PRINT_GRAIN,
+            fp.grain_aperture_legacy,
         )
         for c in range(3):
             amp = np.sqrt(

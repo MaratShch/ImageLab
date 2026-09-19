@@ -42,6 +42,8 @@ from pathlib import Path
 
 import numpy as np
 
+import film_profiles as fp
+
 from film_profiles import (
     _natural_key,
     PERFS_PER_FRAME,
@@ -279,6 +281,49 @@ struct RGBCurves {
 ///
 /// Schema-v2 fields (DM-09/DM-10) follow the v1 block; their defaults in the
 /// database were chosen so that ignoring them reproduces v1 output exactly.
+/// Gaussian terms in the BARE grain spectrum. Five, and it no longer doubles
+/// when a clustering lobe is present: the lobe is carried as its own sigma and
+/// gain and applied as one further blur, which is exact and is what keeps the
+/// stage inside its frame budget.
+/// ⚠ AlgoGrain.hpp static_asserts its own constant against this one.
+constexpr int32_t FILM_GRAIN_MAX_TERMS = 5;
+
+/// One grain spectrum as a sum of Gaussian transfers:
+///     h(f) = sum_k weight[k] * exp(-2 pi^2 sigma_mm[k]^2 f^2)
+/// with f in cycles per millimetre. Sigmas are a property of the EMULSION and
+/// carry no resolution in them; the renderer converts to pixels and adds the
+/// scan band limit's variance per term.
+/// The grain spectrum, FACTORED into the parts the engines apply separately:
+///
+///     h(f) = [ sum_k weight[k] G(sigma_mm[k]) ] * [ 1 + lobe_gain G(lobe_sigma_mm) ]
+///
+/// with G(s) = exp(-2 pi^2 s^2 f^2) and f in cycles per millimetre.
+///
+/// ⚠⚠ THE FACTORING IS EXACT AND IT IS A PERFORMANCE FIX WORTH 3x TO 9x. The
+/// first version expanded the clustering lobe into five EXTRA terms at
+/// sqrt(s_k^2 + s_lo^2), and the renderer folded the scan band limit into every
+/// sigma on top of that -- so a ten-term stock ran ten full-plane blurs, all at
+/// roughly the scan sigma. Measured on the AVX2 engine at 3840x2160, one
+/// channel, one thread: 398 ms against an 8 ms budget (R-N3).
+///
+/// A product of Gaussian transfers is a Gaussian whose variances add, and
+/// convolution distributes over the sum, so both the lobe and the band limit
+/// come out as ONE blur each applied to the weighted sum. What is left in this
+/// table is the BARE grain spectrum, whose sigmas are 0.289 down to 0.018 px at
+/// 4K -- and four of five are below the identity threshold, so they cost a
+/// scalar multiply instead of a pass over the plane.
+///
+/// Sigmas are a property of the EMULSION and carry no resolution in them; the
+/// renderer converts to pixels, applies anisotropy, and adds the band limit as
+/// its own factor.
+struct GrainSpectrumTerms {
+    int32_t count;              ///< BARE terms only; the lobe is not expanded
+    float   sigma_mm[FILM_GRAIN_MAX_TERMS];
+    float   weight[FILM_GRAIN_MAX_TERMS];
+    float   lobe_sigma_mm;      ///< clustering lobe sigma; 0 = no lobe
+    float   lobe_gain;          ///< its amplitude, i.e. clump_gain
+};
+
 struct GrainSpec {
     float rms_granularity;  ///< sigma(D)*1000 through a 48 um aperture at D=1.0
     float clump_um_r;       ///< mean developed clump diameter, micrometres
@@ -352,6 +397,27 @@ struct GrainSpec {
     float cluster_um;       ///< super-clump correlation length, um; 0 = disabled
     float dye_cloud_um;     ///< dye-cloud diameter, um; 0 for B&W silver,
                             ///< ~1.5-2.5 for colour stocks. [tier 2]
+    // -- schema v48 (FGS-DDS-001 Rev. A) ------------------------------------
+    /// Physical developed grain / dye-cloud DIAMETER per layer, micrometres.
+    /// ⚠ NOT clump_um_* AND NOT A RESCALING OF IT. clump_um_* is a correlation
+    /// length of the legacy Gaussian spectrum, five of whose 191 values are BBC
+    /// T-101 measurements and 186 of which are estimates already divided by 3.1
+    /// once (queue C45) to make the RENDERED grain match observation. This is
+    /// the diameter the jinc spectrum and the per-element count consume,
+    /// obtained from rms_granularity alone by the closed-form random-dot
+    /// inversion. Emitted RESOLVED -- never zero -- so the engine never derives.
+    float grain_um_r;
+    float grain_um_g;
+    float grain_um_b;
+    float development_gamma_ref; ///< gamma at which grain_um was calibrated
+    float sigma_sat_droll;  ///< saturating sigma(D) roll-off density; 0 = unused
+    float sigma_sat_q;      ///< saturating sigma(D) exponent; 0 = unused
+    float rho_layers;       ///< inter-layer grain coherence [HYP]; 0 until EXP-A
+    /// 0 = emulsion grain, 1 = scanner fixed pattern. ⚠ A GRAIN-CORRECTNESS
+    /// GUARD, NOT A SCANNER MODEL: fixed-pattern noise is nailed to the sensor
+    /// and must NOT be re-rolled per frame. Simulating a scanner is out of
+    /// scope; refusing to animate one is not.
+    uint8_t grain_temporal_class;
 };
 
 /// Grain-sigma multiplier at a given density -- THE ONE DEFINITION (schema v9).
@@ -2747,7 +2813,7 @@ def _profile_block(p: FilmProfile) -> str:
             {p.exposure_index},
             {p.balance_kelvin},
             {_curves(p.curves)},
-            {{ {_f(g.rms_granularity)}, {_f(g.clump_um_r)}, {_f(g.clump_um_g)}, {_f(g.clump_um_b)}, {_f(g.clump_gain)}, {_f(g.fog_grain)}, {_f(g.anisotropy)}, {_f(g.rms_r)}, {_f(g.rms_g)}, {_f(g.rms_b)}, {_f(g.sigma_shape_toe)}, {_f(g.sigma_shape_mid)}, {_f(g.sigma_shape_dmax)}, {_f(g.sigma_shape_peak)}, {_f(g.sigma_shape_peak_at)}, {_f(g.sigma_shape_toe_at)}, {_f(g.sigma_shape_dmax_at)}, {"true" if g.sigma_shape_measured else "false"}, {_f(g.size_sigma_log)}, {_f(g.cluster_um)}, {_f(g.dye_cloud_um)} }},
+            {{ {_f(g.rms_granularity)}, {_f(g.clump_um_r)}, {_f(g.clump_um_g)}, {_f(g.clump_um_b)}, {_f(g.clump_gain)}, {_f(g.fog_grain)}, {_f(g.anisotropy)}, {_f(g.rms_r)}, {_f(g.rms_g)}, {_f(g.rms_b)}, {_f(g.sigma_shape_toe)}, {_f(g.sigma_shape_mid)}, {_f(g.sigma_shape_dmax)}, {_f(g.sigma_shape_peak)}, {_f(g.sigma_shape_peak_at)}, {_f(g.sigma_shape_toe_at)}, {_f(g.sigma_shape_dmax_at)}, {"true" if g.sigma_shape_measured else "false"}, {_f(g.size_sigma_log)}, {_f(g.cluster_um)}, {_f(g.dye_cloud_um)}, {_f(g.grain_um_rgb()[0])}, {_f(g.grain_um_rgb()[1])}, {_f(g.grain_um_rgb()[2])}, {_f(g.development_gamma_ref)}, {_f(g.sigma_sat_droll)}, {_f(g.sigma_sat_q)}, {_f(g.rho_layers)}, {1 if g.grain_temporal_class == "scanner_fixed_pattern" else 0} }},
             {{ {_f(m.f50_r)}, {_f(m.f50_g)}, {_f(m.f50_b)}, {_f(m.adjacency)}, {_f(m.adjacency_um)}, {_f(m.resolving_power_lp_mm_lowc)}, {_f(m.resolving_power_lp_mm_highc)}, {_f(m.mtf_rolloff_q)}, {"true" if m.mtf_measured else "false"}, {_f(m.mtf_tail_a)}, {_f(m.mtf_tail_f_exp)}, {_f(m.resolving_power_lp_mm_fuess)}, {_f(m.resolving_power_lp_mm_apo)}, "{_escape(m.resolving_optic)}", "{_escape(m.resolving_target_contrast)}", {_f(m.resolving_density)} }},
             {{ {_vec3(hal.radii_um)}, {_vec3(hal.weights)}, {_f(hal.gain_r)}, {_f(hal.gain_g)}, {_f(hal.gain_b)}, {_f(hal.threshold_stops)}, {_f(hal.radius_scale_r)}, {_f(hal.radius_scale_g)}, {_f(hal.radius_scale_b)} }},
             {{ {_f(cp.strength)}, {_f(cp.radius_um)}, {_f(cp.edge_strength)}, {_f(cp.edge_um)} }},

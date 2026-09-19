@@ -213,6 +213,7 @@
     <ClInclude Include="include\CommonPixFormat.hpp" />
     <ClInclude Include="include\FilmSimulation.hpp" />
     <ClInclude Include="include\film_enum.hpp" />
+    <ClInclude Include="include\film_params_mask.hpp" />
     <ClInclude Include="include\film_profiles.hpp" />
     <ClInclude Include="include\film_profiles_detail.hpp" />
     <ClInclude Include="include\film_schema_version.h" />

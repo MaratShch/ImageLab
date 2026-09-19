@@ -86,14 +86,32 @@ AlgoType AlgoScanSigmaMm (const AlgoType f50CyclesPerMm) noexcept
     if (f50CyclesPerMm <= ALGO_ZERO)
         return ALGO_ZERO;
 
-    // sqrt(ln(2)/2) / pi = 0.18738564618678. Derived by equating the two exponent
+    // sqrt(ln(2)/2) / pi = 0.1873906251292776. Derived by equating the two exponent
     // forms: the MTF is exp(-ln2 (f/f50)^2) and a Gaussian blur of sigma s
     // millimetres has transfer exp(-2 pi^2 s^2 f^2), so ln2/f50^2 = 2 pi^2 s^2.
     //
     // Written as a literal for the same reason it is in the emulsion MTF header:
     // it is then a compile-time constant on every compiler, and the derivation can
     // be checked against the digits by hand.
-    return static_cast<AlgoType>(0.18738564618678) / f50CyclesPerMm;
+    // ⚠⚠ THE DIGITS WERE WRONG UNTIL SCHEMA v48 AND THE COMMENT ABOVE INVITED THE
+    // CHECK THAT WOULD HAVE CAUGHT THEM. sqrt(0.6931471805599453 / 2) is
+    // 0.5887050112577373, and dividing THAT by pi gives 0.1873906251292776 -- not
+    // 0.18738564618678, which is what shipped. Wrong from the FIFTH digit,
+    // 2.66e-05 relative, and the derivation printed beside it has been correct
+    // the whole time.
+    //
+    // ⚠ IT HID BECAUSE THE REFERENCE ENGINE NEVER COMPUTES THIS SIGMA. Python
+    // evaluates exp(-ln2 (f/f50)^2) straight onto its frequency grid, so this
+    // constant existed only on the C++ side and had nothing to disagree with. A
+    // quantity computed in one engine and not in the other is not covered by
+    // parity testing, however thorough that testing is -- which is the general
+    // lesson, and it is not about grain.
+    //
+    // The correct value was already in film_profiles twice, under
+    // GRAIN_SIGMA_PER_HALF_POWER and _TAGUCHI_F50_TO_SIGMA_UM / 1000, and v48 adds
+    // film_profiles.scan_sigma_mm() as a Python consumer so that the next
+    // disagreement is a parity failure instead of a secret. G-V48-KSIGMA pins it.
+    return static_cast<AlgoType>(0.1873906251292776) / f50CyclesPerMm;
 }
 
 

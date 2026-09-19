@@ -101,15 +101,34 @@
 //      sigma_mm = sqrt(ln(2) / 2) / (pi * f50)
 //
 //  The numerator is sqrt(0.6931471805599453 / 2) = 0.5887050112577373 and
-//  dividing by pi gives 0.18738564618678, which is the constant stored here.
+//  dividing by pi gives 0.1873906251292776, which is the constant stored here.
 //  Multiply it by the reciprocal of f50 to obtain sigma.
 //
 //  Written out as a literal rather than assembled from std::sqrt and M_PI so it
 //  is a compile-time constant on every compiler and so the derivation above can
 //  be checked against the digits by hand.
 // ---------------------------------------------------------------------------
+//  ⚠⚠ THE DIGITS WERE WRONG UNTIL SCHEMA v48 AND THE COMMENT ABOVE INVITED THE
+//  CHECK THAT WOULD HAVE CAUGHT THEM. sqrt(0.6931471805599453 / 2) is
+//  0.5887050112577373, and dividing THAT by pi gives 0.1873906251292776 -- not
+//  0.18738564618678, which is what shipped. Wrong from the FIFTH digit,
+//  2.66e-05 relative, and the derivation printed beside it has been correct
+//  the whole time.
+//
+//  ⚠ IT HID BECAUSE THE REFERENCE ENGINE NEVER COMPUTES THIS SIGMA. Python
+//  evaluates exp(-ln2 (f/f50)^2) straight onto its frequency grid, so this
+//  constant existed only on the C++ side and had nothing to disagree with. A
+//  quantity computed in one engine and not in the other is not covered by
+//  parity testing, however thorough that testing is -- which is the general
+//  lesson, and it is not about grain.
+//
+//  The correct value was already in film_profiles twice, under
+//  GRAIN_SIGMA_PER_HALF_POWER and _TAGUCHI_F50_TO_SIGMA_UM / 1000, and v48 adds
+//  film_profiles.scan_sigma_mm() as a Python consumer so that the next
+//  disagreement is a parity failure instead of a secret. G-V48-KSIGMA pins it.
+// ---------------------------------------------------------------------------
 constexpr AlgoType ALGO_MTF_SIGMA_MM_PER_INV_F50 =
-    static_cast<AlgoType>(0.18738564618678);
+    static_cast<AlgoType>(0.1873906251292776);
 
 // ---------------------------------------------------------------------------
 //  Adjacency lobe scales, as multiples of the specified diffusion length.

@@ -3,8 +3,8 @@
 #include "AlgoControl.hpp"
 #include "AlgoControlEnums.hpp"
 #include "AlgoAdobeControlEnums.hpp"
+#include "film_params_mask.hpp"
 #include "AE_Effect.h"
-
 
 
 AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps)

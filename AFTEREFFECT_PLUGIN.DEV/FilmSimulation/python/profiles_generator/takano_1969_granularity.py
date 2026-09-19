@@ -122,7 +122,8 @@ settings.scanner_f50 or print_stock.mtf_f50`, so the engine's default R_pr IS
 the positive stock's own MTF -- eq (13) with a contact printer.
 
 ⚠ THE DEPARTURE IS THAT STAGE 14 ALSO BAND-LIMITS THE PRINT STOCK'S OWN GRAIN BY
-THAT SAME TRANSFER (film_sim.py, `make_grain_field(..., scan_t)` in the print
+THAT SAME TRANSFER (film_sim.py, the `fp.scan_sigma_mm(scan_f50)` argument to
+`make_grain_field` in the print
 block).  eq (13) does not: F_pos is generated in the positive emulsion and is
 not imaged through the positive's MTF.  The duplication chain in the same
 function gets this right and says so in its own comment -- "This stage's own
@@ -658,10 +659,17 @@ def main() -> int:
         ("R_pr defaults to the POSITIVE STOCK'S OWN MTF -- eq (13) with a "
          "contact printer",
          "scan_f50 = settings.scanner_f50 or print_stock.mtf_f50" in src),
+        # ⚠ THE PATTERN WAS REWRITTEN FOR SCHEMA v48 AND THE DEPARTURE WAS
+        # NOT. Stage 14 no longer passes the transfer `scan_t`; it passes the
+        # same band limit as a SIGMA, because the v48 grain path folds the scan
+        # variance into every spectral term instead of multiplying a transfer.
+        # Same optics, same departure, different spelling. The check follows the
+        # spelling so that it keeps failing if anyone removes the departure
+        # without saying so, which is the only thing it is for.
         ("⚠ THE DEPARTURE: stage 14 band-limits the print stock's own grain "
          "by that same transfer, which eq (13) does not",
-         "print_stock.grain_clump_um, 0.25, print_stock.grain_rms, scan_t"
-         in src),
+         "clump_um=print_stock.grain_clump_um" in src
+         and "fp.scan_sigma_mm(scan_f50) * px_per_mm" in src),
         ("the duplication chain gets it right and says so",
          "not blurred by this stage's optics" in src),
     )

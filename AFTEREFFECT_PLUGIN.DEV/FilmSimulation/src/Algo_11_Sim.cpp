@@ -307,106 +307,44 @@ namespace
 #include <cmath>   // std::sqrt, std::exp
 
 
-namespace
-{
-    // ----------------------------------------------------------------------
-    //  Aperture-weighted spectral energy of the grain, over ALL frequencies.
-    //
-    //      E = 2 pi * integral of (H(f) A(f))^2 * f df
-    //
-    //  with H the grain spectrum and A the measuring aperture. Evaluated as a
-    //  continuous radial integral rather than as a sum over the pixel grid, which
-    //  is the whole point: see the note on calibration in the header.
-    //
-    //  The factor of f is the Jacobian of the polar area element, so this really is
-    //  the total energy over the plane and not a line integral.
-    // ----------------------------------------------------------------------
-    HighPrecType grainReferenceEnergy
-    (
-        const HighPrecType clumpUm,
-        const HighPrecType clumpGain
-    ) noexcept
-    {
-        // Crystal rolloff frequency: a clump of diameter d resolves nothing finer
-        // than 1/(2d), and the diameter is in micrometres while frequencies are per
-        // millimetre, hence the factor of a thousand.
-        const HighPrecType fHi = 1000.0 / (2.0 * clumpUm);
-
-        // Clustering lobe, six times coarser.
-        const HighPrecType fLo = fHi / ALGO_GRAIN_CLUMP_FREQ_RATIO;
-
-        const HighPrecType step = ALGO_GRAIN_INTEGRAL_FMAX
-                                / static_cast<HighPrecType>(
-                                      ALGO_GRAIN_INTEGRAL_N - 1);
-
-        // Aperture transfer coefficient, precomputed: A(f) = exp(-2 pi^2 s^2 f^2).
-        const HighPrecType apK = 2.0 * 9.8696044010893586188
-                               * ALGO_GRAIN_APERTURE_SIGMA_MM
-                               * ALGO_GRAIN_APERTURE_SIGMA_MM;
-
-        HighPrecType acc  = 0.0;
-        HighPrecType prev = 0.0;   // the integrand at f = 0 is zero, by the f factor
-
-        for (int32_t i = 1; i < ALGO_GRAIN_INTEGRAL_N; i++)
-        {
-            const HighPrecType f = static_cast<HighPrecType>(i) * step;
-
-            // Grain spectrum: crystal rolloff times one plus the clustering lobe.
-            const HighPrecType rHi = f / fHi;
-            const HighPrecType rLo = f / fLo;
-
-            HighPrecType h = std::exp(-rHi * rHi);
-
-            if (clumpGain > 0.0)
-                h *= (1.0 + clumpGain * std::exp(-rLo * rLo));
-
-            // Measuring aperture.
-            const HighPrecType a = std::exp(-apK * f * f);
-
-            const HighPrecType ha = h * a;
-
-            // Integrand, including the polar Jacobian.
-            const HighPrecType cur = ha * ha * f;
-
-            // Trapezoidal rule.
-            acc += 0.5 * (prev + cur) * step;
-
-            prev = cur;
-        }
-
-        // 2 pi from the angular integration of the isotropic spectrum.
-        return 2.0 * 3.1415926535897932385 * acc;
-    }
-}
-
+// ---------------------------------------------------------------------------
+//  ⚠ THE ANONYMOUS-NAMESPACE grainReferenceEnergy() THAT USED TO LIVE HERE IS
+//  GONE, AND ITS BEING FILE-STATIC WAS PART OF THE PROBLEM. It integrated the
+//  v47 two-lobe spectrum against a GAUSSIAN stand-in for the 48 micrometre
+//  aperture -- a SECOND COPY of the scalar engine's identical helper, in a
+//  different file, invisible to both. Schema v48 replaces it with
+//  AlgoGrainReferenceEnergy() in AlgoGrain.hpp, which this engine, the scalar
+//  engine and the parity harness all reach, so there is one integral to be
+//  wrong in instead of two to drift apart.
+// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 //  Build one grain field
 // ---------------------------------------------------------------------------
-void AlgoMakeGrainField
+void AlgoMakeGrainFieldTerms
 (
-    AlgoType* RESTRICT          pDst,
-    AlgoType* RESTRICT          pScrNoise,
-    AlgoType* RESTRICT          pScrLobe,
-    AlgoType* RESTRICT          pScrWork,
-    const int32_t               sizeX,
-    const int32_t               sizeY,
-    const int32_t               pitch,
-    const AlgoType              clumpUm,
-    const AlgoType              clumpGain,
-    const AlgoType              rmsGranularity,
-    const AlgoType              scanSigmaPx,
-    const AlgoType              pxPerMm,
-    const AlgoType              anisotropy,
-    const eALGO_RNG_STAGE       rngStage,
-    const uint32_t              seed,
-    const int32_t               frameIndex
+    AlgoType* RESTRICT              pDst,
+    AlgoType* RESTRICT              pScrNoise,
+    AlgoType* RESTRICT              pScrLobe,
+    AlgoType* RESTRICT              pScrWork,
+    const int32_t                   sizeX,
+    const int32_t                   sizeY,
+    const int32_t                   pitch,
+    const film::GrainSpectrumTerms& terms,
+    const bool                      jincAperture,
+    const AlgoType                  rmsGranularity,
+    const AlgoType                  scanSigmaPx,
+    const AlgoType                  pxPerMm,
+    const AlgoType                  anisotropy,
+    const eALGO_RNG_STAGE           rngStage,
+    const uint32_t                  seed,
+    const int32_t                   frameIndex
 ) noexcept
 {
-    // A stock with no clump figure or no granularity figure has no modelled grain.
+    // A stock with no spectrum or no granularity figure has no modelled grain.
     // Zero the field rather than leaving it, so the caller can add it
     // unconditionally without a second branch.
-    if ((clumpUm <= ALGO_ZERO) || (rmsGranularity <= ALGO_ZERO) ||
+    if ((terms.count <= 0) || (rmsGranularity <= ALGO_ZERO) ||
         (pxPerMm <= ALGO_ZERO))
     {
         for (int32_t y = 0; y < sizeY; y++)
@@ -423,49 +361,29 @@ void AlgoMakeGrainField
     }
 
     // ----------------------------------------------------------------------
-    //  Spectral shape, expressed as spatial Gaussian sigmas.
+    //  Spectral shape, as a GAUSSIAN MIXTURE.
     //
-    //  The reference builds the shape in the frequency domain as
+    //  ⚠ THE TWO-LOBE FORM THAT USED TO BE HERE IS GONE, AND WITH IT THE
+    //  kSigma = 0.22508352815546 LITERAL, WHICH WAS WRONG. 1/(pi*sqrt 2) is
+    //  0.22507907903927651 -- the shipped digits were wrong from the sixth
+    //  place, 1.98e-05 relative, in BOTH engines, and nothing failed because the
+    //  reference never computes a sigma on that path and so had nothing to
+    //  disagree with. The correct value now lives once, as
+    //  ALGO_GRAIN_SIGMA_PER_1E in AlgoGrain.hpp.
     //
-    //      H(f) = exp(-(f/f_hi)^2) * ( 1 + g * exp(-(f/f_lo)^2) )
+    //  The spectrum arrives as sum_k w_k exp(-2 pi^2 s_k^2 f^2). Each term is
+    //  one separable Gaussian blur of the SAME white field, and the results are
+    //  summed with the weights -- which is exact, not an approximation, because
+    //  a product of Gaussian transfers is a Gaussian whose variances add. The
+    //  legacy spectrum is the same machinery with one or two terms.
     //
-    //  Expanding the product gives two Gaussian terms, and since a product of
-    //  Gaussian transfers is a Gaussian whose VARIANCES ADD, both are spatial
-    //  Gaussian blurs:
-    //
-    //      term 1, weight 1 : sigma_hi
-    //      term 2, weight g : sqrt(sigma_hi^2 + sigma_lo^2)
-    //
-    //  Matching exp(-(f/f_c)^2) against exp(-2 pi^2 s^2 f^2) gives
-    //  s = 1 / (pi * sqrt(2) * f_c).
-    //
-    //  The weights are 1 and g and DO NOT sum to one, because this is a spectral
-    //  shaping of a noise field and not an averaging filter. That is why the two
-    //  lobes are blurred separately and combined by hand rather than handed to the
-    //  multi-lobe helper, which normalises by the weight sum.
+    //  ⚠ THE WEIGHTS DO NOT SUM TO ONE WHEN A CLUSTERING LOBE IS PRESENT; they
+    //  sum to 1 + clump_gain. This is spectral shaping of a noise field, not an
+    //  averaging filter, so handing the terms to a multi-lobe blur helper that
+    //  normalises by the weight sum would silently divide the field by (1 + g).
     // ----------------------------------------------------------------------
-    const HighPrecType fHi = 1000.0 / (2.0 * static_cast<HighPrecType>(clumpUm));
-    const HighPrecType fLo = fHi / ALGO_GRAIN_CLUMP_FREQ_RATIO;
-
-    // 1 / (pi * sqrt(2)) = 0.22508352815546.
-    const HighPrecType kSigma = 0.22508352815546;
-
-    const HighPrecType sHiMm = kSigma / fHi;
-    const HighPrecType sLoMm = kSigma / fLo;
-
-    // Millimetres to pixels, and fold in the scan band limit. The band limit is a
-    // further Gaussian multiplying the shape in the frequency domain, so its
-    // variance adds to every term.
-    const HighPrecType sHiPx = sHiMm * static_cast<HighPrecType>(pxPerMm);
-    const HighPrecType sLoPx = sLoMm * static_cast<HighPrecType>(pxPerMm);
-    const HighPrecType sScan = static_cast<HighPrecType>(
-                                   MAX_VALUE(scanSigmaPx, ALGO_ZERO));
-
-    const AlgoType sigmaNarrow = static_cast<AlgoType>(
-        std::sqrt(sHiPx * sHiPx + sScan * sScan));
-
-    const AlgoType sigmaWide = static_cast<AlgoType>(
-        std::sqrt(sHiPx * sHiPx + sLoPx * sLoPx + sScan * sScan));
+    const HighPrecType scanPx = static_cast<HighPrecType>(
+                                    MAX_VALUE(scanSigmaPx, ALGO_ZERO));
 
     // ----------------------------------------------------------------------
     //  ANISOTROPY -- and this closes a PYTHON/C++ DIVERGENCE FOUND 2026-09-11.
@@ -501,8 +419,8 @@ void AlgoMakeGrainField
     //  WHY IT MULTIPLIES THE COMBINED SIGMA AND NOT JUST THE CRYSTAL TERM. The
     //  reference builds ONE frequency grid and evaluates the grain shape AND
     //  the scan band limit on it, so the stretch applies to their product. Here
-    //  the two are already combined by adding variances into sigmaNarrow and
-    //  sigmaWide, and scaling a total sigma by a scales every variance in it by
+    //  the two are already combined by adding variances into each term's
+    //  sigma, and scaling a total sigma by a scales every variance in it by
     //  a^2 - which is the same thing. Applying it to sHiPx alone would stretch
     //  the crystals but not the scanner, which the reference does not do.
     // ----------------------------------------------------------------------
@@ -528,9 +446,7 @@ void AlgoMakeGrainField
     //  record, so it is left out and the reason recorded rather than left to be
     //  rediscovered as an apparent omission.
     // ----------------------------------------------------------------------
-    const HighPrecType energy = grainReferenceEnergy(
-        static_cast<HighPrecType>(clumpUm),
-        static_cast<HighPrecType>(MAX_VALUE(clumpGain, ALGO_ZERO)));
+    const HighPrecType energy = AlgoGrainReferenceEnergy(terms, jincAperture);
 
     // A degenerate spectrum would give zero energy and an infinite scale. Guarded
     // rather than validated: the profile is pre-validated, but the integral is
@@ -634,48 +550,260 @@ void AlgoMakeGrainField
         }
     }
 
-    // Narrow lobe: the crystal rolloff alone. Anisotropic: the vertical sigma
-    // carries the coating-flow stretch, the horizontal one does not.
-    AlgoGaussianBlurPlaneWrapXY(pScrNoise, pScrLobe, pScrWork,
-                                sizeX, sizeY, pitch,
-                                sigmaNarrow, sigmaNarrow * aniso);
+    // ----------------------------------------------------------------------
+    //  THE FACTORED EVALUATION.
+    //
+    //      M = sum_k w_k B(s_k)[white]
+    //      L = M + lobe_gain * B(s_lobe)[M]
+    //      F = B(s_scan)[L]
+    //
+    //  ⚠⚠ THIS IS THE CHANGE THAT BROUGHT THE STAGE BACK INSIDE ITS BUDGET.
+    //  The previous form ran one full-plane blur per EXPANDED term with the
+    //  scan variance folded into every sigma: measured here, at 3840x2160, one
+    //  channel, one thread, 398 ms for a ten-term stock and 120 ms for a
+    //  five-term one, against R-N3's 8 ms and 43 ms for the legacy path.
+    //
+    //  A product of Gaussian transfers is a Gaussian whose variances add and
+    //  convolution distributes over a sum, so the lobe and the band limit each
+    //  become ONE blur of the accumulated mixture rather than a contribution to
+    //  every term -- exactly, not approximately. That in turn exposes the bare
+    //  grain sigmas, 0.289 down to 0.018 px at 4K, four of five of which ARE
+    //  the identity and cost a scalar multiply instead of two passes.
+    //
+    //  ⚠ THE WHITE FIELD IS DRAWN ONCE AND REUSED. The mixture sums filtered
+    //  copies of ONE field; independent draws per term would add VARIANCES
+    //  instead of AMPLITUDES and give the sum of the squares of the weights
+    //  rather than the square of their sum.
+    //
+    //  ⚠ pScrNoise MUST SURVIVE THE LOOP, so the blur writes to pScrLobe and
+    //  never back over the noise plane.
+    // ----------------------------------------------------------------------
+    const int32_t wideX = sizeX & ~7;
+    const int32_t tailX = sizeX - wideX;
 
-    const AlgoType g = MAX_VALUE(clumpGain, ALGO_ZERO);
+    AlgoType flatWeight = ALGO_ZERO;
+    bool     haveAcc    = false;
 
-    if (g > ALGO_ZERO)
+    for (int32_t k = 0; k < terms.count; k++)
     {
-        // Wide lobe: the clustering term. Written back over the noise plane, which
-        // is finished with - both lobes were drawn from it and the narrow one is
-        // already safe in its own plane.
-        //
-        // NOTE the aliasing hazard this deliberately avoids: the blur reads its
-        // source completely before it can be overwritten, so the source and
-        // destination must differ. pScrWork is the intermediate, so the noise plane
-        // cannot be both.
-        //
-        // The SAME anisotropy as the narrow lobe. Both terms come from one
-        // transfer evaluated on one stretched frequency grid in the reference,
-        // so stretching only one of them would tilt the balance between crystal
-        // rolloff and clustering along the vertical axis alone.
-        AlgoGaussianBlurPlaneWrapXY(pScrNoise, pDst, pScrWork,
+        const HighPrecType sPx = static_cast<HighPrecType>(terms.sigma_mm[k])
+                               * static_cast<HighPrecType>(pxPerMm);
+
+        const AlgoType wgt = static_cast<AlgoType>(terms.weight[k]);
+
+        if (AlgoGrainBlurIsIdentity(sPx)
+            && AlgoGrainBlurIsIdentity(sPx * static_cast<HighPrecType>(aniso)))
+        {
+            flatWeight += wgt;
+            continue;
+        }
+
+        const AlgoType sigmaX = static_cast<AlgoType>(sPx);
+
+        AlgoGaussianBlurPlaneWrapXY(pScrNoise, pScrLobe, pScrWork,
                                     sizeX, sizeY, pitch,
-                                    sigmaWide, sigmaWide * aniso);
+                                    sigmaX, sigmaX * aniso);
+
+        const __m256 vW = _mm256_set1_ps(wgt);
 
         for (int32_t y = 0; y < sizeY; y++)
         {
             const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
 
-            const AlgoType* RESTRICT pN = pScrLobe + off;
-            AlgoType* RESTRICT       pW = pDst     + off;
+            const AlgoType* RESTRICT pS = pScrLobe + off;
+            AlgoType* RESTRICT       pA = pDst     + off;
+
+            int32_t x = 0;
+
+            if (!haveAcc)
+            {
+                for (; x < wideX; x += 8)
+                    _mm256_storeu_ps(pA + x,
+                                     _mm256_mul_ps(vW, _mm256_loadu_ps(pS + x)));
+
+                if (tailX > 0)
+                {
+                    const __m256i msk = algoTailMaskLocal(tailX);
+
+                    _mm256_maskstore_ps(
+                        pA + x, msk,
+                        _mm256_mul_ps(vW, _mm256_maskload_ps(pS + x, msk)));
+                }
+            }
+            else
+            {
+                for (; x < wideX; x += 8)
+                    _mm256_storeu_ps(
+                        pA + x,
+                        _mm256_fmadd_ps(vW, _mm256_loadu_ps(pS + x),
+                                        _mm256_loadu_ps(pA + x)));
+
+                if (tailX > 0)
+                {
+                    const __m256i msk = algoTailMaskLocal(tailX);
+
+                    _mm256_maskstore_ps(
+                        pA + x, msk,
+                        _mm256_fmadd_ps(vW, _mm256_maskload_ps(pS + x, msk),
+                                        _mm256_maskload_ps(pA + x, msk)));
+                }
+            }
+        }
+
+        haveAcc = true;
+    }
+
+    if (flatWeight != ALGO_ZERO)
+    {
+        const __m256 vF = _mm256_set1_ps(flatWeight);
+
+        for (int32_t y = 0; y < sizeY; y++)
+        {
+            const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
+
+            const AlgoType* RESTRICT pN = pScrNoise + off;
+            AlgoType* RESTRICT       pA = pDst      + off;
+
+            int32_t x = 0;
+
+            if (!haveAcc)
+            {
+                for (; x < wideX; x += 8)
+                    _mm256_storeu_ps(pA + x,
+                                     _mm256_mul_ps(vF, _mm256_loadu_ps(pN + x)));
+
+                if (tailX > 0)
+                {
+                    const __m256i msk = algoTailMaskLocal(tailX);
+
+                    _mm256_maskstore_ps(
+                        pA + x, msk,
+                        _mm256_mul_ps(vF, _mm256_maskload_ps(pN + x, msk)));
+                }
+            }
+            else
+            {
+                for (; x < wideX; x += 8)
+                    _mm256_storeu_ps(
+                        pA + x,
+                        _mm256_fmadd_ps(vF, _mm256_loadu_ps(pN + x),
+                                        _mm256_loadu_ps(pA + x)));
+
+                if (tailX > 0)
+                {
+                    const __m256i msk = algoTailMaskLocal(tailX);
+
+                    _mm256_maskstore_ps(
+                        pA + x, msk,
+                        _mm256_fmadd_ps(vF, _mm256_maskload_ps(pN + x, msk),
+                                        _mm256_maskload_ps(pA + x, msk)));
+                }
+            }
+        }
+
+        haveAcc = true;
+    }
+
+    if (!haveAcc)
+    {
+        for (int32_t y = 0; y < sizeY; y++)
+        {
+            AlgoType* RESTRICT pRow =
+                pDst + static_cast<std::ptrdiff_t>(y) * pitch;
 
             ALGO_VECTOR_HINT
             for (int32_t x = 0; x < sizeX; x++)
-                pW[x] = pN[x] + g * pW[x];
+                pRow[x] = ALGO_ZERO;
         }
     }
-    else
+
+    // ---- the clustering lobe, as one blur of the accumulated mixture -------
+    if ((terms.lobe_gain > 0.0f) && (terms.lobe_sigma_mm > 0.0f))
     {
-        AlgoCopyPlane(pScrLobe, pDst, sizeX, sizeY, pitch);
+        const HighPrecType sPx = static_cast<HighPrecType>(terms.lobe_sigma_mm)
+                               * static_cast<HighPrecType>(pxPerMm);
+
+        const AlgoType g = static_cast<AlgoType>(terms.lobe_gain);
+
+        if (AlgoGrainBlurIsIdentity(sPx)
+            && AlgoGrainBlurIsIdentity(sPx * static_cast<HighPrecType>(aniso)))
+        {
+            const __m256 vM = _mm256_set1_ps(ALGO_ONE + g);
+
+            for (int32_t y = 0; y < sizeY; y++)
+            {
+                AlgoType* RESTRICT pA =
+                    pDst + static_cast<std::ptrdiff_t>(y) * pitch;
+
+                int32_t x = 0;
+
+                for (; x < wideX; x += 8)
+                    _mm256_storeu_ps(pA + x,
+                                     _mm256_mul_ps(vM, _mm256_loadu_ps(pA + x)));
+
+                if (tailX > 0)
+                {
+                    const __m256i msk = algoTailMaskLocal(tailX);
+
+                    _mm256_maskstore_ps(
+                        pA + x, msk,
+                        _mm256_mul_ps(vM, _mm256_maskload_ps(pA + x, msk)));
+                }
+            }
+        }
+        else
+        {
+            const AlgoType sigmaX = static_cast<AlgoType>(sPx);
+
+            AlgoGaussianBlurPlaneWrapXY(pDst, pScrLobe, pScrWork,
+                                        sizeX, sizeY, pitch,
+                                        sigmaX, sigmaX * aniso);
+
+            const __m256 vG = _mm256_set1_ps(g);
+
+            for (int32_t y = 0; y < sizeY; y++)
+            {
+                const std::ptrdiff_t off =
+                    static_cast<std::ptrdiff_t>(y) * pitch;
+
+                const AlgoType* RESTRICT pS = pScrLobe + off;
+                AlgoType* RESTRICT       pA = pDst     + off;
+
+                int32_t x = 0;
+
+                for (; x < wideX; x += 8)
+                    _mm256_storeu_ps(
+                        pA + x,
+                        _mm256_fmadd_ps(vG, _mm256_loadu_ps(pS + x),
+                                        _mm256_loadu_ps(pA + x)));
+
+                if (tailX > 0)
+                {
+                    const __m256i msk = algoTailMaskLocal(tailX);
+
+                    _mm256_maskstore_ps(
+                        pA + x, msk,
+                        _mm256_fmadd_ps(vG, _mm256_maskload_ps(pS + x, msk),
+                                        _mm256_maskload_ps(pA + x, msk)));
+                }
+            }
+        }
+    }
+
+    // ---- the scan band limit, as one blur of the result --------------------
+    {
+        if (!(AlgoGrainBlurIsIdentity(scanPx)
+              && AlgoGrainBlurIsIdentity(scanPx
+                                         * static_cast<HighPrecType>(aniso))))
+        {
+            const AlgoType sigmaX = static_cast<AlgoType>(scanPx);
+
+            AlgoGaussianBlurPlaneWrapXY(pDst, pScrLobe, pScrWork,
+                                        sizeX, sizeY, pitch,
+                                        sigmaX, sigmaX * aniso);
+
+            AlgoCopyPlane(pScrLobe, pDst, sizeX, sizeY, pitch);
+        }
     }
 
     // ----------------------------------------------------------------------
@@ -836,6 +964,47 @@ static inline void algoAddGrainPlane
 
 
 // ---------------------------------------------------------------------------
+//  Build one grain field -- LEGACY (clumpUm, clumpGain) entry point.
+//
+//  Kept because stages 13 and 14 have no physical grain diameter to offer: a
+//  duplicating or print stock's grain_rms is a fitted look, not a published
+//  datasheet figure, so inverting it to a diameter would manufacture physics.
+//  They stay on the legacy spectrum deliberately, and this is how they reach it.
+//
+//  ⚠ NOT A SECOND IMPLEMENTATION. It builds the two exact legacy terms and
+//  hands them to the one field builder above.
+// ---------------------------------------------------------------------------
+void AlgoMakeGrainField
+(
+    AlgoType* RESTRICT          pDst,
+    AlgoType* RESTRICT          pScrNoise,
+    AlgoType* RESTRICT          pScrLobe,
+    AlgoType* RESTRICT          pScrWork,
+    const int32_t               sizeX,
+    const int32_t               sizeY,
+    const int32_t               pitch,
+    const AlgoType              clumpUm,
+    const AlgoType              clumpGain,
+    const AlgoType              rmsGranularity,
+    const AlgoType              scanSigmaPx,
+    const AlgoType              pxPerMm,
+    const AlgoType              anisotropy,
+    const eALGO_RNG_STAGE       rngStage,
+    const uint32_t              seed,
+    const int32_t               frameIndex
+) noexcept
+{
+    AlgoMakeGrainFieldTerms(pDst, pScrNoise, pScrLobe, pScrWork,
+                            sizeX, sizeY, pitch,
+                            AlgoGrainLegacyTerms(clumpUm, clumpGain),
+                            false,               // legacy Gaussian aperture
+                            rmsGranularity, scanSigmaPx, pxPerMm, anisotropy,
+                            rngStage, seed, frameIndex);
+    return;
+}
+
+
+// ---------------------------------------------------------------------------
 //  Add grain fields to density
 // ---------------------------------------------------------------------------
 void AlgoAddGrain
@@ -958,6 +1127,27 @@ void AlgoStage11_Grain
     // this engine has already done once.
     const uint32_t grainSeed = static_cast<uint32_t>(params.seed) ^ seed;
 
+    // ----------------------------------------------------------------------
+    //  ⚠⚠ NO scanner_fixed_pattern FREEZE, AND ITS ABSENCE IS THE POINT.
+    //
+    //  Spec §18.2 defines GrainSpec::grain_temporal_class so that the grain
+    //  stage "does not re-roll per frame what is physically static" -- i.e. it
+    //  asks for the frame index to be pinned for such a stock. R-T5 says the
+    //  grain stage "shall introduce no frame-locked noise component" and that
+    //  scanner fixed-pattern noise "is not grain and is out of scope".
+    //
+    //  A frozen grain field IS a frame-locked noise component, so the two
+    //  clauses cannot both be honoured. R-T5 wins: it is a requirement, §18.2
+    //  is a schema note, and the freeze is the wrong remedy anyway -- if a
+    //  stock's traced noise is the scanner's then its rms_granularity is not
+    //  emulsion granularity, and freezing renders the wrong quantity very
+    //  steadily instead of fixing the measurement underneath.
+    //
+    //  The field is therefore DECLARATIVE: film_profiles.validate refuses any
+    //  value but "emulsion", and this stage reads frameIndex unconditionally.
+    // ----------------------------------------------------------------------
+    const int32_t grainFrame = frameIndex;
+
     // Base plus fog per channel, needed by the amplitude weighting.
     const AlgoType dmin[3] =
     {
@@ -979,8 +1169,6 @@ void AlgoStage11_Grain
         static_cast<AlgoType>(profile.curves.b.dmax())
     };
 
-    const AlgoType clumpGain = static_cast<AlgoType>(gs.clump_gain);
-
     // ----------------------------------------------------------------------
     //  ONE EMULSION MEANS ONE FIELD.
     //
@@ -994,20 +1182,52 @@ void AlgoStage11_Grain
     //  low-resolution Dufaycolor render would get three independent fields on what
     //  is really one record.
     // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    //  The count gate needs the noise-equivalent element area, which depends on
+    //  this render's band limit and pixel pitch and nothing else. One setup
+    //  quadrature per stage, not per channel and never per pixel.
+    // ----------------------------------------------------------------------
+    const HighPrecType pitchMm = (pxPerMm > ALGO_ZERO)
+        ? (1.0 / static_cast<HighPrecType>(pxPerMm)) : 0.0;
+
+    const HighPrecType scanSigmaMm = (pxPerMm > ALGO_ZERO)
+        ? (static_cast<HighPrecType>(scanSigmaPx)
+           / static_cast<HighPrecType>(pxPerMm)) : 0.0;
+
+    const HighPrecType elemArea =
+        AlgoGrainElementAreaUm2(scanSigmaMm, pitchMm);
+
+    const HighPrecType grainUm[3] =
+    {
+        static_cast<HighPrecType>(gs.grain_um_r),
+        static_cast<HighPrecType>(gs.grain_um_g),
+        static_cast<HighPrecType>(gs.grain_um_b)
+    };
+
+    const HighPrecType sigmaLn = static_cast<HighPrecType>(gs.size_sigma_log);
+
     if (profile.is_monochrome || hasMosaic)
     {
         // The green clump figure stands for the single emulsion, matching the
         // reference: a monochrome stock's three clump fields carry the same number,
         // and green is the one the metric is quoted against.
-        AlgoMakeGrainField(pScrFieldR, pScrNoise, pScrLobe, pScrWork,
-                           sizeX, sizeY, pitch,
-                           static_cast<AlgoType>(gs.clump_um_g),
-                           clumpGain,
-                           static_cast<AlgoType>(gs.rms_granularity),
-                           scanSigmaPx, pxPerMm,
-                           static_cast<AlgoType>(gs.anisotropy),
-                           eALGO_RNG_STAGE::eRNG_GRAIN_G,
-                           grainSeed, frameIndex);
+        AlgoMakeGrainFieldTerms(pScrFieldR, pScrNoise, pScrLobe, pScrWork,
+                                sizeX, sizeY, pitch,
+                                AlgoGrainTermsFor(gs, 1, ALGO_GRAIN_USE_JINC),
+                                ALGO_GRAIN_USE_JINC,
+                                static_cast<AlgoType>(gs.rms_granularity),
+                                scanSigmaPx, pxPerMm,
+                                static_cast<AlgoType>(gs.anisotropy),
+                                eALGO_RNG_STAGE::eRNG_GRAIN_G,
+                                grainSeed, grainFrame);
+
+        // ⚠ THE MARGINAL CORRECTION IS APPLIED ONCE, to the single shared
+        // field, and against the GREEN record's density. A monochrome stock
+        // has one emulsion, so it has one grain count; correcting the same
+        // field three times against three densities would be three different
+        // answers about one silver image.
+        AlgoGrainApplyMarginal(pScrFieldR, pDstG, sizeX, sizeY, pitch,
+                               dmin[1], grainUm[1], sigmaLn, elemArea);
 
         // The same field three times. Three independent fields here would produce
         // coloured speckle on a black-and-white image.
@@ -1034,13 +1254,6 @@ void AlgoStage11_Grain
             (gs.rms_b > 0.0f) ? static_cast<AlgoType>(gs.rms_b) : rmsScalar
         };
 
-        const AlgoType clump[3] =
-        {
-            static_cast<AlgoType>(gs.clump_um_r),
-            static_cast<AlgoType>(gs.clump_um_g),
-            static_cast<AlgoType>(gs.clump_um_b)
-        };
-
         const eALGO_RNG_STAGE stream[3] =
         {
             eALGO_RNG_STAGE::eRNG_GRAIN_R,
@@ -1053,12 +1266,20 @@ void AlgoStage11_Grain
         // Separate generator streams per channel, so the three fields are
         // statistically independent rather than three views of one field.
         for (int32_t c = 0; c < 3; c++)
-            AlgoMakeGrainField(field[c], pScrNoise, pScrLobe, pScrWork,
-                               sizeX, sizeY, pitch,
-                               clump[c], clumpGain, rms[c],
-                               scanSigmaPx, pxPerMm,
-                               static_cast<AlgoType>(gs.anisotropy),
-                               stream[c], grainSeed, frameIndex);
+            AlgoMakeGrainFieldTerms(field[c], pScrNoise, pScrLobe, pScrWork,
+                                    sizeX, sizeY, pitch,
+                                    AlgoGrainTermsFor(gs, c, ALGO_GRAIN_USE_JINC),
+                                    ALGO_GRAIN_USE_JINC,
+                                    rms[c], scanSigmaPx, pxPerMm,
+                                    static_cast<AlgoType>(gs.anisotropy),
+                                    stream[c], grainSeed, grainFrame);
+
+        // Three emulsions, three counts, three corrections.
+        AlgoType* RESTRICT dstPl[3] = { pDstR, pDstG, pDstB };
+
+        for (int32_t c = 0; c < 3; c++)
+            AlgoGrainApplyMarginal(field[c], dstPl[c], sizeX, sizeY, pitch,
+                                   dmin[c], grainUm[c], sigmaLn, elemArea);
 
         AlgoAddGrain(pDstR, pDstG, pDstB,
                      pScrFieldR, pScrFieldG, pScrFieldB,

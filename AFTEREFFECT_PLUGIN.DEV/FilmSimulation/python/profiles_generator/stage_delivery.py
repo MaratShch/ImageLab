@@ -34,7 +34,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CPP = Path("/root/work/tst")           # the live, editable engine tree
-OUT = Path("/root/work/deliver11")
+OUT = Path("/root/work/deliver12")
 #: ⚠ SUFFIXED. A second delivery was cut on the same day at schema v30,
 #: and two archives named for one date cannot be told apart on disk. 2026-09-17
 #: is the same case again: the 'a' set went out at schema v37 with 186 stocks,
@@ -76,10 +76,10 @@ MANIFEST = """\
 SIX ARCHIVES -- {stamp}
 =======================
 
-Schema v44. 191 film stocks, 11 print stocks, 2 colour-paper spectral records,
-14 gauges. Verify 809 PASS / 1 baselined FAIL, build clean, every engine parity
-audit green, all 28 translation units compiling at -Wall -Wextra with zero
-bytes of output.
+Schema v48. 191 film stocks, 11 print stocks, 2 colour-paper spectral records,
+14 gauges. Verify 856 PASS / 1 baselined FAIL, build gate green end to end,
+every engine parity audit green, all 28 translation units compiling at
+-Wall -Wextra with zero bytes of output.
 
 ONE SYNCHRONISED STATE, SIX DESTINATIONS
 ========================================
@@ -90,158 +90,154 @@ CPP/Algorithm/AVX2, the Markdown into the doc tree, and the mockup and the two
 parameter references into the UI documentation. A single archive would make
 every delivery a merge.
 
+EVERY ARCHIVE IS CUT FROM THE SAME STATE, and that is asserted rather than
+intended: the generated C++ in archive 2 was written by the same build that ran
+verify, the parity audits and the compile gate; archives 3 and 4 are the engine
+tree that build synced and compiled; and the documents in archive 5 were
+regenerated or re-derived in that same build, with doc_consistency.py checking
+31 registered counts and the queue's live-row set against the database.
+
 NO TEST CODE IN ANY CODE ARCHIVE
 --------------------------------
-Owner instruction this delivery. The engine archives already excluded the
-thirteen test_*.cpp files and profall.cpp; e2e.cpp JOINS THAT LIST NOW. It is
-the whole-chain dump the Python reference is compared against -- a third entry
-point with its own main() -- and it had been shipping in archives 3 and 4 since
-the exclusion list was written, because it matches neither pattern. The Python
-archive contains no test_*.py and never has; build.py, verify.py and the parity
-harnesses stay, because they are the build gate rather than tests of it.
+Standing owner instruction. The engine archives exclude the thirteen
+test_*.cpp files, profall.cpp and e2e.cpp; the Python archive carries no
+test_*.py and no make_test_chart.py. build.py, verify.py and the parity
+harnesses stay, because they are the build GATE rather than tests of it.
 
 WHAT CHANGED IN THIS DELIVERY
 =============================
 
-TWENTY-TWO QUEUE ROWS CLOSED, NONE OPENED: THE LIVE SET FALLS 32 -> 11
+THE FILM GRAIN MODEL IS REPLACED, TO FGS-DDS-001 Rev. A, AT SCHEMA v48
 ----------------------------------------------------------------------
-P11 P17 P18 P33 P35 P36 P45 P51 P52 P53 P54 P56 P66 P68, then M1a P12 P13 P14
-P39 P40 P41, then P73 -- opened and closed the same day on four patents the
-owner supplied. Not one document was acquired for the first twenty-one; they
-closed on carriers built, defects found and refusals recorded.
+Governing document: FGS-DDS-001 Rev. A, 51 pp., 2026-09-19, owner-approved in
+full with one constraint -- Python, C++ scalar and C++ AVX2 must execute the
+SAME ALGORITHM FLOW. That constraint decided the architecture.
 
-FOUR SCHEMA VERSIONS: v40 -> v44
---------------------------------
-v41  MTFSpec gains a LENS-REGIME resolving-power pair; DevelopmentLaw makes a
-     ProcessingFamily hold a fitted gamma(t) per developer AND vessel;
-     DyeImpurityRatio.quantity says what a ratio is a ratio OF; FilmProfile
-     gains a daylight exposure index and both conversion filters.
-v42  COLOUR PAPER STOPS BEING AN EMPTY CLASS. PaperSpectralRecord and
-     PAPER_SPECTRA carry the Fujicolor Crystal Archive spectral dye density and
-     spectral sensitivity panels -- TWO records covering THREE products,
-     because the Supreme and Type CA bulletins publish byte-identical artwork
-     and one measurement must be stored once. "reflection" joins
-     _DENSITY_GEOMETRIES. No paper PROFILE was built: none of the three
-     bulletins prints a characteristic curve, and four real spectral curves
-     hung off an invented tone curve would look complete and be wrong.
-v43  Six carriers. The GOST speed criteria become an EDITION-keyed table with
-     9160-82 present and empty, because nobody has read it; the magenta
-     light-fade default becomes coupler-keyed, because the ranking INVERTS
-     between the 1950s and 1980s chemistries; SubLayerSet gives a colour record
-     the offset sub-layers EP 0 083 377 A1 describes AND the law that sums
-     them; PrintStock.reader_is_emulsion answers which stocks may serve as
-     stage 12's M_reader; the NIKFI speed scale gets a carrier with NO
-     conversion invented; and both Iofis 1981 summary tables are transcribed.
-v44  THE 1931-1969 ANTIHALATION PATENT CHAIN. See below.
+⚠⚠ NOT ONE RENDER IS BIT-IDENTICAL TO A v47 ONE, ON PURPOSE. The mandatory F1
+fix changes every pixel by construction and the spectral rebase changes the
+texture on 186 stocks. What IS guarded: in `legacy_gaussian` mode the v48
+spectrum reproduces the v47 spectrum to 4.4e-16, so the difference in that mode
+is the generator and nothing else.
 
-THE FOUR PATENTS, AND WHAT THEY SETTLED
----------------------------------------
-US 1,908,527 (McMaster, Eastman Kodak, 1933) - US 2,182,794 (Dawson, Du Pont,
-1939) - US 2,481,770 (Nadeau, Eastman Kodak, 1949) - US 3,445,231 (Nishio et
-al., Fuji, 1969). A chain, not four opinions: the Fuji patent cites the Du Pont
-one.
+  1. THE SPECTRUM is the radius-averaged Boolean (jinc) form of the random-dot
+     literature, h(f)^2 = E_r[r^4 b(f;r)^2]/E_r[r^4], carried as a FIVE-TERM
+     GAUSSIAN MIXTURE. ⚠ Spec 19.1 asks for a per-frame 2-D FFT; neither C++
+     engine has one, and writing one into two engines against a no-allocation
+     policy would have produced three implementations of two algorithms. The
+     mixture is what all three engines already execute. Worst fit error over
+     the corpus 1.305e-03, against the aperture correction's own 1.0e-02 to
+     5.3e-02 -- thirty times smaller than an error the model already accepts.
+  2. THE GRAIN DIAMETER is derived from the published RMS granularity by a
+     closed-form inversion with no fitted constant in it: 0.1835 - 2.6558 um,
+     median 0.719. The five stocks whose diameter is a BBC T-101 measurement
+     keep it and agree with the derivation at 1.04 / 1.05 / 1.21 / 1.62 / 1.91.
+  3. THE 48 um APERTURE is the exact disk transfer, not a Gaussian stand-in.
+  4. THE FIELD IS FRAME-KEYED through a counter-based generator (SplitMix64
+     finaliser, seed/stage/ordinal counter), identical in all three engines.
+  5. THE MARGINAL LEAVES GAUSSIAN where the grain count per resolution element
+     is low, through the specification's own count gate driving a
+     Cornish-Fisher skew.
 
-1. AntiHalationSpec.position is a PHYSICAL SYSTEM, not a label. A BACKING is
-   capped at 0.10-0.30 D -- two Kodak patents eighteen years apart give the
-   same reason, that positives are printed THROUGH it -- where an in-path
-   absorber runs to 2.0 D. The bands do not overlap and ah_od_band_for()
-   refuses every position the chain does not cover.
-2. The Fuji patent states in prose the reason P71 made halation_gain_from_od
-   refuse position == "backing": "the presence of a comparatively thick support
-   layer between the light-sensitive layer and the anti-halation layer reduces
-   the anti-halation effect of the layer itself."
-3. THE FIRST QUANTITATIVE HALATION MEASUREMENT IN THE CORPUS. Halation latitude
-   1.15 bare, 1.56 with a low-index sublayer alone, 1.65 / 1.74 / 1.81 as a
-   0.07 / 0.099 / 0.1 D dye backing is added, 2.0-2.25 for an ordinary backing.
-   The spatial model can now be CHECKED, not only fitted.
-4. A SECOND CRITICAL ANGLE. base_fresnel() gives the base/air one the radii are
-   derived from; emulsion_side_critical_angle() adds the emulsion/sublayer one
-   -- 71.5 degrees at the patent's minimum 0.08 index break against acetate's
-   42.5. It answers None for every stock here, which is honest: an ordinary
-   gelatin subbing has the emulsion's own index.
-5. The first measured SPEED COST of an in-pack antihalation layer: 50 per cent
-   unmordanted against 20 per cent mordanted.
-6. _V34_BASE_OPTICS gains a "nitrate" row at the measured 1.498 -- the support
-   every 1930s stock in this database was actually coated on -- and the same
-   1949 table corroborates the acetate index in use to 0.07 per cent.
+FOUR PRE-EXISTING ENGINE DEFECTS, THREE OF THEM OUTSIDE GRAIN
+--------------------------------------------------------------
+  F1  the Python reference produced IDENTICAL grain on every frame of a clip
+      while both C++ engines re-rolled it. The model of record and the shipping
+      engines were simulating different physics, and every harness passed --
+      because every harness compares ONE FRAME.
+  kSigma, both Algo_11_Sim.cpp: 0.22508352815546 against 1/(pi*sqrt(2)) =
+      0.22507907903927651.
+  AlgoScanSigmaMm, both Algo_10_Sim.cpp: 0.18738564618678 against
+      sqrt(ln2/2)/pi = 0.1873906251292776. This is STAGE 10 -- the whole image,
+      not only the grain.
+  ALGO_MTF_SIGMA_MM_PER_INV_F50, AlgoEmulsionMtf.hpp: the same wrong digits
+      again, and this one is the EMULSION MTF read by stage 6, i.e. a property
+      of every stock.
+⚠ The last three hid for one structural reason worth carrying beyond grain:
+the reference evaluates its transfers straight onto a frequency grid and
+DERIVES NO SIGMA AT ALL, so each constant existed on the C++ side alone and had
+nothing to disagree with. A quantity computed in one engine and not in the
+other is not covered by parity testing, however thorough that testing is.
 
-No band was written onto a profile. 30 stocks name an antihalation position and
-none carries an optical density; a midpoint stamped on nineteen backing stocks
-would be nineteen inventions.
-
-THIRTEEN STOCKS' RENDERED OUTPUT CHANGED, AND IT IS A CORRECTION
------------------------------------------------------------------
-Queue P51 pointed verify.py's overshoot probe at mtf_kernel_response -- the
-kernel the engine actually convolves -- instead of the analytic law nothing
-applies. Ten of the thirteen A4/T2 stocks then stopped reproducing their own
-datasheets, because their adjacency had been fitted to the law. All thirteen
-were re-solved against the kernel and every one is back on its printed
-overshoot in both height and peak frequency. The corrections are small; the
-largest is 5217, amplitude 0.151 -> 0.189.
-
-Two MTF values moved with a better-calibrated axis: KODAK TECHNICAL PAN f50
-72.3 -> 73.09 (the digit bank learned two more abscissa labels, so the log fit
-runs on eleven printed labels instead of nine) and the T-MAX 400 reading was
-restored to 98.7 after a bank addition briefly degraded it.
-
-EVERY ENUMERATED CONTROL VALUE NOW STARTS AT ZERO
+THE CONFORMANCE AUDIT, AND THE FIVE GAPS IT FOUND
 -------------------------------------------------
-Owner requirement. ProcessVariantCtrl::eAS_SHIPPED was -1 and is 0; the
-twenty-one developments run 1-21 and TOTAL_PROCESSES is 22. It was the only
-negative enumerator in AlgoControl's enums; FilmFormatCtrl and PrintStockCtrl
-already started at zero.
+All eighteen normative requirements were audited against the shipped code:
+13 met, 3 partial, 2 not met. All five gaps are closed:
 
-NOTHING BEHAVIOURAL CHANGED and the mechanism is worth stating: the inertness
-of "as shipped" was never the range test, it is the EMPTY DATABASE KEY at entry
-0 of ProcessVariantCtrlKey. Both resolvers look that key up in the selected
-stock's own process_variants, find nothing and return the shipped profile --
-exactly what the out-of-range sentinel did. A static_assert now pins that entry
-empty so a future edit cannot make index 0 select a development.
+  R-S4(a)  the dispersion term was in the spectrum and not in the counts. With
+           E[pi r^2] in the mean area the calibration loop closes from 1.0317x
+           to 4.4e-16, and every derived diameter is 3-6 % smaller.
+  R-N3     two EXACT factoring identities plus an identity-skip: AVX2, one
+           channel at 4K, 398 -> 95 ms with a clustering lobe and 124 -> 62 ms
+           without. ⚠ THE BUDGET IS 11.9 ms PER CHANNEL AND IS STILL MISSED,
+           8x and 5x. See WHAT IS STILL OPEN.
+  R-S6     the exact dot renderer was BUILT, measured at 25-100 ms per channel
+           against an 8 ms budget, and refused on that measurement. The count
+           gate ships; a Cornish-Fisher marginal replaces the sampler, with its
+           coefficient clamped at 0.1 for monotonicity -- the clamp binds on
+           2.04 % of the stock-density space, measured rather than waved at.
+  R-S5     the saturating sigma(D) family was fitted and REFUSED BY ITS OWN
+           GATE: 14.0 % mean / 25.3 % worst against the specification's 10 %.
+           sigma_sat_droll and sigma_sat_q stay 0.0 on 191 of 191.
+  R-T5     the specification contradicts itself -- 18.2 asks the stage to
+           FREEZE the field for one class and R-T5 forbids any frame-locked
+           component, which is what a frozen field is. The requirement wins;
+           the field is declarative and validate_all refuses any other value.
 
-⚠ A PRESET SAVED BEFORE THE CHANGE STORES DIFFERENT NUMBERS. -1 is no longer
-legal and takes the same inert path; every other stored value is one LESS than
-its new one, so a host migrating old presets adds one.
+FOUR ERRATA AGAINST THE SPECIFICATION BECAME SIX
+------------------------------------------------
+The two new ones were found by building the dot renderer that was then refused,
+which is the argument for costing a requirement by building it: the
+compound-Poisson skewness 1/sqrt(N) is low by exp(6 sigma_ln^2), and 12.4.1's
+break densities were computed without the dispersion term 13 itself requires.
 
-The float sentinels are NOT enumerations and are unchanged: flare, vignette,
-developmentMinutes and developmentCelsius still default to -1.0 meaning "use
-the stock's own value", because 0 is a legal value for each of them.
+SCHEMA v47 -> v48
+-----------------
+GrainSpec gains grain_um_r/g/b, development_gamma_ref, grain_temporal_class,
+sigma_sat_droll, sigma_sat_q and rho_layers; film_profiles.hpp gains
+GrainSpectrumTerms, the factored spectrum both engines consume.
+⚠ development_gamma_ref and rho_layers are populated on 0 of 191 and read by no
+law. That is deliberate -- an unread carrier cannot move a pixel -- and it is
+queue row P81 rather than a silent gap.
 
-A C/C++ SCHEMA-VERSION API, IN A HEADER C CAN ACTUALLY INCLUDE
----------------------------------------------------------------
-New generated file: film_schema_version.h, in archive 2 and synced to the
-project root.
-
-  enum {{ kFilmDatabaseSchemaVersionValue = 44 }};          /* the one literal */
-  static inline int32_t FilmDatabaseSchemaVersion(void);  /* C and C++ */
-  constexpr std::int32_t film::GetFilmDatabaseSchemaVersion() noexcept;
-
-⚠ IT IS A SEPARATE HEADER ON PURPOSE. The request was for the API to live in
-the generated database headers, and in film_profiles.hpp it could not be
-C-callable at all: that header is C++ throughout -- <array>, <string>,
-<vector>, classes, namespaces -- so a C translation unit cannot include it, and
-an API a C compiler can never reach is not a C-compatible API. The new header
-includes <stdint.h> and nothing else, compiles clean as C99 and as C++, and
-film_profiles.hpp includes it rather than restating the number. THE VERSION
-LITERAL APPEARS EXACTLY ONCE. Being constexpr, the C++ accessor also answers at
-compile time, so a consumer can static_assert against it.
+THE GATE ITSELF
+---------------
+verify.py gains 24 v48 guards and the specification's seven named validation
+gates (V-CAL, V-NORM, V-TEMP, V-COMPAT, V-SAT, V-SPARSE, V-PARITY).
+cpp_parity.py gains the first probe in this project that compares grain PIXELS
+rather than grain statistics: RNG draws bit-exact against AlgoCounterRng.hpp,
+mixture terms and the clustering lobe to 4.8e-08, the field to 2.7e-07 of field
+RMS, and frames 0 and 7 sharing 0 of 3072 pixel values.
+build.py's docs stage now also regenerates doc/FilmControlMatrix.md, which was
+the one generated document nothing regenerated.
 
 DOCUMENTATION
 -------------
-All eight named documents were reviewed rather than appended to.
-PROJECT_STATE.md, FilmActiveProfiles.md, FilmCurves.md and FilmControlMatrix.md
-are regenerated from the live module on every build, so they cannot drift.
-DIGITIZATION_QUEUE.md, NotFound.md and PROGRESS.md carry the closures and the
-corrections. Both FilmDatabase_Charecteristics documents had a header claiming
-schema v34 and 184 stocks -- three weeks and ten versions stale -- which is
-CORRECTED rather than annotated, and both gain a section D.14 covering v41-v44.
+All eight named documents were REVIEWED, not appended to. Every figure derived
+from a grain diameter was recomputed with the shipped code and restated in
+place rather than annotated. PROJECT_STATE.md, FilmActiveProfiles.md,
+FilmCurves.md and FilmControlMatrix.md are regenerated from the live module on
+every build and cannot drift. Both FilmDatabase_Charecteristics documents carry
+a new D.17.7 in English and Russian; FilmGrainSimulationModel.md carries a new
+12.10; GRAIN_MODEL_ASSESSMENT.md a new 8.6; DIGITIZATION_QUEUE.md rows P74-P81,
+with its census re-derived from the parse.
 
 WHAT IS STILL OPEN
 ------------------
-Eleven queue rows, and every one is blocked outside this project:
-C14 F1 K5 K6 M1b P19 P20 P38 need a document nobody here has (K5, K6 and M1b
-are proved absent; P20 is paywalled; P19 needs J-PlatPat PDFs); D1, D2a and D2b
-need scans only the owner can make. The one baselined verify failure is
-unchanged and is documented where it is asserted.
+Twelve queue rows.
+
+⚠ P80 IS THE ONE THAT NEEDS A DECISION FROM THE OWNER, and it is the honest
+residue of this delivery. R-N3's budget is missed by 8x on the 186 stocks that
+carry a clustering lobe. The lobe blur alone is 47 of the 95 ms, so setting
+clump_gain to zero is a further 3.3x -- but that parameter was FITTED to
+rendered results on those 186 stocks under queue C45, so dropping it is a
+modelling decision and not an optimisation. Stated with the alternative: even
+with clump_gain = 0 the budget is still missed 5x, so it is not reachable on
+this architecture by dropping the lobe alone.
+
+P81 asks for two quantities nothing in this corpus prints. C14, F1, K5, M1b,
+P19, P20 and P38 need a document nobody here has; D1, D2a and D2b need scans
+only the owner can make. The one baselined verify failure is unchanged and is
+documented where it is asserted.
 """
 
 

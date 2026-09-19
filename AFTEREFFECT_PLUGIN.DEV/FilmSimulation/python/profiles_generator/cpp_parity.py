@@ -75,7 +75,14 @@ FIELDS = ("rms_granularity", "clump_um_r", "clump_um_g", "clump_um_b",
           "sigma_shape_toe", "sigma_shape_mid", "sigma_shape_dmax",
           "sigma_shape_peak", "sigma_shape_peak_at", "sigma_shape_toe_at",
           "sigma_shape_dmax_at", "sigma_shape_measured", "size_sigma_log",
-          "cluster_um", "dye_cloud_um")
+          "cluster_um", "dye_cloud_um",
+          # -- schema v48 ----------------------------------------------------
+          # ⚠ `grain_temporal_class` is a uint8_t and is deliberately NOT here:
+          # this list mirrors what the header parser above collects, which is
+          # the float fields, and adding a name the parser cannot see would
+          # make the guard fail on every run for no reason.
+          "grain_um_r", "grain_um_g", "grain_um_b", "development_gamma_ref",
+          "sigma_sat_droll", "sigma_sat_q", "rho_layers")
 
 CPP_HEAD = r"""
 #include "film_profiles.hpp"
@@ -1777,6 +1784,303 @@ def python_side(probes) -> dict:
     return out
 
 
+# ===========================================================================
+#  SCHEMA v48: THE GRAIN FIELD ITSELF, NOT A LAW BESIDE IT
+# ===========================================================================
+#
+# ⚠⚠ EVERY PROBE FAMILY ABOVE COMPARES A LAW AT A POINT. None of them builds a
+# FIELD, and that is exactly how finding F1 survived: the reference drew grain
+# from a generator seeded once per render, so frame 0 and frame 1 of a clip
+# carried an identical field, while both C++ engines re-rolled theirs per frame.
+# Two engines modelling different physics, no law disagreeing anywhere, every
+# harness green. A single-frame point comparison is structurally blind to it.
+#
+# These three probes close that class of hole:
+#
+#   RNG     -- the reference's ported counter generator against the compiled
+#              AlgoCounterRng.hpp, counters, uniforms and normals, including
+#              negative frame indices.
+#   TERMS   -- the Gaussian mixture, fitted in Python and fitted again in C++,
+#              which is the v48 spectrum's one definition computed twice.
+#   FIELD   -- a whole grain plane, built by AlgoMakeGrainFieldTerms and by
+#              film_sim.make_grain_field, compared PIXEL BY PIXEL and across
+#              two frame indices.
+#
+# The FIELD probe is the one that matters. It is the first thing in this
+# repository that asserts the reference and the engine produce the same PIXELS
+# of grain rather than the same statistics of grain.
+
+GRAIN_V48_CPP = r"""
+#include "AlgoGrain.hpp"
+#include <cstdio>
+#include <vector>
+
+// (grain_um, size_sigma_log, clump_um, clump_gain, rms, scanSigmaPx, pxPerMm,
+//  anisotropy, W, H, seed, frame)
+struct Row {
+    double d, sl, cu, cg, rms, scanPx, pxmm, aniso;
+    int W, H; unsigned seed; int frame;
+};
+
+static const Row kRows[] = {
+/*ROWS*/
+};
+
+int main()
+{
+    // --- the generator ----------------------------------------------------
+    const int32_t kFrames[4] = { 0, 1, 7, -3 };
+    const eALGO_RNG_STAGE kStage[3] = { eALGO_RNG_STAGE::eRNG_GRAIN_R,
+                                        eALGO_RNG_STAGE::eRNG_GRAIN_G,
+                                        eALGO_RNG_STAGE::eRNG_GRAIN_B };
+    for (int f = 0; f < 4; f++)
+        for (int s = 0; s < 3; s++)
+            for (unsigned o = 0; o < 4; o++)
+            {
+                const uint64_t ctr =
+                    AlgoRngCounter(123456789u, kFrames[f], kStage[s], o);
+                printf("R\t%d\t%d\t%u\t%llu\t%.17g\t%.17g\n",
+                       kFrames[f], s, o, (unsigned long long)ctr,
+                       (double)AlgoRngUniform01(ctr),
+                       (double)AlgoRngNormal(ctr));
+            }
+
+    // --- the mixture and the field ----------------------------------------
+    const int n = (int)(sizeof(kRows) / sizeof(kRows[0]));
+
+    for (int i = 0; i < n; i++)
+    {
+        const Row& r = kRows[i];
+
+        const film::GrainSpectrumTerms t =
+            AlgoGrainJincTerms(r.d, r.sl, r.cu, r.cg);
+
+        printf("T\t%d\t%d\t%.17g\n", i, (int)t.count,
+               (double)AlgoGrainReferenceEnergy(t, true));
+
+        for (int k = 0; k < t.count; k++)
+            printf("K\t%d\t%d\t%.17g\t%.17g\n", i, k,
+                   (double)t.sigma_mm[k], (double)t.weight[k]);
+
+        /* The FACTORED half. `count` covers the bare terms only; the lobe is
+         * applied as one blur by the identity
+         * sum_k w_k B(sqrt(s_k^2+s^2)) == B(s)[sum_k w_k B(s_k)], so it has
+         * to be compared on its own or it is not compared at all. */
+        printf("L\t%d\t%.17g\t%.17g\n", i,
+               (double)t.lobe_sigma_mm, (double)t.lobe_gain);
+
+        const int P = r.W;              // pitch == width: the parity contract
+        std::vector<AlgoType> dst((size_t)P * r.H);
+        std::vector<AlgoType> s1((size_t)P * r.H);
+        std::vector<AlgoType> s2((size_t)P * r.H);
+        std::vector<AlgoType> s3((size_t)P * r.H);
+
+        AlgoMakeGrainFieldTerms(dst.data(), s1.data(), s2.data(), s3.data(),
+                                r.W, r.H, P, t, true,
+                                (AlgoType)r.rms, (AlgoType)r.scanPx,
+                                (AlgoType)r.pxmm, (AlgoType)r.aniso,
+                                eALGO_RNG_STAGE::eRNG_GRAIN_G,
+                                r.seed, r.frame);
+
+        for (int y = 0; y < r.H; y++)
+            for (int x = 0; x < r.W; x++)
+                printf("F\t%d\t%d\t%d\t%.9g\n", i, y, x,
+                       (double)dst[(size_t)y * P + x]);
+    }
+
+    return 0;
+}
+"""
+
+
+#: ⚠ SMALL PLANES ON PURPOSE, AND A DELIBERATE SPREAD RATHER THAN A SAMPLE.
+#: The probe prints every pixel, so the planes stay small; what they must cover
+#: is the parameter space where the two implementations could diverge. Rows 0
+#: and 1 differ ONLY in frame index, which is the F1 assertion. Row 2 carries
+#: the worst clustering lobe in the corpus (SOVIET_PANCHROM_1939, lobe 33x below
+#: its jinc rolloff) and an anisotropy. Row 3 is the coarsest stock at 8K, where
+#: the mixture's widest term is widest in pixels. Row 4 is the finest stock,
+#: where every term is sub-pixel and the truncated kernel is least like the
+#: analytic transfer -- the C16 regime, which the grain rebase moves the whole
+#: corpus towards.
+GRAIN_V48_ROWS = (
+    (0.469, 0.315, 2.32,  0.00,  4.0, 0.9, 154.0, 1.00, 64, 48, 12345,  0),
+    (0.469, 0.315, 2.32,  0.00,  4.0, 0.9, 154.0, 1.00, 64, 48, 12345,  7),
+    (1.058, 0.350, 5.968, 1.60, 14.5, 0.7, 154.0, 1.06, 80, 64,   999,  3),
+    (2.824, 0.350, 6.93,  1.20, 30.0, 1.4, 308.0, 1.00, 72, 56,  4242, -2),
+    (0.189, 0.250, 1.48,  0.35,  2.6, 0.6, 154.0, 1.02, 64, 64,     7,  1),
+)
+
+
+def grain_v48_build_and_run(tmp: Path, root: Path) -> dict:
+    """Compile and run the v48 probe against the REAL stage sources."""
+    lines = ['    { %.17g, %.17g, %.17g, %.17g, %.17g, %.17g, %.17g, %.17g, '
+             '%d, %d, %uu, %d },' % r for r in GRAIN_V48_ROWS]
+    src = tmp / "grain_v48_parity.cpp"
+    src.write_text(GRAIN_V48_CPP.replace("/*ROWS*/", "\n".join(lines)))
+    exe = tmp / "grain_v48_parity"
+    cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+           "-o", str(exe), str(src),
+           str(root / "Algo_11_Sim.cpp"), str(root / "AlgoSeparableBlur.cpp")]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] v48 grain probe compile failed")
+        print(r.stderr[-4000:])
+        raise SystemExit(2)
+    r = subprocess.run([str(exe)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] v48 grain probe crashed")
+        print(r.stderr[-2000:])
+        raise SystemExit(2)
+
+    rng, terms, energy, fields, lobe = {}, {}, {}, {}, {}
+    for line in r.stdout.splitlines():
+        p = line.split("\t")
+        if p[0] == "R":
+            rng[(int(p[1]), int(p[2]), int(p[3]))] = (
+                int(p[4]), float(p[5]), float(p[6]))
+        elif p[0] == "T":
+            terms[int(p[1])] = []
+            energy[int(p[1])] = float(p[3])
+        elif p[0] == "K":
+            terms[int(p[1])].append((float(p[3]), float(p[4])))
+        elif p[0] == "L":
+            lobe[int(p[1])] = (float(p[2]), float(p[3]))
+        elif p[0] == "F":
+            fields.setdefault(int(p[1]), {})[(int(p[2]), int(p[3]))] = float(p[4])
+    return {"rng": rng, "terms": terms, "energy": energy, "fields": fields,
+            "lobe": lobe}
+
+
+def grain_v48_check(got: dict) -> int:
+    """Compare the engine against the reference. Returns the failure count."""
+    import numpy as _np
+    import film_sim as _fs
+
+    bad = 0
+
+    # ---- the generator, bit for bit ---------------------------------------
+    stages = {0: _fs.RngStage.GRAIN_R, 1: _fs.RngStage.GRAIN_G,
+              2: _fs.RngStage.GRAIN_B}
+    nrng = 0
+    for (frame, si, o), (ctr, u, z) in got["rng"].items():
+        c = _fs.rng_counter(123456789, frame, stages[si], o)
+        if (int(c) != ctr
+                or float(_fs.rng_uniform01(c)) != u
+                or float(_fs.rng_normal(c)) != z):
+            print(f"[FAIL] v48 RNG: frame {frame} stage {si} ordinal {o} "
+                  f"differs from AlgoCounterRng.hpp")
+            bad += 1
+        nrng += 1
+    if not bad:
+        print(f"  [OK]   v48 RNG: {nrng} draws reproduce AlgoCounterRng.hpp "
+              f"bit for bit, negative frame indices included")
+
+    # ---- the mixture ------------------------------------------------------
+    # ⚠ THE TOLERANCE IS 1e-6 AND IT IS NOT SLACK. The two fits are the same
+    # closed form, but numpy solves the 4x4 normal equations through LAPACK and
+    # the engine uses Gaussian elimination with partial pivoting; they land a
+    # few ULP apart in float64, and the engine then stores the result as
+    # float32, which is a 6e-8 floor on its own. Anything above 1e-6 is a real
+    # disagreement about the spectrum, not arithmetic.
+    tworst, tat = 0.0, None
+    eworst, eat = 0.0, None
+    for i, row in enumerate(GRAIN_V48_ROWS):
+        d, sl, cu, cg = row[0], row[1], row[2], row[3]
+        spec = fp.grain_gauss_terms("boolean_jinc", clump_um=cu,
+                                    clump_gain=cg, grain_um=d,
+                                    size_sigma_log=sl)
+        want = spec.terms
+        have = got["terms"][i]
+        if len(want) != len(have):
+            print(f"[FAIL] v48 mixture row {i}: {len(have)} bare terms in "
+                  f"C++, {len(want)} in the reference")
+            bad += 1
+            continue
+        # ⚠ THE LOBE IS THE OTHER HALF OF THE SPECTRUM AND IS COMPARED HERE.
+        # Both sides factor it out of the mixture, so a disagreement about it
+        # would otherwise show up only as a field difference on the 186 stocks
+        # that carry one -- which is the hardest place to read it.
+        lsw, lgw = float(spec.lobe_sigma_mm), float(spec.lobe_gain)
+        lsh, lgh = got["lobe"][i]
+        le = max(abs(lsh / lsw - 1.0) if lsw else abs(lsh),
+                 abs(lgh - lgw))
+        if le > tworst:
+            tworst, tat = le, i
+        for (sw, ww), (sh, wh) in zip(want, have):
+            e = max(abs(sh / sw - 1.0) if sw else 0.0, abs(wh - ww))
+            if e > tworst:
+                tworst, tat = e, i
+        ew = fp.grain_reference_energy_terms(spec)
+        er = abs(got["energy"][i] / ew - 1.0)
+        if er > eworst:
+            eworst, eat = er, i
+    if tworst > 1e-6 or eworst > 1e-6:
+        print(f"[FAIL] v48 mixture: worst term {tworst:.2e} (row {tat}), "
+              f"worst reference energy {eworst:.2e} (row {eat})")
+        bad += 1
+    else:
+        print(f"  [OK]   v48 mixture: {len(GRAIN_V48_ROWS)} spectra fitted "
+              f"twice agree to {tworst:.1e} in the terms and {eworst:.1e} in "
+              f"the calibration energy")
+
+    # ---- the field, pixel by pixel ----------------------------------------
+    # ⚠ THE REFERENCE IS FED THE ENGINE'S float32 TERMS, not its own float64
+    # ones. Otherwise this probe would be measuring the storage width of
+    # GrainSpectrumTerms rather than whether the two build the same field, and
+    # a real divergence of the same size would hide inside that.
+    fworst, fat = 0.0, None
+    for i, row in enumerate(GRAIN_V48_ROWS):
+        (d, sl, cu, cg, rms, scan_px, pxmm, aniso, w, h, seed, frame) = row
+        _sp = fp.grain_gauss_terms("boolean_jinc", clump_um=cu,
+                                   clump_gain=cg, grain_um=d,
+                                   size_sigma_log=sl)
+        terms = fp.GrainSpectrum(
+            terms=tuple((float(_np.float32(s)), float(_np.float32(x)))
+                        for s, x in _sp.terms),
+            lobe_sigma_mm=float(_np.float32(_sp.lobe_sigma_mm)),
+            lobe_gain=float(_np.float32(_sp.lobe_gain)))
+        want = _fs.make_grain_field(h, w, pxmm, terms, rms, scan_px, aniso,
+                                    seed, frame, _fs.RngStage.GRAIN_G,
+                                    fp.grain_aperture_48)
+        cell = got["fields"][i]
+        have = _np.array([[cell[(y, x)] for x in range(w)] for y in range(h)])
+        ref = float(_np.sqrt((want ** 2).mean()))
+        e = float(_np.abs(have - want).max()) / max(ref, 1e-30)
+        if e > fworst:
+            fworst, fat = e, i
+
+    # 1e-5 of the field's own RMS. The engine stores the field in AlgoType,
+    # which is double in the scalar build, so what is left is the float32 terms
+    # and the order of the blur's accumulations. Measured 2.3e-07.
+    if fworst > 1e-5:
+        print(f"[FAIL] v48 grain FIELD: reference and engine differ by "
+              f"{fworst:.2e} of the field RMS on row {fat} -- the two are not "
+              f"building the same field")
+        bad += 1
+    else:
+        print(f"  [OK]   v48 grain FIELD: {len(GRAIN_V48_ROWS)} planes agree "
+              f"pixel for pixel to {fworst:.1e} of field RMS, across two "
+              f"frame indices, an anisotropic stock and 8K geometry")
+
+    # ---- F1 itself, asserted on the ENGINE's output -----------------------
+    # Rows 0 and 1 differ only in frame index. If the engine ever stopped
+    # keying on it, every other check here would still pass.
+    a = got["fields"][0]
+    b = got["fields"][1]
+    same = sum(1 for k in a if a[k] == b[k])
+    if same > len(a) // 100:
+        print(f"[FAIL] v48 frame keying: {same} of {len(a)} pixels identical "
+              f"between frame 0 and frame 7 -- the engine is not re-rolling "
+              f"grain per frame")
+        bad += 1
+    else:
+        print(f"  [OK]   v48 frame keying: frames 0 and 7 share {same} of "
+              f"{len(a)} pixel values, so the field is genuinely re-rolled")
+
+    return bad
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--assert", dest="do_assert", action="store_true")
@@ -2069,6 +2373,19 @@ def main() -> int:
                       f"NET density 1.0 (worst {worst_net1:.2e}) -- the stored "
                       f"rms_granularity has stopped meaning the printed figure")
                 bad += 1
+
+    # --------------------------------------------------- v48 GRAIN FIELD -----
+    # ⚠ THE ONLY FAMILY IN THIS FILE THAT COMPARES A FIELD RATHER THAN A LAW.
+    # Everything above evaluates a formula at a point, which is why finding F1 --
+    # the reference producing an identical grain field on every frame of a clip
+    # while both C++ engines re-rolled theirs -- passed every one of them.
+    if not ((root / "Algo_11_Sim.cpp").is_file()
+            and (root / "AlgoSeparableBlur.cpp").is_file()
+            and (root / "AlgoGrain.hpp").is_file()):
+        print(f"  [SKIP] v48 grain field: stage sources not present under {root}")
+    else:
+        with tempfile.TemporaryDirectory() as td:
+            bad += grain_v48_check(grain_v48_build_and_run(Path(td), root))
 
     # --------------------------------------------------------------- C22 -----
     # Callier's coefficient, fourth family. Same skip-not-fail policy.

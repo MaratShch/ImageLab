@@ -920,29 +920,86 @@ def extract_panel(page, box, letters=("R", "G", "B"), min_verts=MIN_TRACE_VERTS,
     # Channel assignment by proximity to the printed legend letter, evaluated
     # at that letter's own x -- never by density order (see docstring fact 3).
     #
-    # ⚠ GLOBALLY GREEDY, NOT LETTER-BY-LETTER. Two legend letters can sit
-    # closer to each other than either sits to its curve: on E-190 (2003) p11
-    # the MTF panel's G and B letters are 6.8 pt apart (y 383.7 and 376.9).
-    # Resolving letters in list order lets whichever came first claim the
-    # nearer curve and pushes the other onto a wrong one. Sorting ALL
-    # (letter, trace) pairs by distance and consuming them in that order gives
-    # the confident pairings first -- the same idiom dashtrace uses for its
-    # candidate/prediction pairs.
+    # ⚠⚠ GLOBALLY OPTIMAL, NOT GREEDY -- CHANGED 2026-09-18f (queue K6), AND
+    # IT IS A BUG FIX WITH A WORKED COUNTEREXAMPLE RATHER THAN A TIDYING.
+    #
+    # Two legend letters can sit closer to each other than either sits to its
+    # curve: on E-190 (2003) p11 the MTF panel's G and B letters are 6.8 pt
+    # apart (y 383.7 and 376.9). The FIRST version of this block resolved
+    # letters in list order, which let whichever came first claim the nearer
+    # curve. The SECOND sorted all (letter, trace) pairs by distance and
+    # consumed them in that order -- "the confident pairings first". That is
+    # ordinary greedy matching, and GREEDY MATCHING IS NOT OPTIMAL: one letter
+    # taking its own nearest curve can force a later letter onto a curve that
+    # is very far away, for a worse TOTAL than some other whole assignment.
+    #
+    # ⚠⚠ THE COUNTEREXAMPLE IS IN THIS CORPUS, AND IT WAS INVISIBLE UNTIL
+    # 2026-09-18f, when the owner supplied the JULY 2000 FIRST PRINTING of
+    # E-2468 beside the October 2006 revision already on file. The two
+    # printings carry the SAME characteristic artwork -- agreeing to 2.2e-5 in
+    # log E and 1.9e-5 in density on the red record, the tightest
+    # cross-document agreement this module has measured -- and the 2000
+    # printing sets its caption 1.8 pt lower, which is the whole of the
+    # difference between the two pages. Greedy read the 2006 panel correctly
+    # and the 2000 panel WITH G AND B SWAPPED:
+    #
+    #     letter-to-trace cost, 2000 printing, in density
+    #         R: 0.1899 (low)   0.2688 (mid)   0.6379 (high)
+    #         G: 0.6555 (low)   0.1965 (mid)   0.1730 (high)
+    #         B: 1.0069 (low)   0.5482 (mid)   0.1793 (high)
+    #     greedy  R->low G->high B->mid   total 0.9111   <- WRONG
+    #     optimal R->low G->mid  B->high  total 0.5657   <- correct
+    #
+    # Greedy takes G->high first because 0.1730 is the smallest entry in the
+    # whole matrix, and B then has nowhere good left to go. The optimal
+    # assignment gives up 0.0235 on G to save 0.3689 on B.
+    #
+    # ⚠ NOTHING ABOUT DENSITY ORDER IS ASSUMED HERE and docstring fact 3 still
+    # binds: the right answer is selected because it minimises the total
+    # printed-label distance, and it merely HAPPENS to agree with B > G > R,
+    # which is what a masked colour negative's Status M D-min does. That
+    # agreement is the independent check that the fix is a fix, not the rule
+    # the fix uses.
+    #
+    # ⚠ THE SEARCH IS EXHAUSTIVE AND THAT IS AFFORDABLE: at most three letters
+    # and rarely more than four traces, so the permutation count is bounded by
+    # 4*3*2 = 24. A Hungarian solver would return the same answer with more
+    # code and a dependency.
     legend = _legend_letters(page, box, letters)
-    named, taken, used = {}, set(), set()
-    pairs = []
+    cost = {}
     for li, (lab, lx, ly) in enumerate(legend):
         for i, tr in enumerate(raw):
             yv = _at_x(tr, lx, clamp=True)
             if yv is None:
                 continue
-            pairs.append((abs(yv - ly), li, i, lab))
-    for _d, li, i, lab in sorted(pairs):
-        if li in used or i in taken:
-            continue
-        used.add(li)
-        taken.add(i)
-        named[lab] = raw[i]
+            cost[(li, i)] = abs(yv - ly)
+    named, taken = {}, set()
+    if cost:
+        best, best_cost = None, None
+        width = min(len(legend), len(raw))
+        for perm in itertools.permutations(range(len(raw)), width):
+            tot, ok = 0.0, True
+            for li, i in enumerate(perm):
+                c = cost.get((li, i))
+                if c is None:
+                    ok = False
+                    break
+                tot += c
+            if ok and (best_cost is None or tot < best_cost):
+                best, best_cost = perm, tot
+        if best is not None:
+            for li, i in enumerate(best):
+                taken.add(i)
+                named[legend[li][0]] = raw[i]
+        else:
+            # No COMPLETE assignment exists, because some letter's x falls
+            # outside every trace. Fall back to the previous greedy rule so a
+            # partially readable panel still yields the traces it can name.
+            for _d, li, i in sorted((c, li, i) for (li, i), c in cost.items()):
+                if legend[li][0] in named or i in taken:
+                    continue
+                taken.add(i)
+                named[legend[li][0]] = raw[i]
 
     def conv(tr):
         return [(x_axis.value(px), y_axis.value(py)) for px, py in tr]
@@ -1428,6 +1485,13 @@ DOCS = [
     ("e190-Portra-2006.pdf", "E-190", "2006-10",
      "PORTRA 160NC/160VC/400NC/400VC/800"),
     ("e2468-Portra_100T.pdf", "E-2468", "2006-10", "PORTRA 100T"),
+    # ⚠⚠ ADDED 2026-09-18f (queue K6): E-2468's FIRST PRINTING, supplied by the
+    # owner as «Kodak PORTRA 100T.pdf» and renamed here so the two editions of
+    # one publication number sort together. Four pages against the 2006
+    # revision's six; the colophon reads "Minor Revision 7-00" and the
+    # copyright line "(c) Eastman Kodak Company, 2000". It is the document K6
+    # had been waiting for, and what it settles is covered at EXPECTED below.
+    ("e2468-Portra_100T-2000.pdf", "E-2468", "2000-07", "PORTRA 100T"),
     ("e4051_portra_160.pdf", "E-4051", "2016-02", "PORTRA 160"),
     ("e4050_portra_400.pdf", "E-4050", "2016-02", "PORTRA 400"),
     ("portra400-techpub-e4050.pdf", "E-4050", "2010-09", "PORTRA 400"),
@@ -1512,6 +1576,28 @@ EXPECTED = {
     ("e2468-Portra_100T.pdf", 5, "char"): {
         "R": (0.2045, 0.5809), "G": (0.6087, 0.6050), "B": (0.8121, 0.6691)},
     ("KODAK PROFESSIONAL PORTRA - 2003 year.pdf", 10, "char"): {
+        "R": (0.2045, 0.5809), "G": (0.6087, 0.6050), "B": (0.8121, 0.6691)},
+    # ⚠⚠ THE ANSWER TO K6, AND IT IS A THIRD COPY OF THE SAME SIX NUMBERS.
+    # Queue K6 asked for PORTRA 100T's OWN sensitometry and had stood open
+    # since 2026-08-26 on the finding that E-2468 (2006) prints PORTRA 160VC's
+    # figure F009_0154AC instead. The row's own escape clause was that "E-2468
+    # is the only publication code the film has, so this may not exist in
+    # print" -- a MAY, because only one edition had ever been read. The owner
+    # supplied the JULY 2000 FIRST PRINTING on 2026-09-18f and it carries the
+    # SAME ARTWORK: same figure id, and the traced vertices agree to 2.2e-5 in
+    # log E and 1.9e-5 in density on the red record, which is four orders of
+    # magnitude tighter than this module's own 0.002 D tolerance. The defect
+    # is therefore ORIGINAL TO THE FILM'S FIRST PRINTING and was never
+    # corrected in the six years to discontinuance, so "may not exist" becomes
+    # "does not exist in either edition of the only sheet there is".
+    #
+    # ⚠ THE OTHER TWO PANELS TRAVEL WITH IT. Spectral sensitivity is
+    # F009_0180AC and spectral dye density is F009_0186AC in BOTH printings,
+    # and the dye pair traces to 4.6e-3 D and the sensitivity pair to 2.1e-2
+    # log-sensitivity between them -- larger than the characteristic panel's
+    # agreement only because those two panels are re-encoded at a different
+    # path resolution, not because anything was redrawn.
+    ("e2468-Portra_100T-2000.pdf", 3, "char"): {
         "R": (0.2045, 0.5809), "G": (0.6087, 0.6050), "B": (0.8121, 0.6691)},
     # The four adopted curve sets.
     ("e4051_portra_160.pdf", 4, "char"): {

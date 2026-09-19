@@ -97,6 +97,7 @@ import re
 import warnings
 from dataclasses import dataclass, field, replace
 from enum import Enum, Flag, auto
+from typing import NamedTuple
 
 __all__ = [
     "Feature",
@@ -761,6 +762,329 @@ def gost_speed_criterion(edition: str, cls: str):
     measured. See `_GOST_SPEED_CRITERIA`.
     """
     return _GOST_SPEED_CRITERIA.get(edition, {}).get(cls)
+
+
+# -- schema v45 (2026-09-18f, queue K6 batch): ГОСТ 25120-82 IN FULL ---------
+#
+# ⚠⚠ A SPECIFICATION STANDARD, NOT A METHOD STANDARD, AND THE DISTINCTION IS
+# WHY IT GETS ITS OWN CONSTANTS RATHER THAN A ROW IN `_GOST_SPEED_CRITERIA`.
+# ГОСТ 9160 says HOW a speed is measured. ГОСТ 25120-82 «Пленки
+# фотографические цветные негативные. Технические условия» says WHAT a
+# conforming colour negative film must achieve, and it DEFERS the measurement
+# to 9160-82 by name (§4.3.2, "Сенситометрические показатели определяют по
+# ГОСТ 9160—82 со следующими уточнениями"). Reading it therefore does NOT
+# close queue P38 -- 9160-82's criterion densities are still unread and
+# `gost_speed_criterion("9160-82", ...)` still answers None -- but it narrows
+# P38 to exactly one missing document and supplies the processing conditions
+# the 9160-82 test is run under for these two marks.
+#
+# ⚠⚠ THE DATABASE ALREADY HELD FOUR OF THESE NUMBERS AND HELD THEM AT SECOND
+# HAND. `KODAK`-style provenance notes on SVEMA_CNL_65 cite "ГОСТ 25120-82,
+# табл. 6" through Гурлев 1986, and every value that citation carries is
+# reproduced here from the standard's own page. What the second-hand citation
+# did NOT carry is the whole of the ЦНД-32 column, the resolving power of the
+# HIGHEST quality category, the tolerance on each recommended gamma, the
+# speed-balance limit, and the ageing allowance below -- five things, all of
+# them printed on the same page it was quoting from.
+#
+# Source: ГОСТ 25120—82, Издание официальное, Госкомитет СССР по стандартам,
+# ОКП 23 7254, УДК 771.531.3:006.354, Группа У81. Replaced ГОСТ 5554-70 in
+# respect of colour negative films; in force 01.01.83 to 01.01.88. THIS COPY
+# IS THE JULY 1986 REISSUE WITH AMENDMENT No. 1 (approved March 1985, МУС
+# 6-85), printed 1987 -- so table 6 as transcribed here is the AMENDED text,
+# which the standard marks «(Измененная редакция, Изм. № 1)». Conforms to
+# ISO 897-73, ISO 1012-73 (sheet sizes) and ISO 732-75 (unperforated winding).
+#: The two marks the standard covers, with the characteristic it prints for
+#: each. ⚠ NEITHER IS A STOCK THIS DATABASE PROFILES UNDER THESE NAMES:
+#: ЦНЛ-65 is SVEMA_CNL_65's mark and ЦНД-32 has no profile at all.
+_GOST_25120_MARKS: dict[str, str] = {
+    "Фото ЦНД-32": ("Малой светочувствительности, маскированная, "
+                    "предназначена для съемок при дневном освещении"),
+    "Фото ЦНЛ-65": ("Средней светочувствительности, маскированная, "
+                    "предназначена для съемок при освещении лампами "
+                    "накаливания"),
+}
+
+#: ⚠ THE THREE COLUMNS OF TABLE 6, AND THERE ARE THREE RATHER THAN FOUR.
+#: ЦНД-32 is specified for the FIRST quality category only; ЦНЛ-65 carries
+#: both the HIGHEST and the FIRST. A consumer must not assume a highest
+#: category exists for ЦНД-32 -- the standard does not print one.
+_GOST_25120_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("Фото ЦНД-32", "first"),
+    ("Фото ЦНЛ-65", "highest"),
+    ("Фото ЦНЛ-65", "first"),
+)
+
+#: ГОСТ 25120-82 table 6, every row, in column order above.
+#:
+#: ⚠ THE SENSE OF EACH ROW IS PART OF THE DATA. Rows 1-2 and 4-6 are values
+#: or bands; rows 3, 7 and 8 are CEILINGS («не более»); rows 9 and 10 are
+#: FLOORS («не менее»). A floor is not a measurement -- queue P72 established
+#: on 2026-09-18 that a resolving power printed with no density is the peak of
+#: a curve, and a resolving power printed as «не менее» is not even that: it
+#: is the worst a conforming coating may be. None of these may be stored on a
+#: profile as if it were that coating's measured value.
+#:
+#: key -> (ЦНД-32 first, ЦНЛ-65 highest, ЦНЛ-65 first, sense, unit)
+_GOST_25120_TABLE6: dict[str, tuple[object, object, object, str, str]] = {
+    "speed_nominal":        (32, 65, 65, "value", "ед. ГОСТ 9160-82"),
+    "speed_total_range":    ((32.0, 65.0), (65.0, 90.0), (45.0, 90.0),
+                             "band", "ед. ГОСТ 9160-82"),
+    "speed_balance_max":    (2.3, 2.2, 2.4, "ceiling", "-"),
+    "gamma_lower_layer":    ((0.55, 0.08), (0.55, 0.05), (0.55, 0.08),
+                             "value_pm", "-"),
+    "gamma_middle_layer":   ((0.60, 0.08), (0.60, 0.05), (0.60, 0.08),
+                             "value_pm", "-"),
+    "gamma_upper_layer":    ((0.65, 0.08), (0.65, 0.05), (0.65, 0.08),
+                             "value_pm", "-"),
+    "develop_min":          ((5.0, 8.0), (5.0, 8.0), (5.0, 8.0),
+                             "band", "min"),
+    "contrast_balance_max": (0.13, 0.13, 0.13, "ceiling", "-"),
+    "fog_mask_blue_max":    (1.10, 0.90, 1.10, "ceiling", "D"),
+    "fog_mask_green_max":   (0.45, 0.50, 0.60, "ceiling", "D"),
+    "fog_mask_red_max":     (0.30, 0.27, 0.30, "ceiling", "D"),
+    "latitude_min":         (1.05, 1.65, 1.50, "floor", "log H"),
+    "resolving_min":        (58.0, 90.0, 63.0, "floor", "лин/мм"),
+}
+
+#: ⚠⚠ THE ONE ROW WHERE THE HIGHEST CATEGORY IS LOOSER THAN THE FIRST, AND IT
+#: IS NOT A TRANSCRIPTION ERROR. `fog_mask_green_max` reads 0.50 for the
+#: HIGHEST category of ЦНЛ-65 and 0.60 for its FIRST -- tighter, as expected.
+#: But ЦНД-32's first-category green ceiling is 0.45, TIGHTER THAN EITHER
+#: ЦНЛ-65 COLUMN. The two marks carry different masks because one is daylight
+#: and one is tungsten balanced, so their mask ceilings are not comparable
+#: across marks and no "the highest category is always tightest" rule may be
+#: derived from this table. Asserted rather than described.
+_GOST_25120_CROSS_MARK_INCOMPARABLE: tuple[str, ...] = (
+    "fog_mask_blue_max", "fog_mask_green_max", "fog_mask_red_max",
+    "speed_balance_max", "latitude_min", "resolving_min")
+
+#: ⚠⚠ A QUANTITATIVE AGEING ALLOWANCE, WHICH IS THE ONE THING IN THIS
+#: STANDARD THAT CAN REACH THE RENDER. The note under table 6 reads: «В
+#: течение гарантийного срока хранения пленок допускается снижение общей
+#: светочувствительности не более чем на 50% и увеличение суммарной
+#: оптической плотности вуали и маски за каждым из трех светофильтров не
+#: более чем на 0,15 от норм, установленных в табл. 6.»
+#:
+#: So over the guaranteed shelf life a CONFORMING film may lose HALF its total
+#: speed and gain 0.15 D of fog+mask behind EACH of the three filters. ⚠ THIS
+#: IS A TOLERANCE, NOT A DECAY RATE: it says what a batch is still allowed to
+#: be at the end of its warranty, not how fast it gets there, and §6.2 fixes
+#: that warranty at ONE YEAR from manufacture. It may therefore bound an
+#: `AgingSpec` for a Soviet colour negative and must never be read as an
+#: annual slope -- a two-year-old film is outside the standard's statement
+#: entirely, not twice as far along it.
+_GOST_25120_AGEING_TOLERANCE: dict[str, object] = {
+    "speed_total_loss_max_fraction": 0.50,
+    "fog_mask_rise_max_per_filter_d": 0.15,
+    "applies_to_filters": ("blue", "green", "red"),
+    "warranty_months": 12,
+    "is_tolerance_not_rate": True,
+}
+
+#: §2.1a, added by Amendment No. 1: the base. Colourless triacetate, optical
+#: density at most 0.05, with a thickness band per format and a TOTAL
+#: thickness ceiling on the 35 mm roll that is 0.02 mm above the top of the
+#: base band -- i.e. the standard allows at most 0.02 mm of emulsion,
+#: subbing, antihalation and backing together on a 0.15 mm base.
+_GOST_25120_BASE: dict[str, object] = {
+    "material": "triacetate cellulose, colourless",
+    "base_density_max": 0.05,
+    "thickness_mm_sheet": (0.14, 0.20),
+    "thickness_mm_roll_35mm": (0.11, 0.15),
+    "thickness_mm_roll_61_5mm": (0.09, 0.11),
+    "total_thickness_mm_roll_35mm_max": 0.17,
+    "emulsion_deformation_temp_c_min": 33.0,   # §2.3
+}
+
+#: ГОСТ 25120-82 table 7 -- the developer, the "after-development" bath, the
+#: fixer and the bleach, as printed, in g per 1000 ml with the pH band each
+#: bath is held at. ⚠ THIS IS THE STANDARD'S TEST PROCESS, not a
+#: manufacturer's recommended process: it exists so that two laboratories
+#: measuring the same film get the same number, and a film processed in
+#: anything else has not been measured to this standard.
+#:
+#: ⚠ THE DEVELOPING AGENT IS п-аминодиэтиланилинсульфат (CD-2 family), and it
+#: appears TWICE in the printed table -- 2.3 g in the developer proper and
+#: 0.1 g in a second line the reissue leaves attached to the developer block.
+#: Both are transcribed; the 0.1 g line's bath is ambiguous in this printing
+#: and is recorded as ambiguous rather than assigned.
+_GOST_25120_BATHS: dict[str, dict[str, object]] = {
+    "developer": {
+        "ph": (10.5, 10.7),
+        "g_per_l": {
+            "трилон Б (ЭДТА-2Na, 2-водная), ГОСТ 10652-73": 2.0,
+            "гидроксиламин сернокислый, ГОСТ 7298-79": 1.2,
+            "п-аминодиэтиланилинсульфат, ГОСТ 24801-81": 2.3,
+            "сульфат натрия безводный, ГОСТ 5644-75": 2.0,
+            "калий углекислый, ГОСТ 4221-76": 60.0,
+            "калий бромистый, ГОСТ 4160-74": 2.0,
+        },
+    },
+    "after_development": {
+        "ph": (6.8, 7.8),
+        "g_per_l": {
+            "натрий пиросернистокислый, ГОСТ 10575-76": 2.0,
+            # ⚠ AMBIGUOUS IN THIS PRINTING, see the note above.
+            "п-аминодиэтиланилинсульфат, ГОСТ 24801-81 (unassigned line)":
+                0.1,
+        },
+    },
+    "fixer": {
+        "ph": (6.5, 6.9),
+        "g_per_l": {
+            "натрия тиосульфат кристаллический, ГОСТ 244-76": 200.0,
+            "сульфит натрия безводный, ГОСТ 5644-75": 5.0,
+            "натрий пиросернистокислый, ГОСТ 10575-76": 2.0,
+        },
+    },
+    "bleach": {
+        "ph": (4.5, 5.5),
+        "g_per_l": {
+            "калий железосинеродистый, ГОСТ 4206-75": 30.0,
+            "калий бромистый, ГОСТ 4160-74": 15.0,
+            "калий фосфорнокислый однозамещенный, ГОСТ 4198-75": 17.0,
+        },
+    },
+}
+
+#: ГОСТ 25120-82 table 8 -- the schedule. (step, minutes, temperature C,
+#: tolerance C). ⚠ THE DEVELOPER IS HELD TO +/-0.3 C AND THE WASHES TO
+#: +/-3 C, which is the standard telling a reader which step its numbers are
+#: sensitive to. ⚠ IT IS A FERRICYANIDE BLEACH AND A TWO-FIX SEQUENCE, so
+#: this is NOT C-41 and its times may not be substituted into one.
+_GOST_25120_SCHEDULE: tuple[tuple[str, tuple[float, float], float, float], ...] = (
+    ("развитие / проявление",  (5.0, 8.0),   20.0, 0.3),
+    ("допроявление",           (5.0, 5.0),   20.0, 0.3),
+    ("фиксирование",           (4.0, 7.0),   18.0, 2.0),
+    ("промывка",               (10.0, 12.0), 11.0, 3.0),
+    ("отбеливание",            (4.0, 4.0),   20.0, 1.0),
+    ("промывка",               (5.0, 5.0),   11.0, 3.0),
+    ("фиксирование",           (4.0, 4.0),   18.0, 2.0),
+    ("промывка",               (15.0, 25.0), 11.0, 3.0),
+)
+
+#: The measurement methods ГОСТ 25120-82 delegates, by clause. ⚠ NOTE THE
+#: EDITION OF 10691.0: this standard cites 10691.0-**73**, while queue P34
+#: read 10691.0-**84**. Two editions eleven years apart, and the 1973 one is
+#: NOT in this corpus -- recorded so that the -84 text is not silently used to
+#: interpret a -82 specification.
+_GOST_25120_METHODS: dict[str, str] = {
+    "base_optical_density": "ГОСТ 10691.0-73",
+    "sensitometry":         "ГОСТ 9160-82",
+    "resolving_power":      "ГОСТ 2819-84",
+    "deformation_temp":     "ГОСТ 25635-83, метод Б",
+    "sheet_dimensions":     "ГОСТ 25831-83",
+    "safety":               "ГОСТ 8449-79",
+    "sampling":             "СТ СЭВ 2359-80",
+}
+
+_GOST_25120_SOURCE = (
+    "ГОСТ 25120—82 «Пленки фотографические цветные негативные. Технические "
+    "условия», Издание официальное, Государственный комитет СССР по "
+    "стандартам, Москва. ОКП 23 7254, УДК 771.531.3:006.354, группа У81. "
+    "Взамен ГОСТ 5554-70 в части цветных негативных пленок; постановление "
+    "№ 481 от 5 февраля 1982 г., срок действия с 01.01.83 до 01.01.88. "
+    "⚠ ЭТА КОПИЯ — переиздание (июль 1986 г.) с Изменением № 1 (март 1985 "
+    "г., МУС 6-85), отпечатано 1987, тираж 4000. 15 pages, text layer "
+    "present and clean apart from OCR noise in the УДК line and one "
+    "advertising string injected into page 1 by the scanning site. Tier T1: "
+    "the state standard itself, read directly rather than through Гурлев "
+    "1986 as the SVEMA_CNL_65 provenance note had to.")
+
+
+#: ⚠⚠ THE ONE STOCK IN THIS DATABASE THE STANDARD ACTUALLY GOVERNS, AND WHAT
+#: CHECKING IT AGAINST ITS OWN STANDARD FOUND.
+#:
+#: SVEMA_CNL_65 IS ЦНЛ-65. Its provenance note has cited "ГОСТ 25120-82,
+#: табл. 6" since 2026-08-11, but through Гурлев 1986 rather than from the
+#: standard, and nothing had ever compared the stored numbers with the
+#: printed norms. Doing so on 2026-09-18f produced three results, and the
+#: middle one is a correction to how a stored field must be read.
+#:
+#: (1) THE D-MIN TRIPLE IS A CONFORMING FIRST-CATEGORY COATING AND SITS ON
+#:     TWO OF ITS THREE CEILINGS. Table 6 row 8 is «суммарная оптическая
+#:     плотность вуали и маски» BEHIND each filter, which is the density of
+#:     the record that filter reads, so it maps onto the profile's per-record
+#:     D-min directly:
+#:
+#:         behind blue  stored 0.92   highest <= 0.90   first <= 1.10
+#:         behind green stored 0.50   highest <= 0.50   first <= 0.60
+#:         behind red   stored 0.30   highest <= 0.27   first <= 0.30
+#:
+#:     Blue and red both exceed the HIGHEST category and both land inside the
+#:     FIRST, red exactly on its ceiling. Green sits exactly on the highest
+#:     category's ceiling. A coating cannot be highest-category on one filter
+#:     and outside it on two, so this profile is a FIRST-CATEGORY coating --
+#:     which is a fact about the stored numbers nobody had established, and
+#:     it is the independent check that the Гурлев-sourced triple really did
+#:     come from this standard's first-category column.
+#:
+#: (2) ⚠⚠ THE STORED RESOLVING POWER IS THIS STANDARD'S FLOOR, NOT A
+#:     MEASUREMENT. `resolving_power_lp_mm_highc` is 63.0 and table 6 row 10
+#:     reads «не менее 63» for the first category. Those are the same number
+#:     because they ARE the same number: what is stored is the worst a
+#:     conforming ЦНЛ-65 coating may be. Queue P72 established on 2026-09-18
+#:     that a resolving power printed with no density is the PEAK of a curve;
+#:     this one is not even that. It is a lower bound on a peak.
+#:
+#: (3) ⚠⚠ THE GAMMAS DISAGREE AND IT IS TWO PROCESSES, NOT TWO OPINIONS --
+#:     THE SAME SHAPE OF ANSWER QUEUE P12 REACHED ABOUT THE ГОСТ SPEED
+#:     CRITERIA. Stored r/g/b is 0.70/0.70/0.85; table 6 rows 4, 4a and 5
+#:     give lower/middle/upper 0.55/0.60/0.65 each +/-0.08, and in a colour
+#:     negative tripack lower is the red record and upper the blue, so every
+#:     stored gamma is above the norm's own tolerance band. THE NORM IS NOT A
+#:     MEASUREMENT OF THE EMULSION: it is «РЕКОМЕНДУЕМЫЙ коэффициент
+#:     контрастности», the contrast a conforming coating should reach in 5-8
+#:     minutes IN THE STANDARD'S OWN TEST PROCESS -- the CD-2 developer of
+#:     table 7 at 20 +/- 0.3 C with a ferricyanide bleach and two fixes, which
+#:     is not the process the stored curves were measured under and is not
+#:     C-41. The stored gammas come from ТУ 6-17-441-78 through Гурлев, at
+#:     the manufacturer's process. NEITHER VALUE MOVES and the disagreement
+#:     is recorded so nobody reconciles them later.
+#:
+#: key -> (stored value, mark, the table-6 row it is checked against)
+_GOST_25120_CNL65_CHECK: dict[str, tuple[float, str, str]] = {
+    "dmin_b":      (0.92, "Фото ЦНЛ-65", "fog_mask_blue_max"),
+    "dmin_g":      (0.50, "Фото ЦНЛ-65", "fog_mask_green_max"),
+    "dmin_r":      (0.30, "Фото ЦНЛ-65", "fog_mask_red_max"),
+    "resolving":   (63.0, "Фото ЦНЛ-65", "resolving_min"),
+}
+#: The category the D-min triple places SVEMA_CNL_65 in, derived above.
+_GOST_25120_CNL65_CATEGORY: str = "first"
+#: ⚠ The three stored gammas and the norm they exceed, kept as a recorded
+#: conflict rather than a correction. (record, stored, norm, tolerance).
+_GOST_25120_CNL65_GAMMA_CONFLICT: tuple[tuple[str, float, float, float], ...] = (
+    ("r (lower layer)",  0.70, 0.55, 0.08),
+    ("g (middle layer)", 0.70, 0.60, 0.08),
+    ("b (upper layer)",  0.85, 0.65, 0.08),
+)
+_GOST_25120_CNL65_GAMMA_REASON = (
+    "the norm is a RECOMMENDED contrast in ГОСТ 25120-82's own test process "
+    "(table 7 CD-2 developer at 20 +/- 0.3 C, ferricyanide bleach, two "
+    "fixes, 5-8 min); the stored values are ТУ 6-17-441-78's, at the "
+    "manufacturer's process. Two processes, not two opinions.")
+
+
+def gost_25120_norm(mark: str, category: str, key: str):
+    """One ГОСТ 25120-82 table-6 cell, or None if that column is not printed.
+
+    ⚠ RETURNS None FOR ("Фото ЦНД-32", "highest", ...) BECAUSE THE STANDARD
+    PRINTS NO SUCH COLUMN, not because the value is missing. The caller must
+    not fall back on the other mark's highest-category figure: the two marks
+    are differently balanced and `_GOST_25120_CROSS_MARK_INCOMPARABLE` names
+    the six rows for which a cross-mark comparison is meaningless.
+
+    Returns ``(value, sense, unit)``.
+    """
+    row = _GOST_25120_TABLE6.get(key)
+    if row is None:
+        return None
+    try:
+        idx = _GOST_25120_COLUMNS.index((mark, category))
+    except ValueError:
+        return None
+    return (row[idx], row[3], row[4])
 
 #: ⚠ THE SOVIET STOCKS DELIBERATELY LEFT WITHOUT A `gost_speed_class`, and
 #: why, recorded here so nobody "completes" the set later. Populated on 13 of
@@ -2583,7 +2907,96 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 # the support every 1930s stock here was actually coated on.
 # Every render is bit-identical to a v43 one: no profile names nitrate, no
 # profile gains an optical density, and the new law has no data.
-SCHEMA_VERSION = 44
+
+
+# -- v45 (2026-09-18f, queue K6 + the five-document harvest): THE SHEET THAT
+# PROVED ITS OWN ABSENCE, THE SCANNER AS A MEASURED OBJECT, AND A STANDARD
+# READ FIRST-HAND ----------------------------------------------------------
+# Six documents the owner supplied on one day, and the largest single thing
+# they changed is a READER DEFECT rather than a datum. E-2468's July 2000
+# first printing carries the same artwork as its October 2006 revision to
+# 2.2e-5, which closes K6 as a PROVED ABSENCE -- PORTRA 100T's own
+# sensitometry was never published, in either printing of the only
+# publication code the film ever had. It also broke
+# `kodak_still_curves.extract_panel`'s greedy channel matcher, which read the
+# 2000 panel with G and B swapped on a 1.8 pt caption offset; the matcher is
+# now GLOBALLY OPTIMAL and the counterexample is pinned.
+# `_CONVERSION_FILTER_LOSS` + `conversion_filter_loss()` +
+# `exposure_index_through()` store the filter factors this file has refused to
+# store film speeds for since 2026-08-16, from Kodak's own three-speed
+# discontinuance table. `_SHARED_FIGURE_ARTWORK` registers the four times this
+# corpus has hit one figure printed under two products.
+# `_GOST_25120_TABLE6` and its nine companions are ГОСТ 25120-82 read
+# first-hand instead of through Гурлев, and checking SVEMA_CNL_65 against it
+# found that the stock's stored resolving power IS the standard's «не менее»
+# FLOOR and that its D-min triple places it in the FIRST quality category.
+# `_WB_SCANNER_NOISE_METHOD` + `scanner_noise_residual_gain()` give queue D1
+# and D2a the experiment they were going to have to invent, with the
+# sqrt((n-1)/n) bias a naive version gets wrong; `_SCANNER_RESPONSIVITY_MODEL`
+# and `_SCANNER_LINEARITY_RESIDUAL` bound what D2b's target can deliver.
+# `_DYE_MONOLAYER_SATURATION` is the tabular grain's 2.63x surface advantage
+# as a measured number, and `_RESIDUAL_DYE_STAIN` names the 480-580 nm
+# mechanism that raises a colour negative's D-min.
+# Every render is bit-identical to a v44 one: no profile gains a field, no
+# stored value moves, and every new carrier is read by nothing on the render
+# path.
+
+
+# -- v46 (2026-09-18g): THE RANDOM-DOT / BOOLEAN GRAIN MODEL, AND A GRAIN SIZE
+# THAT NEEDS NO DOCUMENT ------------------------------------------------------
+# Three granularity papers -- Fenton 2004 (Kodak, random dot), Taguchi 1990
+# (Fuji, SPIE 1253) and Newson/Faraj/Delon/Galerne 2017 (IPOL, Boolean model).
+# The first finding is that the first and third are THE SAME MODEL: Fenton's
+# D = 0.434*a*g*n is the first-order expansion of Newson's
+# P = 1 - exp(-lambda*E[pi r^2]), and 0.434 is log10(e).
+# `random_dot_disk_diameter_um()` is the practical yield: dividing Fenton's two
+# equations collapses everything unmeasurable to sigma_D/D = 1/sqrt(nA), so a
+# grain size follows from `rms_granularity` ALONE -- no plot, no tracing, no
+# conversion chain, for all 191 stocks. It lands at 0.189-2.824 um, median
+# 0.728, inside both measured bands already on file, and it AGREES WITH THE
+# FIVE C45-EXEMPT MEASURED `clump_um` VALUES TO A MEDIAN 14 % while putting the
+# other 186 about 4.95x too large. Not applied: C45's precedent is that the
+# owner owns a corpus-wide grain rescale.
+# `taguchi_spread_split()` is Schade quadrature with sigma_p = D/2, and it
+# reproduces Taguchi's published classification -- AgX negatives are
+# optical-spread determined -- on 191 of 191 stocks when fed the random-dot
+# diameter, against 165 of 187 and four outright impossibilities when fed
+# `clump_um`. `boolean_lambda()` / `boolean_coverage()` carry the exact law.
+# `_BOOLEAN_NO_LONG_RANGE_LOBE` records a theorem: a Boolean model's covariance
+# is identically zero beyond one grain diameter, so `GrainSpec.clump_gain` is a
+# departure from the physical model rather than a parameter within it -- the
+# third independent statement to that effect, and still not acted on because
+# Takano 1968 measures an aggregate that contradicts it.
+# Every render is bit-identical to a v45 one.
+
+
+# -- v47 (2026-09-18h): E-6 REVERSAL COLOUR REPRODUCTION HAS A CLASS SIGNATURE,
+# AND IT IS NOW A NUMBER ------------------------------------------------------
+# Kreyenbuehl's 2018 Basel dissertation (2.4-2.5) is a controlled colorimetric
+# experiment inside a humanities thesis: six reversal films and a digital
+# camera, one camera, one chart, one light, and EVERY FILM DEVELOPED THE SAME
+# DAY IN THE SAME E-6 BATH, capture calibrated per film through its own IT-8
+# target. Three of the six map onto stocks this database holds.
+# Figures 41 and 42 have no tables, so both are TRACED here and checked against
+# the author's own prose on four independent statements, all of which pass.
+# THE YIELD IS A CLASS PROPERTY THIS DATABASE CANNOT EXPRESS. The thesis claims
+# by eye that the four E-6 films run parallel; the traced tables make it a
+# measurement -- they sit 2.2-4.8 dC units from their shared mean where
+# Kodachrome and the digital camera sit 12.8-14.6 away, pairwise r 0.94 median.
+# AND THE CORRELATIONS SPLIT CHROMA FROM HUE, WHICH THE THESIS DOES NOT NOTICE:
+# Kodachrome tracks the E-6 class at r = 0.840 in dC and r = 0.075 in |dH|.
+# What is common to colour reversal film is WHICH COLOURS IT CANNOT SATURATE;
+# what is process-specific is which way the hue goes.
+# `_REVERSAL_NEUTRAL_CAST` records the unanimous blue-violet neutral cast (a*
+# positive and b* negative on every film, dE about 20 mid-scale, replicated
+# across labs) WITH ITS CAUSE OPEN -- three candidates from the author and a
+# fourth from this project, the D50 reference against a 5500 K film balance,
+# marked as ours and not applied. `_DYE_SET_SHARING_CLAIM` is the first source
+# in the corpus that states which stocks share a dye set and why.
+# `_GSCHWIND_MODEL` is a lead for queues P19 and P20: a published model of
+# exactly the two steps this engine's stage 8b approximates.
+# Every render is bit-identical to a v46 one.
+SCHEMA_VERSION = 48
 
 
 # -- v43 (2026-09-18c, queues P12 / P39 / P13 / P40 / P41 / M1a): SIX ROWS
@@ -3292,6 +3705,87 @@ class GrainSpec:
     # ingest; the rescale belongs to whoever consumes it, so that the stored
     # value stays the one the source printed.
     rms_aperture_um: float = 48.0
+    # -- schema v48 (2026-09-19, FGS-DDS-001 Rev. A §18.2) -------------------
+    # ⚠ THE PHYSICAL GRAIN DIAMETER, WHICH IS NOT `clump_um_*` AND IS NOT A
+    # RESCALING OF IT. `clump_um_*` is a correlation-length parameter of the
+    # legacy Gaussian spectrum; 5 of its 191 values are BBC T-101 measurements
+    # and the other 186 are estimates that queue C45 already divided by 3.1
+    # once, corpus-wide, to make the rendered grain match observation. What
+    # goes here is the imaging-centre DIAMETER that the jinc spectrum and the
+    # per-element count both consume, obtained from `rms_granularity` alone by
+    # the closed-form random-dot inversion (`grain_um_from_rms`, §20.2) -- a
+    # route that touches no spectrum and has no fitted constant in it.
+    #
+    # ⚠⚠ AND `clump_um / 4.95` IS NOT THE SAME THING, WHICH IS ERRATUM 3 OF
+    # THIS REVIEW AGAINST THE SPECIFICATION. Spec §18.3 step 2 offers the two
+    # as "equivalently". Measured over the 186 estimated stocks, the ratio
+    # (clump_um / 4.95) / inversion has median 1.14, quartiles 0.89-1.44 and
+    # RANGE 0.36 TO 2.91, and 78 of the 186 differ by more than 30 % (worst
+    # AGFA_VISTA_200 at 2.91x). 4.95 is the population median of a two-decade
+    # spread, not a per-stock conversion. Only the inversion is used here.
+    #
+    # 0.0 means "not populated" and `grain_um_rgb()` derives it; the five
+    # T-101 stocks in `GRAIN_CLUMP_MEASURED_STOCKS` carry their traced value
+    # instead, because method rule 1 forbids overwriting a measurement with a
+    # derivation.
+    grain_um_r: float = 0.0
+    grain_um_g: float = 0.0
+    grain_um_b: float = 0.0
+    # Gamma at which `grain_um` was calibrated (spec §13.8). 0.0 = take the
+    # stock-class default. Developed clump diameter goes as gamma**0.425 on the
+    # BBC T-101 refit, so a stock processed away from its reference gamma has a
+    # different physical grain, and the reference has to be recorded to say so.
+    development_gamma_ref: float = 0.0
+    # ⚠⚠ DECLARATIVE ONLY, AND THAT IS A DELIBERATE NARROWING OF WHAT SPEC
+    # §18.2 ASKS FOR, BECAUSE THE SPECIFICATION CONTRADICTS ITSELF HERE.
+    #
+    # §18.2 defines this field so that "the grain stage does not re-roll per
+    # frame what is physically static", i.e. it asks the stage to FREEZE the
+    # grain field for such a stock. R-T5 says, in terms, that "the grain stage
+    # shall introduce no frame-locked noise component" and that scanner
+    # fixed-pattern noise "is not grain and is out of scope".
+    #
+    # A frozen grain field IS a frame-locked noise component. Implementing
+    # §18.2's behaviour would violate R-T5; implementing R-T5 leaves §18.2's
+    # field with nothing to do. The first v48 pass implemented the freeze and so
+    # shipped the violation.
+    #
+    # ⚠ THE RESOLUTION FOLLOWS R-T5, because R-T5 is a requirement and §18.2 is
+    # a schema note, and because the freeze is the wrong remedy anyway: if a
+    # stock's traced noise is the SCANNER's, then its `rms_granularity` is not
+    # emulsion granularity and freezing the field renders the wrong quantity
+    # very steadily. The honest remedy is to fix the measurement or drop it.
+    #
+    # So the field RECORDS the provenance and changes no behaviour, and
+    # `validate` REFUSES the non-default value rather than letting a stock be
+    # marked and silently mis-rendered. It is a place to put the answer on the
+    # day a stock needs one, not an answer.
+    grain_temporal_class: str = "emulsion"
+    # Saturating sigma(D) family (spec §10.5.3). 0.0 = unused, which is every
+    # stock until the S-C8 fit runs; the legacy sqrt law and the measured
+    # anchors both continue to take precedence where they apply.
+    sigma_sat_droll: float = 0.0
+    sigma_sat_q: float = 0.0
+    # Inter-layer grain coherence (spec §15.3). [HYP] -- 0.0 until [EXP-A]
+    # measures it. Three emulsions coated on one base are not perfectly
+    # independent, but nothing in this corpus says by how much, so the field
+    # exists to hold the answer rather than to assert one.
+    rho_layers: float = 0.0
+
+    def grain_um_rgb(self) -> tuple[float, float, float]:
+        """Physical grain diameter per channel, deriving where not stored.
+
+        Falls back to the random-dot inversion of the per-channel rms, which is
+        how 186 of 191 stocks get their value. ⚠ NEVER falls back to
+        `clump_um_*`: the two are different quantities on a different scale,
+        and conflating them is the whole of finding F4.
+        """
+        rms = self.rms_rgb()
+        stored = (self.grain_um_r, self.grain_um_g, self.grain_um_b)
+        return tuple(
+            s if s > 0.0 else grain_um_from_rms(r, 1.0, self.size_sigma_log)
+            for s, r in zip(stored, rms)
+        )
 
     def rms_at_aperture(self, aperture_um: float) -> float:
         """`rms_granularity` restated for a different scanning aperture.
@@ -5157,6 +5651,511 @@ _US1908527_DYES: tuple[str, ...] = (
     "Spirit blue R + Alphazurene",
     "Zapon black + Metanil yellow + Toluidine blue",
 )
+
+
+# ===========================================================================
+# schema v45 (2026-09-18f): THE SCANNER, AS A MEASURED OBJECT
+# ===========================================================================
+#
+# ⚠⚠ THIS DATABASE HAS MODELLED THE SCANNER AS A HOLE SINCE v1. `SCAN_DI` is a
+# PrintStock with `reader_is_emulsion=False` -- a stand-in that says "a
+# scanner plus a transform happened here" and nothing about what either did --
+# and 190 of the 191 films render through it. Queue rows D1, D2a and D2b have
+# stood open on that gap since 2026-09-05, and their blocker has always been
+# the same: the owner would have to RUN AN EXPERIMENT, because nothing in the
+# corpus described one.
+#
+# ⚠⚠ TWO DOCUMENTS SUPPLIED ON 2026-09-18f CHANGE THAT, AND THEY SPLIT THE
+# PROBLEM CLEANLY IN TWO. US 12,211,182 B2 is about the scanner's NOISE and
+# tells D1/D2a exactly what to do; JOSA A 21(7) 1125-1130 is about the
+# scanner's SPECTRAL RESPONSE and tells D2b what its "known-density target"
+# can and cannot deliver. Neither is a measurement of the owner's scanner, so
+# neither closes a row by itself -- what they close is the "nobody has
+# described the experiment" half of each blocker.
+
+
+# -- US 12,211,182 B2 -- SEPARATING SCANNER NOISE FROM FILM GRAIN ------------
+#
+# Warner Bros. Entertainment Inc.; Michael Smith, Michael Zink and
+# Christopher Nolan; filed 18 Apr 2022 as a continuation of PCT/US2020/056394
+# (19 Oct 2020) claiming provisional 62/923,392 (18 Oct 2019); granted
+# 28 Jan 2025. 36 pages, 23 sheets, image-only (CCITT G4 at 300 dpi), read by
+# OCR at 300 and 600 dpi.
+#
+# ⚠⚠ THE METHOD IS THE HARVEST AND IT IS EXACTLY THE EXPERIMENT D1 AND D2a
+# WERE GOING TO HAVE TO INVENT. Two medians over two different axes separate
+# three quantities that every scan contains mixed together:
+#
+#   median over N SCANS of the SAME piece of film   -> removes scanner noise,
+#                                                      leaves film grain
+#   median over the SAME patch on M DIFFERENT strips-> removes film grain,
+#                                                      leaves the background
+#   one scan minus the N-scan mean                  -> an estimate of that
+#                                                      scan's scanner noise
+#
+# Both noises are assumed ZERO MEAN, which is the assumption the whole method
+# rests on and which the patent states rather than hides.
+_WB_SCANNER_NOISE_METHOD: dict[str, object] = {
+    "statistic": "median",
+    "statistic_alternatives": ("median", "mean"),
+    "median_over_scans_isolates": "film grain",
+    "median_over_strips_isolates": "noise-free background",
+    "zero_mean_assumption": True,
+    "prefer_median_when": ("misalignment", "dust", "outliers"),
+    "prefer_mean_when": "alignment near perfect and the film is clean",
+    "registration": "integer-pixel translation search against the first scan",
+    "registration_note": (
+        "integer-pixel compensation is preferred because it invents no "
+        "sample value that a scan did not produce; fractional-pixel is more "
+        "accurate but synthesises data"),
+}
+
+#: ⚠⚠ THE BIAS FACTOR, WHICH IS THE ONE PIECE OF ARITHMETIC A NAIVE VERSION OF
+#: THIS EXPERIMENT GETS WRONG. Subtracting the n-scan MEAN from one scan does
+#: NOT give that scan's noise: it gives
+#:
+#:     noise_1 - (1/n) * SUM(noise_1..noise_n)
+#:         = ((n-1)/n) * noise_1 - (1/n) * SUM(noise_2..noise_n)
+#:
+#: which the patent writes out in full. For zero-mean independent noise of
+#: standard deviation sigma the residual has variance
+#: sigma^2 * ((n-1)/n)^2 + sigma^2 * (n-1)/n^2 = sigma^2 * (n-1)/n, so a
+#: measurement taken this way UNDERSTATES sigma by sqrt((n-1)/n) and must be
+#: divided by that factor. At n = 49 the correction is 1.0104 -- one per cent,
+#: which is small but is exactly the size of difference D1 was going to be
+#: asked to resolve. At n = 4 it is 1.155, which is not small at all.
+_WB_NOISE_RESIDUAL_BIAS_N: int = 49
+
+
+def scanner_noise_residual_gain(n_scans: int) -> float:
+    """sqrt((n-1)/n): what a one-scan-minus-mean residual measures, vs sigma.
+
+    ⚠ MULTIPLY A MEASURED RESIDUAL SIGMA BY THE RECIPROCAL OF THIS to recover
+    the scanner's true sigma. Returns 0.0 for n < 2, because a single scan has
+    no mean to subtract and the question is not defined.
+    """
+    if n_scans < 2:
+        return 0.0
+    return math.sqrt((n_scans - 1.0) / float(n_scans))
+
+
+#: The test as actually run, so that a future experiment can be compared with
+#: it rather than merely inspired by it.
+_WB_SCANNER_NOISE_EXPERIMENT: dict[str, object] = {
+    "target": "KODAK VISION3 Color Negative Control Strip, 100-foot",
+    "patches": 17,
+    "negative_stock": "KODAK VISION3 5213",
+    "ip_stock": "KODAK VISION3 Intermediate",
+    "elements": ("camera negative", "dry IP", "wet-gate IP"),
+    "wet_gate_principle": (
+        "negative and raw stock immersed while printing in a liquid of "
+        "refractive index close to the base, which suppresses scattering "
+        "from surface dirt and scratches"),
+    "scans_per_element": 49,
+    "strips_analysed": 45,
+    "scanner": "modern double-flash scanner, 2K output",
+    "scan_format": "Full Aperture 4-perf, 2048 x 1556",
+    "frames_per_100ft_roll": 1593,
+    "cue_dot_locations": 124,
+    "frames_with_whole_contiguous_patches": 810,
+    "contiguous_patches_per_roll_range": (45, 51),
+    "analysis_window_px": (128, 128),
+    "patch_period_frames": (12, 13),
+    "vertical_stack_px": (2048, 20228),
+    "prior_art_method": (
+        "Peter D. Burns and Don Williams, «Identification of Image Noise "
+        "Sources in Digital Scanner Evaluation», Proc. SPIE-IS&T Electronic "
+        "Imaging Symposium, SPIE vol. 5294, pp. 114-123, 2004"),
+}
+
+#: ⚠⚠ THE ORDERED FINDINGS, STORED AS ORDERINGS BECAUSE THAT IS WHAT THE
+#: PATENT PUBLISHES. Its per-patch magnitudes live in FIG. 15, 20 and 23,
+#: which are halftone-dithered raster tables that OCR refuses at both 300 and
+#: 600 dpi; NO NUMBER FROM THOSE THREE FIGURES IS STORED, and inventing one
+#: from a partial read would be the exact failure queue P14 declined on the
+#: Iofis tables. What the running text states in words is below.
+_WB_NOISE_ORDERINGS: dict[str, str] = {
+    "grain_variance_by_density":
+        "grain variance INCREASES toward the dark patches",
+    "grain_variance_by_channel":
+        "grain variance is LARGER IN BLUE than in red or green",
+    "grain_variance_by_element":
+        "negative > dry IP > wet IP (the dry/wet gap is slight)",
+    "grain_frequency_by_density":
+        "grain average frequency is LOWER for dark patches than bright ones, "
+        "because larger grains are developed at low exposure",
+    "noise_frequency_colour":
+        "scanner-noise average frequency is HIGHER than grain-noise average "
+        "frequency",
+    # ⚠⚠ AND THIS ONE IS THE REASON THE ROW ABOVE MAY NOT BE APPLIED
+    # GLOBALLY. This database holds monochrome and colour stocks in one
+    # table, and the patent states the ordering INVERTS between them:
+    # "this is reversed for black and white films because black and white
+    # films comprise silver particles having different physical
+    # characteristics as compared to dye particles of color film". A single
+    # scanner-versus-grain frequency rule applied to all 191 stocks would
+    # therefore be wrong on every monochrome one.
+    "noise_frequency_monochrome":
+        "REVERSED for black-and-white: grain-noise average frequency exceeds "
+        "scanner-noise average frequency, because developed silver is not a "
+        "dye cloud",
+}
+
+#: Visibility deltas, in JND, as the patent states them in prose. ⚠ THESE ARE
+#: APPROXIMATE IN THE SOURCE ("approximately", "about") and are stored as
+#: bands with that word's own looseness, not as measurements.
+_WB_NOISE_JND: dict[str, tuple[float, float]] = {
+    "scanner_noise_removal_hdr":      (1.0, 2.0),
+    "scanner_noise_removal_sdr":      (0.5, 2.0),
+    "grain_negative_minus_dry_ip_hdr": (1.0, 1.0),
+    "grain_negative_minus_wet_ip_hdr": (2.0, 2.0),
+    "scanner_negative_minus_ip_hdr_brightest": (2.0, 2.0),
+    # ⚠ A SCANNER ARTEFACT AND NOT A FILM PROPERTY: patches 10 and 11 show a
+    # 1-2 JND jump in scanner-noise visibility in BOTH SDR and HDR, which the
+    # patent attributes to poor signal-to-noise in the DOUBLE-FLASH
+    # EXPOSURE OVERLAP REGION. A different scanner would put the jump
+    # somewhere else or nowhere, so it must never be read as a property of
+    # the density it happens to land on.
+    "double_flash_overlap_spike":     (1.0, 2.0),
+}
+_WB_DOUBLE_FLASH_SPIKE_PATCHES: tuple[int, ...] = (10, 11)
+
+#: ⚠ THE SDR-ONLY EXEMPTION, recorded because it is the one place the patent
+#: reports NO effect: the brightest patches had no visible scanner noise in
+#: SDR targets at all. Scanner noise is an HDR problem first.
+_WB_SCANNER_NOISE_SDR_BRIGHTEST_INVISIBLE: bool = True
+
+#: The visibility model, as parameterised. ⚠ THE JND COUNT IS 2x THE AVERAGE
+#: NOISE MAGNITUDE OVER ONE JND OF LUMINANCE, and one JND of luminance is
+#: Lmax - Lmin with Lmin = Lavg and Lmax = Lmin*(1+MT)/(1-MT), MT being the
+#: Barten modulation threshold at that patch's average luminance and the
+#: noise's average (spectral-centroid) frequency. Visible at >= 1 JND.
+_WB_VISIBILITY_MODEL: dict[str, object] = {
+    "csf": "Barten",
+    "threshold_jnd": 1.0,
+    "jnd_from_modulation": "Lmax = Lmin * (1 + MT) / (1 - MT), Lmin = Lavg",
+    "jnd_count": "2 * average noise magnitude / one JND of luminance change",
+    "frequency_statistic": "spectral centroid of the FFT magnitude",
+    "fft_window_px": (128, 128),
+    "viewing_distance_screen_heights": 3.0,
+    "extraction": "1920x1080 from a 2048x1556 2K scan",
+    "nyquist_cycles_per_degree": 30.0,
+    "code_value_space": "ADX10, 10 bit",
+    "transform": "Academy ACES",
+    "csf_parameter_source": "Barten, SMPTE 122:52-59",
+}
+
+#: The stopping rule, which is the patent's actual claim: scan until the
+#: residual scanner noise falls below the visibility threshold, then stop.
+#: ⚠ MORE SCANS ARE NOT FREE -- the patent's reason for stopping is physical
+#: wear, handling and fresh dirt on the film, not compute.
+_WB_ITERATION_RULE: dict[str, object] = {
+    "criterion": "scanner noise below the JND visibility threshold",
+    "loop": ("scan a first number of times; take the statistic; subtract it "
+             "from the first scan; if the residual is above threshold, "
+             "increase the iteration count and rescan"),
+    "increase_by": ("a fixed constant, or a factor times the shortfall "
+                    "between measured and threshold visibility"),
+    "cost_of_overscanning": ("mechanical wear, additional handling, and new "
+                             "dirt and scratches on the film"),
+    "preferred_alternative": ("capture multiple optical images in one pass "
+                              "instead of transporting the film N times"),
+    "skip_when": "grain noise is below a threshold, which masks scanner noise",
+}
+
+_WB_SCANNER_NOISE_SOURCE = (
+    "US 12,211,182 B2, «Scanner noise elimination for scanned films», Warner "
+    "Bros. Entertainment Inc.; inventors Michael Smith, Michael Zink, "
+    "Christopher Nolan; appl. 17/723,231 filed 2022-04-18, continuation of "
+    "PCT/US2020/056394 (2020-10-19), prov. 62/923,392 (2019-10-18); granted "
+    "2025-01-28. 36 pages, 23 drawing sheets, NO TEXT LAYER (CCITT G4 300 "
+    "dpi), read by OCR. ⚠ FIG. 15, 20 and 23 are halftone raster tables that "
+    "do not OCR at 300 or 600 dpi, so the per-patch code values, luminances "
+    "and JND figures they carry are NOT transcribed here.")
+
+
+# -- JOSA A 21(7) 1125-1130 (2004) -- THE SCANNER'S SPECTRAL RESPONSE --------
+#
+# Hui-Liang Shen and John H. Xin, «Spectral characterization of a color
+# scanner by adaptive estimation», J. Opt. Soc. Am. A 21(7), 1125-1130, July
+# 2004. Received 2003-11-06, accepted 2004-03-01.
+#
+# ⚠⚠ THE DEFINITION IS THE HARVEST. A scanner's "spectral sensitivity" is not
+# one thing: the paper lumps the colour filter's transmittance, the detector's
+# sensitivity and the illuminant's radiance into a single measurable product
+#
+#     m_k(lambda) = f_k(lambda) * d(lambda) * l_s(lambda)
+#
+# and calls that the SPECTRAL RESPONSIVITY. That is the right object for
+# `SCAN_DI` to hold, and it is the reason `SCAN_DI` cannot be given a filter
+# set and a light source separately: a scan cannot distinguish them.
+_SCANNER_RESPONSIVITY_MODEL: dict[str, str] = {
+    "definition": "m_k(lam) = f_k(lam) * d(lam) * l_s(lam)",
+    "f": "spectral transmittance of the k-th colour filter",
+    "d": "spectral sensitivity of the detector",
+    "l_s": "spectral radiance of the scanner illuminant",
+    "response": "v = M r + n, then rho = F_k(v) with F_k the OECF",
+    "why_lumped": (
+        "the three factors are not separable from scan data, and for a "
+        "common scanner none of them is published"),
+}
+
+#: ⚠⚠ THE LINEAR REFLECTANCE MODEL IS NOT EXACT AND THE PAPER MEASURES BY HOW
+#: MUCH -- which is the number that bounds what any `SCAN_DI`-style transform
+#: may claim. Responsivity recovered from 24 MCC patches by constrained
+#: linear least squares (smoothness eps = 1.0, positivity, response accuracy
+#: delta = 0.01; bias n = [2.03, 2.41, 1.51]); then the LINEAR response is
+#: SIMULATED from measured reflectance and compared with the actual response.
+#:
+#: ⚠ THE RECOVERED RESPONSIVITY GOES SLIGHTLY NEGATIVE at some wavelengths,
+#: violating its own positivity constraint. The paper says so: the three
+#: constraints are over-stringent for a real scanner and what comes back is
+#: the optimal solution under constraints the device does not satisfy.
+#:
+#: target -> (mean % error R/G/B, max % error R/G/B); error is
+#: |v_k - v_hat_k| / v_k_max * 100 with v_k_max the MCC white patch.
+_SCANNER_LINEARITY_RESIDUAL: dict[str, tuple[tuple[float, float, float],
+                                             tuple[float, float, float]]] = {
+    # IN the training set.
+    "MCC": ((0.80, 0.75, 1.41), (1.90, 1.56, 4.65)),
+    # OUT of it -- and roughly twice as bad, which is the finding.
+    "CDC": ((1.88, 1.66, 2.78), (4.70, 5.05, 9.69)),
+}
+
+#: ⚠ TWO ORDERINGS THAT BOTH MATTER TO A FILM SCANNER. (1) THE BLUE CHANNEL IS
+#: ALWAYS WORST -- 1.41 % against 0.80/0.75 in training and 2.78 % against
+#: 1.88/1.66 out of it, and 9.69 % at worst against 4.70/5.05. (2) A TARGET
+#: OUTSIDE THE TRAINING SET IS ABOUT TWICE AS BAD, because the recovered
+#: responsivity is DATA DEPENDENT. Both bear directly on queue D2b: a
+#: "known-density target" characterises the scanner FOR THAT TARGET'S
+#: COLORANTS, and a film dye set is not a ColorChecker's pigment set.
+_SCANNER_LINEARITY_ORDERINGS: tuple[str, ...] = (
+    "the blue channel's residual is the largest of the three in every cell",
+    "an out-of-training target roughly doubles mean and maximum residual",
+    "the OECF F_k itself differs between targets made of different "
+    "materials, so the nonlinearity is not a property of the scanner alone",
+)
+
+#: Spectral-characterisation accuracy, by method and target. LRM is Shi and
+#: Healey's linear reflectance model (JOSA A 19, 645-656, 2002); NAE is
+#: non-adaptive Wiener estimation; AE is the paper's adaptive estimation.
+#: "in"/"ex" is whether the candidate sample was inside the training set --
+#: ⚠ AND "ex" IS THE HONEST CASE, which the paper states plainly: it would
+#: rarely be so that the candidate sample itself were in the training
+#: database.
+#:
+#: (target, method) -> (dE94 mean, dE94 std, dE94 max, rms mean, rms std,
+#:                      rms max)
+_SCANNER_SPECTRAL_ACCURACY: dict[tuple[str, str],
+                                 tuple[float, float, float,
+                                       float, float, float]] = {
+    ("CDC", "LRM_in"): (1.49, 0.97,  7.05, 0.0130, 0.0090, 0.0784),
+    ("CDC", "LRM_ex"): (3.11, 2.41, 13.90, 0.0331, 0.0227, 0.1157),
+    ("CDC", "NAE"):    (2.78, 2.17, 14.82, 0.0293, 0.0212, 0.1488),
+    ("CDC", "AE"):     (1.63, 1.35,  6.59, 0.0179, 0.0164, 0.0931),
+    ("IT8", "LRM_in"): (2.13, 1.46,  7.29, 0.0081, 0.0043, 0.0267),
+    ("IT8", "LRM_ex"): (2.87, 1.98, 11.41, 0.0138, 0.0089, 0.0647),
+    ("IT8", "NAE"):    (3.05, 1.93,  8.92, 0.0137, 0.0072, 0.0440),
+    ("IT8", "AE"):     (1.44, 1.01,  5.81, 0.0066, 0.0047, 0.0266),
+}
+
+#: The adaptive estimator's one free parameter, and ⚠ IT IS TARGET DEPENDENT
+#: RATHER THAN UNIVERSAL: 20 neighbouring training samples suit the
+#: ColorChecker DC and 10 suit the IT8. A single default would be a guess.
+_SCANNER_AE_NEIGHBOURS: dict[str, int] = {"CDC": 20, "IT8": 10}
+
+_SCANNER_SPECTRAL_CONDITIONS: dict[str, object] = {
+    "scanner": "Epson GT-10000",
+    "scan_resolution_dpi": 72,
+    "spectrum_nm": (400.0, 700.0),
+    "interval_nm": 10.0,
+    "samples": 31,
+    "targets": ("GretagMacbeth ColorChecker (MCC, 24 patches)",
+                "GretagMacbeth ColorChecker DC (CDC)",
+                "Kodak Gray Scale Q-14",
+                "Kodak Q60 / IT8"),
+    "spectrophotometer": "GretagMacbeth Spectrophotometer 7000A",
+    "grey_patch_window_px": (40, 80),
+    "oecf_fit_range_nm": (440.0, 700.0),
+    "oecf_fit_range_reason": (
+        "reflectance below 430 nm is not flat enough on these targets"),
+    "recovery": "constrained linear least squares (MATLAB lsqlin)",
+    "smoothness_eps": 1.0,
+    "accuracy_delta": 0.01,
+    "bias_vector": (2.03, 2.41, 1.51),
+    "colour_difference": "CIE 1994 dE94* under D65",
+}
+
+_SCANNER_SPECTRAL_SOURCE = (
+    "Hui-Liang Shen and John H. Xin, «Spectral characterization of a color "
+    "scanner by adaptive estimation», J. Opt. Soc. Am. A 21(7), 1125-1130, "
+    "July 2004, Institute of Textiles and Clothing, The Hong Kong "
+    "Polytechnic University. 6 pages, clean text layer. Tier T1 for the "
+    "method and for its own measured residuals; ⚠ IT IS A REFLECTION SCANNER "
+    "AND A PIGMENT TARGET, so none of its numbers may be transferred to a "
+    "film scanner as a value -- what transfers is the MODEL and the two "
+    "orderings in `_SCANNER_LINEARITY_ORDERINGS`.")
+
+
+# ===========================================================================
+# schema v45 (2026-09-18f): MULTILAYER DYE ADSORPTION AND RESIDUAL DYE STAIN
+# ===========================================================================
+#
+# JP 2004-272114 A, «高感度で残色の少ないハロゲン化銀写真感光材料、及び、その
+# 画像形成方法» -- "A silver halide photographic light-sensitive material of
+# high speed with little residual colour, and its image-forming method",
+# published 2004-09-30. 64 pages, Shift-JIS text layer (90ms-RKSJ-H).
+#
+# ⚠⚠ THE PATENT'S OWN SUBJECT IS A PROCESSING ADDITIVE AND THAT PART IS NOT
+# HARVESTED. What it supplies that this database can use is the QUANTITATIVE
+# BACKGROUND its examples had to establish first: how much sensitizing dye a
+# grain can actually carry, how that depends on grain habit, and what the dye
+# that does not wash out does to D-min.
+
+
+# -- how much dye a grain holds ---------------------------------------------
+#
+# ⚠⚠ THE SPECTRAL-SENSITIVITY MODEL IN THIS DATABASE HAS ALWAYS ASSUMED A
+# MONOLAYER WITHOUT SAYING SO. 90 stored `SpectralSensitivity` sets are
+# normalised to their own peak and carry no statement about how that peak was
+# reached. This patent states the ceiling the assumption rests on: "ハロゲン化
+# 銀粒子表面への増感色素の吸着量には限界があり、単層飽和吸着（すなわち一層吸着）
+# より多くの色素発色団を吸着させるのは困難である" -- monolayer saturation is
+# the practical limit, and exceeding it is hard. It then exceeds it, to 2.45
+# layers, using a cationic/anionic dye pair.
+#
+#: The footprint one dye chromophore occupies on a grain surface, which is the
+#: constant that turns a coverage in mol/mol Ag into an area. 80 square
+#: angstroms, stated by the patent as the basis of its own coverage figures.
+_DYE_FOOTPRINT_A2: float = 80.0
+
+#: Monolayer saturation coverage, mol dye per mol Ag, for the patent's three
+#: emulsions at that footprint.
+#:
+#: ⚠⚠ THE RATIO IS THE POINT, AND IT IS A MEASURED SPECIFIC-SURFACE-AREA
+#: ADVANTAGE RATHER THAN A CLAIMED ONE. The octahedral emulsion takes
+#: 5.4e-4 mol/mol Ag and both tabular emulsions take 1.42e-3 -- 2.63 times as
+#: much dye on the same silver, because a 2.32 um x 0.09 um plate has 2.63
+#: times the surface per unit volume of a 0.846 um sphere-equivalent
+#: octahedron. That is the tabular grain's whole speed argument, stated as a
+#: number, and this corpus had it nowhere.
+#:
+#: name -> (mol dye / mol Ag at monolayer saturation, habit, description)
+_DYE_MONOLAYER_SATURATION: dict[str, tuple[float, str, str]] = {
+    "JP2004272114_A": (5.4e-4, "octahedral",
+                       "AgBr octahedron, sphere-equivalent diameter "
+                       "0.846 +/- 0.036 um, gold/sulfur sensitised"),
+    "JP2004272114_B": (1.42e-3, "tabular",
+                       "AgBr tabular, mean projected-area diameter 2.32 um, "
+                       "thickness 0.09 um (aspect ratio 25.8), diameter CV "
+                       "15.1 %, monodisperse, gold/sulfur sensitised"),
+    "JP2004272114_C": (1.42e-3, "tabular",
+                       "the same grain as B, SELENIUM sensitised with "
+                       "pentafluorophenyl-diphenylphosphine selenide"),
+}
+
+#: ⚠ THE LAYER COUNT ACHIEVED, on all six coated samples, and it is FLAT:
+#: 2.45, 2.44, 2.45, 2.45, 2.45, 2.46 for samples 11 through 16. The patent
+#: holds it constant on purpose so that its additive's effect is not confused
+#: with a dye-loading difference, which makes 2.45 a measured ceiling for
+#: multilayer adsorption rather than one example's happy result.
+_DYE_ADSORBED_LAYERS: tuple[float, ...] = (2.45, 2.44, 2.45, 2.45, 2.45, 2.46)
+
+#: Integrated light-absorption strength per unit grain surface area, on the
+#: patent's own definition: measure T and R per grain, take A = 1 - T - R,
+#: subtract the silver halide's own absorption to get A', integrate
+#: -log(1 - A') over wavenumber from 10000 to 28000 cm-1 (1000 to 357 nm) and
+#: halve it. Samples 15 and 16 read 213 and 214 -- ⚠ EQUAL, which is the
+#: control that the additive changes the STAIN and not the SENSITISATION.
+_DYE_ABSORPTION_STRENGTH: dict[str, float] = {"sample_15": 213.0,
+                                              "sample_16": 214.0}
+_DYE_ABSORPTION_METHOD: dict[str, object] = {
+    "instrument": "Carl Zeiss MSP65 microspectrophotometer",
+    "aperture_um": 1.0,
+    "wavenumber_range_cm_1": (10000.0, 28000.0),
+    "wavelength_range_nm": (357.0, 1000.0),
+    "step_nm": 2.0,
+    "slit_nm": 2.5,
+    "lamp": "tungsten at 8 V, monochromator on the source side",
+    "grains_averaged": 200,
+    "absorptance": "A = 1 - T - R, then A' = A less the AgX absorption",
+    "statistic": "0.5 * integral of -log(1 - A') d(wavenumber)",
+    "reflectance_reference": "silicon carbide of known reflectance",
+}
+
+#: ⚠ THE ASPECT-RATIO THRESHOLDS the patent reports from its own sweep (it
+#: varied silver potential to make a family of tabular grains): the effect is
+#: present at aspect ratio >= 2 and PARTICULARLY GOOD at >= 8. Stored as
+#: thresholds, not as a curve, because a curve is not published.
+_TABULAR_ASPECT_THRESHOLDS: tuple[float, float] = (2.0, 8.0)
+
+
+# -- what the dye that stays behind does ------------------------------------
+#
+# ⚠⚠ RESIDUAL SENSITIZING DYE RAISES D-MIN, AND THIS DATABASE HAS NO FIELD
+# FOR IT. 残色 -- "residual colour" -- is sensitizing dye that has not washed
+# out by the end of processing. The patent names two consequences in prose,
+# both of which this engine renders: on a COLOUR NEGATIVE the minimum-density
+# region gains density, so the colour balance shifts and the print is wrong;
+# on a COLOUR REVERSAL film the HIGHLIGHTS are tinted. It names two causes
+# that make it worse, and both are directions this corpus is already moving
+# in: TABULAR GRAINS (more surface, so more dye to remove) and SHORTENED
+# PROCESSING (less time to remove it).
+#
+#: The band the stain is measured over, and the measurement. ⚠ IT IS AN
+#: ABSORPTION AREA OVER 480-580 nm ON AN UNEXPOSED, FULLY PROCESSED SAMPLE --
+#: a green-absorbing stain, which is where a green-sensitising dye would sit,
+#: and which lands on the magenta record.
+_RESIDUAL_DYE_STAIN: dict[str, object] = {
+    "band_nm": (480.0, 580.0),
+    "statistic": "absorption area over the band, relative to a control = 100",
+    "sample": "unexposed, processed identically to the sensitometric strip",
+    "raises": "colour negative D-min; colour reversal highlight tint",
+    "worsened_by": ("tabular grains", "shortened processing",
+                    "multilayer dye adsorption", "selenium sensitisation"),
+}
+
+#: ⚠ THE ONE QUANTITATIVE IMPROVEMENT THE TEXT PRINTS, and it is small:
+#: example 2 adds the additive to the FIXER (0.02 g/l mother liquor, 0.025 g/l
+#: replenisher) and the stain falls from 100 to 88 -- a 12 % reduction of the
+#: 480-580 nm absorption area -- with SPEED UNCHANGED at 100.
+#: ⚠ TABLES 1 AND 2, which carry the per-sample speeds and stains for all six
+#: coatings, ARE RASTER IMAGES IN THIS PUBLICATION and their cells are not
+#: transcribed. Nothing from them is stored.
+_RESIDUAL_DYE_STAIN_EXAMPLE2: dict[str, float] = {
+    "stain_relative": 88.0,
+    "speed_relative": 100.0,
+    "additive_g_per_l_fixer": 0.02,
+    "additive_g_per_l_replenisher": 0.025,
+}
+
+#: The patent's sensitometric conditions, which are a FOURTH speed criterion
+#: this corpus now holds beside ISO, ГОСТ and НИКФИ. ⚠ THE CRITERION IS
+#: FOG + 0.20 READ THROUGH A GREEN FILTER, minus-blue exposure through a Fuji
+#: SC-50 (everything below 500 nm blocked) at 2854 K for 1/100 s -- so it
+#: measures the GREEN-SENSITISED LAYER alone and is not comparable with a
+#: whole-film index.
+_JP2004272114_SENSITOMETRY: dict[str, object] = {
+    "lamp_k": 2854.0,
+    "filter": "Fuji gelatin SC-50 (minus blue, blocks below 500 nm)",
+    "exposure_s": 0.01,
+    "criterion": "fog + 0.20",
+    "read_through": "green filter",
+    "speed_law": "reciprocal of the exposure giving the criterion density",
+    "isolates": "the green-sensitised layer only",
+}
+
+_JP2004272114_SOURCE = (
+    "JP 2004-272114 A, «高感度で残色の少ないハロゲン化銀写真感光材料、及び、"
+    "その画像形成方法», published 2004-09-30. 64 pages, Shift-JIS text layer "
+    "(/90ms-RKSJ-H), read with PyMuPDF because pypdf does not decode that "
+    "encoding. Tier T1 for the emulsion geometry, the coverage figures, the "
+    "layer count and the absorption-strength method, all of which the "
+    "specification prints as running text. ⚠ TABLES 1 AND 2 ARE RASTER AND "
+    "ARE NOT TRANSCRIBED; the per-sample speed and stain values live only "
+    "there. ⚠ THE PATENT'S CHEMISTRY -- the 残色低減剤 of general formula (H) "
+    "and its homologues -- is outside anything this database models and is "
+    "deliberately not stored.")
 
 
 @dataclass(frozen=True)
@@ -35368,7 +36367,9 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
                           "CROSS -- see NotFound.md S4.9.1 for the per-panel result.",),
     "KODAK_PORTRA_100T": ("KODAK PROFESSIONAL PORTRA 100T Film, publication E-2468, Eastman Kodak Company",
                           "⚠ CORRECTION 2026-08-26: EVERY FIGURE ON E-2468'S CURVES PAGE IS PORTRA 160VC ARTWORK, NOT THIS FILM'S. Its characteristic figure is F009_0154AC, the figure E-190 prints on its 160VC page, and tracing both documents independently returns identical numbers to four decimals (dmin 0.2045/0.6087/0.8121, gamma 0.5809/0.6050/0.6691). Its Spectral-Sensitivity figure is F009_0180AC, the plot E-190 shares across the whole 160-speed family -- whose traced layer spans, blue 368-509, green 438-589 and red 539-689 nm, match the [T1] set stored on this profile to within the reading error. Its dye-density pair traces identically to 160VC's too. A tungsten ISO 100 emulsion and a daylight ISO 160 emulsion cannot share a characteristic curve, so this is a copy-paste defect in Kodak's own publication. CONSEQUENCE: the stored spectral set is a FAMILY curve that Kodak attributed to this film, not a per-film measurement, and the curves and grain remain estimates. What E-2468 does supply uniquely is text -- the five-point reciprocity table, the Status M red aim densities, and a Print Grain Index of 33/55/84 that KODAK E-58 (July 2000) page 5 independently confirms.",
-                          "⚠ SEE ALSO KODAK_PRO_100T_PRT, added 2026-08-26 from publication E-29 (April 1999). E-29 names PORTRA 100T as Pro 100T/PRT's recommended replacement and cites E-2468 by number, so the two profiles are a documented succession -- but PRT's own curves ARE its own (traced from E-29 p4) and are NOT applied here. Their reciprocity tables are numerically identical entry for entry, which given E-2468's copied figures is at least as likely to be a carried-over table as two films measuring the same.",),
+                          "⚠ SEE ALSO KODAK_PRO_100T_PRT, added 2026-08-26 from publication E-29 (April 1999). E-29 names PORTRA 100T as Pro 100T/PRT's recommended replacement and cites E-2468 by number, so the two profiles are a documented succession -- but PRT's own curves ARE its own (traced from E-29 p4) and are NOT applied here. Their reciprocity tables are numerically identical entry for entry, which given E-2468's copied figures is at least as likely to be a carried-over table as two films measuring the same.",
+                          "⚠⚠ CLOSED 2026-09-18f (queue K6): THE SECOND EDITION WAS READ AND IT CARRIES THE SAME ARTWORK, SO THE DEFECT IS ORIGINAL AND THE MEASUREMENT DOES NOT EXIST. The 2026-08-26 note above ends 'this may not exist in print', and MAY was the right word then because only the OCTOBER 2006 revision of E-2468 had been read. The owner supplied the JULY 2000 FIRST PRINTING (4 pages, 'Minor Revision 7-00', (c) 2000) on 2026-09-18f. It prints the same three figure ids -- F009_0154AC, F009_0180AC, F009_0186AC -- and its characteristic panel traces to dmin 0.2045/0.6087/0.8121 and gamma 0.5809/0.6050/0.6691, THE SAME SIX NUMBERS, with the underlying path vertices agreeing to 2.2e-5 in log E and 1.9e-5 in density on the red record. That is four orders of magnitude inside the tracer's own 0.002 D tolerance and is the tightest cross-document agreement `kodak_still_curves.py` has measured on any pair of sheets. E-2468 is the only publication code this film ever had, it had exactly two printings, and BOTH print PORTRA 160VC's figures. The requested measurement was therefore never published, which is a proved absence and not an outstanding acquisition. ⚠ NOTHING ON THIS PROFILE MOVES: the curves, the grain and the spectral set remain what the 2026-08-26 note says they are.",
+                          "⚠ WHAT THE TWO EDITIONS DO SUPPLY, AND IT IS ALL TEXT. (1) The 2006 revision carries a NOTICE OF DISCONTINUANCE -- the film 'will be dropped from the portfolio by year-end 2006 as supplies run out' -- with a substitution table that is the source of `_CONVERSION_FILTER_LOSS`'s 80A and 80B rows: 160NC/160VC, 400NC/400VC and 800 rated 40/100/200 through an 80A and 50/125/250 through an 80B, three speeds agreeing on one filter factor each. (2) Both printings carry the four-source EXPOSURE table, which is where the 81A (1/3 stop) and 82C (2/3 stop) rows come from and which supplies a NINTH independent instance of the No. 85 family's common 2/3 stop (EI 100 at 3200 K becomes 64 in daylight through an 85B). (3) The two printings' EI table, Print Grain Index tables and Status M aim densities are IDENTICAL entry for entry across six years, so no measured value on this sheet was ever revised. (4) The recommended print materials DO differ and record a paper succession: PORTRA/SUPRA/ULTRA Papers, VERICOLOR Print and Slide Film and DURATRANS/DURACLEAR in 2000, against the ENDURA family and DURAFLEX Plus in 2006.",),
     "KODAK_PRO_100T_PRT": ("KODAK Pro 100T Film / PRT, publication E-29, April 1999, Eastman Kodak Company",
                            "GROUNDS, field by field. CHARACTERISTIC CURVES [T1]: traced from the p4 panel (Status M, Log H Ref = -0.86) -- dmin 0.2145/0.6337/0.8850 and gamma 0.5584/0.6218/0.6570, fit rms 0.0066/0.0071/0.0133 D over logE -2.86..+0.94. The panel draws NO shoulder, so shoulder_x is carried from KODAK_PORTRA_100T and Dmax follows from it. SPECTRAL DYE DENSITY [T1]: the p4 midscale-neutral / minimum-density pair, 5 nm over 450-700 nm, 51 samples, peaks 1.616 and 0.869 D at 450 nm. PRINT GRAIN INDEX [T1]: p3, 120 format <25/35/58 and sheets <25/<25/33; no 135 row exists because p1 lists the film in 120 and sheets only. RECIPROCITY [T1]: p2, five points, EI 100 to 40 across 5 to 120 s at 3200 K. EXPOSURE INDEX [T1]: ISO 100/21 tungsten-native at 3200 K, with 80/20 through an 81A on photolamps and 64/19 through an 85B on daylight or flash. BASE [T1]: 3.9-mil acetate in 120, 7-mil ESTAR in sheets. NOT PUBLISHED ANYWHERE IN E-29: any rms granularity (the sheet prints Print Grain Index instead and states the two cannot be compared), any MTF or resolving power, any Dmax or gamma as a number, any processing time or contrast-index family. The stored grain and MTF are consequently ESTIMATES by analogy to KODAK_PORTRA_100T, the replacement E-29 itself names, with rms raised 4.0 -> 4.2 on the strength of the directly comparable 120-format PGI rows.",
                            "⚠ E-29 p4's Spectral-Sensitivity panel is present and yields NOTHING: its traces are fragmented below the span filter and its three layer curves cross, which is the case a chainer decides wrongly. Refused rather than guessed -- NotFound.md section 4.9.1 carries the per-panel evidence for the whole KODAK still-film E-series batch.",),
@@ -52465,6 +53466,950 @@ _CLUMP_MEASURED_STOCKS: tuple[str, ...] = (
     "ILFORD_PAN_F", "KODAK_8374", "EASTMAN_PLUS_X_5231",
     "EASTMAN_TRI_X_5223", "ILFORD_HPS")
 
+
+# ===========================================================================
+# schema v46 (2026-09-18g): THE RANDOM-DOT / BOOLEAN GRAIN MODEL
+# ===========================================================================
+#
+# Three documents the owner supplied on 2026-09-18g, and between them they do
+# something none of the twelve granularity sources already here could: they
+# let a grain SIZE be computed from a number every stock in this file already
+# carries, with no plot to trace and no conversion chain.
+#
+#   * D. E. Fenton (Eastman Kodak), «Application of Random Dot Model to Fog
+#     Granularity Caused by High-Energy Radiation of Silver Halide Emulsions
+#     in Color Systems», 2004 International Symposium on Silver Halide
+#     Technology, pp. 41-45. The random-dot model stated as equations, applied
+#     to seven tabular emulsions.
+#   * S. Taguchi (Fuji Photo Film, Ashigara Research Labs), «Influence of dot
+#     structure on hardcopy MTF», Proc. SPIE 1253 (1990), pp. 388-397. Splits
+#     an imaging system's total spread into a GRANULAR and an OPTICAL part in
+#     quadrature, and measures both for five system classes.
+#   * A. Newson, N. Faraj, J. Delon, B. Galerne, «Realistic Film Grain
+#     Rendering», Image Processing On Line 7 (2017), pp. 165-183,
+#     doi:10.5201/ipol.2017.192. The inhomogeneous Boolean model, rendered by
+#     Monte Carlo.
+#
+# ⚠⚠ AND THE FIRST FINDING IS THAT THE FIRST AND THIRD ARE THE SAME MODEL.
+# Fenton's D = a*g*n*0.434 is the SMALL-COVERAGE LINEARISATION of Newson's
+# P(covered) = 1 - exp(-lambda*E[pi r^2]), because -log10(1-p) -> 0.4343*p as
+# p -> 0 and 0.434 IS log10(e). Ninety-one years and two disciplines apart --
+# Nutting 1913 through Bayer 1964 to Fenton 2004 on one side, stochastic
+# geometry on the other -- and the photographic literature's "random dot
+# model" is the computer-graphics literature's "Boolean model" with the
+# exponential expanded to first order. Recorded here because the two bodies of
+# work cite each other barely at all and this file now holds both.
+
+
+#: log10(e). Fenton prints it as the bare constant "0.434" in equations (1)
+#: and (2); it is there because density is base-10 and the coverage law is
+#: base-e, and nothing else.
+_RANDOM_DOT_LOG10E: float = 0.4342944819032518
+
+#: The AREA of the 48 um aperture that `GrainSpec.rms_granularity` is defined
+#: through, in square micrometres. ⚠ CIRCULAR, not square: every source in
+#: this corpus that states the aperture shape states a round one, and the
+#: difference matters -- a 48 um SQUARE would be 2304 um^2 against 1809.6, so
+#: reading it the wrong way moves a derived grain diameter by 13 %.
+_GRANULARITY_APERTURE_AREA_UM2: float = 1809.5573684677208   # pi * 24^2
+
+
+def random_dot_disk_diameter_um(rms_granularity: float,
+                                density: float = 1.0,
+                                aperture_area_um2: float | None = None,
+                                absorptance: float = 1.0,
+                                size_sigma_log: float = 0.0):
+    """The random-dot imaging-centre diameter implied by an rms granularity.
+
+    ⚠⚠ THIS IS A THIRD, INDEPENDENT GRAIN-SIZE ESTIMATOR AND IT NEEDS NO
+    DOCUMENT. Fenton's two equations are
+
+        D      = a * g * n * log10(e)
+        sigma_D = a * g * sqrt(n) * log10(e) / sqrt(A)
+
+    and dividing one by the other collapses everything unmeasurable:
+
+        sigma_D / D = 1 / sqrt(n * A)
+
+    -- pure Poisson counting of the imaging centres inside the aperture. So
+    the stored `rms_granularity`, which is sigma_D * 1000 at D = 1.0 through a
+    48 um aperture, FIXES the number of centres in that aperture, and the
+    stored density then fixes their area-absorptance product a*g. With g = 1
+    the diameter follows. Nothing is traced, nothing is fitted, and the only
+    inputs are two numbers the definition of `rms_granularity` already names.
+
+    ⚠ `absorptance` IS THE ONE UNMEASURABLE. Fenton's g is the fraction of
+    light a single developed centre stops, and no source in this corpus prints
+    it for any stock. g = 1 (a perfectly opaque disk) is the DEFAULT AND THE
+    LOWER BOUND ON DIAMETER: a partly transparent centre must be larger to
+    make the same density, by 1/sqrt(g). A dye cloud is certainly not opaque,
+    so for a chromogenic stock the returned diameter is a floor.
+
+    Returns None for a non-positive granularity.
+    """
+    if rms_granularity is None or rms_granularity <= 0.0 or density <= 0.0:
+        return None
+    if aperture_area_um2 is None:
+        aperture_area_um2 = _GRANULARITY_APERTURE_AREA_UM2
+    sigma_d = rms_granularity / 1000.0
+    centres_in_aperture = (density / sigma_d) ** 2
+    n = centres_in_aperture / aperture_area_um2          # centres per um^2
+    ag = density / (_RANDOM_DOT_LOG10E * n)              # a * g, um^2
+    area = ag / max(absorptance, 1e-12)
+    # ⚠⚠ `area` IS THE MEAN PROJECTED AREA E[pi r^2], NOT pi TIMES THE SQUARE OF
+    # THE MEAN RADIUS, AND THE TWO DIFFER BY exp(sigma_ln^2). This argument was
+    # added in schema v48 under R-S4(a) and DEFAULTS TO ZERO, so every v46
+    # caller -- `G-V46-GRAINSIZE` included -- gets exactly the number it always
+    # got.
+    #
+    # It exists because the v48 count gate inverts this same relation in the
+    # other direction, and the two disagreed by exp(sigma_ln^2 / 2): 3.2 % at
+    # the corpus-typical sigma_ln 0.25, 6.3 % at 0.35. The disagreement was
+    # found by asking the counting law to reproduce the stored
+    # `rms_granularity` at net density 1.0; it returned 1.0317x instead of
+    # 1.0000x. Neither number was wrong on its own -- they were answers to two
+    # questions about the same grain, and only one of them had the dispersion
+    # in it.
+    #
+    # Supplying the dispersion makes the diameter 3-6 % SMALLER, because a
+    # dispersed population covers more area per grain and so needs fewer,
+    # larger-area grains to reach a density. The loop then closes exactly.
+    sd = max(float(size_sigma_log), 0.0)
+    if sd > 0.0:
+        area = area / math.exp(sd * sd)
+    return 2.0 * math.sqrt(area / math.pi)
+
+
+def random_dot_sigma_d(diameter_um: float, density: float,
+                       aperture_area_um2: float | None = None):
+    """Fenton's sigma_D at a stated density, from a centre diameter.
+
+    The inverse of `random_dot_disk_diameter_um`, in the same small-coverage
+    reading. ⚠ IT IS A SQUARE-ROOT LAW IN DENSITY -- Fenton's equation (3),
+    sigma_D proportional to sqrt(D) -- which is exactly the legacy law
+    `GrainSpec.sigma_shape_*` degrades to when its anchors are (0, 1, 0). See
+    `_RANDOM_DOT_VALIDITY` for where that stops being true, which is not a
+    detail: the exact Boolean form rises far FASTER than sqrt(D) above D = 1,
+    and four measured VISION3 sheets show real film turning over and FALLING
+    instead. Both departures are real and they go opposite ways.
+    """
+    if diameter_um <= 0.0 or density < 0.0:
+        return None
+    if aperture_area_um2 is None:
+        aperture_area_um2 = _GRANULARITY_APERTURE_AREA_UM2
+    a = math.pi * (diameter_um / 2.0) ** 2
+    return _RANDOM_DOT_LOG10E * math.sqrt(
+        math.log(10.0) * density * a / aperture_area_um2)
+
+
+#: ⚠⚠ WHERE THE RANDOM-DOT MODEL STOPS, IN FENTON'S OWN WORDS, AND WHY IT
+#: MATTERS TO A FIELD THIS DATABASE ALREADY CARRIES.
+#:
+#: Fenton is explicit that the simple model holds "for a sample having low
+#: density with widely spaced imaging disks" and names the two mechanisms that
+#: break it as density rises: DYE-CLOUD OVERLAP, which breaks the statistics,
+#: and COUPLER STARVATION, "the tendency for incorporated coupling systems to
+#: merge dye clouds and trend towards a uniform dye density wherever the
+#: quantity of developed silver far exceeds the quantity of dye-forming
+#: molecules". He also declines multilayers entirely -- "the multilayer system
+#: exhibits very complicated characteristics and is difficult to evaluate
+#: using the simplicity of the random dot model" -- and works in single-layer
+#: format for exactly that reason.
+#:
+#: ⚠⚠ THAT IS THE PHYSICAL EXPLANATION OF `sigma_shape_peak`, WHICH THIS FILE
+#: ADDED EMPIRICALLY AND COULD NOT ACCOUNT FOR. Integrating the EXACT Boolean
+#: covariance instead of the linearised form gives, for a 4 um centre through
+#: the 48 um aperture, sigma_D relative to its D = 1.0 value:
+#:
+#:     D        0.1    0.3    0.5    0.8    1.0    1.5    2.0    2.5    3.0
+#:     exact   0.236  0.433  0.594  0.831  1.000  1.506  2.219  3.283  4.932
+#:     sqrt D  0.316  0.548  0.707  0.894  1.000  1.225  1.414  1.581  1.732
+#:
+#: so the exact law RISES nearly five-fold by D = 3 where sqrt(D) reaches 1.73
+#: -- and the four traced KODAK VISION3 sheets measure sigma FALLING to about
+#: 0.58 of its D = 1.0 value by dmax, with an interior peak near D = 0.78.
+#: Real film therefore departs from the random-dot prediction in the OPPOSITE
+#: direction and by more than the legacy law does, and Fenton names the two
+#: mechanisms that do it. The turnover is not a modelling convenience.
+_RANDOM_DOT_VALIDITY: dict[str, object] = {
+    "valid_regime": "low density, widely spaced non-overlapping centres",
+    "breaks_by": ("dye-cloud overlap", "coupler starvation"),
+    "multilayer": "declined by the source; single-layer coatings only",
+    "linearisation_error_at_d1": 0.727,
+    "note": ("the linearised sigma_D understates the exact Boolean value by "
+             "27 % at D = 1.0, independently of centre size"),
+}
+
+#: ⚠⚠ THE RULE THAT JOINS THIS HARVEST TO THE SCANNER ONE. Fenton equation
+#: (5): independent noise populations add in QUADRATURE,
+#:
+#:     sigma_DT = sqrt(sigma_D1^2 + sigma_D2^2)
+#:
+#: so a radiation-fog contribution is recovered as the root-mean-square
+#: DIFFERENCE between an irradiated and a control sample. That is the same
+#: algebra that makes US 12,211,182's median-over-N-scans work: an observed
+#: scan carries sqrt(grain^2 + scanner^2) and removing one leaves the other.
+#: One rule, two documents, and this file now states it once.
+_NOISE_QUADRATURE_RULE: str = (
+    "independent noise populations add as the root mean square: "
+    "sigma_total = sqrt(sum(sigma_i^2)); a single population is recovered as "
+    "the root-mean-square DIFFERENCE of a total and a control")
+
+#: Fenton table 1 -- seven equally-sensitised tabular magenta-dyed
+#: green-sensitive emulsions, coated single-layer at 90 mg/ft2 silver.
+#: (ECD um, thickness um, volume um^3). ⚠ THE ASPECT RATIOS RUN 4.0 TO 22.0,
+#: which brackets JP 2004-272114 A's 25.8 from below and puts a second,
+#: independent tabular-grain geometry series in this file.
+_FENTON_EMULSIONS: tuple[tuple[float, float, float], ...] = (
+    (2.90, 0.132, 0.872),
+    (2.30, 0.132, 0.548),
+    (1.28, 0.127, 0.163),
+    (1.18, 0.121, 0.132),
+    (0.79, 0.108, 0.053),
+    (0.62, 0.111, 0.034),
+    (0.47, 0.118, 0.020),
+)
+_FENTON_COATING: dict[str, object] = {
+    "silver_mg_per_ft2": 90.0,
+    "coupler_c1_mg_per_ft2": 1.4,
+    "coupler_c2_mg_per_ft2": 75.0,
+    "gel_overcoat_mg_per_ft2": 150.0,
+    "gel_emulsion_mg_per_ft2": 160.0,
+    "gel_sublayer_mg_per_ft2": 454.0,
+    "development_min": (1.5, 3.25, 4.5),
+    "aperture_um": 48.0,
+}
+
+#: ⚠⚠ RADIATION FOG GRANULARITY FOLLOWS sqrt(DOSE), MEASURED. Fenton exposes
+#: the same seven emulsions to 0, 105 and 210 mRad of 192-Ir. Doubling the
+#: dose doubles the number of development centres n, and sigma_D goes as
+#: sqrt(n), so the ratio should be sqrt(2) = 1.4142. Over all 21 points (seven
+#: grain sizes x three development times) the MEAN MEASURED RATIO IS 1.413 --
+#: agreement to one part in 3500 on a quantity nothing in the experiment was
+#: fitted to. This is the strongest single confirmation of the random-dot
+#: model in this corpus.
+_FENTON_RADIATION: dict[str, object] = {
+    "isotope": "192-Ir",
+    "doses_mrad": (0.0, 105.0, 210.0),
+    "expected_sigma_ratio": math.sqrt(2.0),
+    "measured_sigma_ratio_mean": 1.413,
+    "points": 21,
+    "within_10_percent": "all 1:30 and 3:15 rows; only 4:30 on the smallest "
+                         "grains falls outside",
+    # ⚠ AND RADIATION FOG IS NOT ORDINARY FOG. A grain fogged by light or by
+    # sensitisation develops from a SINGLE site; a grain fogged by a
+    # high-energy photon carries MULTIPLE development sites, so it develops
+    # further and faster. Measured consequence: the sigma growth between
+    # development times collapses from 1.1-3.1x on unirradiated grains to
+    # about 1.1x on irradiated ones past 3'15", i.e. the irradiated grains are
+    # essentially fully developed by then.
+    "mechanism": "multiple development sites per grain (latent image "
+                 "dispersity), plus correlated development of several grains "
+                 "from one photon (grain yield)",
+    "dispersity_dominates": "large grains",
+    "grain_yield_dominates": "small grains",
+    "both_vanish_at": "low silver coating weight",
+    "dev_growth_ratio_unirradiated": (1.1, 3.1),
+    "dev_growth_ratio_irradiated_late": 1.1,
+}
+_FENTON_SOURCE = (
+    "David E. Fenton (Eastman Kodak Company, Rochester NY), «Application of "
+    "Random Dot Model to Fog Granularity Caused by High-Energy Radiation of "
+    "Silver Halide Emulsions in Color Systems», 2004 International Symposium "
+    "on Silver Halide Technology, pp. 41-45. 5 pages, clean text layer. Tier "
+    "T1 for the equations and the 1.413 ratio; ⚠ ITS FIGURES 3-8 ARE PLOTTED "
+    "AND UNLABELLED PER POINT, so the per-emulsion sigma values are read as "
+    "ranges (0.002-0.018 unirradiated, to 0.022 at 105 mRad and 0.032 at 210) "
+    "and no individual point is transcribed.")
+
+
+# -- Taguchi 1990: the granular and optical halves of one spread -------------
+#
+# ⚠⚠ THE PAPER'S METHOD IS A SUBTRACTION THIS DATABASE COULD ALREADY PERFORM
+# AND NEVER HAD. Taguchi exposes a film twice: once by contact with a
+# sinusoidal chart in visible light, which gives the ordinary MTF with light
+# scattering, development effects and granular structure all in it; and once
+# through a ~2 um platinum/iridium slit with SOFT X-RAYS, which have no
+# scattering in the emulsion, at a slit width narrow enough that development
+# inhibition is negligible too. What is left in the second image is the line
+# spread of the GRANULAR STRUCTURE alone, which he names the "pixelar" spread.
+#
+# Then, assuming both spreads Gaussian, Schade's additivity rule separates
+# them: sigma_T^2 = sigma_p^2 + sigma_o^2, so sigma_o = sqrt(sigma_T^2 -
+# sigma_p^2). Plotting one against the other classifies a system as
+# PIXELAR-DETERMINED (below the unit-slope line) or OPTICAL-DETERMINED (above
+# it). ⚠ HIS RESULT FOR FILM IS THE ONE THIS DATABASE CAN BE TESTED AGAINST:
+# "for AgX photographic negative films, either color or monochromatic, the
+# dominant factor for image spread is OPTICAL", while the CCD camera and the
+# offset print of his day were pixelar.
+
+#: sigma of a Gaussian spread from the spatial frequency at 61 % response.
+#: Taguchi equation (1): sigma = 1/(2 pi nu_61). The 61 % is not a convention
+#: -- a Gaussian MTF exp(-2 pi^2 sigma^2 nu^2) equals exp(-1/2) = 0.6065 at
+#: exactly nu = 1/(2 pi sigma), so that frequency reads sigma off directly.
+#: ⚠ THIS DATABASE STORES f50, NOT nu_61, and the conversion is a fixed ratio:
+#: f50 / nu_61 = sqrt(2 ln 2) = 1.17741. Hence the constant below.
+#: sigma[um] = _TAGUCHI_F50_TO_SIGMA_UM / f50[cycles/mm]. The value is
+#: 1000 * sqrt(ln 2 / (2 pi^2)), i.e. f50 expressed as a Gaussian sigma and
+#: converted from millimetres to micrometres.
+_TAGUCHI_F50_TO_SIGMA_UM: float = 187.3906251292776
+#: f50 / nu_61 = sqrt(2 ln 2), exactly.
+_TAGUCHI_F50_OVER_NU61: float = 1.1774100225154747
+
+#: Taguchi equation (5): the granular half of the spread is HALF THE MEAN
+#: GRAIN DIAMETER. He states it as an approximation adopted "for the purpose
+#: of order estimation", and uses the same half-the-imaging-unit rule on a
+#: photoresist oligomer (50 A molecule -> sigma_p 25 A) and on a CCD (three
+#: pixels per grey -> sigma_p = 1/2 * 3 * pixel pitch).
+_TAGUCHI_SIGMA_P_OVER_DIAMETER: float = 0.5
+#: Equation (4): the total spread from a resolving power, sigma_T = 1/(2 R_T).
+_TAGUCHI_SIGMA_T_FROM_RESOLVING: str = "sigma_T = 1 / (2 * R_T)"
+#: Equation (8): sigma read off an edge profile as the distance between the
+#: points at (Dmax - Dmin) * 0.341 either side -- 34.1 % being one standard
+#: deviation of a Gaussian, so this is a ruler measurement of sigma.
+_TAGUCHI_EDGE_FRACTION: float = 0.341
+
+
+def taguchi_spread_split(f50_cycles_per_mm: float, grain_diameter_um: float):
+    """(sigma_T, sigma_p, sigma_o) in micrometres, or None if inconsistent.
+
+    Schade additivity under a Gaussian assumption, as Taguchi applies it:
+    the total spread comes from the MTF, the granular ("pixelar") spread is
+    half the mean grain diameter, and the optical remainder is whatever is
+    left in quadrature.
+
+    ⚠⚠ RETURNS None WHEN sigma_p >= sigma_T, AND THAT IS THE USEFUL CASE. A
+    granular spread that already exceeds the total spread is not a small
+    error, it is an impossibility: the film would have to be sharper than its
+    own grain. Whenever this happens the stored f50 and the stored grain size
+    are describing different films, and the caller should be told rather than
+    handed a NaN or a clamped zero.
+    """
+    if f50_cycles_per_mm <= 0.0 or grain_diameter_um <= 0.0:
+        return None
+    sigma_t = _TAGUCHI_F50_TO_SIGMA_UM / f50_cycles_per_mm
+    sigma_p = _TAGUCHI_SIGMA_P_OVER_DIAMETER * grain_diameter_um
+    if sigma_p >= sigma_t:
+        return None
+    return (sigma_t, sigma_p, math.sqrt(sigma_t * sigma_t - sigma_p * sigma_p))
+
+
+#: Taguchi figure 6's five system classes, as he measures them. ⚠ THE FILM
+#: ROWS ARE THE CHECK AND THE OTHERS ARE THE SCALE: a system is only
+#: "optical-determined" relative to something, and these give the range over
+#: which the classification means anything -- eleven orders of magnitude of
+#: imaging-unit size, from a 50 angstrom photoresist oligomer to a 70 um CCD
+#: photosite triple.
+#: name -> (sigma_T um, sigma_p um, sigma_o um, which dominates)
+_TAGUCHI_SYSTEMS: dict[str, tuple[float, float, float, str]] = {
+    # 380,000-pixel single-chip CCD + dye-diffusion thermal transfer print,
+    # nu_61 = 0.69 c/mm on a print 3.1x the 35 mm frame; sigma_p = (1/2) *
+    # (36/770) * 3 mm, the factor 3 because three photosites make one grey.
+    "electronic_still_camera": (74.4, 70.3, 24.4, "pixelar"),
+    # Positive photoresist, g-line, 0.48 NA: resolution limit 0.45 um so
+    # sigma_T = 0.225 um; the oligomer is ~50 angstrom so sigma_p = 25 A.
+    "photoresist_g_line": (0.225, 0.0025, 0.22499, "pixelar"),
+}
+#: Offset print: the pixel is the ROSETTE moire, whose diameter is sqrt(2)
+#: times the dot pitch, and the dot pitch follows from the halftone line
+#: number as P = 25400/N um. So sigma_p' >= 18000/N um -- a floor, because a
+#: real print adds ink spread and dot-position jitter on top.
+_TAGUCHI_OFFSET_SIGMA_P_FLOOR: str = "sigma_p >= 18000 / N um, N = lines/inch"
+_TAGUCHI_OFFSET_DOT_PITCH: str = "P = 25400 / N um"
+
+#: ⚠ THE LOWER LIMIT OF THE SILVER-HALIDE SYSTEM, measured. Fuji UHM Plate,
+#: 0.055 um mean grain, D-19 at 22 C for 2 min: 1300 lines/mm by a reversed-
+#: microscope resolving-power meter, and MORE THAN 5000 line pairs/mm by
+#: Lippmann holographic recording with two counter-propagating coherent
+#: beams. ⚠ THE TWO NUMBERS DISAGREE BY FOUR TIMES AND BOTH ARE RIGHT: the
+#: first is what an imaging system can deliver onto the plate, the second is
+#: what the plate itself can hold. A resolving power is a property of a
+#: measurement chain, which is the same lesson queue P72 drew from Ooue.
+_TAGUCHI_UHM_PLATE: dict[str, float] = {
+    "grain_um": 0.055,
+    "resolving_lines_per_mm_optical": 1300.0,
+    "resolving_line_pairs_per_mm_holographic": 5000.0,
+    "developer": "D-19",
+    "temp_c": 22.0,
+    "time_min": 2.0,
+    "exposure_centre_nm": 435.0,
+}
+
+_TAGUCHI_CONDITIONS: dict[str, object] = {
+    "films": ("Fujicolor Super HR 100", "Fujicolor Super HR 1600"),
+    "chart_cycles_per_mm": (0.1, 60.0),
+    "light_source_k": 5500.0,
+    "microdensitometer": "Perkin Elmer PDS 10",
+    "measuring_slit_um": (0.5, 200.0),
+    "filter": "visual",
+    "xray_target": "tungsten",
+    "xray_kv": 30.0,
+    "xray_ma": 3.0,
+    "slit_material": "platinum/iridium alloy",
+    "slit_width_um": 2.0,
+    "exposure_distance_mm": 600.0,
+    "sections_averaged": 4,
+    "why_soft_xray": ("light scattering in the emulsion is eliminated, and a "
+                      "slit narrow enough to be past the peak-density point "
+                      "makes development inhibition negligible too, so the "
+                      "profile that remains IS the granular line spread"),
+}
+_TAGUCHI_SOURCE = (
+    "Sei-ichi Taguchi (Ashigara Research Laboratories, Fuji Photo Film Co.), "
+    "«Influence of dot structure on hardcopy MTF», SPIE vol. 1253, Hard Copy "
+    "and Printing Materials, Media, and Process (1990), pp. 388-397. 10 "
+    "pages, clean text layer. Tier T1 for the equations, the conditions and "
+    "the five system classifications; ⚠ FIGURES 3, 5, 6 AND 9 ARE PLOTS WITH "
+    "NO PRINTED TABLE, so the Super HR 100 and 1600 MTF curves themselves are "
+    "NOT transcribed -- what is stored is the method and the systems whose "
+    "sigma values the running text prints as numbers.")
+
+
+# -- Newson et al. 2017: the Boolean model, exactly ---------------------------
+
+#: The coverage law. P(a point is covered) = 1 - exp(-lambda * E[pi r^2]),
+#: with E[pi r^2] = pi * (mu_r^2 + sigma_r^2) for i.i.d. radii. ⚠ THIS IS THE
+#: EXACT FORM OF WHICH FENTON'S D = 0.434 * a * g * n IS THE FIRST-ORDER
+#: EXPANSION; see the block heading.
+def boolean_mean_grain_area(mu_r: float, sigma_r: float = 0.0) -> float:
+    """E[pi r^2] for i.i.d. radii of mean mu_r and standard deviation sigma_r."""
+    return math.pi * (mu_r * mu_r + sigma_r * sigma_r)
+
+
+def boolean_lambda(grey_level: float, mu_r: float,
+                   sigma_r: float = 0.0, epsilon: float = 0.1 / 256.0):
+    """Newson equation (2): the Poisson intensity that renders a grey level.
+
+    ⚠ THE INPUT IS NORMALISED TO [0, 1) AND NOT TO [0, 1], which is not
+    fastidiousness: at coverage 1 the intensity is infinite, so the paper
+    divides by (umax + epsilon) rather than umax. `epsilon` defaults to the
+    paper's own "0.1 gray-levels" on an 8-bit input.
+
+    Returns None for a grey level at or above 1 - epsilon, rather than
+    returning an infinity a renderer would then have to special-case.
+    """
+    u = float(grey_level) / (1.0 + epsilon)
+    if not (0.0 <= u < 1.0):
+        return None
+    return math.log(1.0 / (1.0 - u)) / boolean_mean_grain_area(mu_r, sigma_r)
+
+
+def boolean_coverage(lam: float, mu_r: float, sigma_r: float = 0.0) -> float:
+    """Newson equation (1): the covered fraction at Poisson intensity `lam`."""
+    return 1.0 - math.exp(-lam * boolean_mean_grain_area(mu_r, sigma_r))
+
+
+#: ⚠⚠ THE BOOLEAN MODEL'S COVARIANCE HAS COMPACT SUPPORT OF EXACTLY ONE GRAIN
+#: DIAMETER, AND THAT IS AN ARGUMENT ABOUT `GrainSpec.clump_gain`.
+#:
+#: For a Boolean model of disks of radius r the two-point covariance is
+#:     C(h) = (1 - p)^2 * (exp(lambda * A_bar(h)) - 1)
+#: where A_bar(h) is the mean area of the intersection of a grain with its own
+#: translate by h. For disks that intersection is IDENTICALLY ZERO at h >= 2r,
+#: so C(h) is identically zero beyond one grain diameter. A Boolean model
+#: cannot produce ANY long-range correlation, at any intensity, with any
+#: radius distribution of bounded support.
+#:
+#: ⚠ AND BBC REPORT T-101 SAYS THE SAME THING ABOUT REAL FILM, IN WORDS: grain
+#: correlation is "substantially confined to about plus or minus one
+#: equivalent grain diameter". Two completely independent statements -- one a
+#: theorem about the model, one a measurement on six emulsions -- and they
+#: give the same number.
+#:
+#: ⚠⚠ THE ENGINE'S `clump_gain` LOBE IS EXACTLY SUCH A LONG-RANGE
+#: CORRELATION. `grain_shape` adds a Gaussian lobe at f_lo = f_hi / 6, a
+#: correlation length SIX TIMES the grain scale, so a non-zero `clump_gain`
+#: is a deliberate departure from the Boolean model and not an approximation
+#: within it. This is now the THIRD independent statement pointing the same
+#: way: a free two-parameter fit to ILFORD_HPS's measured Wiener spectrum
+#: drove the gain to exactly 0.000, T-101 states there is no long-range
+#: component, and the Boolean model says one is not producible.
+#: ⚠ IT IS STILL NOT ZEROED ON THE OTHER 186 STOCKS, for the reason
+#: `_CLUMP_MEASURED_STOCKS` gives: Takano 1968 MEASURES a secondary aggregate
+#: at 5-8x the grain, which is a long-range correlation, and method rule 4
+#: says record a conflict rather than pick a winner.
+_BOOLEAN_COVARIANCE_SUPPORT_DIAMETERS: float = 1.0
+_BOOLEAN_NO_LONG_RANGE_LOBE: str = (
+    "a Boolean model of bounded grains has covariance identically zero beyond "
+    "one grain diameter, so it cannot produce a low-frequency lobe; "
+    "GrainSpec.clump_gain is therefore a departure from the model, "
+    "corroborated as ~0 by ILFORD_HPS's measured Wiener spectrum and by BBC "
+    "T-101, and contradicted by Takano 1968's measured 5-8x aggregate")
+
+#: The paper's fixed parameters and defaults, as published.
+_BOOLEAN_RENDER_DEFAULTS: dict[str, object] = {
+    "filter_sigma_output_px": 0.8,
+    "radius_quantile": 0.999,           # rm = p_{1-alpha}, alpha = 0.001
+    "cell_size_rule": "delta = 1 / ceil(1 / mu_r)",
+    "radius_distribution": ("constant", "log-normal"),
+    "epsilon_gray_levels": 0.1,
+    "monte_carlo_offsets": ("drawn once and reused for every output pixel, "
+                            "to avoid drawing random numbers per pixel"),
+    "lambda_precompute": "one lambda per possible grey level (256 in general)",
+    "colour": ("applied independently per channel; the paper calls this a "
+               "good approximation because each layer's crystals respond to "
+               "their own waveband"),
+    "swept_mu_r": (0.03, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3),
+    "swept_sigma_over_mu": (0.1, 0.9),
+}
+
+#: Time complexity of the two implementations, and the crossover. ⚠ THE
+#: CHOICE IS NOT THEORETICAL IN THE PUBLISHED CODE: the analysis predicts
+#: pixel-wise wins whenever sigma_r < mu_r, and the measured timings put the
+#: grain-wise crossover at a significantly lower sigma_r than that, so the
+#: released implementation selects between them from an empirical map.
+_BOOLEAN_COMPLEXITY: dict[str, str] = {
+    "grain_wise": "C0 = m n N * 4 log2 / (pi (mu_r^2 + sigma_r^2))",
+    "pixel_wise": ("C1 = m n N (2 floor(p_{1-a}/mu_r) + 1)^2 * mu_r^2 log2 / "
+                   "(pi (mu_r^2 + sigma_r^2))"),
+    "crossover": "grain-wise is faster when 2/mu_r < 2 floor(p_{1-a}/mu_r) + 1",
+    "quantile_bound": "p_{1-a}/mu_r <= sqrt((sigma_r^2/mu_r^2 + 1)/a)",
+    "selection": "empirical map from a 20-image timing sweep, not the formula",
+}
+#: Published timings and the memory figure that motivates both implementations.
+_BOOLEAN_COST: dict[str, object] = {
+    "timing_512px_grey128_s": {"grain_wise": 40.0, "pixel_wise": 2.4},
+    "parallelised": True,
+    "naive_storage_gb": 35.0,
+    "naive_storage_case": ("2048 x 2048 at constant grey 128 with r = 1/40, "
+                           "single-precision centres and radii"),
+    "not_real_time": True,
+}
+#: ⚠ THE PAPER'S OWN LIMITATIONS, recorded because two of them are limitations
+#: of THIS engine as well and one is not.
+_BOOLEAN_LIMITATIONS: tuple[str, ...] = (
+    "some emulsions cannot be imitated at all -- the worked failure is ILFORD "
+    "DELTA 3200, whose grain reads as WHITE rather than dark, which a model "
+    "whose grains are opaque disks on a clear ground cannot produce",
+    "dark areas hold few grains and look unrealistic, which is the regime "
+    "where a Gaussian noise field is also least defensible",
+    "far from real time",
+)
+_BOOLEAN_SOURCE = (
+    "Alasdair Newson, Noura Faraj, Julie Delon, Bruno Galerne, «Realistic "
+    "Film Grain Rendering», Image Processing On Line 7 (2017), pp. 165-183, "
+    "doi:10.5201/ipol.2017.192, ISSN 2105-1232, CC-BY-NC-SA. 19 pages, clean "
+    "text layer, C++ reference implementation and online demo published with "
+    "it. The underlying model is Newson, Galerne and Delon, «Stochastic "
+    "modelling and realistic rendering of film grain», tech. report, "
+    "Laboratoire MAP5, Universite Paris Descartes, 2016.")
+
+
+# -- the reconciliation, which is the point of harvesting all three ----------
+#
+# ⚠⚠ THE RANDOM-DOT INVERSION AGREES WITH THE FIVE MEASURED `clump_um` VALUES
+# AND SAYS THE OTHER 186 ARE ABOUT FIVE TIMES TOO LARGE.
+#
+# `random_dot_disk_diameter_um` above computes a grain size from
+# `rms_granularity` alone. Run over this database it gives 0.189 to 2.824 um,
+# median 0.728 -- inside BOTH independent measured bands already on file, BBC
+# T-101's printed 0.59-1.43 um and Takano 1968's derived 0.50-1.36 um.
+#
+# Compared with the stored `clump_um_g`, stock by stock:
+#
+#     the five C45-EXEMPT stocks, whose clump_um is MEASURED from T-101:
+#         ILFORD_HPS          0.98      EASTMAN_TRI_X_5223   0.99
+#         EASTMAN_PLUS_X_5231 1.14      KODAK_8374           1.52
+#         ILFORD_PAN_F        1.80                    median 1.14
+#     the 186 ESTIMATED stocks:        median 5.64, quartiles 4.43 - 7.12
+#
+# ⚠⚠ THE MEASURED FIVE LAND ON UNITY AND THE ESTIMATED 186 LAND FIVE TIMES
+# AWAY, which is not a spread -- the two populations do not overlap at the
+# quartile. Queue C45 divided every estimated value by 3.1 on 2026-09-03 using
+# Ooue's three measured Wiener spectra as its anchor, and this is a FOURTH
+# source, reached by a route that touches no spectrum at all, saying the same
+# thing again and putting the residual factor at 4.95.
+#
+# ⚠⚠ AND IT IS NOT APPLIED HERE. C45's own record says the owner owns that
+# decision, and it is the right precedent: dividing 186 stocks' clump_um again
+# would move every render those stocks produce. What this block does is make
+# the finding CHECKABLE -- the estimator is a function, the agreement on the
+# measured five is a guard, and the factor is a stored number rather than a
+# paragraph. The day the owner rules on it, the arithmetic is one line.
+_RANDOM_DOT_VS_CLUMP: dict[str, object] = {
+    "measured_stock_ratio_median": 1.14,
+    "measured_stock_ratio_range": (0.98, 1.80),
+    "estimated_stock_ratio_median": 5.64,
+    "estimated_stock_ratio_quartiles": (4.43, 7.12),
+    "residual_factor": 4.95,
+    "already_applied_c45": _CLUMP_RESCALE_C45_2026_09_03,
+    # ⚠⚠ THE OWNER DECISION WAS TAKEN ON 2026-09-19 AND IT WAS NEITHER OF THE
+    # TWO THIS BLOCK ANTICIPATED. The block above framed the choice as "divide
+    # the 186 estimated clump_um again, or do not". Both answers are wrong,
+    # because they treat one field as holding two different physical
+    # quantities. Schema v48 keeps `clump_um_*` EXACTLY as it stands -- it is
+    # the correlation-length parameter of the legacy Gaussian spectrum and it
+    # still renders that spectrum unchanged -- and adds `grain_um_*` beside it
+    # for the physical developed diameter, taken from the inversion rather than
+    # from any factor. So `applied` stays False and always will: nothing was
+    # ever rescaled. What changed is that the derived quantity now has its own
+    # field, its own five measured anchors, and its own consumer.
+    "applied": False,
+    "owner_decision": True,
+    "owner_decision_taken": "2026-09-19",
+    "owner_decision_outcome": (
+        "neither rescale nor refuse: schema v48 adds GrainSpec.grain_um_* as a "
+        "separate field from the random-dot inversion, leaves clump_um_* "
+        "untouched, and lets RenderSettings.spectrum_model choose which "
+        "quantity the render consumes (FGS-DDS-001 Rev. A, changes C3/C4/C10)"),
+    "corroborating_bands_um": {
+        "random_dot_inversion": (0.189, 2.824),
+        "bbc_t101_printed": (0.59, 1.43),
+        "takano_1968_derived": (0.50, 1.36),
+    },
+}
+
+#: ⚠⚠ THE SECOND TEST, AND IT IS INDEPENDENT OF THE FIRST. Taguchi reports
+#: that AgX negatives, colour and monochrome alike, are OPTICAL-determined
+#: (sigma_o > sigma_p). Run `taguchi_spread_split` over this database:
+#:
+#:     with sigma_p = clump_um / 2    165 of 187 optical-dominant (88 %),
+#:                                    and FOUR stocks are IMPOSSIBLE --
+#:                                    sigma_p exceeds sigma_T outright
+#:     with sigma_p = d_eq / 2        191 of 191 optical-dominant (100 %)
+#:
+#: The four impossible ones are KODAK_ROYAL_X_PAN_4166, KODAK_TMAX_100,
+#: KODAK_TMAX_400 and KODAK_TMAX_P3200 -- every one of them a stock whose f50
+#: is high for its stored grain. Under the random-dot diameter the
+#: impossibility disappears and the corpus reproduces Taguchi's published
+#: classification exactly, on 191 stocks he never saw.
+_TAGUCHI_OPTICAL_DOMINANT_EXPECTED: str = (
+    "AgX photographic negative films, colour and monochrome, are "
+    "optical-spread determined: sigma_o > sigma_p")
+_TAGUCHI_IMPOSSIBLE_UNDER_CLUMP: tuple[str, ...] = (
+    "KODAK_ROYAL_X_PAN_4166", "KODAK_TMAX_100", "KODAK_TMAX_400",
+    "KODAK_TMAX_P3200")
+
+
+# ===========================================================================
+# schema v47 (2026-09-18h): E-6 REVERSAL COLOUR REPRODUCTION, MEASURED
+# ===========================================================================
+#
+# Elias Kreyenbühl, «Chromatic Divide. Von der Farbigwerdung medialer
+# Repräsentation am Beispiel der Fotografie», Dissertation, Philosophisch-
+# Historische Fakultät der Universität Basel, 2018, §2.4-2.5 (pp. 64-110).
+# ⚠ A HUMANITIES DISSERTATION WITH A REAL COLORIMETRIC EXPERIMENT IN IT, and
+# the reason to take the experiment seriously is on its title page: the second
+# referee is **Prof. Dr. Rudolf Gschwind**, of the Basel Imaging and Media Lab,
+# whose own colour-reproduction model this file already needed and did not
+# have (see `_GSCHWIND_MODEL` below).
+#
+# ⚠⚠ WHAT MAKES IT USABLE IS THE CONTROL, WHICH IS TIGHTER THAN MOST VENDOR
+# DATA IN THIS CORPUS. One camera (Rollei medium format, Schneider 80 mm
+# macro), one light source (Bron flash), one chart (X-Rite ColorChecker SG,
+# 140 pigment patches), and -- the part that matters -- **every film developed
+# on the SAME DAY in the SAME E-6 bath**, after the author had compared
+# several labs and found they differed. Capture is calibrated to each film's
+# own IT-8 target (ISO 12640) through an ICC profile, so the measurement is of
+# the film and not of the scanner. Exposure series in 0.1 EV steps; the frame
+# used is the one whose grey patch F5 lands nearest the all-film mean
+# **L* = 68.4 ± 6.6** (the chart's own target is L* = 80 -- a reversal film
+# must be exposed darker).
+
+
+#: The seven ColorChecker SG patches the experiment uses, with the chart's own
+#: aim values. `patch -> (SG cell, name, L*, a*, b*)`.
+_CCSG_TEST_PATCHES: dict[int, tuple[str, str, float, float, float]] = {
+    20: ("F2", "light skin",     66.0,  18.0,  18.0),
+    21: ("G2", "blue sky",       50.0,  -4.0, -22.0),
+    34: ("F3", "purplish blue",  40.0,  10.0, -45.0),
+    38: ("J3", "orange yellow",  72.0,  19.0,  68.0),
+    47: ("E4", "blue",           29.0,  15.0, -50.0),
+    48: ("F4", "green",          55.0, -38.0,  32.0),
+    62: ("F5", "light grey",     81.0,  -1.0,   0.0),
+}
+_CCSG_PATCH_ORDER: tuple[int, ...] = (20, 21, 34, 38, 47, 48, 62)
+
+#: The seven test subjects, and which profile in this database each one is.
+#: ⚠ THREE OF THE SIX FILMS ARE STOCKS THIS FILE HOLDS and three are not:
+#: Ektachrome EPP and VS have no profile, and ASTIA WAS DEVELOPED AND
+#: MEASURED BUT IS NOT PLOTTED IN EITHER SUMMARY FIGURE, so it contributes
+#: nothing here. ⚠ "Fuji Provia 100" is mapped to FUJI_PROVIA_100F with the
+#: caveat recorded rather than hidden: the thesis names the film without the
+#: F suffix and the corpus holds only the F.
+_KREYENBUEHL_SUBJECTS: dict[str, tuple[str, str, str]] = {
+    "Ekta":   ("Kodak Ektachrome EPP", "E-6",  ""),
+    "EktaVS": ("Kodak Ektachrome VS",  "E-6",  ""),
+    "Provia": ("Fuji Provia 100",      "E-6",  "FUJI_PROVIA_100F"),
+    "Astia":  ("Fuji Astia",           "E-6",  ""),
+    "Velvia": ("Fuji Velvia 50",       "E-6",  "FUJI_VELVIA_50"),
+    "KR64":   ("Kodachrome 64",        "K-14", "KODACHROME_64"),
+    "D3":     ("Nikon D3, uncalibrated", "digital", ""),
+}
+_KREYENBUEHL_E6_SET: tuple[str, ...] = ("Ekta", "EktaVS", "Provia", "Velvia")
+_KREYENBUEHL_ASTIA_NOT_PLOTTED: bool = True
+
+#: ⚠⚠ ΔC, FIGURE 41 -- TRACED, NOT TRANSCRIBED. The thesis prints these as a
+#: line plot with no table, so the values below are read off the embedded
+#: 1272x989 raster by nearest-legend-colour classification and morphological
+#: marker isolation, with the ordinate calibrated on the printed +40 / 0 / -40
+#: rules. ⚠ THE TRACE IS CHECKED AGAINST THE AUTHOR'S OWN PROSE, which is the
+#: only independent check available and which it passes on four statements:
+#:   * "die erste Farbe wird von allen Filmen fast ohne Abweichung in der
+#:     Sättigung wiedergegeben"  -> patch 20 reads -4.8..+3.4 on every film
+#:   * "geben das Himmelblau blauer wieder"  -> patch 21 positive on all four
+#:     E-6 films, and Kodachrome (+0.4) is the exception the text names
+#:   * "beim Gelb haben alle Filme Mühe ... sogar die Digitalkamera ist ein
+#:     Quäntchen zu blass"  -> patch 38 negative on all SEVEN, D3 at -3.0
+#:   * "sogar Velvia nicht"  -> patch 48 negative on every film including
+#:     Velvia (-22.2), and positive only on the digital camera (+5.6)
+#: film -> ΔC at patches 20/21/34/38/47/48/62. None = the marker is occluded.
+_KREYENBUEHL_DELTA_C: dict[str, tuple[float | None, ...]] = {
+    "Ekta":   (-4.8, 15.9,  8.0, -21.9,  -2.8, -16.7, 10.0),
+    "EktaVS": (-3.9, 12.6,  3.4, -13.9,  -0.6, -13.2,  5.5),
+    "Provia": (-1.1, None,  1.4, -24.6,  -5.3, -24.1,  6.9),
+    "Velvia": ( 3.4, 20.2,  9.6, -18.7, -14.0, -22.2, 14.2),
+    "KR64":   (None,  0.4, -13.3, -30.2, -27.6, -27.5,  8.2),
+    "D3":     (-2.8,  4.6,  0.4,  -3.0,  -1.2,   5.6,  0.6),
+}
+
+#: ⚠ |ΔH|, FIGURE 42, traced the same way from a 1233x978 JPEG, ordinate
+#: calibrated on the plot frame (0 and 20) and validated on the 5 and 10
+#: gridlines. The legend reads "|Delta-Hue|", so every value is an absolute
+#: difference and none can be negative.
+#: ⚠⚠ THE UNIT IS NOT PRINTED AND IS NOT RECONCILABLE WITH THE PROSE. The
+#: ordinate is labelled only "ΔH"; the running text separately says the skin
+#: patch's reference hue is 45° and that the films sit "bei etwa 42°". A 3°
+#: hue shift at chroma 25 is ΔH* ≈ 1.3, and this figure reads 14-19 at that
+#: patch, so the two cannot both be CIE ΔH*. Recorded as unresolved rather
+#: than converted; the ORDERING and the SHAPE are what is used below.
+#: ⚠ Ekta at patch 47 is REFUSED: the reader latched onto a line crossing and
+#: returned 11.5 where the plotted marker sits near 6.5. Stored as None.
+_KREYENBUEHL_DELTA_H: dict[str, tuple[float | None, ...]] = {
+    "Ekta":   (14.1,  8.2, 4.5, 2.6, None, 5.9, 1.4),
+    "EktaVS": (10.1,  8.0, 3.8, 2.9,  7.4, 5.6, 0.9),
+    "Provia": (18.8, 10.0, 4.0, 1.3,  6.2, 5.1, None),
+    "Velvia": (14.6, 13.2, 9.9, 6.5,  6.4, 6.5, 1.7),
+    "KR64":   ( 6.5,  4.6, 1.7, 9.0,  0.4, 4.1, None),
+    "D3":     ( 3.1,  3.3, 7.4, 1.7,  4.4, 2.6, 0.6),
+}
+_KREYENBUEHL_DELTA_H_UNIT_UNSTATED: bool = True
+
+#: ⚠⚠ THE CLASS SIGNATURE, WHICH IS THIS HARVEST'S REAL YIELD AND WHICH THE
+#: THESIS ONLY CLAIMS BY EYE. Its sentence is "die vier 'normalen' Farbdia-
+#: filme mit E-6 Entwicklung [verlaufen] parallel zueinander" -- the same
+#: colours are over- or under-saturated on all of them, whoever made them --
+#: with Kodachrome and the digital camera as the two outliers. Computed from
+#: the traced tables above, that claim is a number and it holds:
+#:
+#:              rms about the four-film E-6 class mean     pairwise r (E-6)
+#:     ΔC       Ekta 2.24  EktaVS 4.33  Provia 3.46         min 0.906
+#:              Velvia 4.82   |  KR64 14.55  D3 12.79       median 0.941
+#:     |ΔH|     Ekta 0.86  EktaVS 1.92  Provia 2.10         min 0.810
+#:              Velvia 2.42  |  KR64 5.46   D3 5.24         median 0.894
+#:
+#: The four E-6 films sit 2.2-4.8 ΔC units from their shared mean; Kodachrome
+#: and the digital camera sit 12.8-14.6 away -- THREE TO SIX TIMES FURTHER --
+#: and the same ordering holds in hue at 2.3 to 6.3 times.
+#:
+#: ⚠⚠ AND THE CORRELATIONS SPLIT CHROMA FROM HUE, WHICH THE THESIS DOES NOT
+#: NOTICE. Against the E-6 class mean, Kodachrome correlates at **r = 0.840
+#: median in ΔC** but at **r = 0.075 median in |ΔH|**: it shares the
+#: saturation signature of photographic film and shares NONE of the hue
+#: signature. The digital camera shares neither (0.192 and 0.224). So what is
+#: common to colour reversal film is WHICH COLOURS IT CANNOT SATURATE, and
+#: what is process-specific is WHICH WAY THE HUE GOES -- and K-14 is a
+#: different process.
+#:
+#: ⚠ THIS DATABASE HAS NO CARRIER FOR A CLASS-LEVEL COLOUR SIGNATURE. Colour
+#: reproduction here is per-stock, through `SpectralSensitivity`,
+#: `SpectralDyeDensity`, `DyeImpurity` and `InterimageSpec`; nothing expresses
+#: "all E-6 reversal films do this". The constants below are that statement,
+#: stored so it can be checked, and NOT wired into the render.
+_E6_CLASS_DELTA_C_MEAN: tuple[float, ...] = (-1.6, 16.2, 5.6, -19.8, -5.7,
+                                             -19.0, 9.1)
+_E6_CLASS_DELTA_H_MEAN: tuple[float, ...] = (14.4, 9.8, 5.6, 3.3, 6.7, 5.8,
+                                             1.3)
+_E6_CLASS_SCATTER_RMS: dict[str, tuple[float, float]] = {
+    # film -> (rms about the class mean in ΔC, in |ΔH|)
+    "Ekta": (2.24, 0.86), "EktaVS": (4.33, 1.92),
+    "Provia": (3.46, 2.10), "Velvia": (4.82, 2.42),
+    "KR64": (14.55, 5.46), "D3": (12.79, 5.24),
+}
+_E6_CLASS_CORRELATION: dict[str, tuple[float, float]] = {
+    # outsider -> (median r against the four E-6 in ΔC, in |ΔH|)
+    "KR64": (0.840, 0.075), "D3": (0.192, 0.224),
+}
+
+#: ⚠⚠ NEUTRALS ARE NOT NEUTRAL ON REVERSAL FILM, AND THE DIRECTION IS
+#: UNANIMOUS. Every film measured shows a positive a* and a NEGATIVE b* --
+#: "kein einziger Film wies eine Abweichung Richtung gelb und grün auf" -- for
+#: a blue-violet cast reaching **ΔE ≈ 20 in the mid-tones**. The author
+#: controlled for the lab: several were tried, Studio 13 Zürich was the best
+#: and Fujifilm Schweiz comparable, and the others were WORSE, so the cast is
+#: not one bath.
+#:
+#: ⚠⚠ HE LEAVES THE CAUSE OPEN AND SO DOES THIS FILE. His own candidates are
+#: (a) a genuine characteristic of the medium, (b) a fault somewhere in the
+#: manufacturing chain, and (c) a deliberate cooling to offset the warm light
+#: of a slide projector -- which he then argues against, because Fuji's own
+#: data sheet requires viewing under a D50 source at 1400 cd/m2 per ISO 3664.
+#:
+#: ⚠⚠ A FOURTH CANDIDATE HE DOES NOT NAME, AND IT IS THIS PROJECT'S READING
+#: RATHER THAN THE SOURCE'S: the films are balanced for 5500 K and were
+#: exposed by electronic flash, while the whole measurement is referred to
+#: D50, which is 5003 K. A reference white ~500 K WARMER than the film's own
+#: balance makes a correctly-balanced film read blue by construction, and
+#: nothing in the experiment removes that. Flagged as a hypothesis, not stored
+#: as a correction, and NOT applied to any profile -- the corpus holds no
+#: measurement that separates the two.
+_REVERSAL_NEUTRAL_CAST: dict[str, object] = {
+    "a_star_sign": "+1 on every film measured",
+    "b_star_sign": "-1 on every film measured",
+    "appearance": "blue-violet",
+    "delta_e_midscale": 20.0,
+    "films_without_the_cast": 0,
+    "labs_compared": ("Studio 13 Zürich (best)", "Fujifilm Schweiz (equal)",
+                      "others (worse)"),
+    "author_candidates": ("a property of the medium",
+                          "a fault in the manufacturing chain",
+                          "deliberate cooling against projector light, which "
+                          "the author argues against from ISO 3664"),
+    "project_candidate_not_in_source": (
+        "the films are balanced for 5500 K and were exposed by flash, while "
+        "the measurement is referred to D50 = 5003 K; a reference white ~500 "
+        "K warmer than the film's balance makes a correct film read blue"),
+    "applied": False,
+}
+
+#: ⚠ AND THE CAST IS INVISIBLE IN USE, WHICH IS WHY NO PHOTOGRAPHER REPORTS
+#: IT. The author demonstrates it: shown full-field, the eye adapts to the
+#: shifted white point within seconds and the image reads normal; the cast
+#: only becomes visible beside a neutral reference. Recorded because it is the
+#: reason a simulator that reproduced this cast faithfully would look WRONG
+#: to a viewer looking at a screen surrounded by a neutral desktop.
+_REVERSAL_NEUTRAL_CAST_ADAPTS_AWAY: bool = True
+
+#: Characteristic-curve SHAPES, as the thesis reads them off its own Fig. 35.
+#: ⚠ QUALITATIVE ON PURPOSE: the figure is a plot of L* against the chart's
+#: aim L* with no table, and this file already holds traced tone curves for
+#: the three stocks it can map, so nothing here overrides a stored curve.
+#: What it adds is an independent statement of SHAPE from a fourth party.
+_KREYENBUEHL_CURVE_SHAPE: dict[str, str] = {
+    "KR64":   "strongly S-shaped -- highlights and shadows compressed, "
+              "mid-scale contrast emphasised",
+    "D3":     "strongly S-shaped, like Kodachrome",
+    "Ekta":   "much more linear; suited to reproduction work",
+    "Provia": "much more linear; suited to reproduction work",
+    "Velvia": "very dark, but linear over a very large range",
+}
+#: ⚠ EVERY subject, film and digital camera alike, rendered the grey scale
+#: DARKER than the chart's aim -- a consequence of the author's own selection
+#: rule (he chose saturated over correctly-exposed frames), stated by him and
+#: recorded so the shapes above are not read as an exposure finding.
+_KREYENBUEHL_ALL_DARKER_THAN_AIM: bool = True
+
+#: ⚠⚠ A STRUCTURAL STATEMENT ABOUT WHICH STOCKS MAY SHARE A DYE SET, which is
+#: the `_SHARED_FIGURE_ARTWORK` question in another guise and which this
+#: corpus has never had stated by a source.
+#:
+#: "Kodak verwendet für alle E-6 basierten Farbumkehrfilme dieselben Cyan-,
+#: Magenta- und Yellow-Farbstoffe, Fuji dagegen für die Velvia-Familie andere
+#: Farbstoffe als für Provia- und Astia-Familien."
+#:
+#: ⚠ HIS EVIDENCE IS TWO-PART AND THE SECOND HALF IS THE GOOD ONE: the
+#: absorption curves printed on the data sheets agree, AND **there is exactly
+#: one IT-8 calibration target for the whole Kodak E-6 product family** -- a
+#: scanner calibration is a calibration to a specific dye set, so one target
+#: for many films is the manufacturer asserting the dyes are the same.
+#: ⚠ HE MARKS THE FIRST HALF "Vermutung" (a supposition) himself, so this is
+#: stored as a SOURCED CLAIM, not as a licence to merge any two records.
+_DYE_SET_SHARING_CLAIM: dict[str, object] = {
+    "kodak_e6": "one CMY dye set across the whole E-6 product family",
+    "kodak_e6_evidence": ("the data sheets' absorption curves agree, and "
+                          "Kodak issues ONE IT-8 target for the family"),
+    "fuji": "the Velvia family uses different dyes from Provia and Astia",
+    "author_hedge": "the data-sheet half is labelled a Vermutung",
+    "consequence": ("two stocks may share a SpectralDyeDensity record only "
+                    "where a source says the dyes are shared; this is the "
+                    "first source in the corpus that says so for a family"),
+}
+
+#: ⚠ AND A CAUTION HE RAISES ABOUT IT-8 TARGETS THAT APPLIES TO THIS WHOLE
+#: DATABASE: the pure-dye and RGB-mixture columns of an IT-8 target are
+#: written into the film by a LASER RECORDER, so those patches "stehen nicht
+#: in einer realen Korrelation zum sichtbaren Licht" -- they are not the
+#: result of a camera exposure and must not be read as the film's response to
+#: light. Queue M1a's spectral work reads vendor panels, not IT-8 targets, so
+#: nothing here is affected; recorded so nothing later is.
+_IT8_LASER_WRITTEN_CAUTION: str = (
+    "an IT-8 target's dye and mixture columns are laser-exposed into the "
+    "film, so they measure the dyes but NOT the film's response to a light "
+    "signal")
+
+#: Nonlinearity of the subtractive mixtures, measured from the IT-8 dye
+#: columns. ⚠ KODACHROME'S 1:1 MIXTURES WANDER IN HUE STRONGLY AND
+#: UNPREDICTABLY as concentration rises, where Ektachrome's "verläuft in viel
+#: voraussagbareren Bahnen" and the other E-6 films behave like Ektachrome.
+#: The author attributes the difference to interlayer effects.
+#: ⚠ THIS IS THE MEASURED FORM OF WHY KODACHROME IS HARD TO SIMULATE, and it
+#: is a statement about a mechanism this engine models (stage 8b) rather than
+#: about a parameter it stores.
+_KODACHROME_MIXTURE_NONLINEARITY: dict[str, str] = {
+    "kodachrome": "1:1 dye mixtures change hue substantially and "
+                  "non-monotonically with concentration",
+    "e6": "1:1 dye mixtures follow far more predictable paths",
+    "attributed_to": "interlayer (interimage) effects",
+    "yellow_primary": "Kodachrome's yellow primary is markedly paler than "
+                      "every other film's measured here",
+    "reputation_vs_measurement": (
+        "its colours are uniformly LESS saturated than the E-6 films', "
+        "against its reputation; the author suggests the apparent vividness "
+        "comes from raised contrast instead"),
+}
+
+#: ⚠⚠ THE SINGLE MOST USEFUL POINTER IN THE DOCUMENT, and it is a lead for
+#: queues P19 and P20 rather than data. Rudolf Gschwind published a COLOUR
+#: REPRODUCTION MODEL of a subtractive three-layer film which, in the author's
+#: summary, simulates exactly the two steps that are least predictable:
+#: **the behaviour of DIR couplers at different concentrations, and the
+#: interlayer effects.** That is the subject of `InterimageSpec` and of stage
+#: 8b, and it is the first modelling reference this corpus has for it.
+#: ⚠ Gschwind also states (to the author, 2014) that he observed DIFFERENT
+#: interlayer effects when only ONE layer was exposed than when all layers
+#: were -- which is precisely the white-versus-separation distinction
+#: `_IIE_CRITERIA` is built around, from an independent laboratory.
+_GSCHWIND_MODEL: dict[str, str] = {
+    "citation": ("Rudolf Gschwind, «Digitale Restaurierung», 1993, pp. 48 f. "
+                 "-- a colour-reproduction model of a subtractive "
+                 "three-layer film"),
+    "models": ("the DIR couplers' behaviour at different concentrations, and "
+               "the interlayer effects -- the two least predictable steps"),
+    "second_lead": ("Armel Rosselet, «Untersuchung von Inter-Image "
+                    "Effekten», unpublished Diplomarbeit, Universität Basel, "
+                    "1989 -- a whole thesis on the interimage effect"),
+    "corroboration": ("Gschwind observed different interlayer effects when "
+                      "ONE layer was exposed than when all were, which is "
+                      "the white-versus-separation distinction _IIE_CRITERIA "
+                      "already encodes"),
+    "in_corpus": "NO -- neither document is on file",
+}
+
+#: ⚠ A mechanism for the speed/saturation trade-off, stated plainly and
+#: consistent with what this database already holds: high-speed colour films
+#: reproduce colour worse because their green- and red-sensitive layers are
+#: ALSO blue-sensitive. The unwanted blue sensitivity raises overall speed and
+#: lowers colour separation, so saturation falls. Low-speed emulsions are
+#: better for that reason and because of how the DIR couplers work.
+_SPEED_SATURATION_TRADEOFF: str = (
+    "in high-speed colour films the green- and red-sensitive layers carry "
+    "broad unwanted BLUE sensitivity, which raises overall speed and lowers "
+    "colour separation and hence saturation; low-speed emulsions separate "
+    "better, also through DIR coupler action")
+
+_KREYENBUEHL_SOURCE = (
+    "Elias Kreyenbühl, «Chromatic Divide. Von der Farbigwerdung medialer "
+    "Repräsentation am Beispiel der Fotografie», Dissertation, Universität "
+    "Basel, 2018 (Referent Achatz von Müller, Korreferent Rudolf Gschwind), "
+    "§2.4-2.5 pp. 64-110. 221 pages, clean German text layer. Tier T2 for the "
+    "colorimetry: a controlled single-bath, single-camera, IT-8-calibrated "
+    "experiment by one researcher rather than a manufacturer, published in a "
+    "peer-reviewed dissertation. ⚠ FIGURES 34-48 ARE RASTERS WITH NO TABLES, "
+    "so Fig. 41 and Fig. 42 are TRACED (see the notes on each) and Figures "
+    "35, 39, 40, 43, 44, 46 and 48 are read qualitatively and NOT "
+    "transcribed. ⚠ THE MEASUREMENT IS OF FILM + E-6 + D50 REFERENCE, not of "
+    "film alone, and the neutral-cast entry says what that costs.")
+
 #: Developer ordering by mottle size and by Wiener spectrum level F(20,0),
 #: finest first, identical on both measures (Figs. 7, 8 and 11).
 #: ⚠ RECORDED AS AN ORDERING, NOT AS NUMBERS: Figs. 7, 8 and 10 plot F(20,0) in
@@ -58116,6 +60061,223 @@ _KINOOPERATOR_SOURCE = (
     "1999, табл. 2.4, с. 20. Tier T2: a handbook tabulating manufacturer "
     "ratings, read off a 260 dpi render because the text layer transliterates "
     "the Latin product names into Cyrillic.")
+
+
+# -- schema v45 (2026-09-18f, queue K6): THE CONVERSION FILTERS THEMSELVES ---
+#
+# ⚠⚠ THIS DATABASE HAS REFUSED TO STORE FILTER-DERIVED EXPOSURE INDICES SINCE
+# 2026-08-16 AND HAS NEVER STORED THE FILTER FACTOR THAT MAKES THEM. Twelve
+# provenance notes say some version of "the sheet's tungsten index is
+# FILTER-DERIVED and is deliberately not stored -- it is a filter factor, not
+# a film property". That refusal is right and it stays. But the factor IS a
+# real, published, measurable quantity, and until now the only place in this
+# file that knew what an 80A costs was a PROSE COMMENT above
+# `_KINOOPERATOR_EI_TABLE` observing that four of its rows agree on two stops.
+# A comment cannot be checked, which is the same defect queue P12 closed on
+# the ГОСТ criteria eight days earlier.
+#
+# ⚠⚠ THE 2006 EDITION OF E-2468 IS WHAT MADE THIS WORTH BUILDING, because its
+# NOTICE OF DISCONTINUANCE prints Kodak's own conversion table across THREE
+# different film speeds at once, which turns one ratio into a test:
+#
+#     filter   160NC/160VC   400NC/400VC   800      implied loss
+#     80B         50            125        250      1.667 stops x3
+#     80A         40            100        200      2.000 stops x3
+#
+# Six rows, two filters, three speeds, and each filter's loss is IDENTICAL
+# across all three -- so the number is a property of the filter and not of
+# the film, which is precisely the claim the refusal above rests on and which
+# nothing in this corpus had previously demonstrated.
+#
+# ⚠ AND IT AGREES WITH A COMPLETELY DIFFERENT SOURCE. `_KINOOPERATOR_EI_TABLE`
+# is a 1999 Russian handbook tabulating Kodak, Fuji and Agfa cine ratings;
+# its four 80A rows give 250/64 = 1.97, 50/12 = 2.06, 250/64 = 1.97 and
+# 64/16 = 2.00 stops. Kodak's own sheet says 2.000 exactly. Two independent
+# documents, seven years and two continents apart, on the same constant.
+#
+#: filter -> (stop loss, tolerance, how it was obtained, what it converts)
+_CONVERSION_FILTER_LOSS: dict[str, tuple[float, float, str, str]] = {
+    "80A": (2.0, 0.06, "measured",
+            "daylight-balanced film under 3200 K tungsten"),
+    "80B": (5.0 / 3.0, 0.02, "measured",
+            "daylight-balanced film under 3400 K photolamp"),
+    # ⚠⚠ THE 85 FAMILY HAS NO SINGLE CONSTANT AND THAT IS A FINDING, NOT A
+    # GAP. Queue P45 measured eleven No. 85 pairs in the same handbook on
+    # 2026-09-18b: nine lose 2/3 stop and two -- EXR 100T (100/80) and
+    # Primetime 640T (640/500) -- lose 1/3. That is a real spread in what the
+    # manufacturers recommend, so the band is stored as a BAND and the
+    # method is "spread", which a consumer must treat as "pick per stock,
+    # never average". E-2468's own daylight row (100 -> 64 through an 85B)
+    # lands at 2/3 and is the ninth independent instance of the common value.
+    "85":  (2.0 / 3.0, 1.0 / 3.0, "spread",
+            "tungsten-balanced film in 5500 K daylight"),
+    "85B": (2.0 / 3.0, 0.0, "measured",
+            "tungsten-balanced film in 5500 K daylight or electronic flash"),
+    # From E-2468's own four-source exposure table, which is the only place
+    # in this corpus that prints these two.
+    "81A": (1.0 / 3.0, 0.0, "measured",
+            "3200 K tungsten film under a 3400 K photolamp"),
+    "82C": (2.0 / 3.0, 0.0, "measured",
+            "3200 K tungsten film under a 2800 K 75 W bulb"),
+}
+
+#: ⚠ WHERE EACH ROW ABOVE COMES FROM, kept beside it because two of the six
+#: rest on a single sheet and four rest on two independent documents.
+_CONVERSION_FILTER_SOURCE: dict[str, str] = {
+    "80A": ("Eastman Kodak Company, KODAK PROFESSIONAL PORTRA 100T Film, "
+            "publication E-2468, revised 10-06, page 1 NOTICE OF "
+            "DISCONTINUANCE table (160->40, 400->100, 800->200), "
+            "CORROBORATED by «Справочник кинооператора» 1999 табл. 2.4 rows "
+            "5246, 5245, 8561 and 8522 at 1.97-2.06 stops"),
+    "80B": ("Eastman Kodak Company, E-2468 revised 10-06, page 1 NOTICE OF "
+            "DISCONTINUANCE table (160->50, 400->125, 800->250). No second "
+            "source in this corpus prints an 80B ratio three times over"),
+    "85":  ("«Справочник кинооператора» 1999 табл. 2.4, eleven rows, queue "
+            "P45 2026-09-18b. NINE at 2/3 stop and TWO at 1/3 -- the spread "
+            "is the datum"),
+    "85B": ("Eastman Kodak Company, E-2468, EXPOSURE table, both the 2000-07 "
+            "and the 2006-10 printing: EI 100 at 3200 K becomes EI 64 in "
+            "5500 K daylight or flash through a WRATTEN Gelatin 85B"),
+    "81A": ("Eastman Kodak Company, E-2468, EXPOSURE table, both printings: "
+            "EI 100 becomes EI 80 under a 3400 K photolamp through an 81A"),
+    "82C": ("Eastman Kodak Company, E-2468, EXPOSURE table, both printings: "
+            "EI 100 becomes EI 64 under a 2800 K 75-watt bulb through an "
+            "82C"),
+}
+
+
+def conversion_filter_loss(filter_name: str):
+    """(stop loss, tolerance, method, what it converts) for one filter.
+
+    ⚠ RETURNS None FOR AN UNKNOWN FILTER rather than guessing from the
+    Wratten number's family. An 80-series filter's factor depends on which
+    member it is -- 80A costs two stops and 80B five thirds -- and a caller
+    that wants "some 80" is asking the wrong question.
+
+    ⚠ A "spread" METHOD MEANS THE TOLERANCE IS THE OBSERVED RANGE AND NOT A
+    MEASUREMENT UNCERTAINTY. See the No. 85 note in
+    `_CONVERSION_FILTER_LOSS`: two of its eleven rows sit a third of a stop
+    from the other nine, and averaging them would invent a value no
+    manufacturer publishes.
+    """
+    return _CONVERSION_FILTER_LOSS.get(filter_name)
+
+
+def exposure_index_through(ei: float, filter_name: str):
+    """The exposure index `ei` becomes when `filter_name` is in the path.
+
+    ⚠ NOT ROUNDED TO THE ISO LADDER. The published tables round -- Kodak
+    prints 160 -> 40 and 800 -> 200, both exactly two stops, but a stock at
+    EI 250 through an 80A would be printed as 64 rather than the 62.5 this
+    returns. Rounding is the caller's decision because the ladder a
+    manufacturer rounds onto is not always the third-stop one.
+
+    Returns None for an unknown filter, per `conversion_filter_loss`.
+    """
+    row = _CONVERSION_FILTER_LOSS.get(filter_name)
+    if row is None:
+        return None
+    return float(ei) / (2.0 ** row[0])
+
+
+# -- schema v45 (2026-09-18f, queue K6): THE SHARED-ARTWORK REGISTER ---------
+#
+# ⚠⚠ THIS CORPUS HAS NOW HIT THE SAME TRAP FOUR TIMES AND HAS NEVER HAD A
+# PLACE TO WRITE IT DOWN. A published figure can appear under a product it
+# does not belong to, or under two products at once, and each time it has
+# been found the finding has gone into a prose provenance note on ONE of the
+# affected records -- where nothing can cross-check it and where the OTHER
+# record does not mention it. The four:
+#
+#   * E-2468's three CURVES-page figures are PORTRA 160VC's (queue K6, found
+#     2026-08-26, and proved ORIGINAL rather than a revision slip on
+#     2026-09-18f when the first printing turned out to carry them too).
+#   * FUJICOLOR PORTRAIT NPZ 800's four data drawings are FUJICOLOR PRO 800Z's
+#     (AF3-100E reprinting AF3-177E), measured to 0.015 D max on the
+#     characteristic records and 0.91 % on the MTF.
+#   * FUJICOLOR CRYSTAL ARCHIVE SUPREME and TYPE CA share one spectral panel,
+#     which is why `PaperSpectralRecord.names` is a tuple (queue P35).
+#   * E-7022 (2007) prints one dye panel for GOLD 100 and GOLD 200 together,
+#     which is what keeps GOLD 100's dye set EMPTY.
+#
+# ⚠ THE RULE THE REGISTER ENFORCES IS ONE MEASUREMENT, STORED ONCE. Queue P40
+# nearly broke it on 2026-09-18c by proposing to split one Гурлев dataset
+# across two SVEMA records; the register exists so that the next time this
+# comes up the answer is a lookup instead of a re-derivation.
+#
+#: (figure id or panel description) -> (the product it MEASURES, the products
+#: it is PRINTED under, how the identity was established)
+_SHARED_FIGURE_ARTWORK: dict[str, tuple[str, tuple[str, ...], str]] = {
+    "F009_0154AC": (
+        "KODAK PROFESSIONAL PORTRA 160VC",
+        ("KODAK PROFESSIONAL PORTRA 160VC", "KODAK PROFESSIONAL PORTRA 100T"),
+        "traced independently from E-190 (2003) p10, E-2468 (2006-10) p5 and "
+        "E-2468 (2000-07) p3 to dmin 0.2045/0.6087/0.8121 and gamma "
+        "0.5809/0.6050/0.6691 in all three; the two E-2468 printings' path "
+        "vertices agree to 2.2e-5 in log E and 1.9e-5 in density"),
+    "F009_0180AC": (
+        "KODAK PROFESSIONAL PORTRA 160-speed family",
+        ("KODAK PROFESSIONAL PORTRA 160NC", "KODAK PROFESSIONAL PORTRA 160VC",
+         "KODAK PROFESSIONAL PORTRA 100T"),
+        "E-190 prints it across the whole 160-speed family; both E-2468 "
+        "printings reprint it. Traced layer spans blue 368-509, green "
+        "438-589, red 539-689 nm"),
+    "F009_0186AC": (
+        "KODAK PROFESSIONAL PORTRA 160VC",
+        ("KODAK PROFESSIONAL PORTRA 160VC", "KODAK PROFESSIONAL PORTRA 100T"),
+        "the midscale-neutral / D-min pair; traces identically to 160VC's in "
+        "both E-2468 printings, 4.6e-3 D between the two printings"),
+    "FUJI AF3-177E four data panels": (
+        "FUJICOLOR PRO 800Z",
+        ("FUJICOLOR PRO 800Z", "FUJICOLOR PORTRAIT NPZ 800"),
+        "characteristic records agree to 0.015 D max and 0.005 D rms over 4.2 "
+        "decades, MTF to 0.91 % max and 0.51 % rms over 1.58 decades, one "
+        "read off a raster and the other off Bezier paths at a different "
+        "panel aspect ratio"),
+    "E-7022 (2007) spectral dye panel": (
+        "KODAK GOLD 200",
+        ("KODAK GOLD 100", "KODAK GOLD 200"),
+        "pinned against the peaks the GOLD-200-only 2022 edition prints; "
+        "GOLD 100's dye set is left EMPTY because of it"),
+    "FUJICOLOR CRYSTAL ARCHIVE spectral panel": (
+        "FUJICOLOR CRYSTAL ARCHIVE Type CA",
+        ("FUJICOLOR CRYSTAL ARCHIVE SUPREME",
+         "FUJICOLOR CRYSTAL ARCHIVE Type CA"),
+        "byte-identical panel images across two bulletins; stored once, with "
+        "both product names on `PaperSpectralRecord.names` (queue P35)"),
+}
+
+#: ⚠ ARTWORK REUSE IS NOT THE SAME EVENT AS A DEFECT, and the register holds
+#: both, so the two are separated here rather than inferred from the shape of
+#: a row. A DEFECT is a figure printed under a product it does not measure --
+#: E-2468's three. SHARED artwork is one measurement legitimately printed for
+#: two products that really do share it, or a panel that draws both.
+_SHARED_ARTWORK_IS_DEFECT: frozenset[str] = frozenset({
+    "F009_0154AC", "F009_0180AC", "F009_0186AC"})
+
+#: ⚠⚠ AND THE E-2468 CASE IS THE ONLY ONE PROVED ACROSS TWO EDITIONS OF THE
+#: SAME PUBLICATION, which is what turns "Kodak reprinted the wrong figure in
+#: a revision" into "Kodak never measured and published this film". The two
+#: printings of E-2468, with what differs between them.
+_E2468_EDITIONS: tuple[tuple[str, str, int, str], ...] = (
+    ("2000-07", "Minor Revision 7-00", 4,
+     "first printing; recommends PORTRA/SUPRA/ULTRA Papers, VERICOLOR Print "
+     "and Slide Film, DURATRANS and DURACLEAR"),
+    ("2006-10", "Revised 10-06", 6,
+     "adds the NOTICE OF DISCONTINUANCE and its 80A/80B substitution table; "
+     "recommends the ENDURA family and DURAFLEX Plus"),
+)
+_E2468_DISCONTINUED = "year-end 2006"
+#: What is byte-for-byte the same in both printings, asserted rather than
+#: described: no measured value on this sheet was ever revised.
+_E2468_UNCHANGED_ACROSS_EDITIONS: tuple[str, ...] = (
+    "exposure index table, all four light sources and five exposure times",
+    "Print Grain Index, all three formats",
+    "Status M red aim densities",
+    "the three CURVES-page figure ids and their traced values",
+)
+
+
 #: The six rows whose 35 mm designation is a stock this database holds.
 _KINOOPERATOR_STOCKS: dict[str, str] = {
     "5279": "KODAK_VISION_500T_5279",
@@ -59649,6 +61811,1313 @@ def paper_spectra_for(name: str) -> PaperSpectralRecord | None:
     return None
 
 
+# ===========================================================================
+# schema v48 (2026-09-19): THE PHYSICAL GRAIN SPECTRUM, AS A GAUSSIAN MIXTURE
+# ===========================================================================
+#
+# Adopts FGS-DDS-001 Rev. A («Film Grain Simulation Model -- Design
+# Specification», 51 pp., 2026-09-19), owner-approved 2026-09-19, changes
+# C1/C2/C3/C4/C5/C10. What follows is the SPECTRUM half; the RNG half is in
+# `film_sim.counter_normal_plane` and the count gate is in `grain_alpha`.
+#
+# ⚠⚠ ONE DELIBERATE DEPARTURE FROM THE SPECIFICATION, AND IT IS THE REASON
+# THIS BLOCK EXISTS AT ALL.
+#
+# Spec §10.2.1 synthesises the field as IDFT[DFT(white) * h(f)] and §19.1
+# accordingly requires a 2-D FFT (pocketfft or FFTW) inside both C++ engines.
+# This project's engines have never had one. `AlgoMakeGrainField` builds the
+# field with SEPARABLE GAUSSIAN BLURS, which is exact -- not approximate --
+# because the v47 spectrum is a product of Gaussians and a product of Gaussian
+# transfers is a Gaussian whose variances add. The physical jinc spectrum is
+# not a Gaussian, so a literal reading of §19.1 means writing a deterministic
+# real-to-complex 2-D FFT into the scalar engine AND the AVX2 engine, against
+# a no-allocation / no-mutable-state policy and an 8 ms frame budget.
+#
+# ⚠ THE OWNER'S CONSTRAINT IS THAT PYTHON, SCALAR C++ AND AVX2 C++ EXECUTE THE
+# SAME ALGORITHM FLOW. That constraint is what decides this. Instead of giving
+# the engines a transform they cannot afford, the SPECTRUM is put into a form
+# all three already execute: a five-term Gaussian mixture,
+#
+#     h(f) ~= sum_k w_k * exp(-2 pi^2 s_k^2 f^2)
+#
+# fitted ONCE at build time, in this module, and emitted as per-stock float32
+# data. Every engine then runs the identical five separable blurs over the
+# identical white field and sums with the identical weights. There is no
+# runtime solver anywhere, so there is no way for Python and C++ to fit
+# differently -- the classic failure mode this codebase has already been bitten
+# by twice (FilmGrainSigma with no caller; anisotropy emitted and unread).
+#
+# ⚠ AND THE LEGACY SPECTRUM IS THE SAME REPRESENTATION WITH TWO EXACT TERMS,
+# so v47 output stays bit-identical through the NEW code path rather than
+# through a preserved parallel one. That is what makes R-N2 checkable instead
+# of merely promised: there is only one path to check.
+#
+# COST OF THE MIXTURE, measured against the exact radius-averaged jinc over
+# the whole database plus out-of-range probes. Relative error in the §10.4
+# reference energy and in the rendered variance at four scanner bandwidths:
+#
+#     stock            E_ref     f50=40    f50=80   f50=120   f50=200
+#     VISION3 50D      2.0e-07   6.0e-07   1.2e-06   8.6e-07   2.3e-07
+#     PORTRA 400       1.7e-08   5.2e-08   1.0e-07   7.6e-08   2.1e-08
+#     TMAX 400         6.2e-07   1.9e-06   3.6e-06   2.8e-06   8.3e-07
+#     ILFORD HPS       5.2e-06   1.6e-05   3.0e-05   2.2e-05   6.2e-06
+#     SVEMA FOTO 250   4.4e-04   1.4e-03   9.8e-04   1.8e-04   1.1e-05
+#
+# Worst case 1.4e-3, on the coarsest stock in the corpus. For scale, the
+# aperture-model correction this same block makes -- Gaussian to exact jinc,
+# errata 1 against the spec -- is 1.0e-2 to 5.3e-2, thirty times larger. The
+# mixture is not the limiting error in this model and is not close to being it.
+#
+# ⚠ CONDITIONING IS A REAL HAZARD HERE AND IS BOUNDED ON PURPOSE. The weights
+# are unconstrained in sign, so a badly placed ladder can produce large
+# cancelling terms -- a fixed stock-independent sigma ladder was tried first
+# and reached L1(w) = 1200, which would destroy the AVX2 engine's float32
+# field through catastrophic cancellation. Anchoring the ladder to the
+# spectrum's OWN half-power frequency holds L1(w) <= 2.93 across the corpus,
+# and `G-V48-COND` asserts it.
+
+#: Radius of the granularity measuring aperture, MILLIMETRES. The metric is
+#: defined through a 48 um circular aperture, so a = 24 um = 0.024 mm.
+GRAIN_APERTURE_A48_MM: float = 0.024
+
+#: sqrt(ln 2 / (2 pi^2)). Converts a HALF-POWER frequency to the sigma of the
+#: Gaussian transfer exp(-2 pi^2 s^2 f^2) that has it: s = this / f_half.
+GRAIN_SIGMA_PER_HALF_POWER: float = 0.1873906251292776
+
+#: 1 / (pi * sqrt 2). Converts the LEGACY 1/e frequency f_hi of
+#: exp(-(f/f_hi)^2) to the same Gaussian's sigma. ⚠ NOT the constant above --
+#: they answer different questions and differ by 20 %.
+#:
+#: ⚠⚠ THIS CORRECTS A TYPO THAT HAS BEEN IN THE C++ ENGINES SINCE THE
+#: SEPARABLE-BLUR GRAIN PATH WAS WRITTEN, AND IT IS A REAL PYTHON/C++
+#: DIVERGENCE. `Algo_11_Sim.cpp` declares
+#:
+#:     // 1 / (pi * sqrt(2)) = 0.22508352815546.
+#:     const HighPrecType kSigma = 0.22508352815546;
+#:
+#: and 1 / (pi * sqrt 2) is 0.22507907903927651. The stored digits are wrong
+#: from the sixth place on -- 1.98e-05 relative. Nothing failed, because the
+#: reference engine never computes a sigma at all on the legacy path: it
+#: evaluates exp(-(f/f_hi)^2) straight onto the frequency grid, so the constant
+#: exists only on the C++ side and had nothing to disagree with. Every C++
+#: render since has used a grain correlation length 1.98e-05 too long.
+#:
+#: Fixed here rather than left alone, because v48 gives the constant a second
+#: consumer -- the mixture below is the ONE spectrum representation and Python
+#: now computes sigmas too -- so from this schema on, a wrong constant is a
+#: divergence that shows up in `cpp_parity` instead of hiding. Consequence for
+#: R-N2: v48 `legacy_gaussian` is bit-identical to v47 in Python, and in C++
+#: differs by this 1.98e-05 sigma correction. `G-V48-KSIGMA` pins the value.
+GRAIN_SIGMA_PER_1E: float = 0.22507907903927651
+
+#: Upper limit of every grain spectral integral and of the mixture fit,
+#: cycles/mm, and the sample count of the trapezoidal rule over it. Shared with
+#: the C++ twins as ALGO_GRAIN_INTEGRAL_FMAX / _N; the fit uses its own denser
+#: grid because it is a least-squares design matrix and not a quadrature.
+GRAIN_INTEGRAL_FMAX_CPMM: float = 400.0
+GRAIN_INTEGRAL_N: int = 16001
+GRAIN_FIT_N: int = 8001
+
+#: Terms in the mixture, and the geometric spacing of their sigma ladder.
+#: ⚠ FIVE AND 2.0 ARE MEASURED CHOICES, NOT ROUND NUMBERS. Four terms reach
+#: 1.4e-2 worst-case variance error; six reach 1.5e-3 but push L1(w) to 7.17 on
+#: one stock and cost 20 % more blur passes for nothing. Five is the knee.
+GRAIN_MIXTURE_TERMS: int = 5
+GRAIN_MIXTURE_LADDER_RATIO: float = 2.0
+
+#: Gauss-Hermite order for the radius expectation of §10.3(a).
+GRAIN_GAUSS_HERMITE_N: int = 20
+
+#: Ladder-conditioning ceiling asserted by `G-V48-COND`, as a multiple of
+#: (1 + clump_gain) -- the lobe scales every weight and is not a conditioning
+#: problem. Measured worst over 191 stocks x 3 channels: 1.883
+#: (GEVACOLOR_NEG_652 ch2). 2.5 leaves headroom without leaving room for the
+#: 1567 that the first, rejected, product-fitting version reached.
+GRAIN_MIXTURE_L1_LIMIT: float = 2.5
+
+#: Worst mixture fit error over the corpus, as a fraction of the spectrum's DC
+#: value: 1.305e-03 on POLAROID_410 ch0. Stored so `G-V48-FIT` compares against
+#: a measurement rather than against a hopeful round number.
+GRAIN_MIXTURE_FIT_WORST: float = 1.305e-03
+
+#: Truncation policy of the separable Gaussian, MIRRORING THE C++ ENGINES.
+#: ⚠ These are not tuning knobs -- they define which operator the reference
+#: engine is reproducing, and they must equal `ALGO_BLUR_SIGMA_CUTOFF` and
+#: `ALGO_BLUR_MAX_HALF_TAPS` in `AlgoSeparableBlur.hpp` exactly. Above
+#: 64 / 4 = 16 px the engines switch to a pyramid path that this reference does
+#: not model, which `G-V48-BLURSIGMA` bounds.
+GRAIN_BLUR_SIGMA_CUTOFF: float = 4.0
+
+#: ⚠⚠ THE THRESHOLD BELOW WHICH A BLUR IS THE IDENTITY, AND IT IS A PERFORMANCE
+#: FIX WITH A CORRECTNESS ARGUMENT RATHER THAN A SHORTCUT.
+#:
+#: A truncated Gaussian of half-width 1 has taps [e, 1-2e, e] after
+#: renormalisation, with e = exp(-1/(2 sigma^2)) / (1 + 2 exp(-1/(2 sigma^2))).
+#: Below this epsilon the outer taps are smaller than float32 can carry against
+#: the centre tap, so the kernel IS the identity and convolving with it is a
+#: full pass over the plane to multiply by one.
+#:
+#: That is not a corner case here -- it is the common case. The mixture's
+#: sigma ladder spans a factor of 16, and after the SCAN TERM IS FACTORED OUT
+#: (see `grain_gauss_terms`) the grain-only sigmas at 4K run 0.289 down to
+#: 0.018 px on a typical stock. Four of the five rungs are identities. Skipping
+#: them is what takes the physical spectrum from 5-10 real blurs per channel to
+#: 1-3.
+#:
+#: 1e-09 is chosen to sit far above float32's smallest normal relative step and
+#: far below anything a render can show: the error introduced per skipped term
+#: is 2e-09 of that term's weight. `G-V48-IDENTITY` measures it.
+#:
+#: ⚠ IT IS A FIXED CONSTANT AND NOT A TUNING KNOB. The skip decision must be
+#: identical in all three engines or they stop computing the same operator, so
+#: the rule is "one comparison against one stored number", never a heuristic.
+GRAIN_BLUR_IDENTITY_EPS: float = 1e-09
+
+
+def grain_blur_is_identity(sigma_px: float) -> bool:
+    """Whether the truncated separable blur of this sigma is the identity.
+
+    ⚠ THE ONE DEFINITION, mirrored by ALGO_GRAIN_BLUR_IDENTITY_EPS and
+    AlgoGrainBlurIsIdentity in the engines. A disagreement here is not a
+    rounding difference -- one engine would blur where another does not.
+    """
+    if not (sigma_px > 0.0):
+        return True
+    if math.ceil(GRAIN_BLUR_SIGMA_CUTOFF * float(sigma_px)) > 1.0:
+        return False
+    e = math.exp(-0.5 / (float(sigma_px) * float(sigma_px)))
+    return (e / (1.0 + 2.0 * e)) < GRAIN_BLUR_IDENTITY_EPS
+GRAIN_BLUR_MAX_HALF_TAPS: int = 64
+GRAIN_BLUR_SIGMA_EXACT_MAX: float = 16.0
+
+
+def scan_sigma_mm(f50_cycles_per_mm: float) -> float:
+    """Gaussian sigma in millimetres for a 50 % modulation frequency.
+
+    Equate the two exponent forms: an MTF of exp(-ln2 (f/f50)^2) against a
+    Gaussian blur's transfer exp(-2 pi^2 s^2 f^2) gives ln2/f50^2 = 2 pi^2 s^2,
+    so s = sqrt(ln2/2)/pi / f50.
+
+    A missing or nonsensical figure means the optics are not characterised, and
+    that is treated as perfectly sharp rather than as infinitely soft: a stock
+    with no measurement should not render worse than one with a good one.
+
+    ⚠⚠ THE CONSTANT IS THE SECOND ENGINE TYPO THIS SCHEMA FIXES, AND THIS ONE
+    IS NOT CONFINED TO GRAIN. `Algo_10_Sim.cpp` declares
+
+        // sqrt(ln(2)/2) / pi = 0.18738564618678.
+
+    and the true value is 0.1873906251292776 -- wrong from the fifth digit,
+    2.66e-05 relative. `AlgoScanSigmaMm` is stage 10, so every C++ render ever
+    made has band-limited the whole image, not only the grain, with a scanner
+    2.66e-05 sharper than the reference's. The reference never noticed, because
+    it evaluates exp(-ln2 (f/f50)^2) straight onto the frequency grid and
+    derives no sigma at all -- the same blind spot that hid the kSigma typo.
+
+    ⚠ AND THE CORRECT VALUE WAS ALREADY IN THIS FILE, TWICE, under two other
+    names: `GRAIN_SIGMA_PER_HALF_POWER` and `_TAGUCHI_F50_TO_SIGMA_UM / 1000`
+    both hold 0.1873906251292776 to the last bit. Three call sites, one
+    quantity, and the only copy that was wrong is the only copy that was typed
+    into C++ by hand. `G-V48-KSIGMA` now pins all of them to one another.
+    """
+    if f50_cycles_per_mm <= 0.0:
+        return 0.0
+    return GRAIN_SIGMA_PER_HALF_POWER / float(f50_cycles_per_mm)
+
+#: Selectable spectral models (spec §10.3, RenderSettings §18.4).
+GRAIN_SPECTRUM_MODELS: tuple[str, ...] = ("legacy_gaussian", "boolean_jinc")
+
+#: ⚠ THE FIVE STOCKS WHOSE `clump_um` IS A MEASUREMENT AND NOT AN ESTIMATE.
+#: BBC Research Report T-101 Table 2/3 prints their equivalent grain diameter,
+#: so the v48 migration leaves their `grain_um` at the traced value instead of
+#: re-deriving it. Everything else takes the random-dot inversion. Method rule
+#: 1: a stored measurement is never overwritten by a derived number, and the
+#: agreement is the check rather than the source -- the inversion reproduces
+#: these five to a median 1.14x, which is why it is trusted on the other 186.
+GRAIN_CLUMP_MEASURED_STOCKS: tuple[str, ...] = (
+    "ILFORD_HPS", "EASTMAN_TRI_X_5223", "EASTMAN_PLUS_X_5231",
+    "KODAK_8374", "ILFORD_PAN_F",
+)
+
+#: Validation range for `GrainSpec.grain_um_*`, micrometres.
+#: ⚠ ERRATUM 1 AGAINST THE SPECIFICATION. Spec §18.2 gives [0.2, 30]. Both
+#: ends are wrong against this corpus: the inversion spans 0.189 to 2.824 um,
+#: so KODAK_VISION3_50D_5203 at 0.189 FAILS the spec's own lower bound, and
+#: the upper bound is more than ten times any real value, which makes it
+#: useless as a guard. Widened below and tightened above, with headroom.
+GRAIN_UM_RANGE: tuple[float, float] = (0.10, 8.0)
+
+
+def bessel_j1(x):
+    """J1(x) to about 1e-7 absolute, Abramowitz and Stegun 9.4.4 / 9.4.6.
+
+    ⚠ THE ONE DEFINITION. `film_sim._bessel_j1` delegates here and the C++
+    twins carry a line-for-line port as `AlgoBesselJ1`. Hand-rolled because
+    neither `numpy` nor `math` ships a Bessel function of the first kind of
+    order one, and a SciPy dependency on the reference engine for one function
+    -- in a form no C++ twin could use -- is the wrong trade.
+    """
+    import numpy as _np
+    x = _np.asarray(x, dtype=_np.float64)
+    ax = _np.abs(x)
+    out = _np.empty_like(ax)
+    small = ax < 8.0
+    if _np.any(small):
+        y = x[small] ** 2
+        num = x[small] * (
+            72362614232.0
+            + y * (-7895059235.0
+                   + y * (242396853.1
+                          + y * (-2972611.439
+                                 + y * (15704.48260 + y * (-30.16036606)))))
+        )
+        den = (
+            144725228442.0
+            + y * (2300535178.0
+                   + y * (18583304.74
+                          + y * (99447.43394 + y * (376.9991397 + y))))
+        )
+        out[small] = num / den
+    big = ~small
+    if _np.any(big):
+        z = 8.0 / ax[big]
+        y = z * z
+        xx = ax[big] - 2.356194491
+        p = (1.0 + y * (0.183105e-2
+                        + y * (-0.3516396496e-4
+                               + y * (0.2457520174e-5 + y * (-0.240337019e-6)))))
+        q = (0.04687499995
+             + y * (-0.2002690873e-3
+                    + y * (0.8449199096e-5
+                           + y * (-0.88228987e-6 + y * (0.105787412e-6)))))
+        out[big] = (_np.sqrt(0.636619772 / ax[big])
+                    * (_np.cos(xx) * p - z * _np.sin(xx) * q)
+                    * _np.sign(x[big]))
+    return out
+
+
+def grain_jinc(x):
+    """2*J1(x)/x, equal to 1 at x = 0. The transform of a uniform disk."""
+    import numpy as _np
+    x = _np.asarray(x, dtype=_np.float64)
+    out = _np.ones_like(x)
+    nz = x > 1e-12
+    out[nz] = 2.0 * bessel_j1(x[nz]) / x[nz]
+    return out
+
+
+def grain_aperture_48(f_mm):
+    """Transfer of the 48 um CIRCULAR measuring aperture (spec §10.4).
+
+    ⚠⚠ THIS REPLACES A GAUSSIAN APPROXIMATION THAT WAS IN BOTH ENGINES AND
+    WAS NEVER WRITTEN DOWN AS ONE. v47 used exp(-2 pi^2 s^2 f^2) with
+    s = 12 um -- a Gaussian of matching second moment -- in
+    `grain_reference_energy` and in `grainReferenceEnergy`. The aperture is
+    not Gaussian; it is a disk, and its transfer is the jinc
+
+        A48(f) = 2 J1(2 pi f a) / (2 pi f a),     a = 24 um
+
+    whose first zero is at 25.4 cycles/mm, where the Gaussian is still passing
+    0.160 -- the stand-in keeps a sixth of the signal alive exactly where the
+    real aperture has none. Amplitude half point 14.69 cycles/mm exact against
+    15.62 Gaussian.
+
+    ⚠ THE COST OF THE CORRECTION IS NOT NEGLIGIBLE AND IS NOT OPTIONAL. Since
+    this integral is the amplitude calibration, swapping the model rescales
+    every stock's rendered grain by sqrt(E_gauss / E_jinc): 1.0104x at
+    clump 1 um rising to 1.0527x at 13 um, worst on the coarsest stocks. The
+    spec specifies the jinc in §10.4 and says nothing about the change, which
+    is erratum 2 of this review -- it silently violates the spec's own R-N2
+    bit-identity requirement. Resolved by `grain_aperture_model`, below: the
+    legacy Gaussian is retained and is what `legacy_gaussian` renders with, so
+    R-N2 holds, and the jinc arrives with the physical spectrum where the
+    render is changing anyway.
+    """
+    import numpy as _np
+    return grain_jinc(2.0 * math.pi * _np.asarray(f_mm, dtype=_np.float64)
+                      * GRAIN_APERTURE_A48_MM)
+
+
+def grain_aperture_legacy(f_mm):
+    """The v47 Gaussian stand-in for the 48 um aperture. Retained for R-N2."""
+    import numpy as _np
+    s = 0.012                                    # mm, half of the 24 um radius
+    f = _np.asarray(f_mm, dtype=_np.float64)
+    return _np.exp(-2.0 * (math.pi ** 2) * (s ** 2) * f * f)
+
+
+def grain_aperture_model(spectrum_model: str):
+    """Which aperture transfer goes with which spectral model.
+
+    Bound together deliberately rather than exposed as a second switch: the
+    only reason the Gaussian aperture still exists is bit-identity with v47,
+    and the only thing that needs it is the v47 spectrum.
+    """
+    return (grain_aperture_48 if spectrum_model == "boolean_jinc"
+            else grain_aperture_legacy)
+
+
+def _gauss_hermite_prob(n: int):
+    """Probabilists' Gauss-Hermite nodes and NORMALISED weights.
+
+    Weight function exp(-x^2/2), weights summing to one, so that
+    sum_i w_i g(x_i) approximates E[g(X)] for X ~ N(0,1) directly.
+    """
+    import numpy as _np
+    x, w = _np.polynomial.hermite_e.hermegauss(n)
+    return x.astype(_np.float64), (w / w.sum()).astype(_np.float64)
+
+
+def grain_phys_shape(f_mm, grain_um: float, size_sigma_log: float = 0.0):
+    """The Boolean / random-dot grain AMPLITUDE transfer (spec §10.3a).
+
+    For a shot-noise field of opaque disks of random radius r, the Wiener
+    spectrum is proportional to the radius-averaged squared disk transform:
+
+        h(f)^2 = E_r[ r^4 b(f;r)^2 ] / E_r[ r^4 ],   b = 2 J1(2 pi f r)/(2 pi f r)
+
+    with r ~ LogNormal(mu_ln, sigma_ln), sigma_ln = `size_sigma_log`, and
+    mu_ln = ln(d/2) - sigma_ln^2 / 2 so that E[r] = d/2 exactly. Evaluated by
+    20-point Gauss-Hermite quadrature in ln r.
+
+    ⚠ DISPERSION IS NOT A DETAIL AND THE SPECIFICATION UNDERSTATES IT. At
+    d = 1 um the AMPLITUDE half point moves 705 -> 579 -> 327 cycles/mm for
+    sigma_ln = 0 / 0.25 / 0.5, and the jinc's zeros fill in completely. A
+    factor of 2.16 in bandwidth from a parameter that was sitting in the schema
+    unread (F7) is the largest single consequence of wiring it.
+
+    ⚠ MIND WHICH HALF POINT IS BEING QUOTED, because the two differ by 37 % and
+    this review has already confused them once. The figures above are where the
+    AMPLITUDE h(f) reaches 0.5, which is what `grain_half_power_freq` returns
+    and what the mixture ladder is anchored on. Where the POWER h(f)^2 reaches
+    one half -- the convention an MTF datasheet uses -- the same three numbers
+    are 514 -> 405 -> 203 cycles/mm, a factor of 2.53.
+
+    At sigma_ln = 0 this reduces to |2 J1(pi f d)/(pi f d)|, the project's
+    existing `film_sim.boolean_grain_shape`, agreeing to 3.0e-08.
+    """
+    import numpy as _np
+    if grain_um <= 0.0:
+        raise ValueError("grain_um must be positive")
+    f = _np.asarray(f_mm, dtype=_np.float64)
+    if size_sigma_log <= 0.0:
+        return _np.abs(grain_jinc(math.pi * f * (grain_um / 1000.0)))
+    s = float(size_sigma_log)
+    mu = math.log(grain_um / 2.0) - 0.5 * s * s
+    xs, ws = _gauss_hermite_prob(GRAIN_GAUSS_HERMITE_N)
+    r = _np.exp(mu + s * xs)                                    # micrometres
+    b = grain_jinc(2.0 * math.pi * f[..., None] * (r / 1000.0))
+    r4 = r ** 4
+    num = (ws * r4 * b * b).sum(-1)
+    den = float((ws * r4).sum())
+    return _np.sqrt(_np.maximum(num / den, 0.0))
+
+
+def grain_legacy_shape(f_mm, clump_um: float, clump_gain: float = 0.0):
+    """The v47 grain AMPLITUDE transfer (spec §10.3b). Two exact Gaussians."""
+    import numpy as _np
+    f = _np.asarray(f_mm, dtype=_np.float64)
+    f_hi = 1000.0 / (2.0 * clump_um)
+    t = _np.exp(-((f / f_hi) ** 2))
+    if clump_gain > 0.0:
+        t = t * (1.0 + clump_gain * _np.exp(-((f / (f_hi / 6.0)) ** 2)))
+    return t
+
+
+def grain_clustering_lobe(f_mm, clump_um: float, clump_gain: float):
+    """Modifier 1 of spec §10.3: the low-frequency clustering lobe.
+
+    ⚠ RETAINED UNDER PROTEST, WHICH IS THE SPEC'S OWN POSITION AND ALSO THIS
+    FILE'S. A Boolean model with bounded radii CANNOT produce long-range
+    correlation -- `_BOOLEAN_NO_LONG_RANGE_LOBE` is the theorem -- so a
+    non-zero `clump_gain` is a departure from the physical model rather than a
+    parameter inside it. But Takano measured 5-8x aggregates [R10], and a free
+    two-parameter fit to the one measured Wiener spectrum in this corpus
+    (ILFORD_HPS) drives the gain to exactly 0.000. Two documents, opposite
+    answers, no third: method rule 4 says record the conflict and change
+    nothing, so the stored per-stock values ride through both spectral models
+    untouched, neither zeroed nor endorsed.
+    """
+    import numpy as _np
+    if clump_gain <= 0.0:
+        return _np.ones_like(_np.asarray(f_mm, dtype=_np.float64))
+    f = _np.asarray(f_mm, dtype=_np.float64)
+    f_lo = (1000.0 / (2.0 * clump_um)) / 6.0
+    return 1.0 + clump_gain * _np.exp(-((f / f_lo) ** 2))
+
+
+def grain_half_power_freq(grain_um: float, size_sigma_log: float) -> float:
+    """Frequency at which the AMPLITUDE `grain_phys_shape` falls to 0.5.
+
+    ⚠ AMPLITUDE, NOT POWER, AND THE DIFFERENCE IS 37 %. An MTF datasheet's
+    "50 %" is the point where h(f)^2 = 0.5, i.e. h = 0.707, which sits well
+    below this one. Only the ladder anchor uses this function, and it was
+    validated against the fit at this definition, so changing the convention
+    here would silently re-place every rung.
+
+    Bisection in log f.
+
+    Deterministic to the last bit: 200 halvings of a fixed bracket, no
+    tolerance test and no early exit, so the answer cannot depend on the
+    platform's rounding of a convergence criterion.
+    """
+    import numpy as _np
+    lo, hi = 1e-3, 1e8
+    for _ in range(200):
+        mid = math.sqrt(lo * hi)
+        if float(grain_phys_shape(_np.array([mid]), grain_um,
+                                  size_sigma_log)[0]) > 0.5:
+            lo = mid
+        else:
+            hi = mid
+    return math.sqrt(lo * hi)
+
+
+class GrainSpectrum(NamedTuple):
+    """The grain spectrum, FACTORED into the parts the engines apply separately.
+
+    ⚠⚠ THE FACTORING IS THE WHOLE POINT AND IT IS EXACT, NOT AN APPROXIMATION.
+    The first version of this type was a flat list of up to ten (sigma, weight)
+    pairs -- five for the bare spectrum and five more at sqrt(s_k^2 + s_lo^2)
+    for the clustering lobe -- and the renderer ran one separable blur per pair,
+    then folded the scan band limit into every one of those sigmas. Measured on
+    the AVX2 engine at 3840x2160, one channel, one thread: **398 ms** for a
+    ten-term stock against a 8 ms budget (R-N3), and 120 ms for a five-term one.
+    The legacy one-term path was 43 ms.
+
+    Two exact identities recover almost all of it, because a product of Gaussian
+    transfers is a Gaussian whose variances add and convolution distributes:
+
+        sum_k w_k G(sqrt(s_k^2 + s_lo^2))  =  G(s_lo) (x) sum_k w_k G(s_k)
+        sum_k w_k G(sqrt(s_k^2 + s_sc^2))  =  G(s_sc) (x) sum_k w_k G(s_k)
+
+    So the lobe is ONE extra blur rather than a doubling of the term count, and
+    the scan band limit is ONE blur at the end rather than a contribution to
+    every term. The engine evaluates
+
+        M     = sum_k w_k B(s_k)[white]
+        L     = M + lobe_gain * B(s_lobe)[M]
+        field = B(s_scan)[L]
+
+    with B the truncated separable wrap blur, anisotropy applied to every axis
+    pair alike so the stretch still reaches the band limit as it did before.
+
+    ⚠ AND THE FACTORING IS WHAT MAKES THE IDENTITY SKIP POSSIBLE, which is where
+    the rest of the time goes. Folded into the scan term, all five rungs come
+    out at roughly the scan sigma -- 0.90 px at 4K -- and every one is a real
+    blur. Taken alone, the grain sigmas are 0.289 down to 0.018 px, and four of
+    the five are below `GRAIN_BLUR_IDENTITY_EPS`: their kernels ARE the identity
+    and they collapse to a scalar multiple of the white field.
+
+    ⚠ THE TRUNCATED KERNELS DO NOT COMPOSE THE WAY THE CONTINUOUS ONES DO, so
+    this is a change of operator and not only of arithmetic: convolving two
+    truncated kernels is not the truncated kernel of the combined sigma. That is
+    fine and is the reason this type exists rather than a comment -- the FACTORED
+    form is now the definition, in Python and in both engines, and the three are
+    compared pixel for pixel. What is unchanged is the continuous-frequency fit
+    the mixture was measured against, which never saw a kernel at all.
+
+    terms:          (sigma_mm, weight) of the BARE spectrum. Grain only: no
+                    lobe, no band limit, no resolution in them.
+    lobe_sigma_mm:  the clustering lobe's own sigma; 0.0 = no lobe.
+    lobe_gain:      its amplitude, i.e. `clump_gain`.
+    """
+
+    terms: tuple
+    lobe_sigma_mm: float = 0.0
+    lobe_gain: float = 0.0
+
+
+def grain_terms_flat(spec):
+    """Expand a `GrainSpectrum` back to the flat (sigma, weight) list.
+
+    ⚠ FOR FREQUENCY-DOMAIN WORK ONLY -- the calibration integral and the shape
+    comparisons. It is the mathematically identical object and it is NOT what
+    the renderer walks, because walking it is exactly the cost this type exists
+    to avoid. Passing an already-flat sequence through unchanged keeps the
+    analysis helpers working on both forms.
+    """
+    if not isinstance(spec, GrainSpectrum):
+        return tuple(spec)
+    base = tuple(spec.terms)
+    if spec.lobe_gain <= 0.0 or spec.lobe_sigma_mm <= 0.0:
+        return base
+    lo = float(spec.lobe_sigma_mm)
+    return base + tuple(
+        (math.sqrt(sg * sg + lo * lo), spec.lobe_gain * w) for sg, w in base)
+
+
+def grain_gauss_terms(spectrum_model: str, *, clump_um: float,
+                      clump_gain: float = 0.0, grain_um: float = 0.0,
+                      size_sigma_log: float = 0.0):
+    """THE grain spectrum, as ((sigma_mm, weight), ...). The one definition.
+
+    Every engine consumes exactly this: Python evaluates the mixture on its
+    frequency grid, the C++ twins run one separable Gaussian blur per term and
+    sum with the weights. Nothing else in the renderer knows what the spectrum
+    is made of, which is the point -- there is one place for it to be wrong.
+
+    `legacy_gaussian` returns the v47 shape EXACTLY, as one or two terms with
+    closed-form sigmas and weights 1 and `clump_gain`. No fit runs, nothing is
+    approximated, and the rendered field is bit-identical to v47 (R-N2).
+
+    `boolean_jinc` returns `GRAIN_MIXTURE_TERMS` fitted terms. The sigma ladder
+    is geometric with ratio `GRAIN_MIXTURE_LADDER_RATIO`, centred on the
+    Gaussian whose half-power frequency matches the spectrum's own -- capped at
+    `GRAIN_INTEGRAL_FMAX_CPMM`, because past that point nothing the renderer or
+    the aperture can see is still moving and an uncapped ladder just places
+    four of its five terms outside the band. Weights come from a linear
+    least-squares solve on a fixed 8001-point grid, constrained so the mixture
+    reproduces the spectrum's DC value exactly (which is 1 + clump_gain, not 1).
+
+    ⚠ NO ITERATIVE SEARCH AND NO TOLERANCE ANYWHERE. Both the ladder and the
+    solve are closed-form given (grain_um, size_sigma_log, clump_um,
+    clump_gain), so the same inputs give the same float64 coefficients on every
+    machine, every run. An earlier version grid-searched the ladder base for a
+    better fit; it reached 1e-6 instead of 1e-3 and was rejected, because a
+    search can jump between local minima under a 0.1 % change in grain_um and
+    silently re-texture a stock between two builds.
+    """
+    import numpy as _np
+    if spectrum_model not in GRAIN_SPECTRUM_MODELS:
+        raise ValueError(f"unknown spectrum_model {spectrum_model!r}")
+    if clump_um <= 0.0:
+        raise ValueError("clump_um must be positive")
+    g = max(float(clump_gain), 0.0)
+
+    # ----------------------------------------------------------------------
+    #  Step 1 -- the BARE spectrum, without the clustering lobe.
+    # ----------------------------------------------------------------------
+    if spectrum_model == "legacy_gaussian":
+        # One exact Gaussian. No fit runs and nothing is approximated.
+        f_hi = 1000.0 / (2.0 * clump_um)
+        base = ((GRAIN_SIGMA_PER_1E / f_hi, 1.0),)
+        if g <= 0.0:
+            return GrainSpectrum(base, 0.0, 0.0)
+        return GrainSpectrum(
+            base, GRAIN_SIGMA_PER_1E / (f_hi / 6.0), g)
+    else:
+        if grain_um <= 0.0:
+            raise ValueError("boolean_jinc needs a positive grain_um")
+
+        k = GRAIN_MIXTURE_TERMS
+        ratio = GRAIN_MIXTURE_LADDER_RATIO
+
+        # Ladder anchored on the spectrum's own half-power frequency, capped at
+        # the top of the integration band. The cap matters: fine stocks roll
+        # off at 2000 to 6400 cycles/mm, and an uncapped ladder would put four
+        # of its five rungs where neither the aperture nor any scanner can see
+        # them.
+        f_top = min(grain_half_power_freq(grain_um, size_sigma_log),
+                    GRAIN_INTEGRAL_FMAX_CPMM)
+        # Rungs are CENTRED on the anchor, not hung below it: ratio^-2 to
+        # ratio^+2 for five terms. Hanging them below reaches L1(w) = 4.42 and
+        # a 9.2e-02 fit error on the extremes of the corpus, because the
+        # spectrum above the half-power point then has nothing to fit it with.
+        sig = _np.array([GRAIN_SIGMA_PER_HALF_POWER
+                         / (f_top * ratio ** (i - (k - 1) / 2.0))
+                         for i in range(k)], dtype=_np.float64)
+
+        f = _np.linspace(0.0, GRAIN_INTEGRAL_FMAX_CPMM, GRAIN_FIT_N)
+        tgt = grain_phys_shape(f, grain_um, size_sigma_log)
+        a = _np.exp(-2.0 * (math.pi ** 2) * (sig[None, :] ** 2)
+                    * (f[:, None] ** 2))
+
+        # Eliminate the last weight against the exact DC constraint sum(w) = 1,
+        # so h(0) = 1 holds by construction rather than by penalty.
+        a2 = a[:, :-1] - a[:, [-1]]
+        b2 = tgt - a[:, -1]
+        # Ridge at 1e-14 relative. The ladder design keeps the normal equations
+        # well conditioned; this only guards the degenerate case where two rungs
+        # collapse onto each other at the f_top cap.
+        gram = a2.T @ a2
+        gram = gram + 1e-14 * float(_np.trace(gram)) * _np.eye(k - 1)
+        wv = _np.linalg.solve(gram, a2.T @ b2)
+        w = _np.concatenate([wv, [1.0 - wv.sum()]])
+        base = tuple((float(sig[i]), float(w[i])) for i in range(k))
+
+    # ----------------------------------------------------------------------
+    #  Step 2 -- the clustering lobe, applied EXACTLY rather than fitted.
+    #
+    #  ⚠⚠ THE FIRST VERSION OF THIS FUNCTION FITTED THE PRODUCT
+    #  h_phys(f) * (1 + g * exp(-(f/f_lo)^2)) WITH ONE LADDER, AND IT FAILED
+    #  BADLY. The two factors live on scales that can be decades apart --
+    #  SOVIET_PANCHROM_1939 has its lobe at 14 cycles/mm against a jinc
+    #  half-power of 460, a factor of 33 -- and least squares answers an
+    #  unrepresentable target by cancelling enormous opposite-signed terms.
+    #  Measured over the corpus: L1(w) reached 1567, which in the AVX2 engine's
+    #  float32 field is not a loss of accuracy but a destroyed image. Widening
+    #  the ladder to span both scales only traded that for a 12.7 % fit error,
+    #  because five rungs cannot resolve two decades AND two shapes.
+    #
+    #  THE PRODUCT DOES NOT NEED FITTING AT ALL. The lobe is a Gaussian, a
+    #  product of Gaussian transfers is a Gaussian whose variances add, and
+    #  multiplication distributes over the mixture:
+    #
+    #      (sum_k w_k G(s_k)) * (1 + g G(s_lo))
+    #          = sum_k w_k G(s_k) + g * sum_k w_k G(sqrt(s_k^2 + s_lo^2))
+    #
+    #  So the lobe doubles the term count and introduces NO new error and NO
+    #  new conditioning: L1 becomes exactly (1 + g) times the bare mixture's.
+    #  The legacy spectrum falls out of the same line as its own two exact
+    #  terms, which is why both models now leave here through one code path.
+    #
+    #  ⚠ THE COST IS REAL AND IS THE LOBE'S, NOT THE MIXTURE'S. A stock with
+    #  clump_gain > 0 needs ten separable blurs per channel instead of five.
+    #  That is the price of keeping a parameter the Boolean covariance theorem
+    #  says cannot exist and Takano says he measured; method rule 4 keeps it,
+    #  and zeroing `clump_gain` under `boolean_jinc` is an owner decision with
+    #  a 2x grain-stage speedup attached to it.
+    # ----------------------------------------------------------------------
+    if g <= 0.0:
+        return GrainSpectrum(base, 0.0, 0.0)
+
+    s_lo = GRAIN_SIGMA_PER_1E / ((1000.0 / (2.0 * clump_um)) / 6.0)
+    return GrainSpectrum(base, s_lo, g)
+
+
+def grain_terms_shape(terms, f_mm):
+    """Evaluate a mixture, in either the factored or the flat form."""
+    import numpy as _np
+    terms = grain_terms_flat(terms)
+    f = _np.asarray(f_mm, dtype=_np.float64)
+    out = _np.zeros_like(f)
+    for s, w in terms:
+        out = out + w * _np.exp(-2.0 * (math.pi ** 2) * (s * s) * f * f)
+    return out
+
+
+def grain_terms_l1(terms) -> float:
+    """Sum of |weight| over the FLAT form. `G-V48-COND` bounds it."""
+    return float(sum(abs(w) for _s, w in grain_terms_flat(terms)))
+
+
+def grain_reference_energy_terms(terms, aperture=None) -> float:
+    """Aperture-weighted spectral energy of the grain, over ALL frequencies.
+
+        E = 2 pi * integral |h(f) A(f)|^2 f df
+
+    evaluated as a CONTINUOUS radial integral rather than as a sum over the
+    pixel grid. That is the whole point and getting it wrong is subtle: a
+    grid-referred calibration silently over-amplifies any stock whose grain is
+    finer than a pixel, because all of that stock's spectral energy folds back
+    into the sampled band and the calibration inflates the amplitude to make up
+    for detail the grid cannot hold. The symptom is a fine stock rendering as
+    grainy as a coarse one, which is backwards, and it was happening here until
+    it was measured.
+
+    Trapezoidal on a fixed 16001-point grid over [0, 400] cycles/mm, matching
+    `ALGO_GRAIN_INTEGRAL_N` / `_FMAX` in the C++ twins sample for sample, so
+    the two agree to float64 rounding rather than to a quadrature tolerance.
+    """
+    import numpy as _np
+    if aperture is None:
+        aperture = grain_aperture_48
+    terms = grain_terms_flat(terms)
+    f = _np.linspace(0.0, GRAIN_INTEGRAL_FMAX_CPMM, GRAIN_INTEGRAL_N)
+    h = grain_terms_shape(terms, f)
+    a = aperture(f)
+    e = 2.0 * math.pi * float(_np.trapezoid((h * a) ** 2 * f, f))
+    if e <= 0.0:
+        raise RuntimeError("degenerate grain spectrum; check the mixture")
+    return e
+
+
+def grain_um_from_rms(rms_granularity: float, density: float = 1.0,
+                      size_sigma_log: float = 0.0) -> float:
+    """`grain_um` for one channel: the random-dot inversion of §20.2.
+
+    Eliminating n between the counting law sigma_D(48 um) = D / sqrt(n A48) and
+    Nutting's D = 0.434 a n leaves the imaging-centre diameter as a function of
+    the published granularity and the aperture area alone -- no spectrum, no
+    fitted constant, no free parameter. See `random_dot_disk_diameter_um`.
+    """
+    d = random_dot_disk_diameter_um(rms_granularity, density,
+                                    size_sigma_log=size_sigma_log)
+    if d is None or not (d > 0.0):
+        raise ValueError("cannot invert rms_granularity to a grain diameter")
+    return float(d)
+
+
+# ---------------------------------------------------------------------------
+#  GRAIN COUNTS AND THE RESOLUTION ELEMENT (spec §10.6) -- R-S4(a), R-S6
+# ---------------------------------------------------------------------------
+#
+# ⚠ THIS IS THE HALF OF R-S4 THE FIRST v48 PASS DID NOT BUILD. Radius dispersion
+# was wired into the SPECTRUM (radius averaging, §10.3) and not into the
+# DENSITY-TO-COUNT mapping, which is the other half the requirement asks for and
+# the prerequisite for the count gate. Without it the gate would be computed
+# from a mean area that ignores the spread, and E[r^2] exceeds E[r]^2 by
+# exp(sigma_ln^2) -- 13 % at sigma_ln 0.35, 28 % at 0.55.
+
+#: log10(e). Nutting's constant: D = NUTTING_C * a * n for opaque grains of
+#: projected area a at areal density n. ⚠ Stored, not typed as a literal at the
+#: call site, because it is schema data under §18.5 and a historical render has
+#: to stay reproducible if the value is ever revised.
+GRAIN_NUTTING_C: float = 0.4342944819032518
+
+#: The count gate's two edges, in grains per resolution element (§18.5).
+#: N_MIN 25 is where Poisson skewness 1/sqrt(25) = 0.20 reaches the visibility
+#: threshold; N_HI = 4 * N_MIN is the upper edge of the crossfade, above which
+#: the Gaussian marginal is used alone.
+GRAIN_N_MIN: float = 25.0
+GRAIN_N_HI: float = 100.0
+
+#: Radius quantile at which the log-normal is truncated when grains are drawn
+#: individually: r_max is the 99.9th percentile (§18.5, following [R1] Table 1).
+GRAIN_R_MAX_QUANTILE: float = 0.999
+
+
+def grain_mean_area_um2(grain_um: float, size_sigma_log: float = 0.0) -> float:
+    """Mean projected grain area, E[pi r^2], square micrometres.
+
+    ⚠ E[r^2] AND NOT E[r]^2, WHICH IS THE ENTIRE POINT OF R-S4(a). For a
+    log-normal radius with E[r] = d/2 fixed,
+
+        E[r^2] = (d/2)^2 * exp(sigma_ln^2)
+
+    so the mean AREA is larger than the area of the mean radius by
+    exp(sigma_ln^2): 1.130x at the corpus-typical sigma_ln 0.35 and 1.350x at
+    the 0.55 of a fast pushed stock. Using pi*(d/2)^2 would undercount the
+    covered area by that factor and therefore OVERCOUNT the number of grains
+    needed to reach a density -- in the direction that makes the Gaussian
+    marginal look safer than it is, which is the wrong direction to be wrong in
+    for a gate whose whole job is to decide when the Gaussian fails.
+
+    Equivalently pi*(mu_r^2 + sigma_r^2), which is how §10.6 writes it; the two
+    are the same identity because Var(r) = E[r^2] - E[r]^2.
+    """
+    if grain_um <= 0.0:
+        return 0.0
+    mu_r = 0.5 * float(grain_um)
+    s = max(float(size_sigma_log), 0.0)
+    return math.pi * mu_r * mu_r * math.exp(s * s)
+
+
+def grain_center_density_per_um2(net_density: float, grain_um: float,
+                                 size_sigma_log: float = 0.0) -> float:
+    """Developed grain centres per square micrometre at a given NET density.
+
+    Nutting's relation inverted: D = 0.434 * abar * n, so n = D / (0.434 abar).
+    [FACT -- Nutting 1913, and the same relation the random-dot inversion in
+    §20.2 runs the other way.]
+    """
+    a = grain_mean_area_um2(grain_um, size_sigma_log)
+    if a <= 0.0:
+        return 0.0
+    if hasattr(net_density, "shape"):
+        import numpy as _np
+        return (_np.maximum(_np.asarray(net_density, dtype=_np.float64), 0.0)
+                / (GRAIN_NUTTING_C * a))
+    return max(float(net_density), 0.0) / (GRAIN_NUTTING_C * a)
+
+
+def grain_element_area_um2(scan_sigma_mm: float, pixel_pitch_mm: float,
+                           n: int = 4001, f_max_cpmm: float = 2000.0) -> float:
+    """Noise-equivalent area of the resolution element, square micrometres.
+
+        A_elem = [ integral |T_scan(f) P_pix(f)|^2 df_x df_y ]^-1
+
+    with the integrand normalised to 1 at f = 0 (§10.6). This is the standard
+    noise-equivalent-aperture definition: it answers "how large a patch does one
+    output sample actually average over", which is the area the grain count has
+    to be taken across.
+
+    ⚠ IT IS NOT THE PIXEL AREA, and using the pixel area instead is the obvious
+    mistake. The scanner's optical transfer is usually the wider of the two, so
+    one sample averages over several pixels' worth of film and sees several
+    times as many grains as its own footprint contains -- which moves the gate.
+
+    The integral separates exactly: the isotropic Gaussian band limit factors
+    per axis and the pixel aperture is a box, so the two-dimensional integral is
+    the product of two identical one-dimensional ones, evaluated here by the
+    same fixed-grid trapezoidal rule the engines use so that all three agree to
+    float64 rounding rather than to a quadrature tolerance.
+    """
+    import numpy as _np
+    if pixel_pitch_mm <= 0.0:
+        return 0.0
+    f = _np.linspace(0.0, f_max_cpmm, n)
+    s = max(float(scan_sigma_mm), 0.0)
+    t = _np.exp(-2.0 * (math.pi ** 2) * (s * s) * f * f)
+    # Box pixel aperture of width = pitch: sinc(pi f dx), 1 at f = 0.
+    x = math.pi * f * float(pixel_pitch_mm)
+    p = _np.ones_like(x)
+    nz = x > 1e-12
+    p[nz] = _np.sin(x[nz]) / x[nz]
+    i1 = 2.0 * float(_np.trapezoid((t * p) ** 2, f))     # both signs of f
+    if i1 <= 0.0:
+        return 0.0
+    return (1.0 / (i1 * i1)) * 1.0e6                     # mm^2 -> um^2
+
+
+def grain_n_elem(net_density: float, grain_um: float, size_sigma_log: float,
+                 elem_area_um2: float) -> float:
+    """Grains per resolution element -- the quantity the stochastic gate reads."""
+    return (grain_center_density_per_um2(net_density, grain_um, size_sigma_log)
+            * max(float(elem_area_um2), 0.0))
+
+
+
+def grain_alpha(n_elem: float) -> float:
+    """The count gate (§12.4.4). 1 = pure Gaussian, 0 = pure sparse.
+
+        alpha(N) = smoothstep( (log2 N - log2 N_MIN) / (log2 N_HI - log2 N_MIN) )
+
+    ⚠ SMOOTHSTEP IN LOG COUNT, NOT IN DENSITY, and the log is what makes the
+    crossfade perceptually even: skewness goes as 1/sqrt(N), so equal ratios of
+    N are equal steps of non-Gaussianity, and a gate linear in N would spend
+    almost all of its transition in a density range where nothing is changing.
+
+    At N = N_HI the sparse branch's skewness is 0.10 and hands over to the
+    Gaussian's 0 without a visible step; at N_MIN it is 0.20, the visibility
+    threshold the edge was chosen at.
+
+    ⚠ alpha = 1 BELOW ZERO COUNT IS DELIBERATE. N = 0 is unexposed film, where
+    the only grain is fog and the sparse machinery has nothing to place; the
+    Gaussian branch already carries the fog floor through s(D), so the gate
+    returns 1 rather than 0 and the sparse path is not entered.
+    """
+    lo = math.log2(GRAIN_N_MIN)
+    hi = math.log2(GRAIN_N_HI)
+    if hasattr(n_elem, "shape"):
+        import numpy as _np
+        n = _np.asarray(n_elem, dtype=_np.float64)
+        u = _np.where(n > 0.0,
+                      (_np.log2(_np.maximum(n, 1e-300)) - lo) / (hi - lo), 1.0)
+        u = _np.clip(u, 0.0, 1.0)
+        return u * u * (3.0 - 2.0 * u)
+    n = float(n_elem)
+    if not (n > 0.0):
+        return 1.0
+    u = (math.log2(n) - lo) / (hi - lo)
+    if u <= 0.0:
+        return 0.0
+    if u >= 1.0:
+        return 1.0
+    return u * u * (3.0 - 2.0 * u)
+
+
+# ===========================================================================
+# THE SPARSE BRANCH -- compound-Poisson dot field (spec §12.4.2), R-S6
+# ===========================================================================
+#
+# ⚠⚠ WHY A SECOND SYNTHESIS PATH EXISTS AT ALL, when the Gaussian one is
+# cheaper, smoother and already calibrated.
+#
+# A Gaussian field has zero skewness at every density. Real film does not: in
+# the deep toe the developed grains are COUNTABLE, the density marginal is
+# compound Poisson, and its skewness is about 1/sqrt(N_elem). Solving
+# N_elem(D) = 25 over this corpus puts the failure at net D 0.058 for the median
+# stock and up to 0.87 for the coarsest -- so on a negative it is the shadows,
+# and it is exactly where real film shows discrete, salt-like grain instead of
+# smooth noise.
+#
+# ⚠ AND IT IS BOUNDED AND COMPUTABLE RATHER THAN A MATTER OF TASTE. The gate is
+# `grain_alpha(N_elem)`, N_elem comes from the physical diameter, and nothing in
+# it reads a stock name. That is R-S6's actual content: not "render dots on
+# grainy stocks" but "stop using a Gaussian where the counting statistics say a
+# Gaussian is wrong".
+#
+# ⚠⚠ THE SPLAT KERNELS OF SPEC §19.2 ARE DELIBERATELY NOT BUILT. It specifies
+# sixteen radius-bucketed stamps, each the disk footprint PRE-CONVOLVED with the
+# scanner PSF, "to avoid a second FFT pass". This engine has no FFT to avoid: it
+# has a separable blur. Convolution is linear, so splatting bare disks and then
+# running ONE separable blur over the finished plane is the same operator, to
+# the accuracy of the blur both branches already share -- and it deletes the
+# bucketing, the stamp tables and the quantisation of radius into sixteen bins,
+# which would otherwise be a third place for the three engines to disagree.
+
+#: Draws consumed per grain: two for position, one for radius.
+GRAIN_SPARSE_DRAWS_PER_GRAIN: int = 3
+
+#: ⚠ HARD CEILING ON GRAINS PER CELL, AND IT IS A TERMINATION GUARANTEE RATHER
+#: THAN A MODELLING CHOICE. The Poisson inversion below walks the CDF, and a
+#: corrupt lambda -- a negative density that slipped a floor, say -- would walk
+#: it forever. The sparse branch only runs where N_elem < 100 per RESOLUTION
+#: ELEMENT, and a cell is smaller than an element, so a cell holding more than
+#: this many grains is not a rare sample: it is a bug upstream. Clamping makes
+#: that bug a visible flat spot instead of a hang.
+GRAIN_SPARSE_MAX_PER_CELL: int = 256
+
+
+def grain_r_max_um(grain_um: float, size_sigma_log: float) -> float:
+    """The 99.9th-percentile radius, micrometres. Truncation bound for draws.
+
+    ⚠ A LOG-NORMAL HAS NO LARGEST GRAIN and an untruncated draw therefore has no
+    bounded splat footprint, which a renderer cannot have: the kernel support
+    would be a random variable and the cost with it. [R1] Table 1 truncates at
+    the 99.9th percentile and so does this. The mass discarded is 1e-03 of the
+    count, well under the 1.3e-03 the spectral mixture already admits.
+    """
+    if grain_um <= 0.0:
+        return 0.0
+    s = max(float(size_sigma_log), 0.0)
+    mu = math.log(0.5 * float(grain_um)) - 0.5 * s * s
+    if s <= 0.0:
+        return math.exp(mu)
+    # Phi^-1(0.999) = 3.0902323061678132
+    return math.exp(mu + s * 3.0902323061678132)
+
+
+def grain_sparse_sigma(net_density: float, grain_um: float,
+                       size_sigma_log: float) -> float:
+    """Aperture-referred sigma(D) the counting law predicts, density units.
+
+        sigma_D(48 um) = D / sqrt(n * A_48)
+
+    ⚠ THIS IS WHAT UNIT-CALIBRATES THE SPARSE FIELD, and it is the same relation
+    `random_dot_disk_diameter_um` was inverted from to obtain `grain_um` in the
+    first place. So the two are not independent, and that is a FEATURE with a
+    test attached: at net density 1.0 this must reproduce the stock's stored
+    `rms_granularity / 1000`, because that is the equation grain_um solves. If
+    it does not, the diameter and the calibration have drifted apart.
+    `G-V48-SPARSECAL` asserts it.
+    """
+    n = grain_center_density_per_um2(net_density, grain_um, size_sigma_log)
+    if n <= 0.0:
+        return 0.0
+    return float(net_density) / math.sqrt(n * _GRANULARITY_APERTURE_AREA_UM2)
+
+
+# ---------------------------------------------------------------------------
+#  THE SPARSE BRANCH -- compound-Poisson dot field (spec §12.4.2), R-S6
+# ---------------------------------------------------------------------------
+
+#: Acklam's rational approximation to the inverse normal CDF, |err| < 1.15e-09.
+#: ⚠ HAND-ROLLED FOR THE SAME REASON `bessel_j1` IS: the radius draw needs
+#: Phi^-1 on both C++ twins, `math` has no such function, and a SciPy dependency
+#: on the reference engine in a form no engine could use is the wrong trade.
+_NORM_INV_A = (-3.969683028665376e+01, 2.209460984245205e+02,
+               -2.759285104469687e+02, 1.383577518672690e+02,
+               -3.066479806614716e+01, 2.506628277459239e+00)
+_NORM_INV_B = (-5.447609879822406e+01, 1.615858368580409e+02,
+               -1.556989798598866e+02, 6.680131188771972e+01,
+               -1.328068155288572e+01)
+_NORM_INV_C = (-7.784894002430293e-03, -3.223964580411365e-01,
+               -2.400758277161838e+00, -2.549732539343734e+00,
+               4.374664141464968e+00, 2.938163982698783e+00)
+_NORM_INV_D = (7.784695709041462e-03, 3.224671290700398e-01,
+               2.445134137142996e+00, 3.754408661907416e+00)
+_NORM_INV_PLOW = 0.02425
+
+
+def norm_inv(u: float) -> float:
+    """Phi^-1(u), the standard normal quantile. Acklam, |err| < 1.15e-09."""
+    if u <= 0.0:
+        return -8.0
+    if u >= 1.0:
+        return 8.0
+    a, b, c, d = _NORM_INV_A, _NORM_INV_B, _NORM_INV_C, _NORM_INV_D
+    if u < _NORM_INV_PLOW:
+        q = math.sqrt(-2.0 * math.log(u))
+        return ((((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q
+                 + c[5])
+                / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0))
+    if u > 1.0 - _NORM_INV_PLOW:
+        q = math.sqrt(-2.0 * math.log(1.0 - u))
+        return -((((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q
+                  + c[5])
+                 / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1.0))
+    q = u - 0.5
+    r = q * q
+    return ((((((a[0] * r + a[1]) * r + a[2]) * r + a[3]) * r + a[4]) * r + a[5])
+            * q
+            / (((((b[0] * r + b[1]) * r + b[2]) * r + b[3]) * r + b[4]) * r
+               + 1.0))
+
+
+def poisson_inv(u: float, lam: float) -> int:
+    """A Poisson draw by CDF inversion. Pure function of one uniform.
+
+    ⚠ INVERSION AND NOT A REJECTION METHOD, for the same reason the normal draw
+    is Box-Muller and not a ziggurat: this has to be a pure function of its
+    counter, and a rejection loop consumes a random number of draws, which
+    cannot be indexed deterministically. Inversion consumes exactly one.
+
+    The regime is small lambda by construction -- the sparse branch only runs
+    where the count per RESOLUTION ELEMENT is under 100, and a cell is smaller
+    than an element -- so the walk is short. It is still bounded by
+    `GRAIN_SPARSE_MAX_PER_CELL`, because an upstream sign error in the density
+    would otherwise turn a bad frame into a hang.
+    """
+    if lam <= 0.0:
+        return 0
+    p = math.exp(-lam)
+    acc = p
+    k = 0
+    while u > acc and k < GRAIN_SPARSE_MAX_PER_CELL:
+        k += 1
+        p *= lam / k
+        acc += p
+    return k
+
+
+def grain_skewness(n_elem: float, size_sigma_log: float = 0.0) -> float:
+    """Skewness of the compound-Poisson density marginal at the element scale.
+
+    ⚠⚠ THE SPECIFICATION SAYS 1/sqrt(N_elem) AND THAT IS LOW BY exp(6 sigma_ln^2)
+    -- 45 % at the corpus-typical sigma_ln 0.25 and 152 % at 0.55. §12.4.3 gets
+    it by treating every grain as depositing the same density. They do not: the
+    deposit is proportional to the grain's AREA, the radius is log-normal, and
+    for a compound Poisson sum of variable jumps the skewness is
+
+        gamma = E[X^3] / ( sqrt(lambda) * E[X^2]^(3/2) ),     X = c r^2
+
+    which with r log-normal collapses to exp(6 sigma_ln^2) / sqrt(N). The three
+    lognormal moments E[r^2], E[r^4], E[r^6] leave only the sigma terms behind.
+
+    ⚠ MEASURED, NOT ONLY DERIVED. The exact dot renderer -- every grain placed,
+    every deposit summed -- gives 1.435 / 1.432 / 1.385 times the spec's
+    1/sqrt(N) on PORTRA 400 at three densities, against a predicted
+    sqrt(A_elem/A_pix) = 1.448 for the per-pixel aggregation those runs used.
+    The law holds to about 1 %, and the correction it carries is not small.
+
+    ⚠ IT MATTERS IN THE DIRECTION THAT COSTS REALISM. Under-stating the skewness
+    under-states how salt-like the deep toe looks, which is the one visible
+    thing the whole sparse branch exists to deliver.
+    """
+    sg = max(float(size_sigma_log), 0.0)
+    k = math.exp(6.0 * sg * sg)
+    if hasattr(n_elem, "shape"):
+        import numpy as _np
+        n = _np.asarray(n_elem, dtype=_np.float64)
+        return _np.where(n > 0.0, k / _np.sqrt(_np.maximum(n, 1e-300)), 0.0)
+    n = float(n_elem)
+    if not (n > 0.0):
+        return 0.0
+    return k / math.sqrt(n)
+
+
+#: ⚠⚠ THE CORNISH-FISHER COEFFICIENT IS CLAMPED, AND THE CLAMP IS A
+#: MONOTONICITY REQUIREMENT RATHER THAN A TASTE LIMIT.
+#:
+#: The transform z -> z + c(z^2 - 1) has derivative 1 + 2cz, which is positive
+#: only for z > -1/(2c). Above c = 0.1 that boundary rises into the range a
+#: unit-variance field actually visits: at c = 0.43 -- which the coarsest stock
+#: reaches at net D 0.02 -- it is z = -1.16, so roughly one sample in eight
+#: would be FOLDED BACK, turning the deepest shadow values into brighter ones.
+#: A non-monotone tone transform is not an inaccuracy; it is a visible artefact
+#: that looks like posterisation in the toe.
+#:
+#: 0.1 keeps the transform monotone down to z = -5, i.e. over everything a
+#: Gaussian field reaches in a 4K frame, and caps the imposed skewness at 0.6.
+#:
+#: ⚠ WHAT THE CLAMP COSTS IS STATED RATHER THAN HIDDEN. Where the uncapped
+#: theory asks for more than 0.6 -- the extreme toe of the coarsest stocks,
+#: N_elem below about 6 -- the render is LESS skewed than real film. That is
+#: precisely the region where a marginal transform of a Gaussian field stops
+#: being a good model at all, because real film there shows countable discrete
+#: specks and no transform of a continuous field can produce those. Closing it
+#: needs the exact dot renderer to become affordable; `G-V48-MARGINAL` records
+#: how many stock-density pairs are clamped so the number cannot drift
+#: unnoticed.
+GRAIN_MARGINAL_COEFF_MAX: float = 0.1
+
+
+def grain_marginal_coeff(n_elem: float, size_sigma_log: float = 0.0) -> float:
+    """Cornish-Fisher coefficient c for the count-gated marginal correction.
+
+    The render path imposes the compound-Poisson marginal on the Gaussian field
+    rather than building a dot field, through
+
+        z' = ( z + c (z^2 - 1) ) / sqrt(1 + 2 c^2),     c = gamma_eff / 6
+
+    which has mean 0, variance 1 exactly, and skewness gamma_eff to O(c^3).
+
+    ⚠⚠ THIS IS A DELIBERATE SUBSTITUTION FOR SPEC §12.4.2 AND THE REASON IS A
+    MEASUREMENT. The specification builds the sparse branch by placing every
+    grain: a cell grid, a Poisson count per cell, a log-normal radius per grain,
+    and a splat through sixteen radius-bucketed kernels. Costed against this
+    corpus at 3840x2160 it needs about **5 million grains per channel over only
+    5 % of the frame at the gate's LOWER edge, and four times that at its
+    upper** -- 25 to 100 ms of scatter on top of the Gaussian branch, against an
+    8 ms whole-frame budget (R-N3). The construction cannot run at 4K, and
+    §23's claim that its cost is "proportional to the low-count area" is true
+    and still unaffordable, because that area contains hundreds of millions of
+    grains.
+    
+    What the sparse branch DELIVERS, per §12.4.3, is a positively skewed
+    marginal. The spec's own blend
+    
+        sqrt(alpha) F + sqrt(1 - alpha) S
+    
+    has, for independent unit-variance F and S, exactly mean 0, variance 1 and
+    third moment (1 - alpha)^(3/2) gamma_S. The transform above reproduces all
+    three at O(1) per pixel. So the first three moments agree with the
+    specification by construction; the fourth and higher do not, and the spatial
+    arrangement of the dots is not reproduced at all.
+    
+    ⚠ WHAT IS LOST IS REAL AND IS NAMED HERE RATHER THAN GLOSSED. A transform of
+    a Gaussian field cannot produce genuinely DISCRETE specks: at very low
+    counts real film shows individual grains against clear base, and this shows
+    a skewed continuum. The two part company where alpha is near zero and
+    N_elem is of order one -- the extreme toe of the coarsest stocks. The exact
+    renderer stays in the tree as `film_sim.exact_dot_field` so the gap can be
+    measured rather than argued about, and closing it needs the sparse path to
+    become affordable, not a better transform.
+    """
+    a = grain_alpha(n_elem)
+    if hasattr(n_elem, "shape"):
+        import numpy as _np
+        g = (grain_skewness(n_elem, size_sigma_log)
+             * _np.power(_np.maximum(1.0 - a, 0.0), 1.5))
+        return _np.minimum(g / 6.0, GRAIN_MARGINAL_COEFF_MAX)
+    if a >= 1.0:
+        return 0.0
+    g = grain_skewness(n_elem, size_sigma_log) * ((1.0 - a) ** 1.5)
+    return min(g / 6.0, GRAIN_MARGINAL_COEFF_MAX)
+
+
+# ---------------------------------------------------------------------------
+#  R-S5: THE SATURATING sigma(D) FAMILY, AND WHY IT IS NOT THE DEFAULT
+# ---------------------------------------------------------------------------
+#
+# Spec §10.5.3 proposes a two-parameter shape for stocks with no traced
+# sigma(D):
+#
+#     s_raw(D) = sqrt(D_net + fog) * exp( -(D_net / D_roll)^q )
+#     s(D)     = s_raw(D) / s_raw(1.0)
+#
+# and gate S-C8 says it "shall reproduce those 13 sigma(D) traces within 10 %
+# RMS before the mode may become a default".
+#
+# ⚠⚠ THE FIT WAS RUN AND THE GATE REFUSES IT. Over the twelve MEASURED NEGATIVE
+# stocks, a single global (D_roll, q) reaches
+#
+#     mean 14.0 % RMS, worst 25.3 % (KODAK_VISION3_50D_5203)
+#
+# against a 10 % bar. Allowing a separate pair per stock -- which is not what
+# the gate asks and would in any case be unobtainable for the 177 stocks with no
+# trace to fit -- reaches mean 7.6 % and still fails two of twelve at 14.3 % and
+# 12.8 %.
+#
+# ⚠ SO THE LEGACY SQUARE-ROOT LAW STAYS THE FALLBACK, and that is the gate doing
+# its job rather than a gap left open. R-S5's first clause -- "measured shape
+# where it exists" -- has been met since schema v8. Its second clause is blocked
+# by the specification's own acceptance test, which is the correct outcome for a
+# family that does not fit: adopting it would replace a law known to be wrong in
+# the curvature with a law measured to be wrong by 14 %, on 177 stocks, for the
+# sake of having implemented something.
+#
+# ⚠ THE TWO REVERSAL STOCKS ARE EXCLUDED FROM THE FIT AND THE REASON IS
+# STRUCTURAL, NOT STATISTICAL. KODAK_EKTACHROME_100D_5285 and
+# KODAK_TRI_X_REVERSAL_200 RISE towards Dmax -- 3.10x and 2.83x their net-1.0
+# value -- while exp(-(D/D_roll)^q) is monotonically falling for every positive
+# (D_roll, q). The family cannot express a reversal shape at all, so including
+# them would not be a harder test but a meaningless one.
+
+#: Best single (D_roll, q) over the twelve measured negatives, and what it
+#: achieves. Stored so the refusal is a number that can be re-derived rather
+#: than a claim in a comment; `G-V48-SATFIT` recomputes it on every build.
+GRAIN_SIGMA_SAT_GLOBAL_FIT: tuple[float, float] = (0.95, 0.75)
+GRAIN_SIGMA_SAT_GLOBAL_RMS_MEAN: float = 0.140
+GRAIN_SIGMA_SAT_GLOBAL_RMS_WORST: float = 0.253
+GRAIN_SIGMA_SAT_GATE: float = 0.10
+
+#: ⚠ WHY THE MODE EXISTS AT ALL IF IT IS REFUSED. Because the refusal has to be
+#: checkable. A family nobody implemented cannot be shown to fail, and the next
+#: reader would have to redo the fit to find out. It is selectable through
+#: `RenderSettings.sigma_model` for exactly that purpose and defaults off.
+GRAIN_SIGMA_SAT_ADOPTED: bool = False
+
+
+def grain_sigma_saturating(net_density, fog_grain: float,
+                           d_roll: float = 0.0, q: float = 0.0):
+    """The saturating sigma(D) family of spec §10.5.3, normalised at net 1.0.
+
+    ⚠ NOT A DEFAULT -- see `GRAIN_SIGMA_SAT_ADOPTED` and the block above. It is
+    here so that gate S-C8 can be evaluated rather than assumed.
+    """
+    dr = float(d_roll) if d_roll > 0.0 else GRAIN_SIGMA_SAT_GLOBAL_FIT[0]
+    qq = float(q) if q > 0.0 else GRAIN_SIGMA_SAT_GLOBAL_FIT[1]
+    fog = max(float(fog_grain), 0.0)
+
+    def _raw(d):
+        return math.sqrt(max(d, 0.0) + fog) * math.exp(
+            -((max(d, 0.0) / dr) ** qq))
+
+    ref = _raw(1.0)
+    if not (ref > 0.0):
+        return net_density
+    if hasattr(net_density, "shape"):
+        import numpy as _np
+        d = _np.maximum(_np.asarray(net_density, dtype=_np.float64), 0.0)
+        return (_np.sqrt(d + fog)
+                * _np.exp(-_np.power(d / dr, qq))) / ref
+    return _raw(float(net_density)) / ref
+
+
+def grain_sigma_sat_fit_error(profile, d_roll: float, q: float,
+                              n: int = 60) -> float:
+    """RMS relative error of the saturating family against a traced shape.
+
+    The comparison runs over the stock's OWN traced range, in net density, and
+    against `grain_sigma` -- the same evaluator the renderer uses -- rather than
+    against the four stored anchors, because the anchors are not the shape: the
+    renderer interpolates between them and that interpolation is what a
+    replacement would have to reproduce.
+    """
+    import numpy as _np
+    g = profile.grain
+    c = profile.curves.g
+    if not g.sigma_shape_measured:
+        return 0.0
+    top = (g.sigma_shape_dmax_at - c.dmin) if g.sigma_shape_dmax_at > 0.0 else 2.0
+    net = _np.linspace(0.02, max(top, 0.5), n)
+    tgt = _np.array([grain_sigma(g, c.dmin, c.dmax, c.dmin + float(d))
+                     for d in net])
+    got = grain_sigma_saturating(net, g.fog_grain, d_roll, q)
+    return float(_np.sqrt(_np.mean(((got - tgt)
+                                    / _np.maximum(tgt, 1e-6)) ** 2)))
+
+
+def _apply_grain_um_v48(p: "FilmProfile") -> "FilmProfile":
+    """Migration v47 -> v48 step 2: populate `grain_um_*` (spec §18.3).
+
+    ⚠ ONLY THE FIVE MEASURED STOCKS ARE WRITTEN HERE. Everything else is left
+    at 0.0 and derived on demand by `GrainSpec.grain_um_rgb()`, so the stored
+    database holds a number in exactly the places where a number was measured
+    and nowhere else. Writing the derivation into all 191 literals would make
+    186 estimates indistinguishable from 5 measurements at a glance, which is
+    the failure mode `param_sources` exists to prevent.
+
+    Reversible by construction: nothing is overwritten, `clump_um_*` is
+    untouched (R-S2), and dropping this pass restores v47 exactly.
+    """
+    if p.name not in GRAIN_CLUMP_MEASURED_STOCKS:
+        return p
+    g = p.grain
+    if g.grain_um_r > 0.0 or g.grain_um_g > 0.0 or g.grain_um_b > 0.0:
+        return p
+    return replace(p, grain=replace(
+        g, grain_um_r=g.clump_um_r, grain_um_g=g.clump_um_g,
+        grain_um_b=g.clump_um_b))
+
+
+FILM_PROFILES = tuple(_apply_grain_um_v48(_p) for _p in FILM_PROFILES)
+
+
+#: Ratio of the derived diameter to the T-101 measurement, on the five stocks
+#: where both exist. ⚠ THIS IS THE ONLY EVIDENCE THAT THE INVERSION IS ALLOWED
+#: TO SPEAK FOR THE OTHER 186, so it is stored as a number and guarded rather
+#: than asserted in a comment. Median 1.14, range 0.98-1.80; the 186 estimated
+#: stocks sit at median 5.64 against their own `clump_um`, and the two
+#: populations do not overlap at the quartile.
+#: ⚠ RESTATED IN v48 WHEN R-S4(a) LANDED. The v46 figures were
+#: 0.98 / 0.99 / 1.14 / 1.52 / 1.80, computed with an inversion that ignored
+#: radius dispersion. With E[pi r^2] in it the derived diameter is 3-6 %
+#: smaller, so every ratio rises by exp(sigma_ln^2 / 2). The AGREEMENT IS
+#: UNCHANGED IN KIND -- the measured five still sit around unity against a
+#: median 5.64 for the 186 estimated stocks, and the two populations still do
+#: not overlap at the quartile. What moved is a systematic 3-6 %, in the same
+#: direction on all five, which is what a corrected constant looks like.
+GRAIN_UM_MEASURED_AGREEMENT: dict[str, float] = {
+    "ILFORD_HPS": 1.04, "EASTMAN_TRI_X_5223": 1.05,
+    "EASTMAN_PLUS_X_5231": 1.21, "KODAK_8374": 1.62, "ILFORD_PAN_F": 1.91,
+}
+
+
 # ---------------------------------------------------------------------------
 # Lookup
 # ---------------------------------------------------------------------------
@@ -60173,6 +63642,28 @@ def validate_all() -> None:
                     f"{rec.key}: product {nm!r} is claimed by two paper "
                     "spectral records -- one product has one panel set")
             seen_paper.add(k)
+
+    # -- schema v48: R-T5 ----------------------------------------------------
+    # ⚠ `grain_temporal_class` IS DECLARATIVE AND ITS ONLY LEGAL VALUE IS THE
+    # DEFAULT. Spec §18.2 defines a second value, "scanner_fixed_pattern", whose
+    # stated behaviour is to freeze the grain field for that stock -- and R-T5
+    # forbids the grain stage from introducing any frame-locked component. The
+    # two cannot both hold. Rather than let a stock be marked and then silently
+    # rendered under whichever clause the engine happened to implement, the
+    # value is refused here until a stock actually needs one and the conflict
+    # is decided on the record.
+    for _p in FILM_PROFILES:
+        if _p.grain.grain_temporal_class != "emulsion":
+            raise ValueError(
+                f"{_p.name}: grain_temporal_class = "
+                f"{_p.grain.grain_temporal_class!r}. Only 'emulsion' is "
+                "implemented: spec §18.2's 'scanner_fixed_pattern' asks the "
+                "grain stage to freeze the field, and R-T5 forbids the grain "
+                "stage from introducing a frame-locked component. Marking a "
+                "stock needs that conflict resolved first -- and if the "
+                "stock's traced noise really is the scanner's, its "
+                "rms_granularity is not emulsion granularity and freezing "
+                "renders the wrong quantity steadily rather than fixing it.")
 
 
 if __name__ == "__main__":
