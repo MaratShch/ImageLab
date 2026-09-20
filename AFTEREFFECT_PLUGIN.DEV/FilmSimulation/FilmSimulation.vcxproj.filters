@@ -243,12 +243,6 @@
     <ClInclude Include="include\AlgoCurveLut.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\Common.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\CommonPixFormat.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgoProcessVariant.hpp">
       <Filter>include</Filter>
     </ClInclude>
