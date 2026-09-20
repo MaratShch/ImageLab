@@ -165,6 +165,7 @@
     <ClInclude Include="include\AlgoCharacteristicCurve.hpp" />
     <ClInclude Include="include\AlgoCoatingField.hpp" />
     <ClInclude Include="include\AlgoControl.hpp" />
+    <ClInclude Include="include\AlgoControlAdobe.hpp" />
     <ClInclude Include="include\AlgoControlEnums.hpp" />
     <ClInclude Include="include\AlgoControlValues.hpp" />
     <ClInclude Include="include\AlgoCornerDefocus.hpp" />
