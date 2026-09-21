@@ -68,7 +68,8 @@ PF_Err SetupControlElements
 AlgoControls getAlgoControls
 (
     PF_ParamDef* params[],
-    const double fps
+    const double fps,
+    const int32_t idx
 );
 
 #endif // __IMAGE_LAB_IMAGE_FILM_SIMULATION_FILTER__

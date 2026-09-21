@@ -136,6 +136,16 @@ inline double image_lab_get_fps (const PF_InData* in_data) noexcept
     return fps;
 }
 
+inline int32_t image_lab_get_frame_number (const PF_InData* in_data) noexcept
+{
+    // Get the current time and the duration of a single frame from the host
+    const int32_t currentTime = in_data->current_time;
+    const int32_t frameDuration = in_data->time_step;
+
+    // Calculate the frame number (Zero-based index)
+    return (0 != frameDuration ? (currentTime / frameDuration) : 0);
+}
+
 
 #ifdef __cplusplus
  #define PLUGIN_ENTRY_POINT_CALL	extern "C" DllExport

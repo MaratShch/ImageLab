@@ -37,7 +37,8 @@ PF_Err ProcessImgInPR
         if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
         {
             const double fpsRate = image_lab_get_fps(in_data);
-            const AlgoControls algoControls = getAlgoControls(params, fpsRate);
+            const int32_t idx = image_lab_get_frame_number(in_data);
+            const AlgoControls algoControls = getAlgoControls(params, fpsRate, idx);
 
             switch (destinationPixelFormat)
             {
