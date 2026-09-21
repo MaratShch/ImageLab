@@ -1,0 +1,3265 @@
+[
+ {
+  "name": "gamma_vs_time",
+  "what": "development gamma at a held-out time, from the law re-fitted without that point",
+  "truth": "the sheet's own printed gamma at that time",
+  "unit": "gamma",
+  "tolerance": 0.05,
+  "n": 291,
+  "stocks": 18,
+  "median_abs": 0.01465274594164545,
+  "p90_abs": 0.042762080517174006,
+  "worst": {
+   "stock": "KODAK_PANATOMIC_X",
+   "developer": "KODAK D-76",
+   "celsius": 20.0,
+   "minutes": 15.0,
+   "printed": 1.02,
+   "predicted": 0.8986313252135207,
+   "error": -0.12136867478647928,
+   "n_fit": 3
+  },
+  "pass": 267,
+  "rows": [
+   {
+    "stock": "EASTMAN_DOUBLE_X_5222",
+    "developer": "KODAK D-96",
+    "celsius": 21.0,
+    "minutes": 4.0,
+    "printed": 0.5,
+    "predicted": 0.4464002391914883,
+    "error": -0.0535997608085117,
+    "n_fit": 4
+   },
+   {
+    "stock": "EASTMAN_DOUBLE_X_5222",
+    "developer": "KODAK D-96",
+    "celsius": 21.0,
+    "minutes": 5.0,
+    "printed": 0.56,
+    "predicted": 0.5520175850773686,
+    "error": -0.007982414922631409,
+    "n_fit": 4
+   },
+   {
+    "stock": "EASTMAN_DOUBLE_X_5222",
+    "developer": "KODAK D-96",
+    "celsius": 21.0,
+    "minutes": 6.5,
+    "printed": 0.66,
+    "predicted": 0.6952596898282772,
+    "error": 0.03525968982827721,
+    "n_fit": 4
+   },
+   {
+    "stock": "EASTMAN_DOUBLE_X_5222",
+    "developer": "KODAK D-96",
+    "celsius": 21.0,
+    "minutes": 9.0,
+    "printed": 0.84,
+    "predicted": 0.8694576105625549,
+    "error": 0.029457610562554915,
+    "n_fit": 4
+   },
+   {
+    "stock": "EASTMAN_DOUBLE_X_5222",
+    "developer": "KODAK D-96",
+    "celsius": 21.0,
+    "minutes": 12.0,
+    "printed": 1.05,
+    "predicted": 0.9422889163841224,
+    "error": -0.10771108361587767,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_COMMERCIAL_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.5,
+    "predicted": 0.47954733253228415,
+    "error": -0.020452667467715846,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_COMMERCIAL_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.65,
+    "predicted": 0.6501339441228569,
+    "error": 0.00013394412285683277,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_COMMERCIAL_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 5.5,
+    "printed": 0.85,
+    "predicted": 0.8540151748650265,
+    "error": 0.004015174865026561,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_COMMERCIAL_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 1.0,
+    "predicted": 1.0133574731416721,
+    "error": 0.013357473141672127,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_COMMERCIAL_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 1.3,
+    "predicted": 1.2899795839097952,
+    "error": -0.010020416090204876,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_COMMERCIAL_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 1.5,
+    "predicted": 1.527071366515035,
+    "error": 0.027071366515035056,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_ORTHO_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.5,
+    "printed": 0.6,
+    "predicted": 0.5468052496672025,
+    "error": -0.053194750332797525,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ORTHO_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 6.5,
+    "printed": 0.7,
+    "predicted": 0.7249983325371971,
+    "error": 0.024998332537197188,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ORTHO_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.8,
+    "predicted": 0.8387217653458977,
+    "error": 0.03872176534589766,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ORTHO_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.9,
+    "predicted": 0.9166187489458668,
+    "error": 0.01661874894586679,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ORTHO_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 1.0,
+    "predicted": 0.9120865225004872,
+    "error": -0.08791347749951284,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 3.75,
+    "printed": 0.43,
+    "predicted": 0.43211615083260296,
+    "error": 0.00211615083260297,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.55,
+    "predicted": 0.534426167657977,
+    "error": -0.01557383234202303,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.62,
+    "predicted": 0.6103871269917462,
+    "error": -0.009612873008253753,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.79,
+    "predicted": 0.8009911868607861,
+    "error": 0.01099118686078604,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 0.96,
+    "predicted": 0.9686956592968347,
+    "error": 0.00869565929683469,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 3.25,
+    "printed": 0.42,
+    "predicted": 0.36395207215209113,
+    "error": -0.05604792784790885,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.61,
+    "predicted": 0.6093253687683756,
+    "error": -0.0006746312316243674,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.81,
+    "predicted": 0.8523629528794914,
+    "error": 0.04236295287949132,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 1.02,
+    "predicted": 0.8986313252135207,
+    "error": -0.12136867478647928,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.6,
+    "predicted": 0.548793495336516,
+    "error": -0.051206504663483976,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.7,
+    "predicted": 0.7183227926554051,
+    "error": 0.01832279265540515,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.8,
+    "predicted": 0.8322891431637358,
+    "error": 0.03228914316373577,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.9,
+    "predicted": 0.9100110365417553,
+    "error": 0.01001103654175528,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PANATOMIC_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 1.0,
+    "predicted": 0.9582321360606678,
+    "error": -0.041767863939332184,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.47,
+    "predicted": 0.4715547872572901,
+    "error": 0.0015547872572901356,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.57,
+    "predicted": 0.5247586149679516,
+    "error": -0.04524138503204833,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.585,
+    "predicted": 0.6078617880584819,
+    "error": 0.022861788058481936,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.642,
+    "predicted": 0.6634891645979872,
+    "error": 0.02148916459798722,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.72,
+    "predicted": 0.7111355278517407,
+    "error": -0.00886447214825925,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.727,
+    "predicted": 0.7547594499444897,
+    "error": 0.027759449944489756,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.763,
+    "predicted": 0.789311013384567,
+    "error": 0.026311013384566984,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.789,
+    "predicted": 0.819389835430813,
+    "error": 0.030389835430812973,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 0.82,
+    "predicted": 0.8389449746068965,
+    "error": 0.018944974606896592,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.853,
+    "predicted": 0.8594190627394098,
+    "error": 0.006419062739409842,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 0.877,
+    "predicted": 0.8818530733854754,
+    "error": 0.004853073385475359,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 0.899,
+    "predicted": 0.9017192595856163,
+    "error": 0.0027192595856162516,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 0.96,
+    "predicted": 0.9203288531060799,
+    "error": -0.03967114689392004,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 19.0,
+    "printed": 0.956,
+    "predicted": 0.923798057012381,
+    "error": -0.032201942987618914,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.397,
+    "predicted": 0.36523002525657033,
+    "error": -0.031769974743429685,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.451,
+    "predicted": 0.45358700478075054,
+    "error": 0.0025870047807505236,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.5,
+    "predicted": 0.5093638138729429,
+    "error": 0.009363813872942939,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.542,
+    "predicted": 0.5569133574149302,
+    "error": 0.014913357414930162,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.583,
+    "predicted": 0.5974491845418325,
+    "error": 0.014449184541832527,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.616,
+    "predicted": 0.6320058418399447,
+    "error": 0.01600584183994469,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.645,
+    "predicted": 0.6614652768202817,
+    "error": 0.01646527682028165,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.67,
+    "predicted": 0.6865793467916305,
+    "error": 0.016579346791630423,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 0.694,
+    "predicted": 0.7079890075996799,
+    "error": 0.013989007599679915,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.719,
+    "predicted": 0.726240671963069,
+    "error": 0.00724067196306899,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 0.737,
+    "predicted": 0.7417211675344176,
+    "error": 0.004721167534417647,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 0.756,
+    "predicted": 0.7579474769858886,
+    "error": 0.0019474769858885965,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 0.776,
+    "predicted": 0.764664398546274,
+    "error": -0.01133560145372603,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 0.788,
+    "predicted": 0.7744212637932999,
+    "error": -0.013578736206700137,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PLUS_X_125",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 19.0,
+    "printed": 0.802,
+    "predicted": 0.8072664491622946,
+    "error": 0.005266449162294573,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_PORTRAIT_PANCHROMATIC_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 5.5,
+    "printed": 0.6,
+    "predicted": 0.5316058032370734,
+    "error": -0.06839419676292657,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PORTRAIT_PANCHROMATIC_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.7,
+    "predicted": 0.7255910024140746,
+    "error": 0.025591002414074637,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PORTRAIT_PANCHROMATIC_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.8,
+    "predicted": 0.8355596310709132,
+    "error": 0.0355596310709132,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PORTRAIT_PANCHROMATIC_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 0.9,
+    "predicted": 0.921126495425458,
+    "error": 0.02112649542545797,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_PORTRAIT_PANCHROMATIC_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 20.0,
+    "printed": 1.0,
+    "predicted": 0.9133978781739198,
+    "error": -0.08660212182608018,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ROYAL_ORTHO_1956",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.6,
+    "predicted": 0.5948585264805122,
+    "error": -0.005141473519487794,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ROYAL_ORTHO_1956",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.73,
+    "predicted": 0.7535771750795075,
+    "error": 0.023577175079507517,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ROYAL_ORTHO_1956",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.95,
+    "predicted": 0.9075608485862007,
+    "error": -0.04243915141379928,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ROYAL_ORTHO_1956",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 1.09,
+    "predicted": 1.090249512885342,
+    "error": 0.0002495128853419182,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ROYAL_ORTHO_1956",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 1.14,
+    "predicted": 1.182762080517174,
+    "error": 0.042762080517174006,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.58,
+    "predicted": 0.5669390851524584,
+    "error": -0.013060914847541572,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.699,
+    "predicted": 0.6848787220467705,
+    "error": -0.014121277953229483,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 4.5,
+    "printed": 0.75,
+    "predicted": 0.7345306462901389,
+    "error": -0.015469353709861133,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.79,
+    "predicted": 0.7788513806620876,
+    "error": -0.011148619337912447,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.85,
+    "predicted": 0.8596689169265047,
+    "error": 0.009668916926504734,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.907,
+    "predicted": 0.918901412415809,
+    "error": 0.011901412415808998,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 7.5,
+    "printed": 0.92,
+    "predicted": 0.9437731012872941,
+    "error": 0.02377310128729404,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.949,
+    "predicted": 0.9659364920215645,
+    "error": 0.016936492021564553,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.99,
+    "predicted": 1.003285901247776,
+    "error": 0.013285901247775955,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 1.016,
+    "predicted": 1.0329441559215131,
+    "error": 0.016944155921513104,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 1.052,
+    "predicted": 1.0530264113010963,
+    "error": 0.0010264113010962639,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 1.076,
+    "predicted": 1.0721863275325494,
+    "error": -0.0038136724674506794,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 12.5,
+    "printed": 1.09,
+    "predicted": 1.0802525445761535,
+    "error": -0.009747455423846585,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 1.1,
+    "predicted": 1.087452681699214,
+    "error": -0.012547318300786037,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 1.117,
+    "predicted": 1.099616699888367,
+    "error": -0.017383300111633027,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 1.14,
+    "predicted": 1.123745572907106,
+    "error": -0.01625442709289393,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.48,
+    "predicted": 0.49891650126058806,
+    "error": 0.01891650126058808,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.597,
+    "predicted": 0.6037815024473615,
+    "error": 0.0067815024473615315,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.697,
+    "predicted": 0.6885664855721548,
+    "error": -0.008433514427845124,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.771,
+    "predicted": 0.7680565418886098,
+    "error": -0.0029434581113901848,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.828,
+    "predicted": 0.8201803940817681,
+    "error": -0.007819605918231831,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.869,
+    "predicted": 0.8699018070435307,
+    "error": 0.0009018070435307113,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.907,
+    "predicted": 0.9089078874322983,
+    "error": 0.0019078874322983053,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.938,
+    "predicted": 0.940490974464206,
+    "error": 0.002490974464206097,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.964,
+    "predicted": 0.9660636897056049,
+    "error": 0.0020636897056048875,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.985,
+    "predicted": 0.9867698279040965,
+    "error": 0.0017698279040965215,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 1.004,
+    "predicted": 1.0035355156712271,
+    "error": -0.00046448432877288504,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 1.012,
+    "predicted": 1.0171106344891527,
+    "error": 0.005110634489152721,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 1.031,
+    "predicted": 1.0281023607744346,
+    "error": -0.002897639225565296,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 1.038,
+    "predicted": 1.0370023231505296,
+    "error": -0.0009976768494703858,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 1.052,
+    "predicted": 1.036279910350608,
+    "error": -0.01572008964939209,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.394,
+    "predicted": 0.3628929847315245,
+    "error": -0.031107015268475535,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.47,
+    "predicted": 0.4468618712569787,
+    "error": -0.02313812874302129,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.535,
+    "predicted": 0.5171882637077435,
+    "error": -0.01781173629225652,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.584,
+    "predicted": 0.5809678042774785,
+    "error": -0.003032195722521447,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.628,
+    "predicted": 0.6301805521738401,
+    "error": 0.0021805521738400557,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.659,
+    "predicted": 0.6712865288454667,
+    "error": 0.01228652884546666,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.692,
+    "predicted": 0.7056211553468502,
+    "error": 0.013621155346850267,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.714,
+    "predicted": 0.7342998700361235,
+    "error": 0.020299870036123546,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.74,
+    "predicted": 0.7582543661246597,
+    "error": 0.018254366124659693,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.761,
+    "predicted": 0.7782628598480662,
+    "error": 0.017262859848066192,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 0.783,
+    "predicted": 0.7949753725888868,
+    "error": 0.011975372588886812,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.802,
+    "predicted": 0.8089348482982128,
+    "error": 0.006934848298212781,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 0.823,
+    "predicted": 0.8205947922636282,
+    "error": -0.0024052077363717617,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 0.838,
+    "predicted": 0.8219341621623856,
+    "error": -0.016065837837614394,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_PAN_4141",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 0.861,
+    "predicted": 0.8144666606925586,
+    "error": -0.04653333930744141,
+    "n_fit": 14
+   },
+   {
+    "stock": "KODAK_ROYAL_X_PAN_4166",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.75,
+    "printed": 0.47,
+    "predicted": 0.439811743329821,
+    "error": -0.030188256670178992,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_ROYAL_X_PAN_4166",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.8,
+    "predicted": 0.8533045793789975,
+    "error": 0.05330457937899746,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_ROYAL_X_PAN_4166",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 1.0,
+    "predicted": 0.9650132467924158,
+    "error": -0.034986753207584154,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_ROYAL_X_PAN_4166",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 1.1,
+    "predicted": 1.1597503856903464,
+    "error": 0.0597503856903463,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_ROYAL_X_PAN_4166",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 3.75,
+    "printed": 0.45,
+    "predicted": 0.43831779421496864,
+    "error": -0.011682205785031374,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_ROYAL_X_PAN_4166",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.6,
+    "predicted": 0.6099751880063552,
+    "error": 0.009975188006355218,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_ROYAL_X_PAN_4166",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.9,
+    "predicted": 0.8734091064693495,
+    "error": -0.026590893530650472,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_ROYAL_X_PAN_4166",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 1.15,
+    "predicted": 1.2133939305472883,
+    "error": 0.06339393054728837,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_SUPER_PANCHRO_PRESS_B_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.6,
+    "predicted": 0.5730335801711918,
+    "error": -0.026966419828808208,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_SUPER_PANCHRO_PRESS_B_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.7,
+    "predicted": 0.6887122798041051,
+    "error": -0.011287720195894857,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_SUPER_PANCHRO_PRESS_B_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.8,
+    "predicted": 0.7778826594328945,
+    "error": -0.02211734056710557,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_SUPER_PANCHRO_PRESS_B_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 7.5,
+    "printed": 0.9,
+    "predicted": 0.9172958698303845,
+    "error": 0.017295869830384447,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_SUPER_PANCHRO_PRESS_B_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 1.0,
+    "predicted": 1.016067147739524,
+    "error": 0.016067147739524,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_SUPER_PANCHRO_PRESS_B_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 10.5,
+    "printed": 1.1,
+    "predicted": 1.0623097003439232,
+    "error": -0.03769029965607684,
+    "n_fit": 5
+   },
+   {
+    "stock": "KODAK_SUPER_SPEED_ORTHO_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.5,
+    "predicted": 0.4791023503449543,
+    "error": -0.020897649655045702,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_SUPER_SPEED_ORTHO_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.6,
+    "predicted": 0.6164828595943307,
+    "error": 0.016482859594330712,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_SUPER_SPEED_ORTHO_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.7,
+    "predicted": 0.7251779266530245,
+    "error": 0.02517792665302454,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_SUPER_SPEED_ORTHO_1956",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.8,
+    "predicted": 0.7475246049445116,
+    "error": -0.05247539505548848,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 2.0,
+    "printed": 0.353,
+    "predicted": 0.33485836908903327,
+    "error": -0.01814163091096671,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.484,
+    "predicted": 0.4636653661842777,
+    "error": -0.02033463381572226,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.6,
+    "predicted": 0.5720793894604831,
+    "error": -0.027920610539516888,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.7,
+    "predicted": 0.6571113802553771,
+    "error": -0.04288861974462288,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.734,
+    "predicted": 0.7401319684035216,
+    "error": 0.006131968403521593,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.8,
+    "predicted": 0.8047752625420321,
+    "error": 0.004775262542032088,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.833,
+    "predicted": 0.8651052103714097,
+    "error": 0.03210521037140979,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.9,
+    "predicted": 0.9049788336582275,
+    "error": 0.004978833658227488,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.912,
+    "predicted": 0.948753067601793,
+    "error": 0.03675306760179298,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.95,
+    "predicted": 0.9759652433744109,
+    "error": 0.025965243374410973,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 1.0,
+    "predicted": 1.0032709556222152,
+    "error": 0.0032709556222152436,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 1.009,
+    "predicted": 1.0262535745013581,
+    "error": 0.017253574501358226,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 1.035,
+    "predicted": 1.0455975405459133,
+    "error": 0.010597540545913331,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 1.061,
+    "predicted": 1.061878932335971,
+    "error": 0.0008789323359710277,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 1.084,
+    "predicted": 1.075582622572544,
+    "error": -0.008417377427456074,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 1.105,
+    "predicted": 1.087116717969389,
+    "error": -0.01788328203061096,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 1.124,
+    "predicted": 1.0848041854227788,
+    "error": -0.03919581457722132,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 2.0,
+    "printed": 0.171,
+    "predicted": 0.16456200861950024,
+    "error": -0.006437991380499775,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.252,
+    "predicted": 0.2599608782023484,
+    "error": 0.00796087820234842,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.332,
+    "predicted": 0.3388842726259344,
+    "error": 0.0068842726259343845,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.404,
+    "predicted": 0.40570252060635675,
+    "error": 0.0017025206063567278,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.466,
+    "predicted": 0.4697137663706122,
+    "error": 0.0037137663706121593,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.524,
+    "predicted": 0.5269737329135133,
+    "error": 0.0029737329135133272,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.576,
+    "predicted": 0.5751301963448088,
+    "error": -0.0008698036551911814,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.623,
+    "predicted": 0.6240129625645453,
+    "error": 0.0010129625645453055,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.663,
+    "predicted": 0.6649989612335475,
+    "error": 0.0019989612335474805,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.698,
+    "predicted": 0.6967516867667161,
+    "error": -0.001248313233283893,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.726,
+    "predicted": 0.7344584802910427,
+    "error": 0.00845848029104268,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 0.83,
+    "predicted": 0.8345133389466481,
+    "error": 0.004513338946648182,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 0.849,
+    "predicted": 0.8532978197387819,
+    "error": 0.0042978197387819606,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 0.866,
+    "predicted": 0.8635307217492045,
+    "error": -0.002469278250795459,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 2.0,
+    "printed": 0.23,
+    "predicted": 0.21808437761983415,
+    "error": -0.011915622380165858,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.329,
+    "predicted": 0.31019211073384906,
+    "error": -0.018807889266150957,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.412,
+    "predicted": 0.38796398395097176,
+    "error": -0.02403601604902822,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.484,
+    "predicted": 0.469572033473894,
+    "error": -0.014427966526106006,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.545,
+    "predicted": 0.5352442067679699,
+    "error": -0.00975579323203013,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.599,
+    "predicted": 0.5937908405124488,
+    "error": -0.005209159487551185,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.646,
+    "predicted": 0.6439264652615558,
+    "error": -0.0020735347384441827,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.689,
+    "predicted": 0.6911109911467256,
+    "error": 0.002110991146725638,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.726,
+    "predicted": 0.7333178966983277,
+    "error": 0.007317896698327719,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.762,
+    "predicted": 0.7710722842400657,
+    "error": 0.009072284240065676,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.788,
+    "predicted": 0.8048438616637897,
+    "error": 0.016843861663789705,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 0.821,
+    "predicted": 0.835052786134508,
+    "error": 0.014052786134508,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.847,
+    "predicted": 0.8620748913275122,
+    "error": 0.015074891327512274,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 0.896,
+    "predicted": 0.9078679226826498,
+    "error": 0.0118679226826498,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 0.913,
+    "predicted": 0.9272085666873909,
+    "error": 0.0142085666873909,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 0.933,
+    "predicted": 0.9123070593037923,
+    "error": -0.02069294069620775,
+    "n_fit": 15
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 2.0,
+    "printed": 0.451,
+    "predicted": 0.39723863173271895,
+    "error": -0.05376136826728106,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.588,
+    "predicted": 0.5482487364225457,
+    "error": -0.03975126357745429,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.701,
+    "predicted": 0.6743830838406637,
+    "error": -0.026616916159336257,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.79,
+    "predicted": 0.7797394348694456,
+    "error": -0.0102605651305544,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.866,
+    "predicted": 0.8749109584747381,
+    "error": 0.008910958474738107,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.933,
+    "predicted": 0.9482233442852128,
+    "error": 0.01522334428521277,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.988,
+    "predicted": 1.0092939347948493,
+    "error": 0.021293934794849312,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 1.037,
+    "predicted": 1.0601668805319777,
+    "error": 0.023166880531977796,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 1.077,
+    "predicted": 1.1025449971733166,
+    "error": 0.025544997173316597,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 1.115,
+    "predicted": 1.1378467620710433,
+    "error": 0.022846762071043303,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 1.148,
+    "predicted": 1.1672537934273806,
+    "error": 0.01925379342738065,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 1.176,
+    "predicted": 1.191750401336304,
+    "error": 0.01575040133630412,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 1.2,
+    "predicted": 1.212156534542069,
+    "error": 0.012156534542069108,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 1.225,
+    "predicted": 1.2291552257061522,
+    "error": 0.004155225706152121,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 1.247,
+    "predicted": 1.2401968983472773,
+    "error": -0.006803101652722798,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 1.267,
+    "predicted": 1.2523472540583545,
+    "error": -0.01465274594164545,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_SUPER_XX_PAN_4142",
+    "developer": "KODAK DK-60a",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 1.286,
+    "predicted": 1.2379946646721585,
+    "error": -0.04800533532784157,
+    "n_fit": 16
+   },
+   {
+    "stock": "KODAK_TMAX_P3200",
+    "developer": "T-MAX",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.729,
+    "predicted": 0.6262168108852626,
+    "error": -0.10278318911473738,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_TMAX_P3200",
+    "developer": "T-MAX",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.837,
+    "predicted": 0.8554043632517168,
+    "error": 0.018404363251716793,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_TMAX_P3200",
+    "developer": "T-MAX",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 1.021,
+    "predicted": 1.0011795721324892,
+    "error": -0.019820427867510704,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_TMAX_P3200",
+    "developer": "T-MAX",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 1.085,
+    "predicted": 1.1865441243984256,
+    "error": 0.10154412439842564,
+    "n_fit": 3
+   },
+   {
+    "stock": "KODAK_TMAX_P3200",
+    "developer": "T-MAX RS",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.549,
+    "predicted": 0.5136204222671208,
+    "error": -0.03537957773287925,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TMAX_P3200",
+    "developer": "T-MAX RS",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.604,
+    "predicted": 0.6284146333351215,
+    "error": 0.024414633335121505,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TMAX_P3200",
+    "developer": "T-MAX RS",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.771,
+    "predicted": 0.7588581074512383,
+    "error": -0.012141892548761746,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TMAX_P3200",
+    "developer": "T-MAX RS",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.886,
+    "predicted": 0.8863039645284552,
+    "error": 0.0003039645284551584,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TMAX_P3200",
+    "developer": "T-MAX RS",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 1.038,
+    "predicted": 1.0404711115011338,
+    "error": 0.0024711115011337714,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_400TX",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.54,
+    "predicted": 0.4665941306893588,
+    "error": -0.07340586931064125,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_400TX",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.69,
+    "predicted": 0.7196443808446794,
+    "error": 0.029644380844679463,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_400TX",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.72,
+    "predicted": 0.7752674676450051,
+    "error": 0.05526746764500512,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_400TX",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 1.0,
+    "predicted": 0.9734342111618701,
+    "error": -0.026565788838129878,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_400TX",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 25.0,
+    "printed": 1.26,
+    "predicted": 1.3302245131167654,
+    "error": 0.07022451311676536,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.6,
+    "predicted": 0.5285488743790916,
+    "error": -0.07145112562090838,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.7,
+    "predicted": 0.7298521086172619,
+    "error": 0.029852108617261952,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 8.5,
+    "printed": 0.8,
+    "predicted": 0.8339725982385621,
+    "error": 0.033972598238562024,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.9,
+    "predicted": 0.9198853305731121,
+    "error": 0.019885330573112037,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_TRI_X_SHEET_1952",
+    "developer": "KODAK DK-50",
+    "celsius": 20.0,
+    "minutes": 19.0,
+    "printed": 1.0,
+    "predicted": 0.912225692421618,
+    "error": -0.087774307578382,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_VERICHROME_1952",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.6,
+    "predicted": 0.5516243753586993,
+    "error": -0.04837562464130063,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_VERICHROME_1952",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.7,
+    "predicted": 0.7077518921449361,
+    "error": 0.007751892144936101,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_VERICHROME_1952",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 19.0,
+    "printed": 0.8,
+    "predicted": 0.8223912974139063,
+    "error": 0.02239129741390622,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_VERICHROME_1952",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 27.0,
+    "printed": 0.9,
+    "predicted": 0.9316721334651523,
+    "error": 0.0316721334651523,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_VERICHROME_1952",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 36.0,
+    "printed": 1.0,
+    "predicted": 0.946990588815477,
+    "error": -0.05300941118452296,
+    "n_fit": 4
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.41,
+    "predicted": 0.372637467227564,
+    "error": -0.03736253277243595,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.507,
+    "predicted": 0.4962500404620243,
+    "error": -0.010749959537975695,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 7.5,
+    "printed": 0.57,
+    "predicted": 0.5180349316202734,
+    "error": -0.05196506837972659,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.562,
+    "predicted": 0.5496398762947905,
+    "error": -0.012360123705209558,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.61,
+    "predicted": 0.599245713595969,
+    "error": -0.010754286404030977,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.647,
+    "predicted": 0.6449367818418307,
+    "error": -0.0020632181581693443,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.7,
+    "predicted": 0.6883443780670322,
+    "error": -0.011655621932967763,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.718,
+    "predicted": 0.7242393490626561,
+    "error": 0.006239349062656108,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 0.746,
+    "predicted": 0.7611562990497915,
+    "error": 0.015156299049791544,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.775,
+    "predicted": 0.7955421433539275,
+    "error": 0.020542143353927456,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 0.804,
+    "predicted": 0.8275704200376817,
+    "error": 0.023570420037681616,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 0.835,
+    "predicted": 0.8574027690199552,
+    "error": 0.022402769019955193,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 0.86,
+    "predicted": 0.8851897478383187,
+    "error": 0.025189747838318732,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 0.885,
+    "predicted": 0.9178276095621539,
+    "error": 0.032827609562153914,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 19.0,
+    "printed": 0.92,
+    "predicted": 0.9351789201229692,
+    "error": 0.015178920122969175,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 20.0,
+    "printed": 0.935,
+    "predicted": 0.9653296618739458,
+    "error": 0.0303296618739457,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 21.0,
+    "printed": 0.963,
+    "predicted": 0.9785483491164959,
+    "error": 0.015548349116495941,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 22.0,
+    "printed": 0.992,
+    "predicted": 0.9980293257770578,
+    "error": 0.006029325777057837,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 23.0,
+    "printed": 1.015,
+    "predicted": 1.019616550038088,
+    "error": 0.004616550038088141,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 24.0,
+    "printed": 1.038,
+    "predicted": 1.0425361921477934,
+    "error": 0.004536192147793328,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 25.0,
+    "printed": 1.064,
+    "predicted": 1.0533950506745067,
+    "error": -0.010604949325493385,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 26.0,
+    "printed": 1.089,
+    "predicted": 1.0679551114251125,
+    "error": -0.02104488857488751,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 27.0,
+    "printed": 1.109,
+    "predicted": 1.0815022423606413,
+    "error": -0.02749775763935869,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK D-76",
+    "celsius": 20.0,
+    "minutes": 31.0,
+    "printed": 1.17,
+    "predicted": 1.1051882338176136,
+    "error": -0.06481176618238638,
+    "n_fit": 23
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 3.0,
+    "printed": 0.407,
+    "predicted": 0.3751762841089099,
+    "error": -0.031823715891090065,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 4.0,
+    "printed": 0.508,
+    "predicted": 0.47913748964978015,
+    "error": -0.02886251035021986,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 5.0,
+    "printed": 0.598,
+    "predicted": 0.574055566945295,
+    "error": -0.02394443305470495,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 6.0,
+    "printed": 0.662,
+    "predicted": 0.6824140908279268,
+    "error": 0.02041409082792678,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.746,
+    "predicted": 0.760632818008996,
+    "error": 0.014632818008995963,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.809,
+    "predicted": 0.8302550810429972,
+    "error": 0.021255081042997115,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.873,
+    "predicted": 0.8922256561810292,
+    "error": 0.019225656181029227,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.932,
+    "predicted": 0.9473854860340596,
+    "error": 0.015385486034059537,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.984,
+    "predicted": 1.0002112366125366,
+    "error": 0.01621123661253665,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 1.038,
+    "predicted": 1.0439770846547083,
+    "error": 0.0059770846547082535,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 1.077,
+    "predicted": 1.0836103594659705,
+    "error": 0.00661035946597055,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 1.131,
+    "predicted": 1.1164918046596883,
+    "error": -0.01450819534031167,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 1.163,
+    "predicted": 1.1483796391502183,
+    "error": -0.014620360849781688,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK MQ",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 1.192,
+    "predicted": 1.1757444613351014,
+    "error": -0.016255538664898594,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.433,
+    "predicted": 0.44676219662490524,
+    "error": 0.013762196624905243,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.479,
+    "predicted": 0.48920220548068716,
+    "error": 0.010202205480687176,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.525,
+    "predicted": 0.524778657638209,
+    "error": -0.00022134236179105482,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.561,
+    "predicted": 0.5598275076807598,
+    "error": -0.0011724923192402148,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.592,
+    "predicted": 0.5912314326789971,
+    "error": -0.0007685673210028332,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.618,
+    "predicted": 0.6193694886807665,
+    "error": 0.001369488680766473,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 0.641,
+    "predicted": 0.6445813115851693,
+    "error": 0.003581311585169278,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.661,
+    "predicted": 0.6671712166632958,
+    "error": 0.0061712166632957866,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 0.679,
+    "predicted": 0.6874118717469726,
+    "error": 0.008411871746972555,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 0.697,
+    "predicted": 0.705547588422164,
+    "error": 0.008547588422164076,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 0.711,
+    "predicted": 0.7217972709528478,
+    "error": 0.010797270952847882,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 0.726,
+    "predicted": 0.7363570585298791,
+    "error": 0.010357058529879115,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 19.0,
+    "printed": 0.739,
+    "predicted": 0.7494026927376849,
+    "error": 0.010402692737684904,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 20.0,
+    "printed": 0.75,
+    "predicted": 0.7610916388149168,
+    "error": 0.011091638814916815,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 21.0,
+    "printed": 0.764,
+    "predicted": 0.7715649863133993,
+    "error": 0.007564986313399302,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 22.0,
+    "printed": 0.773,
+    "predicted": 0.7809491520969704,
+    "error": 0.007949152096970336,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 26.0,
+    "printed": 0.821,
+    "predicted": 0.8002810472447475,
+    "error": -0.020718952755252484,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Microdol",
+    "celsius": 20.0,
+    "minutes": 27.0,
+    "printed": 0.831,
+    "predicted": 0.8071614901519759,
+    "error": -0.023838509848024048,
+    "n_fit": 17
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 7.0,
+    "printed": 0.554,
+    "predicted": 0.5557459830141288,
+    "error": 0.0017459830141287602,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 8.0,
+    "printed": 0.629,
+    "predicted": 0.642577795526003,
+    "error": 0.013577795526003023,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 9.0,
+    "printed": 0.71,
+    "predicted": 0.7194836151177474,
+    "error": 0.009483615117747424,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 10.0,
+    "printed": 0.782,
+    "predicted": 0.7898888544641974,
+    "error": 0.007888854464197403,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 11.0,
+    "printed": 0.847,
+    "predicted": 0.8543429849025007,
+    "error": 0.007342984902500738,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 12.0,
+    "printed": 0.911,
+    "predicted": 0.9133490328773561,
+    "error": 0.0023490328773561053,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 13.0,
+    "printed": 0.961,
+    "predicted": 0.9673675057655091,
+    "error": 0.006367505765509152,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 14.0,
+    "printed": 0.997,
+    "predicted": 1.0221898718638038,
+    "error": 0.025189871863803837,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 15.0,
+    "printed": 1.058,
+    "predicted": 1.0620924205912412,
+    "error": 0.004092420591241153,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 16.0,
+    "printed": 1.104,
+    "predicted": 1.103538134578651,
+    "error": -0.0004618654213490725,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 17.0,
+    "printed": 1.141,
+    "predicted": 1.1414805871610219,
+    "error": 0.0004805871610218393,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 18.0,
+    "printed": 1.182,
+    "predicted": 1.1737158204011888,
+    "error": -0.008284179598811114,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 19.0,
+    "printed": 1.207,
+    "predicted": 1.2080151520419309,
+    "error": 0.0010151520419308113,
+    "n_fit": 13
+   },
+   {
+    "stock": "KODAK_VERICHROME_PAN",
+    "developer": "KODAK Versatol",
+    "celsius": 20.0,
+    "minutes": 20.0,
+    "printed": 1.23,
+    "predicted": 1.272544886792822,
+    "error": 0.04254488679282198,
+    "n_fit": 13
+   }
+  ]
+ },
+ {
+  "name": "rp_vs_mtf",
+  "conditions_recorded": 0,
+  "inconclusive": true,
+  "what": "printed resolving power, predicted from the measured MTF through one global threshold modulation (0.089)",
+  "truth": "the sheet's own printed resolving power",
+  "unit": "%",
+  "tolerance": 25.0,
+  "threshold": 0.08902125000000001,
+  "n": 33,
+  "stocks": 33,
+  "median_abs": 24.935627901715158,
+  "p90_abs": 53.2417479512451,
+  "worst": {
+   "stock": "KODAK_TMAX_400",
+   "printed": 125.0,
+   "predicted": 289.2466641736191,
+   "contrast": "high",
+   "error_pct": 131.39733133889524,
+   "f50_g": 98.7,
+   "q": 2.163
+  },
+  "pass": 17,
+  "rows": [
+   {
+    "stock": "AGFA_APX_25",
+    "printed": 200.0,
+    "predicted": 215.3827161171364,
+    "contrast": "high",
+    "error_pct": 7.691358058568198,
+    "f50_g": 78.7,
+    "q": 2.31
+   },
+   {
+    "stock": "AGFA_APX_100",
+    "printed": 150.0,
+    "predicted": 161.57321620333892,
+    "contrast": "high",
+    "error_pct": 7.715477468892611,
+    "f50_g": 58.0,
+    "q": 2.27
+   },
+   {
+    "stock": "AGFA_APX_400",
+    "printed": 110.0,
+    "predicted": 161.57321620333892,
+    "contrast": "high",
+    "error_pct": 46.88474200303538,
+    "f50_g": 58.0,
+    "q": 2.27
+   },
+   {
+    "stock": "AGFA_OPTIMA_100",
+    "printed": 140.0,
+    "predicted": 96.13101777092861,
+    "contrast": "high",
+    "error_pct": -31.334987306479565,
+    "f50_g": 43.7,
+    "q": 2.95
+   },
+   {
+    "stock": "AGFA_OPTIMA_200",
+    "printed": 130.0,
+    "predicted": 114.69040451805857,
+    "contrast": "high",
+    "error_pct": -11.776611909185714,
+    "f50_g": 48.0,
+    "q": 2.67
+   },
+   {
+    "stock": "AGFA_OPTIMA_400",
+    "printed": 130.0,
+    "predicted": 106.5865947366316,
+    "contrast": "high",
+    "error_pct": -18.010311741052618,
+    "f50_g": 47.4,
+    "q": 2.87
+   },
+   {
+    "stock": "AGFA_PORTRAIT_160",
+    "printed": 150.0,
+    "predicted": 92.81657027148998,
+    "contrast": "high",
+    "error_pct": -38.12228648567334,
+    "f50_g": 36.2,
+    "q": 2.47
+   },
+   {
+    "stock": "AGFA_RSX_II_50",
+    "printed": 135.0,
+    "predicted": 80.46073249021819,
+    "contrast": "high",
+    "error_pct": -40.39945741465319,
+    "f50_g": 29.4,
+    "q": 2.31
+   },
+   {
+    "stock": "AGFA_RSX_II_100",
+    "printed": 130.0,
+    "predicted": 97.58368372777029,
+    "contrast": "high",
+    "error_pct": -24.935627901715158,
+    "f50_g": 31.9,
+    "q": 2.08
+   },
+   {
+    "stock": "AGFA_RSX_II_200",
+    "printed": 120.0,
+    "predicted": 54.202800674042976,
+    "contrast": "high",
+    "error_pct": -54.830999438297525,
+    "f50_g": 21.3,
+    "q": 2.49
+   },
+   {
+    "stock": "AGFA_SCALA_200X",
+    "printed": 120.0,
+    "predicted": 90.71840097590915,
+    "contrast": "high",
+    "error_pct": -24.40133252007571,
+    "f50_g": 30.6,
+    "q": 2.14
+   },
+   {
+    "stock": "AGFA_ULTRA_50",
+    "printed": 140.0,
+    "predicted": 90.40301772977136,
+    "contrast": "high",
+    "error_pct": -35.42641590730617,
+    "f50_g": 42.9,
+    "q": 3.12
+   },
+   {
+    "stock": "AGFA_VISTA_200",
+    "printed": 130.0,
+    "predicted": 115.73562006621763,
+    "contrast": "high",
+    "error_pct": -10.972599949063358,
+    "f50_g": 47.8,
+    "q": 2.63
+   },
+   {
+    "stock": "EASTMAN_5293_250T_1982",
+    "printed": 100.0,
+    "predicted": 110.71789946789666,
+    "contrast": "high",
+    "error_pct": 10.717899467896657,
+    "f50_g": 41.5,
+    "q": 2.37
+   },
+   {
+    "stock": "EASTMAN_DOUBLE_X_5222",
+    "printed": 100.0,
+    "predicted": 94.6272533148521,
+    "contrast": "high",
+    "error_pct": -5.372746685147901,
+    "f50_g": 42.2,
+    "q": 2.88
+   },
+   {
+    "stock": "EASTMAN_EXR_50D_5245",
+    "printed": 100.0,
+    "predicted": 222.64895704665932,
+    "contrast": "high",
+    "error_pct": 122.64895704665932,
+    "f50_g": 83.8,
+    "q": 2.38
+   },
+   {
+    "stock": "EASTMAN_EXR_100T_5248",
+    "printed": 160.0,
+    "predicted": 189.68689398184443,
+    "contrast": "high",
+    "error_pct": 18.55430873865277,
+    "f50_g": 75.1,
+    "q": 2.51
+   },
+   {
+    "stock": "EASTMAN_PLUS_X_5231",
+    "printed": 100.0,
+    "predicted": 146.17481834561983,
+    "contrast": "high",
+    "error_pct": 46.174818345619826,
+    "f50_g": 41.3,
+    "q": 1.84
+   },
+   {
+    "stock": "FUJI_PROVIA_100F",
+    "printed": 140.0,
+    "predicted": 77.350914888206,
+    "contrast": "high",
+    "error_pct": -44.74934650842428,
+    "f50_g": 39.8,
+    "q": 3.5
+   },
+   {
+    "stock": "FUJI_PROVIA_400F",
+    "printed": 135.0,
+    "predicted": 81.2922086544224,
+    "contrast": "high",
+    "error_pct": -39.7835491448723,
+    "f50_g": 27.0,
+    "q": 2.11
+   },
+   {
+    "stock": "FUJI_PROVIA_400X",
+    "printed": 135.0,
+    "predicted": 210.222199915321,
+    "contrast": "high",
+    "error_pct": 55.72014808542296,
+    "f50_g": 44.6,
+    "q": 1.5
+   },
+   {
+    "stock": "FUJICHROME_64T_II",
+    "printed": 135.0,
+    "predicted": 101.53219990841242,
+    "contrast": "high",
+    "error_pct": -24.790963030805614,
+    "f50_g": 47.6,
+    "q": 3.07
+   },
+   {
+    "stock": "FUJICOLOR_PORTRAIT_NPZ_800",
+    "printed": 115.0,
+    "predicted": 160.9605736944472,
+    "contrast": "high",
+    "error_pct": 39.96571625604104,
+    "f50_g": 46.1,
+    "q": 1.86
+   },
+   {
+    "stock": "FUJICOLOR_PRO_400H",
+    "printed": 125.0,
+    "predicted": 151.5698994164655,
+    "contrast": "high",
+    "error_pct": 21.25591953317239,
+    "f50_g": 51.9,
+    "q": 2.17
+   },
+   {
+    "stock": "FUJICOLOR_PRO_800Z",
+    "printed": 115.0,
+    "predicted": 160.9605736944472,
+    "contrast": "high",
+    "error_pct": 39.96571625604104,
+    "f50_g": 46.1,
+    "q": 1.86
+   },
+   {
+    "stock": "FUJICOLOR_SUPERIA_REALA",
+    "printed": 125.0,
+    "predicted": 136.87178007716216,
+    "contrast": "high",
+    "error_pct": 9.497424061729726,
+    "f50_g": 60.0,
+    "q": 2.82
+   },
+   {
+    "stock": "FUJICOLOR_SUPERIA_XTRA_400",
+    "printed": 125.0,
+    "predicted": 140.66380878317509,
+    "contrast": "high",
+    "error_pct": 12.531047026540069,
+    "f50_g": 57.9,
+    "q": 2.62
+   },
+   {
+    "stock": "FUJICOLOR_SUPERIA_XTRA_800",
+    "printed": 125.0,
+    "predicted": 157.9000452152152,
+    "contrast": "high",
+    "error_pct": 26.32003617217215,
+    "f50_g": 53.8,
+    "q": 2.16
+   },
+   {
+    "stock": "KODAK_TMAX_100",
+    "printed": 200.0,
+    "predicted": 233.4243569377421,
+    "contrast": "high",
+    "error_pct": 16.712178468871045,
+    "f50_g": 123.0,
+    "q": 3.63
+   },
+   {
+    "stock": "KODAK_TMAX_400",
+    "printed": 125.0,
+    "predicted": 289.2466641736191,
+    "contrast": "high",
+    "error_pct": 131.39733133889524,
+    "f50_g": 98.7,
+    "q": 2.163
+   },
+   {
+    "stock": "KODAK_TRI_X_400TX",
+    "printed": 100.0,
+    "predicted": 91.32526256898605,
+    "contrast": "high",
+    "error_pct": -8.674737431013952,
+    "f50_g": 52.7,
+    "q": 4.23
+   },
+   {
+    "stock": "KONICA_IMPRESA_50",
+    "printed": 160.0,
+    "predicted": 186.78551697866433,
+    "contrast": "high",
+    "error_pct": 16.740948111665208,
+    "f50_g": 64.9,
+    "q": 2.2
+   },
+   {
+    "stock": "ORWOCOLOR_NC3",
+    "printed": 85.0,
+    "predicted": 50.43492101727309,
+    "contrast": "high",
+    "error_pct": -40.66479880320813,
+    "f50_g": 10.7,
+    "q": 1.5
+   }
+  ]
+ },
+ {
+  "name": "layer_separation",
+  "what": "inter-layer speed separation against published statements",
+  "status": "NOT RUN -- no machine-readable source",
+  "n": 0
+ }
+]

@@ -2902,6 +2902,134 @@ def grain_transfer(spec, h: int, w: int, px_per_mm: float,
     return mix
 
 
+
+#: Frame index reserved for the SCANNER FIXED-PATTERN draw. It must be a value
+#: no real frame can take, so that the fixed component is the same field on
+#: every frame of every clip while staying keyed to the render seed.
+#:
+#: ⚠ -2**31 IS CHOSEN BECAUSE `rng_counter` CASTS THE FRAME INDEX THROUGH
+#: uint32 AND THE CAST WRAPS. Any sentinel inside the range a clip can reach
+#: would collide with a real frame and freeze that one frame's emulsion grain
+#: into the fixed pattern -- a defect that would appear once in a 68-year clip
+#: and be unreproducible when reported.
+FIXED_PATTERN_FRAME = -(2 ** 31)
+
+#: Longest half-window the temporal kernel will build, in frames. At rho = 0.95
+#: the untruncated kernel needs 58 taps for 3 tau; this caps the cost at 13
+#: field draws per frame and the truncation error is folded into the
+#: renormalisation below rather than left to bias the variance.
+TEMPORAL_MAX_TAPS = 6
+
+
+def temporal_kernel(rho: float) -> "list[float]":
+    """Normalised weights whose autocorrelation at lag 1 is approximately `rho`.
+
+    ⚠⚠ STATELESS BY CONSTRUCTION, AND THAT IS THE WHOLE DESIGN CONSTRAINT. An
+    AR(1) recursion -- E_n = rho E_{n-1} + sqrt(1-rho^2) W_n -- is the textbook
+    way to correlate successive frames and it CANNOT BE USED HERE: it carries
+    state, so rendering frame 5000 would mean rendering frames 0 to 4999 first,
+    and a renderer that cannot start at an arbitrary frame cannot be used on a
+    shot, in a farm, or by a host that scrubs a timeline. This project's whole
+    RNG is counter-based for the same reason.
+
+    So the correlation is built as a SLIDING WEIGHTED SUM over per-frame white
+    fields instead:
+
+        E_n = sum_j c_j W_{n+j} / sqrt(sum_j c_j^2),   c_j = exp(-|j| / tau)
+
+    Each `W_k` depends only on (seed, k, stage, pixel), so any frame is
+    computable on its own, in any order, on any machine. The normalisation
+    fixes Var(E_n) = 1 exactly, which is the "statistically controlled" half of
+    the requirement -- the temporal structure changes WHEN grain appears, never
+    HOW MUCH of it there is.
+
+    ⚠ THE AUTOCORRELATION IS THE KERNEL'S OWN, NOT AR(1)'s. r(d) = sum_j c_j
+    c_{j+d} / sum_j c_j^2, which for an exponential c is close to exp(-d/tau)
+    but not equal to it, and is exactly symmetric where AR(1) is causal. Film
+    has no arrow of time in its grain, so a symmetric kernel is if anything the
+    better description -- but the stored `grain_frame_correlation` is therefore
+    the TARGET lag-1 correlation and `tau` is solved to hit it, rather than
+    being the AR(1) coefficient of the same name.
+
+    Returns a single-element kernel for rho <= 0, which is the identity: one
+    field draw, the pre-v49 path, bit for bit.
+    """
+    if not (rho > 0.0):
+        return [1.0]
+    r = min(float(rho), 0.95)
+    tau = -1.0 / math.log(r)
+    taps = min(TEMPORAL_MAX_TAPS, max(1, int(math.ceil(3.0 * tau))))
+    c = [math.exp(-abs(j) / tau) for j in range(-taps, taps + 1)]
+    # Solve the kernel's own lag-1 correlation onto the target. One Newton-free
+    # bisection on tau, because the closed form is not invertible and a fitted
+    # constant here would be the thing this project keeps refusing.
+    lo, hi = 1e-3, 60.0
+    for _ in range(60):
+        mid = 0.5 * (lo + hi)
+        cc = [math.exp(-abs(j) / mid) for j in range(-taps, taps + 1)]
+        num = sum(cc[i] * cc[i + 1] for i in range(len(cc) - 1))
+        den = sum(v * v for v in cc)
+        if num / den < r:
+            lo = mid
+        else:
+            hi = mid
+    tau = 0.5 * (lo + hi)
+    c = [math.exp(-abs(j) / tau) for j in range(-taps, taps + 1)]
+    n = math.sqrt(sum(v * v for v in c))
+    return [v / n for v in c]
+
+
+def temporal_white(h: int, w: int, seed: int, frame_index: int,
+                   stage: "RngStage", rho: float,
+                   fixed_fraction: float) -> np.ndarray:
+    """Unit-variance white field carrying the stock's temporal structure.
+
+    Two statistically distinct components, which is the distinction the spec
+    draws and the database could not express until v49:
+
+      EMULSION   redrawn per frame, correlated across frames by
+                 `temporal_kernel`. Physically the frame-to-frame correlation
+                 of a CAMERA NEGATIVE is ZERO -- every frame is a different
+                 piece of film and shares no silver grains with its neighbours
+                 -- so `grain_frame_correlation` is 0.0 on every stock in the
+                 database and this reduces to one draw. The mechanism exists
+                 for the cases where it is not zero: a frozen frame, an optical
+                 step printer holding one negative frame across several print
+                 frames, and any stock whose grain a future measurement shows
+                 to persist.
+
+      FIXED      drawn ONCE, keyed on the seed and never on the frame, so it is
+                 perfectly correlated across the whole clip. This is a SCANNER
+                 property and not a film property -- sensor non-uniformity is
+                 identical on every frame it digitises -- which is why its
+                 strength arrives as a render CONTROL and not as a column in
+                 the film database. Same film x instrument split the project
+                 already makes for Callier.
+
+    Variance is preserved exactly: the two components are independent and are
+    combined as sqrt(1-f) E + sqrt(f) S, so the field this returns has unit
+    variance for every rho and every f and the granularity calibration above
+    is untouched by either.
+    """
+    f = min(max(float(fixed_fraction), 0.0), 1.0)
+    c = temporal_kernel(rho)
+    if len(c) == 1:
+        emul = counter_normal_plane(h, w, seed, frame_index, stage)
+    else:
+        m = len(c) // 2
+        emul = np.zeros((h, w), dtype=np.float32)
+        for i, wt in enumerate(c):
+            if wt == 0.0:
+                continue
+            emul += np.float32(wt) * counter_normal_plane(
+                h, w, seed, frame_index + (i - m), stage)
+    if f <= 0.0:
+        return emul
+    fixed = counter_normal_plane(h, w, seed, FIXED_PATTERN_FRAME, stage)
+    return (np.float32(math.sqrt(1.0 - f)) * emul
+            + np.float32(math.sqrt(f)) * fixed)
+
+
 def make_grain_field(
     h: int,
     w: int,
@@ -2914,6 +3042,8 @@ def make_grain_field(
     frame_index: int,
     stage: "RngStage",
     aperture=None,
+    frame_correlation: float = 0.0,
+    fixed_fraction: float = 0.0,
 ) -> np.ndarray:
     """Spectrally-shaped, granularity-calibrated, frame-keyed grain field.
 
@@ -2970,7 +3100,8 @@ def make_grain_field(
     transfer = np.array(transfer, dtype=np.float64, copy=True)
     transfer[0, 0] = 0.0
 
-    white = counter_normal_plane(h, w, seed, frame_index, stage)
+    white = temporal_white(h, w, seed, frame_index, stage,
+                           frame_correlation, fixed_fraction)
     field = np.fft.irfft2(np.fft.rfft2(white) * transfer, s=(h, w))
     return (field * scale).astype(np.float32)
 
@@ -3296,6 +3427,25 @@ class RenderSettings:
     #: Any frame can still be rendered independently and out of order: every
     #: field is a pure function of (seed, frame, stage, ordinal).
     frame_index: int = 0
+    #: Fraction of grain VARIANCE that is frame-locked scanner fixed-pattern
+    #: noise rather than emulsion grain. 0 = a pure emulsion field, the film
+    #: behaviour; 1 = a pattern identical on every frame, which is what a
+    #: sensor's non-uniformity is.
+    #:
+    #: ⚠⚠ A CONTROL AND NOT A DATABASE COLUMN, ON PURPOSE. Fixed-pattern noise
+    #: is a property of the INSTRUMENT, not of the film -- the same negative
+    #: scanned on two machines carries two different patterns, and scanned on
+    #: none carries neither. Putting it on `FilmProfile` would state that a
+    #: 1936 emulsion has a sensor, which is the same category error this
+    #: project already corrected for `callier_q` (film x geometry, queue C22).
+    #:
+    #: ⚠ DEFAULT 0.0, so no shipped render changes. The corpus holds NO
+    #: measurement of any scanner's fixed-pattern noise -- queue M1b/P88 proved
+    #: the spectral half absent across all eight scanners in the one document
+    #: that measures any, and this is the same gap wearing a different hat. The
+    #: mechanism is built and inert, which is this project's standard treatment
+    #: for a law whose data has not arrived.
+    scanner_fixed_pattern: float = 0.0
     # -- schema v48 (FGS-DDS-001 Rev. A §18.4) -------------------------------
     #: Which grain spectrum to render (`fp.GRAIN_SPECTRUM_MODELS`).
     #:
@@ -4094,6 +4244,12 @@ def simulate(
         # the SAME grain -- welded to the image, while the C++ engines re-rolled
         # it per frame. Real film is a fresh emulsion sample every frame.
         frame_index = int(settings.frame_index)
+        # ⚠ THE FILM SUPPLIES THE CORRELATION, THE RENDER SUPPLIES THE PATTERN.
+        # `grain_frame_correlation` is emulsion physics and lives on the stock;
+        # `scanner_fixed_pattern` is instrument physics and lives on the render.
+        # Both are 0.0 by default, which is the pre-v49 path exactly.
+        grain_rho = float(profile.temporal.grain_frame_correlation)
+        grain_fixed = float(settings.scanner_fixed_pattern)
         # Temporal mode (spec §14.4). `still` is the default and is the
         # physically faithful one -- see the RenderSettings note. `frozen` pins
         # one field for the whole clip; `motion` keeps independent fields and
@@ -4132,7 +4288,7 @@ def simulate(
             field = make_grain_field(
                 h, w, px_per_mm, terms, gs.rms_granularity, scan_sigma_px,
                 gs.anisotropy, grain_seed, frame_index, RngStage.GRAIN_G,
-                aperture)
+                aperture, grain_rho, grain_fixed)
             fields = (field, field, field)
         else:
             # Per-channel RMS: rms_rgb() falls back to the scalar where the
@@ -4151,7 +4307,8 @@ def simulate(
                         clump_gain=gs.clump_gain, grain_um=grain_um[c],
                         size_sigma_log=gs.size_sigma_log),
                     rms_c[c], scan_sigma_px, gs.anisotropy,
-                    grain_seed, frame_index, streams[c], aperture)
+                    grain_seed, frame_index, streams[c], aperture,
+                    grain_rho, grain_fixed)
                 for c in range(3)
             )
         # sigma(D) SHAPE (queue item C1, 2026-08-18) and its LEVEL (C1b, same

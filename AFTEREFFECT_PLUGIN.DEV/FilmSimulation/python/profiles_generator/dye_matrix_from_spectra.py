@@ -1132,18 +1132,46 @@ def main(argv=None) -> int:
                       % s.name)
                 bad += 1
 
+    # ⚠⚠ INVERTED 2026-09-20 BY OWNER DECISION. This guard used to FAIL on
+    # adoption, which was right while adoption was nobody's decision to take.
+    # The owner has now taken it, with the double count stated and the measured
+    # cost quoted (VELVIA's saturation 0.755 -> 0.326, below Kodachrome; see
+    # verify.py's saturation-hierarchy note). A guard that keeps failing on a
+    # settled decision is noise, and noise is what stops people reading guards.
+    #
+    # ⚠ SO IT GUARDS THE NUMBERS INSTEAD OF THE DECISION, which is the part
+    # that can still silently rot: every adopted stock must carry the matrix
+    # THIS MODULE DERIVES, row-normalised, and not some third thing. If the
+    # owner reverts, the other branch checks the scalar form is back.
     if fp._MEASURED_DYE_MATRIX_ADOPTED:
-        print("[!] _MEASURED_DYE_MATRIX has been ADOPTED into dye_matrix. It "
-              "double-counts crosstalk already present in the status-M/A "
-              "curves. Read the block comment beside the table before "
-              "re-enabling, and supply a reader response first")
-        bad += 1
-    for p, _m, _r, _d in done:
-        row0 = p.dye_matrix[0]
-        if abs(row0[1] - row0[2]) > 1e-9:
-            print("[!] %s carries an asymmetric dye_matrix -- the measured "
-                  "table, or something like it, has been wired in" % p.name)
-            bad += 1
+        for p, _m, _r, _d in done:
+            # ⚠ AGAINST THE STAGE-12 TABLE, NOT THE RAW ONE, SINCE 2026-09-21.
+            # The adoption was re-derived that day from `M_reader . M_status^-1`
+            # -- same spectra, same status responses, same asymmetry, a third
+            # of the magnitude -- so the raw table is no longer what any stock
+            # carries and a guard still checking it would fail on a correction.
+            want = fp._row_normalised(fp._STAGE12_DYE_MATRIX[p.name])
+            got = p.dye_matrix
+            if max(abs(a - b) for wr, gr in zip(want, got)
+                   for a, b in zip(wr, gr)) > 1e-9:
+                print("[!] %s is adopted but its dye_matrix is not this "
+                      "module's row-normalised derivation" % p.name)
+                bad += 1
+        if not bad:
+            print("[OK] %d stocks carry the ADOPTED stage-12 dye matrix "
+                  "(M_reader . M_status^-1), "
+                  "row-normalised, reproducing this module's derivation "
+                  "exactly. ⚠ The double-count argument above is NOT "
+                  "withdrawn -- it is overridden by an owner decision of "
+                  "2026-09-20 and its cost is measured in verify.py"
+                  % len(done))
+    else:
+        for p, _m, _r, _d in done:
+            row0 = p.dye_matrix[0]
+            if abs(row0[1] - row0[2]) > 1e-9:
+                print("[!] %s carries an asymmetric dye_matrix -- the measured "
+                      "table, or something like it, has been wired in" % p.name)
+                bad += 1
 
     if args.assert_:
         if bad:
@@ -1155,9 +1183,10 @@ def main(argv=None) -> int:
               "never saw (%d refused). The reader half now closes too: with "
               "%s's traced sensitivity, M_reader . M_status^-1 lands 0.048 to "
               "0.116 from identity against raw off-diagonals reaching 0.24, "
-              "which is this module's own argument measured. Still NOT "
-              "adopted into dye_matrix -- no stock in this database renders "
-              "through that print stock. ⚠ THE SAME ARITHMETIC IS ADOPTED "
+              "which is this module's own argument measured. ⚠ ADOPTED INTO "
+              "dye_matrix SINCE 2026-09-20 BY OWNER DECISION, over this "
+              "module's objection, which stands unretracted and is measured "
+              "in verify.py's saturation hierarchy. ⚠ THE SAME ARITHMETIC IS ADOPTED "
               "ELSEWHERE, and the two verdicts are consistent: row-normalised "
               "and medianed over the %d VISION-family ECN negatives 2383 "
               "actually prints, it is that stock's schema-v25 "

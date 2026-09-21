@@ -1025,6 +1025,119 @@ inline HighPrecType AlgoGrainReferenceEnergy
 //  each term is blurred from the same white field and summed. pScrAccum is that
 //  accumulator and must be distinct from every other plane.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+//  TEMPORAL GRAIN (spec: temporal film-grain model, v49)
+//
+//  ⚠⚠ THE MODEL SEPARATES TWO THINGS THAT BOTH LOOK LIKE GRAIN AND BEHAVE
+//  NOTHING ALIKE IN TIME.
+//
+//    EMULSION  Every frame of a motion picture is a DIFFERENT PIECE OF FILM
+//              and shares no silver grains with its neighbours, so the
+//              physically correct frame-to-frame correlation of camera
+//              negative grain is ZERO. That is what this engine already did
+//              and it was right. film::TemporalSpec::grain_frame_correlation
+//              is 0.0 on every stock in the database for that reason; the
+//              mechanism below exists for the cases where it is not -- a
+//              frozen frame, an optical step printer holding one negative
+//              frame across several print frames, and any stock a future
+//              measurement shows to persist.
+//
+//    SENSOR    A scanner's fixed-pattern noise is IDENTICAL on every frame it
+//              digitises. Perfectly correlated, by definition, at every lag.
+//              Before v49 nothing in this engine could express it.
+//
+//  ⚠ STATELESS, WHICH IS WHY IT IS NOT AN AR(1) RECURSION. The textbook way to
+//  correlate frames, E_n = rho E_{n-1} + sqrt(1-rho^2) W_n, carries state: it
+//  makes frame 5000 depend on frames 0..4999 and a renderer that cannot start
+//  at an arbitrary frame is useless to a host that scrubs a timeline or a farm
+//  that distributes frames. The whole RNG in this project is counter based for
+//  the same reason. So the correlation is a SLIDING WEIGHTED SUM over
+//  per-frame white fields instead, each of which is a pure function of its own
+//  frame index:
+//
+//      E_n = sum_j c_j W_{n+j} / sqrt(sum_j c_j^2),   c_j = exp(-|j| / tau)
+//
+//  ⚠ VARIANCE IS PRESERVED EXACTLY at every setting of both controls, so
+//  neither can change HOW MUCH grain there is -- only how it behaves in time.
+//  The granularity calibration above is untouched by either, which is what
+//  makes rmsGranularity still mean the number the datasheet prints.
+// ---------------------------------------------------------------------------
+
+//: Frame index reserved for the fixed-pattern draw. Must be unreachable by a
+//: real clip: AlgoRngCounter casts the frame index through uint32 and the cast
+//: wraps, so a sentinel inside the reachable range would collide with one real
+//: frame and freeze that frame's emulsion grain into the pattern -- a defect
+//: visible once in a 68-year clip and unreproducible when reported.
+constexpr int32_t ALGO_GRAIN_FIXED_FRAME = -2147483647 - 1;
+
+//: Largest half-window the kernel builds. Caps the cost at 13 field draws per
+//: frame; the truncation is absorbed by the renormalisation, never left to
+//: bias the variance. film_sim.TEMPORAL_MAX_TAPS must agree.
+constexpr int32_t ALGO_GRAIN_TEMPORAL_MAX_TAPS = 6;
+
+//: Weights whose own lag-1 autocorrelation equals `rho`, normalised to unit
+//: variance. Returns tapCount = 1 and w[0] = 1 for rho <= 0, which is the
+//: identity and the pre-v49 path bit for bit.
+//:
+//: ⚠ tau IS SOLVED, NOT ASSUMED. The kernel's autocorrelation
+//: r(d) = sum_j c_j c_{j+d} / sum_j c_j^2 is close to exp(-d/tau) but not equal
+//: to it, so tau is bisected until the kernel's OWN r(1) hits the target. A
+//: fitted constant here is exactly the shortcut this project refuses.
+inline int32_t AlgoGrainTemporalKernel
+(
+    const HighPrecType rho,
+    HighPrecType* RESTRICT pW            // at least 2*MAX_TAPS+1 entries
+) noexcept
+{
+    if (!(rho > 0.0))
+    {
+        pW[0] = 1.0;
+        return 1;
+    }
+
+    const HighPrecType r = (rho < 0.95) ? rho : 0.95;
+    const HighPrecType tau0 = -1.0 / std::log(r);
+
+    int32_t taps = static_cast<int32_t>(std::ceil(3.0 * tau0));
+    if (taps < 1)                              taps = 1;
+    if (taps > ALGO_GRAIN_TEMPORAL_MAX_TAPS)   taps = ALGO_GRAIN_TEMPORAL_MAX_TAPS;
+
+    const int32_t n = 2 * taps + 1;
+
+    HighPrecType lo = 1.0e-3;
+    HighPrecType hi = 60.0;
+    for (int32_t it = 0; it < 60; it++)
+    {
+        const HighPrecType mid = 0.5 * (lo + hi);
+        HighPrecType num = 0.0;
+        HighPrecType den = 0.0;
+        HighPrecType prev = 0.0;
+        for (int32_t i = 0; i < n; i++)
+        {
+            const HighPrecType c =
+                std::exp(-std::fabs(static_cast<HighPrecType>(i - taps)) / mid);
+            den += c * c;
+            if (i > 0) { num += prev * c; }
+            prev = c;
+        }
+        if ((num / den) < r) { lo = mid; } else { hi = mid; }
+    }
+
+    const HighPrecType tau = 0.5 * (lo + hi);
+    HighPrecType sumsq = 0.0;
+    for (int32_t i = 0; i < n; i++)
+    {
+        const HighPrecType c =
+            std::exp(-std::fabs(static_cast<HighPrecType>(i - taps)) / tau);
+        pW[i]  = c;
+        sumsq += c * c;
+    }
+    const HighPrecType inv = 1.0 / std::sqrt(sumsq);
+    for (int32_t i = 0; i < n; i++) { pW[i] *= inv; }
+    return n;
+}
+
 void AlgoMakeGrainFieldTerms
 (
     AlgoType* RESTRICT              pDst,
@@ -1042,7 +1155,15 @@ void AlgoMakeGrainFieldTerms
     const AlgoType                  anisotropy,
     const eALGO_RNG_STAGE           rngStage,
     const uint32_t                  seed,
-    const int32_t                   frameIndex
+    const int32_t                   frameIndex,
+    //: ⚠ DEFAULTED TO ZERO SO THE DUPE AND PRINT GRAIN PATHS KEEP THE
+    //: PRE-v49 BEHAVIOUR WITHOUT RESTATING IT. Those two stages model
+    //: SEPARATE PIECES OF FILM -- an intermediate and a release print -- and
+    //: their grain is independent of the negative's and of each other's, so
+    //: zero is the physically correct value there and not merely the
+    //: convenient one.
+    const AlgoType                  frameCorrelation = ALGO_ZERO,
+    const AlgoType                  fixedFraction    = ALGO_ZERO
 ) noexcept;
 
 

@@ -1338,10 +1338,36 @@ def fit_tone_curve(pts, seed=None, iters=4000):
 #: extract_panel). Every one of these counts is fixed by what the panel means
 #: -- three sensitive layers, three channels, one neutral and one D-min -- not
 #: by what any particular sheet happened to draw.
+#:
+#: ⚠⚠ THE SINGULAR KEYS WERE ADDED 2026-09-20 AND THEY ARE NOT COSMETIC. Every
+#: document in DOCS up to that date was an E-series COLOUR sheet, and a colour
+#: sheet captions its characteristic figure PLURAL. F-4036 (BW400CN) is the
+#: first F-series sheet here, it prints ONE panel, and it captions it
+#: "Characteristic Curve" -- singular. The caption scan therefore found nothing
+#: on that page, `probe` reported the sheet as carrying a dye panel and an MTF
+#: panel only, and a complete three-channel figure with R/G/B labels on it sat
+#: unread for the whole time the profile carried an ANALOGY curve that cited
+#: this very publication. Same defect, same page, for "Spectral-Sensitivity
+#: Curve".
+#:
+#: ⚠ WHY THIS CANNOT DISTURB THE PLURAL. `find_panels` takes the LONGEST key
+#: that is a substring of the line, so on a plural caption the plural key still
+#: wins and nothing about the eleven colour sheets changes. `--assert`
+#: re-derives every previously adopted number and is what proves it.
+#:
+#: ⚠ AND WHAT IT COSTS. A singular key can also match a line of PROSE ("the
+#: characteristic curve of this film..."), which would post a phantom panel.
+#: That is CONTAINED rather than prevented: `extract_panel` returns None when
+#: the box holds no collinear axis pair, the page prints [SKIP], and adoption
+#: is keyed on (pdf, page, kind) in EXPECTED rather than on whatever the scan
+#: happened to find. A phantom cannot put a number into the database.
 CAPTIONS = {
     "characteristic curves": ("char", False, False, ("R", "G", "B"), 3),
+    "characteristic curve": ("char", False, False, ("R", "G", "B"), 3),
     "spectral-sensitivity curves": ("sens", False, False, (), 3),
     "spectral sensitivity curves": ("sens", False, False, (), 3),
+    "spectral-sensitivity curve": ("sens", False, False, (), 3),
+    "spectral sensitivity curve": ("sens", False, False, (), 3),
     "spectral-dye-density curves": ("dye", False, False, (), 2),
     "modulation transfer function": ("mtf", True, True, ("R", "G", "B"), 3),
 }
@@ -1508,6 +1534,16 @@ DOCS = [
     # as many words. Nine panels, all nine now reading.
     ("e4035-100UC_400UC.pdf", "E-4035", "2007-05",
      "ULTRA COLOR 100UC + 400UC"),
+    # ⚠⚠ ADDED 2026-09-20, AND IT IS THE FIRST F-SERIES SHEET IN THIS TABLE.
+    # F-4036 is a BLACK-AND-WHITE technical data sheet by publication series
+    # and a COLOUR-NEGATIVE sheet by content: BW400CN is chromogenic, its
+    # image is dye, its base carries an orange mask and its own panel is
+    # captioned "Densitometry: Status M" with R, G and B traces on it. It
+    # reads through this module unchanged once the singular caption key
+    # exists -- see CAPTIONS. Two panels of the three are already known
+    # quantities here (dye pair on p6, MTF on p6); the characteristic panel on
+    # p5 is the one that had never been looked at.
+    ("f4036-BW400CN.pdf", "F-4036", "2004-01", "BW400CN"),
 ]
 
 
@@ -1636,6 +1672,23 @@ EXPECTED = {
         "R": (0.2618, 0.4992), "G": (0.6666, 0.5148), "B": (0.9769, 0.6052)},
     ("e29-Pro_100T_PRT.pdf", 4, "char"): {
         "R": (0.2145, 0.5584), "G": (0.6337, 0.6218), "B": (0.8850, 0.6570)},
+    # ---- added 2026-09-20: the first F-series panel ------------------------
+    # ⚠⚠ THE DMIN LADDER IS THE POINT OF THIS ENTRY. 0.2754 / 0.7021 / 0.9475
+    # is an ORANGE MASK, on a film whose `is_monochrome` is True. That is not a
+    # contradiction -- BW400CN is a chromogenic black-and-white stock built to
+    # print on colour paper, and the mask is why it prints neutral there -- but
+    # it is exactly the shape the database had been recording as
+    # `mask_encoding="none"` with one grey curve copied into all three
+    # channels. If a re-run ever flattens this ladder, either the reader has
+    # broken or somebody has quietly put the analogy curve back.
+    #
+    # ⚠ FIGURE ID F009_0274AC, AND IT IS UNIQUE TO THIS SHEET. Checked against
+    # the whole 177-document index precisely because E-2468 taught this corpus
+    # that a figure id can be shared between two films (see the PORTRA 100T
+    # entry above). F009_0274AC appears on this page and nowhere else, so these
+    # numbers are BW400CN's own and not a sibling's artwork.
+    ("f4036-BW400CN.pdf", 5, "char"): {
+        "R": (0.2754, 0.5616), "G": (0.7021, 0.5857), "B": (0.9475, 0.6989)},
 }
 
 #: The GOLD 200 panel on the 2007 two-film sheet, checked separately because

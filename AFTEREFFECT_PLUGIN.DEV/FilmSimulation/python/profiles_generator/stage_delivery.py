@@ -64,6 +64,13 @@ DB_FILES = (
     # would not compile.
     "film_schema_version.h",
     "film_enum.hpp", "LoadFilmDataBase.h", "LoadFilmDataBase.cpp",
+    # ⚠ NEW 2026-09-19d. Per-film control availability as a compile-time
+    # bitmask, one uint64_t per film in database order. It ships with the
+    # DATABASE rather than with either engine because it is indexed by
+    # film::eFILM_PROFILE and static_asserts against eTOTAL_FILMS_PROFILES --
+    # a copy in an engine archive would be a second file to keep in step with
+    # the enumerators, which is the thing it exists to make impossible.
+    "film_params_mask.hpp",
     "film_names.txt", "film_display_order.txt",
     # ⚠ SHIPS WITH THE DATABASE, 2026-09-08. The alphabetical re-sort moved 177
     # of 184 indices; this is the old -> new map, and it is the only thing that
@@ -76,10 +83,73 @@ MANIFEST = """\
 SIX ARCHIVES -- {stamp}
 =======================
 
-Schema v48. 191 film stocks, 11 print stocks, 2 colour-paper spectral records,
-14 gauges. Verify 856 PASS / 1 baselined FAIL, build gate green end to end,
+Schema v49. 191 film stocks, 11 print stocks, 2 colour-paper spectral records,
+14 gauges. Verify 863 PASS / 1 baselined FAIL, build gate green end to end,
 every engine parity audit green, all 28 translation units compiling at
 -Wall -Wextra with zero bytes of output.
+
+THIS SET ALSO CARRIES THE 2026-09-20b ANALOGY-CURVE PASS
+--------------------------------------------------------
+The 25 stocks whose characteristic curve had no evidence behind it were opened
+ONE AT A TIME on the owner's instruction, not swept as a batch. One yielded:
+
+  * KODAK BW400CN's curve is TRACED from F-4036 p5 (figure F009_0274AC, Status
+    M, fit rms 0.0218 / 0.0211 / 0.0256 D). It had been carrying ONE GREY CURVE
+    COPIED INTO ALL THREE CHANNELS on a film its own description calls
+    orange-masked; the sheet draws a 0.67 D dmin ladder. The panel had never
+    been read because the reader's only caption key was the PLURAL
+    "characteristic curves" and F-4036 -- the first F-series sheet it has seen
+    -- prints one panel and captions it singular.
+
+  * A DYE IMAGE WAS BEING READ AS SILVER. `_apply_schema_v2` branched on
+    `is_monochrome`, which meant both "renders grey" and "the image is silver".
+    BW400CN and T400CN are chromogenic, so they were getting callier_q 1.6856 --
+    a silver scattering coefficient -- and stage 12b was steepening the tone
+    scale of a dye image on every specular render. Both now carry Q = 1.0 and
+    Status M, the Callier control is marked INAPPLICABLE on both in the control
+    matrix and the bitmask, and the new guard G-CHROMO pins it (that is the
+    857th check).
+
+  * 23 of the 25 are refused with a per-stock reason, and seven stale
+    `fitted_from` labels were corrected without moving a single value.
+
+Full account: doc/FilmDatabase_Charecteristics.MD section D.18 (and its Russian
+twin), doc/DIGITIZATION_QUEUE.md rows P82-P84, doc/PROGRESS.md 2026-09-20d.
+
+AND SCHEMA v49 -- THE TEMPORAL GRAIN MODEL
+------------------------------------------
+⚠ A v49 RENDER AT DEFAULTS IS BIT-IDENTICAL TO A v48 ONE, and that is asserted
+by G-V49-IDENTITY rather than claimed. The spec this answers opened by stating
+the grain was static across frames; it was measured first and it was not --
+adjacent frames already correlated at r = 0.008, as uncorrelated as two
+different seeds. The model was at the OTHER failure the same spec names,
+complete frame-to-frame randomisation.
+
+⚠ AND r = 0 IS PHYSICALLY RIGHT FOR AN EMULSION: every frame is a different
+piece of film and shares no silver grains with its neighbours. So
+`grain_frame_correlation` stays 0.0 on all 191 stocks. What was missing is the
+INSTRUMENT -- a scanner's fixed-pattern noise is identical on every frame -- so
+v49 adds `AlgoControls::scannerFixedPattern`, a CONTROL and not a database
+column, because the pattern belongs to the scanner and not to the film.
+
+  * stateless sliding-kernel correlation, so any frame renders on its own with
+    no warm-up: an AR(1) recursion would have made frame 5000 depend on frames
+    0-4999
+  * tau is bisected onto the kernel's OWN lag-1 autocorrelation, not assumed
+  * variance preserved exactly at every setting, so neither control can change
+    how much grain there is -- only how it behaves in time
+  * measured: rho 0.5 -> r 0.503, rho 0.9 -> r 0.900, fixed 1.0 -> r 1.000 at
+    every lag
+  * one inline kernel in AlgoGrain.hpp, three engines; stage_parity agrees on
+    all 125 retained planes, worst 3.289e-05
+
+⚠ THE CONTROL SHIPS AT 0.0 BECAUSE THE DATA IS ABSENT. No measurement of any
+scanner's fixed-pattern noise exists in this corpus (queue M1b/P88). Mechanism
+built, guarded, inert.
+
+⚠ OWNER ACTION IN VISUAL STUDIO: film_profiles_data_27.cpp and _28.cpp are new
+since the 26-slot era and must be added to the .vcxproj. CMake globs src/*.cpp
+and picks them up by itself.
 
 ONE SYNCHRONISED STATE, SIX DESTINATIONS
 ========================================
@@ -371,6 +441,19 @@ def main() -> int:
     # them would ship a generator that cannot check its own output.
     py = [p for p in py
           if not (p.name.startswith("test_") or p.name == "make_test_chart.py")]
+    # ⚠ THE MEASURED INFLUENCE TABLE SHIPS WITH ITS GENERATOR. It is the only
+    # .json in this archive and it is not configuration: it is the result of a
+    # ~15 minute render sweep that `gen_realism_score.py` refuses to run
+    # without, so a generator archive lacking it cannot reproduce
+    # doc/REALISM_SCORE.md at all.
+    _infl = HERE / "realism_influence.json"
+    if _infl.is_file():
+        py.append(_infl)
+    # The hold-out residuals travel with the generator too: the Markdown in
+    # archive 5 prints the worst 40 rows and the full set lives here.
+    _hold = HERE / "holdout_predictions.json"
+    if _hold.is_file():
+        py.append(_hold)
     _cxx = [p for p in py if p.suffix in (".cpp", ".hpp", ".h", ".hxx", ".cc")]
     if _cxx:
         raise RuntimeError(

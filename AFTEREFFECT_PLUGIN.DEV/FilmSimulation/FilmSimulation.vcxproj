@@ -276,6 +276,8 @@
     <ClCompile Include="src\film_profiles_data_24.cpp" />
     <ClCompile Include="src\film_profiles_data_25.cpp" />
     <ClCompile Include="src\film_profiles_data_26.cpp" />
+    <ClCompile Include="src\film_profiles_data_27.cpp" />
+    <ClCompile Include="src\film_profiles_data_28.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\LoadFilmDataBase.cpp" />
   </ItemGroup>
@@ -350,12 +352,16 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\gen_film_control_matrix.py" />
     <None Include="python\profiles_generator\gen_film_curves_md.py" />
     <None Include="python\profiles_generator\gen_film_names.py" />
+    <None Include="python\profiles_generator\gen_film_params_mask.py" />
     <None Include="python\profiles_generator\gen_project_state.py" />
+    <None Include="python\profiles_generator\gen_realism_score.py" />
     <None Include="python\profiles_generator\gen_ref.py" />
     <None Include="python\profiles_generator\gevachrome_1968_raster.py" />
     <None Include="python\profiles_generator\gevaert_curves.py" />
     <None Include="python\profiles_generator\granularity_vector.py" />
     <None Include="python\profiles_generator\h24_variations.py" />
+    <None Include="python\profiles_generator\holdout_predict.py" />
+    <None Include="python\profiles_generator\holdout_predictions.json" />
     <None Include="python\profiles_generator\interimage_parity.py" />
     <None Include="python\profiles_generator\iso5_3_density.py" />
     <None Include="python\profiles_generator\iso_5_3_status.py" />
@@ -385,6 +391,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\polaroid_spectral.py" />
     <None Include="python\profiles_generator\pse_jones_1958.py" />
     <None Include="python\profiles_generator\README.md" />
+    <None Include="python\profiles_generator\realism_ablation.py" />
+    <None Include="python\profiles_generator\realism_influence.json" />
     <None Include="python\profiles_generator\render.cmd" />
     <None Include="python\profiles_generator\run.cmd" />
     <None Include="python\profiles_generator\sayanagi_callier.py" />

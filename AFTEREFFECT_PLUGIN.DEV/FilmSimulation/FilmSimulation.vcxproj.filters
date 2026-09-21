@@ -443,6 +443,12 @@
     <ClCompile Include="src\film_profiles_data_26.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\film_profiles_data_27.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_28.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FilmSimulation.rc">
@@ -771,6 +777,24 @@
       <Filter>python\profiles_generator</Filter>
     </None>
     <None Include="python\profiles_generator\sovremennye_dev_tables.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_film_params_mask.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_realism_score.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\holdout_predict.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\holdout_predictions.json">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\realism_ablation.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\realism_influence.json">
       <Filter>python\profiles_generator</Filter>
     </None>
   </ItemGroup>

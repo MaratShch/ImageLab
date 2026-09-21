@@ -60,6 +60,8 @@ void AppendProfiles_23(std::vector<FilmProfile>& v);
 void AppendProfiles_24(std::vector<FilmProfile>& v);
 void AppendProfiles_25(std::vector<FilmProfile>& v);
 void AppendProfiles_26(std::vector<FilmProfile>& v);
+void AppendProfiles_27(std::vector<FilmProfile>& v);
+void AppendProfiles_28(std::vector<FilmProfile>& v);
 
 }  // namespace detail
 }  // namespace film

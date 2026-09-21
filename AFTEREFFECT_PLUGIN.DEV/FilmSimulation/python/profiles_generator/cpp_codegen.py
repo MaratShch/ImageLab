@@ -3091,7 +3091,28 @@ def _print_block(s: PrintStock) -> str:
 # ⚠ UNTOUCHED, as at every previous bump: vector index == enum value ==
 # names-file line, and NO FILM ID MOVED. Only the number of files the same
 # storage order is sliced into has changed.
-N_DATA_SLOTS = 26          #: fixed; the .vcxproj lists these files once
+# ⚠⚠ 26 -> 28 ON 2026-09-20c, AND THE CAUSE IS PROVENANCE PROSE RATHER THAN
+# FILM DATA. The reciprocity sweep added 15 `ReciprocityTable` records with
+# their full source strings plus 15 `ParamSource` rows, and the dye-matrix
+# adoption widened 26 stocks' `dye_matrix` from a symmetric scalar's three
+# distinct values to nine. No film was added; the same 191 profiles simply
+# carry more text about where their numbers came from, which is the cost of
+# this project's own citation rule and is paid deliberately.
+#
+# ⚠ TWO SLOTS, NOT ONE, ON PURPOSE. A bump costs a manual .vcxproj edit on the
+# owner's side, so bumping by the minimum guarantees paying that cost again on
+# the next pass that adds a paragraph. 28 leaves real headroom under the
+# 112 kB per-slot ceiling.
+#
+# ⚠ UNTOUCHED, as at every previous bump: vector index == enum value ==
+# names-file line, and NO FILM ID MOVED. Only the number of files the same
+# storage order is sliced into has changed.
+#
+# ⚠⚠ OWNER ACTION REQUIRED IN VISUAL STUDIO: `film_profiles_data_27.cpp` and
+# `film_profiles_data_28.cpp` must be ADDED TO THE .vcxproj. The CMake build
+# globs `src/*.cpp` and picks them up by itself; Visual Studio lists files
+# once and will not.
+N_DATA_SLOTS = 28          #: fixed; the .vcxproj lists these files once
 SLOT_SOURCE_LIMIT = 112_000  #: bytes of emitted source per slot, hard error
 
 

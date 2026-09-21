@@ -2996,7 +2996,14 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 # `_GSCHWIND_MODEL` is a lead for queues P19 and P20: a published model of
 # exactly the two steps this engine's stage 8b approximates.
 # Every render is bit-identical to a v46 one.
-SCHEMA_VERSION = 48
+# ⚠ v49 (2026-09-21): the TEMPORAL GRAIN MODEL. No new profile field --
+# `TemporalSpec.grain_frame_correlation` has existed since v18 and was
+# read by nothing; v49 wires it. The new carrier is a CONTROL,
+# `AlgoControls::scannerFixedPattern`, because fixed-pattern noise is a
+# property of the instrument and not of the emulsion. A v49 render at
+# defaults is BIT-IDENTICAL to a v48 one: rho is 0.0 on all 191 stocks
+# and the control defaults to 0.0, which is the single-tap identity.
+SCHEMA_VERSION = 49
 
 
 # -- v43 (2026-09-18c, queues P12 / P39 / P13 / P40 / P41 / M1a): SIX ROWS
@@ -29901,7 +29908,13 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "colour-process film forming a monochrome DYE image, no silver "
             "in the final negative. rms 9 [C1, F-2350]. Dye image means "
             "grain reads as soft dye clouds, not silver: low clump_gain, "
-            "larger dye_cloud scale, silver_tone 0."
+            "larger dye_cloud scale, silver_tone 0. ⚠ ITS OWN SHEET (F-2350) "
+            "IS NOT IN THE CORPUS, so from 2026-09-20 its Status M "
+            "densitometry and Callier Q = 1.0 are DERIVED from the class -- "
+            "its successor BW400CN's F-4036 and the dye-image argument -- and "
+            "its curve is still one grey curve in three channels. BW400CN's "
+            "traced 0.67 D dmin ladder was NOT copied across: nobody has "
+            "traced this film's dmins, and the gap is left visible."
         ),
         era="1997-2004",
         is_monochrome=True,
@@ -29981,13 +29994,49 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "publishes Print Grain Index ONLY -- rms 9.5 is a [C4] estimate "
             "anchored to T400CN's measured 9 plus the sheet's finer-grain "
             "claim being offset by the mask. Chromogenic: dye image, no "
-            "silver."
+            "silver -- so Status M densitometry and Callier Q = 1.0, not the "
+            "silver pair this profile carried until 2026-09-20. CURVES TRACED "
+            "from F-4036 p5 that day; the mask is a 0.67 D dmin ladder."
         ),
         era="2004-2014",
         is_monochrome=True,
         exposure_index=400,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.24, 0.62, -1.80, 0.30, 2.00, 0.38)),
+        # ⚠⚠ TRACED 2026-09-20, AND IT REPLACES A GREY CURVE ON A MASKED FILM.
+        # What stood here was `_mono(ToneCurve(0.24, 0.62, ...))` -- ONE curve
+        # copied into all three channels, i.e. the assertion that BW400CN has
+        # no orange mask. The profile's own description says "orange-masked
+        # base for printing on colour paper" three lines up, and F-4036 had
+        # been cited as a source on this profile the whole time. The sheet
+        # draws the mask: R, G and B separate from the first vertex, dmin
+        # 0.2754 / 0.7021 / 0.9475, a 0.67 D spread.
+        #
+        # ⚠ WHY THE PANEL WAS NEVER READ. `kodak_still_curves.py` located
+        # panels by the caption "Characteristic CurveS" and F-4036 -- the
+        # first F-series sheet in that reader -- prints ONE panel and captions
+        # it singular. Nothing failed; the page simply reported two panels
+        # instead of three. See the CAPTIONS block there.
+        #
+        # Eastman Kodak, «KODAK PROFESSIONAL BW400CN Film», publication
+        # F-4036, January 2004, p5 'Characteristic Curve', figure F009_0274AC
+        # (unique to this sheet -- checked against the whole corpus, because
+        # E-2468 taught this project that a figure id can be shared between
+        # two films). Exposure daylight, densitometry Status M, Log H Ref
+        # -1.44. Softplus fit rms 0.0218 / 0.0211 / 0.0256 D over the drawn
+        # extent -3.440..0.555 log H.
+        #
+        # ⚠ THE SHOULDER IS CARRIED, NOT MEASURED. The drawn trace stops at
+        # D 2.02 / 2.50 / 3.05 and is still straight there, so `measure_char`
+        # returns no shoulder and these two figures are the ones the profile
+        # already had. Same treatment as EKTAR 100 and the PORTRA family.
+        curves=RGBCurves(
+            r=_neg(0.2754, 0.5616, toe_x=-2.691, toe_k=0.110, shoulder_x=2.00,
+                   shoulder_k=0.38),
+            g=_neg(0.7021, 0.5857, toe_x=-2.641, toe_k=0.170, shoulder_x=2.00,
+                   shoulder_k=0.38),
+            b=_neg(0.9475, 0.6989, toe_x=-2.591, toe_k=0.200, shoulder_x=2.00,
+                   shoulder_k=0.38),
+        ),
         grain=GrainSpec(9.5, 4.194, 4.194, 4.194, clump_gain=0.20, fog_grain=0.14,
                         dye_cloud_um=9.0),
         mtf=MTFSpec(64.0, 64.0, 64.0, adjacency=0.11, adjacency_um=16.0),
@@ -30218,10 +30267,36 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         era="2008-present",
         exposure_index=100,
         balance_kelvin=5500,
+        # ⚠⚠ [T1] CURVES TRACED 2026-09-20, AND WHAT THEY REPLACED HAD NO
+        # ORANGE MASK. Eastman Kodak, «KODAK PROFESSIONAL EKTAR 100 Film»,
+        # publication E-4046, February 2016, page 4, panel "Characteristic
+        # Curves"; traced by kodak_still_curves.py and measured by
+        # `measure_char`. Fit rms 0.0209 / 0.0201 / 0.0186 D for r/g/b, worst
+        # 0.052 / 0.059 / 0.051, over the plotted log H -2.840..+1.160.
+        #
+        # ⚠⚠ THE PREVIOUS TRIPLE WAS `fitted_from='analogy'` AND CARRIED THE
+        # SIGNATURE OF A FILM THIS IS NOT: dmin 0.20 / 0.19 / 0.19, three
+        # near-equal base densities, which on a masked colour negative means
+        # NO MASK AT ALL -- the defect queue B4 found on 5247_1983 and the
+        # 2026-09-03 pass found on both ULTRA COLOR stocks. The sheet draws
+        # 0.221 / 0.643 / 0.855, a full orange mask. The gamma order was wrong
+        # the same way: stored 0.640 / 0.655 / 0.670, a 0.03 spread, against a
+        # drawn 0.535 / 0.546 / 0.661 -- red is the LOWEST-contrast layer by
+        # 0.13, not by 0.03.
+        #
+        # ⚠ TWO EDITIONS AGREE, WHICH IS THE CHECK. E-4046 of 2010 (p5) and of
+        # 2016 (p4) trace to the same numbers within 1.1e-5 D, so the reading
+        # is a property of the artwork and not of one file.
+        #
+        # ⚠ THE SHOULDER IS CARRIED, NOT MEASURED, and `measure_char` is why:
+        # these panels are straight where they stop, so a free six-parameter
+        # fit invents a shoulder and corrupts the gamma while doing it.
+        # shoulder_x / shoulder_k are this profile's own previous values;
+        # dmin, gamma, toe_x and toe_k are the sheet's.
         curves=RGBCurves(
-            r=_neg(0.20, 0.640, toe_x=-1.60, toe_k=0.28, shoulder_x=2.00),
-            g=_neg(0.19, 0.655, toe_x=-1.56, toe_k=0.27, shoulder_x=1.95),
-            b=_neg(0.19, 0.670, toe_x=-1.50, toe_k=0.26, shoulder_x=1.88),
+            r=_neg(0.2213, 0.5345, toe_x=-2.140, toe_k=0.080, shoulder_x=2.00),
+            g=_neg(0.6426, 0.5461, toe_x=-2.190, toe_k=0.050, shoulder_x=1.95),
+            b=_neg(0.8547, 0.6612, toe_x=-2.240, toe_k=0.110, shoulder_x=1.88),
         ),
                 # [T3] rms_granularity 3.4 -> 5.5, ADOPTED 2026-08-27 from the
         # FilmLab Pro published-data engine. THE VALUE IT REPLACES WAS OUR
@@ -48355,12 +48430,38 @@ _CALLIER_NOTE_COLOUR = (
     '\u26a0 IDENTITY, AND UNMEASURED. Q=1.0 asserts EXACTLY no Callier effect, '
     'from the dye-image argument, not from a measurement of this stock. Never '
     'read as measured-zero. Rule 23 pt 3.')
+_CALLIER_NOTE_CHROMO = (
+    '\u26a0 IDENTITY, AND UNMEASURED. Q=1.0 on a CHROMOGENIC BLACK-AND-WHITE '
+    'stock: renders grey, but the image is dye and nothing else, so the '
+    'dye-image argument applies and the silver rule does not. Corrected '
+    '2026-09-20 from a DERIVED SILVER beta of 1.6856, which had been steepening '
+    'the tone scale of a dye image on every specular scanner setting. Rule 23 '
+    'pt 3.')
+
+#: The two CHROMOGENIC BLACK-AND-WHITE stocks: films that render grey but whose
+#: image is dye, developed in C-41 and printed on colour paper.
+#:
+#: \u26a0 THEY ARE NOT A THIRD `is_monochrome` VALUE AND MUST NOT BECOME ONE. Every
+#: renderer branch keyed on `is_monochrome` is asking "does this collapse to one
+#: record", and for these two the answer is still yes -- `film_sim` collapses
+#: exposure with the stock's spectral weights and then applies three curves to
+#: it, which is exactly how a masked chromogenic mono film behaves. What this
+#: set selects is the DENSITOMETRY AND SCATTERING class, which is the colour
+#: one, and nothing else. `_apply_schema_v2` states what it changes and the one
+#: field it deliberately leaves alone.
+#:
+#: \u26a0 DEFINED HERE, NOT BESIDE `_DMIN_LADDER`, because the loop below runs at
+#: import time and the tables down there are built later in the file.
+_CHROMOGENIC_MONO = frozenset({"KODAK_BW400CN", "KODAK_T400CN"})
 
 for _p in FILM_PROFILES:
     _have = {_e.param for _e in _PARAM_SOURCES.get(_p.name, ())}
     if 'callier_q' in _have:
         continue
-    if _p.is_monochrome:
+    if _p.name in _CHROMOGENIC_MONO:
+        _t, _st, _n, _c = 3, 'estimated', _CALLIER_NOTE_CHROMO, 'low'
+        _src = ''
+    elif _p.is_monochrome:
         _t, _st, _n, _c = 2, 'derived', _CALLIER_NOTE_MONO, 'medium'
         _src = _CALLIER_SRC_MONO
     else:
@@ -50658,6 +50759,22 @@ def _provenance_for(p: FilmProfile) -> Provenance:
     # Exactly the split the Kodak still-film note above sets out.
     if p.name in _VENDOR_TRACED_CURVES:
         fitted = "datasheet_curve"
+    # ⚠ FIFTH USE OF THE HOOK, 2026-09-20, AND IT IS ABOUT THE DATE. The two
+    # hooks above can both fire on one profile, and the LAST one wins the
+    # review date -- EKTAR 100 is in the still-film curve set AND in the
+    # FilmLabPro halation import, so it came out claiming a 2026-08-27 review
+    # after its curves had been replaced today. A profile whose curves moved
+    # today was not reviewed last month.
+    if p.name in _RETRACED_2026_09_20:
+        reviewed = "2026-09-20"
+    # ⚠ SIXTH USE OF THE HOOK, 2026-09-20, AND IT CHANGES NO VALUE AT ALL. These
+    # seven profiles' curves were traced from their own published plots weeks or
+    # months ago; only the LABEL was wrong, because `fitted_from` defaults from
+    # the tier tag. The date does NOT move for them -- nothing about the data
+    # was reviewed today, a mis-derived field was corrected -- which is the
+    # opposite call from `_RETRACED_2026_09_20` above and is deliberate.
+    if p.name in _DATASHEET_CURVE_RELABEL_2026_09_20:
+        fitted = "datasheet_curve"
     return Provenance(
         tier=tier,
         sources=srcs,
@@ -50694,7 +50811,73 @@ _KODAK_STILL_HARVEST_CURVES = frozenset({
     "KODAK_PORTRA_160VC",
     "KODAK_PORTRA_400NC",
     "KODAK_PORTRA_400VC",
+    # ⚠⚠ ADDED 2026-09-20. EKTAR 100, traced from E-4046 p4 by the same reader.
+    # It is the first name in this set whose curve was REPLACED because the old
+    # one was wrong rather than merely unevidenced: the stored analogy had
+    # dmin 0.20 / 0.19 / 0.19 -- no orange mask on a masked colour negative --
+    # against the sheet's 0.221 / 0.643 / 0.855. ⚠ THE TIER TAG STAYS [T3] and
+    # that is the same split this file makes everywhere: E-4046 prints Print
+    # Grain Index and no rms, so the grain figure on that profile is still an
+    # estimate. Tier describes the profile; `fitted_from` describes how the
+    # curves were got.
+    "KODAK_EKTAR_100",
+    # ⚠⚠ ADDED 2026-09-20. BW400CN, traced from F-4036 p5 by the same reader
+    # once it learned the singular caption. Second name in this set whose curve
+    # was REPLACED rather than filled: the stored analogy was ONE grey curve in
+    # all three channels (dmin 0.24 flat) against a drawn ladder of
+    # 0.275 / 0.702 / 0.948 on a film the profile's own description calls
+    # orange-masked. Tier stays [T3] for the same reason as EKTAR: F-4036
+    # publishes Print Grain Index and no rms, so the grain figure is still an
+    # estimate.
+    "KODAK_BW400CN",
+    # ⚠⚠ ADDED 2026-09-20c BY THE SECONDARY-SOURCE SWEEP, AND NEITHER VALUE
+    # MOVED. Both ULTRA COLOR stocks already carried E-4035's traced numbers in
+    # their profile literal -- re-measuring p6 and p7 today reproduces
+    # dmin/gamma 0.2992/0.5212, 0.7064/0.5654, 0.9958/0.651 and
+    # 0.3364/0.5511, 0.767/0.5754, 1.0543/0.6652 EXACTLY -- while their
+    # `ParamSource` read tier 3 `assumed` with an empty source and their
+    # `fitted_from` read `secondary_sources`. Same register-gap defect the
+    # 2026-09-20c curve-provenance pass fixed on 22 other stocks, found on two
+    # more by asking the secondary-source set the same question.
+    "KODAK_ULTRA_COLOR_100UC", "KODAK_ULTRA_COLOR_400UC",
 })
+
+
+#: Profiles whose characteristic curves were RE-traced on 2026-09-20, so their
+#: review date must be today rather than whatever an earlier hook left behind.
+_RETRACED_2026_09_20 = frozenset({"KODAK_EKTAR_100", "KODAK_BW400CN"})
+
+
+#: ⚠⚠ THE LABEL LAG, CORRECTED 2026-09-20. Seven profiles carried
+#: `fitted_from="analogy"` while their green-record GAMMA had already been
+#: traced off their own film's published characteristic curve. `fitted_from` is
+#: derived from the TIER TAG by default, and the tier tag is a statement about
+#: the profile as a whole -- so a profile that is [T3] because its grain is an
+#: estimate kept announcing "analogy" about curves that are nothing of the kind.
+#: The same hook that fixed it for the Kodak still-film harvest fixes it here.
+#:
+#: ⚠ WHAT DECIDES MEMBERSHIP: the GAMMA cell, not the dmin cell. `fitted_from`
+#: describes how the curve SHAPE was obtained. GEVACOLOR_1952,
+#: KODAK_VERICOLOR_III_160 and KODAK_EKTAPRESS_PJ400 have TRACED DMINS and
+#: assumed gammas -- their shape is still an analogy and they correctly stay
+#: out. SVEMA_CO_90L's gamma is STATED in a manufacturing specification rather
+#: than read off a plot, which is not a curve either. KODAK_EKTAR_125 and
+#: EASTMAN_5294_1983 are estimates. Seven names, not eleven.
+_DATASHEET_CURVE_RELABEL_2026_09_20 = frozenset({
+    # AgfaPhoto Vista Plus sheet, section 11 'Characteristic Curves', pp4/8;
+    # softplus fit rms 0.0090/0.0161/0.0090 and 0.0115/0.0145/0.0102 D.
+    "AGFA_VISTA_PLUS_200", "AGFA_VISTA_PLUS_400",
+    # «Kodak Films» Seventh Edition 1956 -- each film's OWN characteristic-curve
+    # family, traced at 300 dpi and fitted. Five of the 1956 sheet films.
+    "KODAK_COMMERCIAL_1956", "KODAK_PORTRAIT_PANCHROMATIC_1956",
+    "KODAK_ROYAL_ORTHO_1956", "KODAK_SUPER_PANCHRO_PRESS_B_1956",
+    "KODAK_SUPER_SPEED_ORTHO_1956",
+})
+
+
+#: ⚠ `_CHROMOGENIC_MONO` IS DEFINED FURTHER UP, immediately above the callier_q
+#: provenance block, because that block RUNS at import time and needs it. The
+#: name is used here too, from inside `_apply_schema_v2`.
 
 
 #: Colour negatives whose per-channel dmin values ladder upward (r << g << b)
@@ -50713,6 +50896,14 @@ _DMIN_LADDER = {
     # the traced toe plateaus are 0.784/0.568/0.209 and 1.020/0.803/0.382
     # B/G/R. Those dmins now ARE the mask, so the encoding is a ladder.
     "KODAK_VERICOLOR_III_160", "KODAK_EKTAPRESS_PJ400",
+    # ⚠⚠ ADDED 2026-09-20, AND IT IS THE FIRST `is_monochrome` NAME IN THIS
+    # SET. BW400CN is chromogenic black-and-white on an orange-masked base and
+    # F-4036 p5 draws the mask as a dmin ladder 0.2754 / 0.7021 / 0.9475 --
+    # a 0.67 D spread, wider than PORTRA 160's. It reaches this table through
+    # `_CHROMOGENIC_MONO` rather than through the colour-negative branch; see
+    # `_apply_schema_v2`. T400CN is NOT here: its sheet is not in the corpus
+    # and its dmins have never been traced.
+    "KODAK_BW400CN",
     # Added 2026-08-30 (K1): the traced E-190 dmins ladder 0.20/0.61/0.81
     # (160 pair) and 0.26/0.66/0.86 (400 pair) -- a 0.61 D mask spread,
     # so the mask is encoded in dmin exactly as for their siblings.
@@ -52091,6 +52282,180 @@ _RECIPROCITY_TABLES: dict[str, ReciprocityTable] = {
                 "The page also states the range in prose: 'If the exposure time "
                 "is within 1/10 000th and 1 second, the colours and speed remain "
                 "the same.'"),
+    ),
+
+    # ==== HARVEST 2026-09-20c -- the reciprocity sweep ======================
+    # ⚠⚠ THE HIGHEST-YIELD AXIS IN doc/REALISM_SCORE.md AND THE CHEAPEST, AND
+    # THE TWO FACTS ARE RELATED. The measured influence table puts reciprocity
+    # at +9.9 points if fully evidenced -- the largest single win on the board
+    # -- and unlike a characteristic curve a reciprocity table is printed as
+    # TEXT, not as artwork. No tracer, no axis calibration, no vector paths:
+    # the numbers are in the sheet's own text layer and the work is
+    # transcription with a check.
+    #
+    # ⚠ A ZERO-CORRECTION STATEMENT IS DATA AND IS STORED AS SUCH. Several of
+    # these sheets print only "no adjustment is needed from X to Y", which is
+    # exactly what pins `onset_s` -- the stock's failure begins after Y. Before
+    # this pass those stocks carried a CLASS DEFAULT of onset 1.0 s whether or
+    # not their own sheet agreed, and for two of them it did not: FUJI VELVIA
+    # 50's sheet says 4 s and SENSIA 100's says 64 s, so both had been failing
+    # reciprocity up to 64x too early.
+    "KODAK_VISION3_50D_5203": ReciprocityTable(
+        times_s=(0.001, 1.0), stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK VISION3 50D Color Negative Film "
+                "5203/7203», technical information, p2 'Reciprocity "
+                "Characteristics': 'You do not need to make any filter "
+                "corrections or exposure adjustments for exposure times from "
+                "1/1000 of a second to 1 second.' The sheet prints no long-end "
+                "correction, so none is stored and none is extrapolated"),
+    ),
+    "KODAK_VISION3_200T_5213": ReciprocityTable(
+        times_s=(0.001, 1.0), stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK VISION3 200T Color Negative Film "
+                "5213/7213», technical information, p2 'Reciprocity "
+                "Characteristics' -- the same zero-correction statement over "
+                "1/1000 to 1 second, printed identically on the VISION3 sheets"),
+    ),
+    "KODAK_VISION3_250D_5207": ReciprocityTable(
+        times_s=(0.001, 1.0), stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK VISION3 250D Color Negative Film "
+                "5207/7207», technical information, p2 'Reciprocity "
+                "Characteristics' -- zero correction over 1/1000 to 1 second"),
+    ),
+    "EASTMAN_EXR_50D_5245": ReciprocityTable(
+        times_s=(0.001, 1.0), stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «EASTMAN EXR 50D Color Negative Film "
+                "5245/7245», p2 'RECIPROCITY CHARACTERISTICS': 'You do not need "
+                "to make any filter corrections or exposure adjustments for "
+                "exposure times from 1/1000 to 1 second'"),
+    ),
+    "EASTMAN_EXR_200T_5293": ReciprocityTable(
+        times_s=(0.001, 1.0), stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «EASTMAN EXR 200T Color Negative Film "
+                "5293/7293», p2 'RECIPROCITY CHARACTERISTICS' -- zero "
+                "correction over 1/1000 to 1 second"),
+    ),
+    # ⚠ THE SHORT END, WHICH MOST SHEETS DO NOT PRINT AT ALL. 7266 states a
+    # correction BELOW the flat range as well as the flat range itself, so this
+    # is one of the few stocks whose high-speed failure is documented rather
+    # than assumed from the class default of 4e-05 s.
+    "KODAK_TRI_X_REVERSAL_200": ReciprocityTable(
+        times_s=(0.0001, 0.001, 1.0),
+        stops_correction=(0.5, 0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK TRI-X Reversal Film 7266», "
+                "technical information, p2 'Reciprocity Characteristics': no "
+                "correction from 1/1,000 to 1 second, and 'If your exposure is "
+                "in the 1/10,000 second range, it is recommended that you "
+                "increase your exposure by 1/2 stop'"),
+    ),
+    "KODAK_TMAX_400": ReciprocityTable(
+        times_s=(0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
+        stops_correction=(0.0, 0.0, 0.0, 0.0, 0.0, 1.0 / 3.0, 1.5),
+        source=("Eastman Kodak Company, «KODAK PROFESSIONAL T-MAX 400 Film», "
+                "publication F-4043 (2016), p2 'Exposure Adjustments for Long "
+                "and Short Exposures': none through 1 s, +1/3 stop at 10 s, "
+                "+1 1/2 stops at 100 s (adjusted time 300 s). ⚠ The sheet's own "
+                "feature list claims 'improved reciprocity at long and short "
+                "exposure times', and the table is what that claim amounts to"),
+    ),
+    "KODAK_TMAX_P3200": ReciprocityTable(
+        times_s=(0.0001, 0.001, 0.01, 0.1, 1.0),
+        stops_correction=(0.0, 0.0, 0.0, 0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK PROFESSIONAL T-MAX P3200 Film», "
+                "publication F-4001 (2019), p3 'Exposure Adjustments for Long "
+                "and Short Exposures': 'None' in every printed cell from "
+                "1/10,000 to 1 second. ⚠ THE TABLE STOPS AT 1 s AND SO DOES "
+                "THIS RECORD -- a sheet that declines to publish a long-end "
+                "figure is not evidence that there is no failure there"),
+    ),
+    # ⚠⚠ THE RICHEST RECIPROCITY TABLE IN THIS CORPUS, and the only one in this
+    # harvest that fills all three columns: exposure, DEVELOPMENT and the short
+    # end. F-4017 covers TRI-X 320 and TRI-X 400 as ONE sheet with ONE
+    # reciprocity table, so both profiles take it -- that is the document's own
+    # scope, not an analogy between two films.
+    "KODAK_TRI_X_400TX": ReciprocityTable(
+        times_s=(0.00001, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
+        stops_correction=(1.0, 0.5, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
+        development_correction_pct=(0.0, 0.0, 0.0, 0.0, 0.0,
+                                    -10.0, -20.0, -30.0),
+        source=("Eastman Kodak Company, «KODAK PROFESSIONAL TRI-X 320 and 400 "
+                "Films», publication F-4017, May 2007, p2 'Exposure "
+                "Adjustments for Long and Short Exposures': 1/100,000 +1 stop, "
+                "1/10,000 +1/2, 1/1,000 to 1/10 none, 1 s +1 stop (adjusted 2 "
+                "s), 10 s +2 stops (50 s), 100 s +3 stops (1200 s); "
+                "development -10 / -20 / -30 % on the three long cells. "
+                "⚠ THE SHEET ALSO PRINTS +20 / +15 / +10 % DEVELOPMENT ON THE "
+                "THREE SHORT CELLS AND THEY ARE NOT STORED: "
+                "`ReciprocityTable.validate` refuses a positive development "
+                "correction because the schema defines the column as a "
+                "reduction. The figures are real and are recorded here in "
+                "prose rather than dropped silently -- carrying them needs a "
+                "schema change, not a sign flip"),
+    ),
+    "KODAK_TRI_X_320TXP": ReciprocityTable(
+        times_s=(0.00001, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
+        stops_correction=(1.0, 0.5, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
+        development_correction_pct=(0.0, 0.0, 0.0, 0.0, 0.0,
+                                    -10.0, -20.0, -30.0),
+        source=("Eastman Kodak Company, «KODAK PROFESSIONAL TRI-X 320 and 400 "
+                "Films», publication F-4017, May 2007, p2 -- the same table. "
+                "⚠ ONE SHEET COVERS BOTH FILMS AND PRINTS ONE RECIPROCITY "
+                "TABLE FOR THEM, which is why 320TXP takes the same figures: "
+                "the document's scope, not an analogy drawn here"),
+    ),
+    "KODAK_BW400CN": ReciprocityTable(
+        times_s=(0.0001, 120.0), stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK PROFESSIONAL BW400CN Film», "
+                "publication F-4036, January 2004, p2: 'No exposure "
+                "compensation for reciprocity failure is necessary for "
+                "exposures between 1/10,000 and 120 seconds. We do not "
+                "recommend exposures longer than 120 seconds.' ⚠ THE WIDEST "
+                "ZERO-CORRECTION RANGE IN THIS TABLE -- six decades -- and the "
+                "refusal beyond 120 s is a refusal, not a datum to extrapolate"),
+    ),
+    "KONICA_CHROME_R100": ReciprocityTable(
+        times_s=(0.0001, 0.1, 1.0),
+        stops_correction=(0.0, 0.0, 0.5),
+        cc_filters=("", "", "CC5R"),
+        source=("Konica, «Konica Chrome R100» data sheet, p2 'RECIPROCITY "
+                "CHARACTERISTICS' and its 'RECIPROCITY FAILURE COMPENSATION "
+                "GUIDE': 1/10000-1/10 s none and no filter; 1 s +1/2 stop with "
+                "CC5R. ⚠ CHROMATIC FAILURE -- the correction is a RED filter, "
+                "which a Schwarzschild exponent cannot express at any value"),
+    ),
+    "KONICA_CHROME_CENTURIA_100": ReciprocityTable(
+        times_s=(0.0001, 4.0, 16.0, 32.0, 64.0),
+        stops_correction=(0.0, 0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0),
+        cc_filters=("", "", "CC05C", "CC05C", "CC10C"),
+        source=("Konica, «Konica Chrome Centuria 100» data sheet, p2 "
+                "'RECIPROCITY FAILURE COMPENSATION GUIDE': 1/10000-4 s none; "
+                "16 s +1/3 CC05C; 32 s +2/3 CC05C; 64 s +1 CC10C. ⚠ THE PAGE'S "
+                "TEXT LAYER EMITS THESE ROWS OUT OF ORDER -- '32 +2/3 CC05C 64 "
+                "+1 CC10 C 16 stop+1/3 CC05C' -- so the assignment above is a "
+                "READING, made monotonic in both time and correction, and is "
+                "flagged as such rather than presented as a clean "
+                "transcription. CYAN correction, i.e. chromatic failure toward "
+                "red, the opposite sense to R100's"),
+    ),
+    "FUJI_VELVIA_50": ReciprocityTable(
+        times_s=(0.0001, 4.0), stops_correction=(0.0, 0.0),
+        source=("Fuji Photo Film Co., Ltd., «FUJICHROME VELVIA» data sheet, p2: "
+                "exposures up to 4 seconds need no adjustment, and 'with "
+                "exposures of 4 seconds or more, exposure adjustments will be "
+                "necessary to compensate for reciprocity law failure'. ⚠ ONSET "
+                "ONLY -- the sheet states where failure begins and prints no "
+                "correction ladder, so the onset is stored and nothing is "
+                "invented beyond it. The stock had been carrying the "
+                "colour-reversal class default of 1 s, four times too early"),
+    ),
+    "FUJI_SENSIA_100": ReciprocityTable(
+        times_s=(0.0001, 64.0), stops_correction=(0.0, 0.0),
+        source=("Fuji Photo Film Co., Ltd., «FUJICHROME SENSIA 100» data sheet, "
+                "p2: no adjustment needed below 64 seconds, 'with exposures of "
+                "64 seconds or more, exposure adjustments will be necessary'. "
+                "⚠ ONSET ONLY. The stock had been carrying the class default "
+                "of 1 s -- SIXTY-FOUR TIMES too early, the largest single "
+                "reciprocity error this sweep found"),
     ),
 }
 
@@ -54581,6 +54946,13 @@ def _callier_beta_for(p: FilmProfile) -> float:
     every value this function returns REACHES A PIXEL on every monochrome
     render. The change it makes is the large one the old text described as
     hypothetical: 1.3 -> about 1.64-1.87, i.e. +0.485 D at net density 1.0.
+
+    ⚠ AND IT IS NOT CALLED FOR EVERY `is_monochrome` STOCK ANY MORE, AS OF
+    2026-09-20. `_CHROMOGENIC_MONO` -- KODAK BW400CN and T400CN -- render grey
+    but their image is DYE, so `_apply_schema_v2` gives them Q = 1.0 with the
+    colour stocks and never reaches this rule. It had been handing them 1.6856,
+    a silver scattering coefficient, and stage 12b was steepening the tone
+    scale of a dye image with it. 72 silver stocks call this, not 74.
     """
     g = float(p.curves.g.mid_slope)
     g = min(max(g, 0.0), 4.0)
@@ -54646,7 +55018,51 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
     """Fill every schema-v2 field from the rules and tables above."""
     y = _era_start(p.era)
     historic = y < 1960 and "present" not in p.era.lower()
-    if p.is_monochrome:
+    if p.name in _CHROMOGENIC_MONO:
+        # ⚠⚠ THE THIRD KIND OF EMULSION, ADDED 2026-09-20. `is_monochrome` had
+        # been doing two jobs: "renders grey" and "the image is silver". For
+        # BW400CN and T400CN the first is true and the second is FALSE -- they
+        # are dye-image films run in C-41, which is stated in this file already
+        # (the dye_cloud_um note calls them "chromogenic black-and-white --
+        # their image really is dye and nothing else"). Routing them through
+        # the silver branch gave all three of the following wrong, and the
+        # first two are not cosmetic:
+        #
+        #   callier_q      `_callier_beta_for` handed them 1.6856, a SILVER
+        #                  scattering coefficient, and `film_sim.callier_density`
+        #                  then steepened their whole tone scale on any
+        #                  specular scanner setting. That function's own
+        #                  docstring says why this is wrong: "A chromogenic dye
+        #                  image scatters almost nothing, which is why every
+        #                  colour stock in this file carries Q = 1.0."
+        #   density_metric "visual_iso" against F-4036 p5, which prints
+        #                  "Densitometry: Status M" under its own
+        #                  characteristic panel. Kodak read these films the way
+        #                  they read every other C-41 film, because that is the
+        #                  process they run in.
+        #   mask_encoding  "none" on a film whose sheet draws a 0.67 D dmin
+        #                  ladder. Now taken from `_DMIN_LADDER` on the same
+        #                  terms as a colour negative.
+        #
+        # ⚠ WHAT IS *NOT* CHANGED, AND WHY. `speed_criterion` stays "iso6".
+        # F-4036 states the speed as 400 and does not name the standard, and
+        # the film's own selling point was that it behaves as a black-and-white
+        # film to the photographer. Guessing ISO 5800 here would be inventing a
+        # citation, so the field keeps the value it had.
+        #
+        # ⚠ AND THE EVIDENCE IS NOT EQUAL ACROSS THE TWO. F-4036 is on disk and
+        # was traced; T400CN's own sheet is NOT in the corpus, so its Status M
+        # and its Q = 1.0 are derived from the class -- from its sibling's
+        # sheet and from the physics of a dye image -- and its provenance rows
+        # say "derived", not "traced". It also stays OUT of `_DMIN_LADDER`,
+        # because nobody has traced its dmins: its curve is still one grey
+        # curve in three channels and that gap is now visible instead of being
+        # papered over with a ladder it has not earned.
+        density_metric = "status_m"
+        speed_criterion = "iso6"
+        callier_q = 1.0
+        mask_encoding = "dmin_ladder" if p.name in _DMIN_LADDER else "neutral_dmin"
+    elif p.is_monochrome:
         density_metric = "visual_iso"
         speed_criterion = "iso6"
         # queue C43, 2026-09-02: from the stock's own contrast, not a class
@@ -55737,12 +56153,249 @@ _DYE_MATRIX_NOT_DERIVED = ("EASTMAN_EXR_50D_5245", "KODAK_VISION2_500T_5218",
 #: stock that exists in this file as the muddiness reference. That is what a
 #: double count looks like from the outside, and the guard is why it was a
 #: caught defect rather than a shipped one.
-_MEASURED_DYE_MATRIX_ADOPTED = False
+# ⚠⚠ FLIPPED TO TRUE 2026-09-20 BY AN EXPLICIT OWNER DECISION, WITH THE
+#: DOUBLE COUNT UNDERSTOOD AND ACCEPTED. Everything written above this line is
+#: the argument AGAINST doing it and none of it has been retracted: the stored
+#: curves are Status M/A densities, a status density already contains the
+#: unwanted absorptions, and multiplying it by a matrix built from those same
+#: absorptions applies them twice. The owner was shown that argument, shown the
+#: measured consequence (Ektachrome 100D rendering nearly as muddy as the 1936
+#: reference stock), and chose adoption anyway. That is a decision this side
+#: does not own.
+#:
+#: ⚠ WHAT THE FLIP BUYS, AND IT IS NOT NOTHING. Until today the nine matrices
+#: were audited, regenerated and INERT, and the `dye_density` ablation axis
+#: measured exactly 0.000 -- a carrier traced on 30 stocks that could not be
+#: scored because nothing read it. Adopted, the axis becomes measurable for the
+#: first time, so the cost of the double count stops being an argument and
+#: becomes a number in doc/REALISM_SCORE.md. If that number says the model got
+#: worse, it will say so there.
+#:
+#: ⚠ WHAT DID NOT CHANGE: `M_reader` is still missing (queue M1b), so this is
+#: still not the quantity stage 12 should hold. Reverting is one word here.
+_MEASURED_DYE_MATRIX_ADOPTED = True
+
+
+
+#: `M_reader . M_status^-1` per stock -- THE QUANTITY STAGE 12 MAY LEGITIMATELY
+#: HOLD, generated by `dye_matrix_from_spectra.stage12_matrix` and pinned there
+#: by `EXPECTED_STAGE12`.
+#:
+#: ⚠⚠ THIS TABLE REPLACED THE RAW STATUS MATRICES IN THE ADOPTION ON 2026-09-21,
+#: AND IT IS THE SAME OWNER DECISION MADE ARITHMETICALLY RIGHT. On 2026-09-20 the
+#: owner adopted `_MEASURED_DYE_MATRIX` -- the RAW status matrices -- with the
+#: double count stated. The cost came back measured: VELVIA's saturation fell
+#: 0.755 -> 0.326 and dropped below Kodachrome, because a status density already
+#: contains the unwanted absorptions and the raw matrix applies them again.
+#:
+#: ⚠ WHAT CHANGED IS THE MAGNITUDE, NOT THE DECISION. The owner wanted the
+#: measured crosstalk in the model and it still is: this table is derived from
+#: the SAME traced dye spectra, through the SAME ISO 5-3 status responses, and
+#: keeps the same ASYMMETRY -- cyan's large unwanted green and blue, magenta's
+#: unwanted blue, yellow's near-absent unwanted red -- which is the whole of
+#: what the spectra measure and the thing `_dye(k)`'s symmetric scalar cannot
+#: express at any value. What it drops is the part that was being counted twice.
+#:
+#:      raw status matrices      max |M - I| = 0.3020
+#:      M_reader . M_status^-1   max |M - I| = 0.0928     3.3x smaller
+#:
+#: ⚠ AND IT IS NOT A FUDGE FACTOR. Nothing here is scaled toward identity by a
+#: fitted constant; every entry is a full derivation with `KODAK_2383_RELEASE`'s
+#: traced spectral sensitivity as `M_reader`, solved per dye for the amount that
+#: produces unit density in its own analysing band. The 3.3x is the RESULT, not
+#: the input.
+#:
+#: ⚠⚠ THE SUBSTITUTION THAT REMAINS, STATED PLAINLY: 2383 is a release PRINT
+#: FILM and 190 of 191 profiles render through `SCAN_DI`, a scanner. Using a
+#: print emulsion's response where a scanner's belongs is still a substitution,
+#: and it is the one `dye_matrix_from_spectra` refused for a year. It is
+#: accepted here because the alternative on the table was three times worse in
+#: the same direction, and because queue P88 has now SEARCHED for a scanner
+#: response and found only a reflective document scanner's recovered
+#: responsivity -- refused on three grounds. When M1b closes, this table is
+#: regenerated with the real reader and nothing else about the wiring changes.
+_STAGE12_DYE_MATRIX: dict[str, Matrix3] = {
+    "AGFA_RSX_II_50": (   # max|M - I| = 0.0762
+        (1.007782, -0.051641, 0.010740),
+        (-0.003912, 0.992348, 0.045706),
+        (-0.017587, 0.076176, 0.992717),
+    ),
+    "AGFA_RSX_II_100": (   # max|M - I| = 0.0764
+        (1.007735, -0.051361, 0.010713),
+        (-0.003885, 0.992342, 0.045706),
+        (-0.017605, 0.076378, 0.992697),
+    ),
+    "AGFA_RSX_II_200": (   # max|M - I| = 0.0811
+        (1.006874, -0.044887, 0.006980),
+        (0.000363, 0.991256, 0.048829),
+        (-0.017204, 0.081104, 0.992734),
+    ),
+    "EASTMAN_5293_250T_1982": (   # max|M - I| = 0.0700
+        (0.999208, 0.039812, -0.001271),
+        (-0.003788, 0.997351, 0.069977),
+        (-0.000683, 0.034300, 0.991691),
+    ),
+    "EASTMAN_EKTACHROME_7239": (   # max|M - I| = 0.0694
+        (1.007880, -0.069427, 0.024032),
+        (0.000408, 0.993167, 0.038523),
+        (-0.013565, 0.065624, 0.994868),
+    ),
+    "FUJI_PROVIA_100F": (   # max|M - I| = 0.0837
+        (1.008671, -0.044596, 0.006266),
+        (0.002427, 0.987762, 0.050902),
+        (-0.035779, 0.083743, 0.994348),
+    ),
+    "FUJI_PROVIA_400F": (   # max|M - I| = 0.0838
+        (1.008042, -0.043029, 0.009437),
+        (-0.002782, 0.989049, 0.048034),
+        (-0.037165, 0.083838, 0.993616),
+    ),
+    "FUJI_PROVIA_400X": (   # max|M - I| = 0.0734
+        (1.004268, -0.038569, 0.004195),
+        (0.005932, 0.996224, 0.043334),
+        (-0.013000, 0.073439, 0.996012),
+    ),
+    "FUJI_SENSIA_100": (   # max|M - I| = 0.0852
+        (1.008538, -0.045812, 0.008546),
+        (0.001873, 0.988329, 0.049695),
+        (-0.035347, 0.085223, 0.994033),
+    ),
+    "FUJI_VELVIA_50": (   # max|M - I| = 0.0717
+        (1.009119, -0.049095, 0.007316),
+        (-0.002299, 0.991529, 0.041716),
+        (-0.016093, 0.071719, 0.989771),
+    ),
+    "FUJICHROME_64T_II": (   # max|M - I| = 0.0844
+        (1.010116, -0.053005, 0.004387),
+        (0.002590, 0.989748, 0.045178),
+        (-0.034033, 0.084401, 0.994977),
+    ),
+    "GEVACHROME_600": (   # max|M - I| = 0.0903
+        (1.005015, -0.037962, 0.007902),
+        (-0.011563, 0.991791, 0.042668),
+        (-0.033163, 0.090256, 0.990109),
+    ),
+    "GEVACHROME_605": (   # max|M - I| = 0.0903
+        (1.005015, -0.037962, 0.007902),
+        (-0.011563, 0.991791, 0.042668),
+        (-0.033163, 0.090256, 0.990109),
+    ),
+    "GEVACOLOR_NEG_682": (   # max|M - I| = 0.0496
+        (0.996522, 0.015014, -0.001511),
+        (-0.015798, 0.989209, 0.049562),
+        (0.005428, 0.034250, 0.996553),
+    ),
+    "KODAK_EKTACHROME_100D_5285": (   # max|M - I| = 0.0731
+        (1.011294, -0.073111, 0.006786),
+        (0.006886, 0.992455, 0.037620),
+        (-0.012546, 0.070255, 0.995038),
+    ),
+    "KODAK_VISION2_50D_5201": (   # max|M - I| = 0.0511
+        (0.997456, 0.022884, -0.004047),
+        (-0.006311, 0.994688, 0.051128),
+        (-0.002142, 0.043976, 0.997140),
+    ),
+    "KODAK_VISION2_200T_5217": (   # max|M - I| = 0.0509
+        (0.996047, 0.029142, -0.001344),
+        (-0.009134, 0.995409, 0.050896),
+        (0.008694, 0.043317, 0.996981),
+    ),
+    "KODAK_VISION2_250D_5205": (   # max|M - I| = 0.0481
+        (0.997962, 0.022659, -0.004126),
+        (-0.006726, 0.993349, 0.048150),
+        (0.008762, 0.042774, 0.997752),
+    ),
+    "KODAK_VISION3_50D_5203": (   # max|M - I| = 0.0513
+        (0.995331, 0.037850, -0.002121),
+        (-0.006924, 0.998586, 0.051316),
+        (0.009123, 0.028760, 0.997300),
+    ),
+    "KODAK_VISION3_200T_5213": (   # max|M - I| = 0.0501
+        (0.996977, 0.021838, -0.000794),
+        (-0.007838, 0.995774, 0.050055),
+        (0.009728, 0.040005, 0.997402),
+    ),
+    "KODAK_VISION3_250D_5207": (   # max|M - I| = 0.0503
+        (0.995572, 0.041188, -0.003235),
+        (-0.005888, 0.998636, 0.050278),
+        (0.008345, 0.033474, 0.997036),
+    ),
+    "KODAK_VISION3_500T_5219": (   # max|M - I| = 0.0521
+        (0.997856, 0.017176, -0.000586),
+        (-0.006653, 0.996312, 0.052109),
+        (0.012253, 0.036827, 0.998100),
+    ),
+    "KODAK_VISION_200T_5274": (   # max|M - I| = 0.0844
+        (0.992447, 0.084448, -0.004653),
+        (-0.006888, 0.998783, 0.051841),
+        (0.010273, 0.040080, 0.997511),
+    ),
+    "KODAK_VISION_500T_5279": (   # max|M - I| = 0.0519
+        (0.999637, 0.011483, -0.000269),
+        (-0.005933, 0.996946, 0.051859),
+        (0.007515, 0.045444, 0.993725),
+    ),
+    "KONICA_CHROME_CENTURIA_100": (   # max|M - I| = 0.0926
+        (1.006839, -0.035144, 0.003146),
+        (-0.010889, 0.992263, 0.046903),
+        (-0.027159, 0.092590, 0.991021),
+    ),
+    "KONICA_CHROME_R100": (   # max|M - I| = 0.0928
+        (1.006823, -0.035203, 0.003447),
+        (-0.010770, 0.992856, 0.043855),
+        (-0.027151, 0.092750, 0.990197),
+    ),
+}
+
+
+#: The `_dye(k)` scalar matrix each adopted stock carried BEFORE the flip.
+#:
+#: ⚠⚠ CAPTURED BECAUSE THE ABLATION CANNOT MEASURE THE ADOPTION WITHOUT IT, and
+#: that was found the hard way: with the flip on and nothing else changed, the
+#: `dye_density` axis STILL measured 0.000. The axis substitutes a profile's
+#: SPECTRA, and `_MEASURED_DYE_MATRIX` is a precomputed table -- the renderer
+#: reads the matrix, never the spectra, adopted or not. So the substitution was
+#: removing a carrier the render path does not touch and correctly finding no
+#: difference, which reads as "this measurement is worthless" when what it
+#: actually means is "you removed the wrong object".
+#:
+#: ⚠ WITH THIS TABLE THE AXIS CAN DO THE REAL COMPARISON -- measured matrix
+#: against the scalar stand-in it replaced -- which is the only form of the
+#: question that has an answer. See `realism_ablation._sub_dye_density`.
+_DYE_MATRIX_PRE_ADOPTION: dict[str, Matrix3] = {
+    _p.name: _p.dye_matrix
+    for _p in FILM_PROFILES if _p.name in _MEASURED_DYE_MATRIX
+}
+
+def _row_normalised(m: Matrix3) -> Matrix3:
+    """A dye matrix with unit row sums -- colour only, no level.
+
+    ⚠⚠ APPLIED ON ADOPTION 2026-09-20, AND IT IS NOT A SOFTENING OF THE OWNER'S
+    DECISION. The measured matrices have row sums 0.960 to 1.022, so adopting
+    them raw broke the invariant `_dye` exists to hold: with rows off 1.0 the
+    matrix shifts neutral DENSITY as well as colour, the anchor solve then has
+    to undo the level part, and a stock's BLACK POINT ends up depending on its
+    saturation. `verify.py` caught it the moment the flip went in -- "every dye
+    matrix fixes an EQUAL-DENSITY triple" failed on nine stocks.
+    #:
+    ⚠ THE PROJECT ALREADY MAKES THIS EXACT CHOICE ONE FIELD AWAY. Schema v25's
+    `printing_density_matrix` is row-normalised for the same reason and says so:
+    the raw `M_print . M_status^-1` carries a per-channel GAIN, a laboratory
+    calibrates that gain out with the printer lights, and the anchor solve does
+    the same here. What survives normalisation is the CROSSTALK SHAPE, which is
+    the whole of what the spectra measure and the whole of what was adopted.
+    """
+    out = []
+    for row in m:
+        t = float(sum(row))
+        out.append(tuple(v / t for v in row) if abs(t) > 1e-12 else tuple(row))
+    return (out[0], out[1], out[2])
+
 
 if _MEASURED_DYE_MATRIX_ADOPTED:                      # pragma: no cover
     FILM_PROFILES = tuple(
-        replace(_p, dye_matrix=_MEASURED_DYE_MATRIX[_p.name])
-        if _p.name in _MEASURED_DYE_MATRIX else _p
+        replace(_p, dye_matrix=_row_normalised(_STAGE12_DYE_MATRIX[_p.name]))
+        if _p.name in _STAGE12_DYE_MATRIX else _p
         for _p in FILM_PROFILES
     )
 
@@ -56142,6 +56795,392 @@ for _n in _ECN2_STOCKS:
 #  parameter that had none, so no render changes and the G-PROV invariant --
 #  never two records for one parameter -- holds by construction.
 # ===========================================================================
+
+# ===========================================================================
+#  CURVE PROVENANCE UPGRADE -- 2026-09-20
+#
+#  ⚠⚠ THIS BLOCK IS THE UPGRADE THE REGISTER-GAP PASS BELOW ASKED FOR BY NAME.
+#  That pass wrote `tier 3 / assumed` placeholders into every printed cell that
+#  had no per-parameter record, and its own comment says so in as many words:
+#  "SOME OF THESE 156 RECORDS ARE PESSIMISTIC ... AGFA_RSX_II_*,
+#  AGFA_VISTA_PLUS_* and several FUJI stocks took values off real vendor sheets
+#  ... Those are an UPGRADE TARGET". This is that upgrade, done stock by stock
+#  against the evidence each profile already carries.
+#
+#  ⚠ IT MUST RUN BEFORE THE PLACEHOLDER LOOP, and it does -- the loop only
+#  fills a parameter that has NO record, so a record written here displaces the
+#  placeholder by existing first. Ordering these two blocks the other way round
+#  would silently change nothing and look like it worked.
+#
+#  ⚠⚠ NO VALUE IS TOUCHED AND NO RENDER MOVES. Every number these records
+#  describe was already in the database; what changes is what the database SAYS
+#  ABOUT ITS OWN EVIDENCE. The effect is on `doc/REALISM_SCORE.md`, which reads
+#  these records to decide how much of a render is backed by measurement, and
+#  which was UNDERSTATING this corpus by counting traced curves as assumptions.
+#
+#  THE ADMISSION RULE, APPLIED TO EVERY ROW BELOW:
+#    * the profile's own comment block names a DOCUMENT and a PAGE or FIGURE,
+#      and states how the softplus fit was made (residual where recorded); or
+#    * the value is reproduced bit for bit by an entry in
+#      `_KODAK_STILL_HARVEST`, which carries its own fit residual.
+#  A stock whose comment mentions tracing SOMEWHERE in its block but not for
+#  the characteristic curve is NOT admitted. Fifteen candidates were rejected
+#  on exactly that test -- among them EASTMAN_EKTACHROME_5239/7239,
+#  EASTMAN_EXR_500T_5296, KODAK_PORTRA_100T, KODAK_PROFOTO_100 and
+#  KODAK_EKTAPRESS_PJ400, whose curves remain `analogy` or `secondary_sources`
+#  and whose placeholders therefore stand.
+#
+#  ⚠ STATUS IS NOT UNIFORM AND THE DIFFERENCES ARE THE POINT:
+#    traced   the curve was read off a plot and fitted
+#    stated   the sheet PRINTS the number (the 1952 Kodak families label each
+#             curve with its own gamma, so the gamma is read, not traced)
+#    derived  the stored value is the fitted MODEL's asymptote rather than a
+#             point on the plot -- ORWOCOLOR_NC3's D-min, whose own comment
+#             says the traced floors sit 0.08-0.10 D above it
+#
+#  ⚠ THE STRINGS ARE SHORT ON PURPOSE. `ParamSource.source` and `.note` are
+#  emitted into the generated C++ untruncated; a 833-byte note cost this
+#  project a manual .vcxproj edit once already. Each row here is one line of
+#  citation, and the full argument stays in the profile's own comment block,
+#  which never ships.
+# ===========================================================================
+
+#: stock -> (tier, gamma status, dmin status, citation)
+_CURVE_PROVENANCE_UPGRADE: dict[str, tuple[int, str, str, str]] = {
+    # -- Agfa 1998 «Professional Films», traced by agfa_1998_curves.py -------
+    "AGFA_RSX_II_50": (
+        1, "traced", "traced",
+        "Agfa-Gevaert, «Professional Films» brochure, 1st edition 09/1998, p8 "
+        "'Colour density curves'; softplus fit rms 0.013/0.009/0.009 D"),
+    "AGFA_RSX_II_100": (
+        1, "traced", "traced",
+        "Agfa-Gevaert, «Professional Films» brochure, 1st edition 09/1998, p9 "
+        "'Colour density curves'; softplus fit rms 0.014/0.012/0.011 D"),
+    "AGFA_RSX_II_200": (
+        1, "traced", "traced",
+        "Agfa-Gevaert, «Professional Films» brochure, 1st edition 09/1998, p9 "
+        "'Colour density curves'; softplus fit rms 0.004/0.004/0.008 D"),
+    "AGFA_ULTRA_50": (
+        1, "traced", "traced",
+        "Agfa-Gevaert, «Professional Films» brochure, 1st edition 09/1998, p8 "
+        "'Colour density curves'; softplus fit rms 0.014/0.005/0.011 D"),
+    # -- Agfa Vista Plus, section 11 of the vendor sheet --------------------
+    "AGFA_VISTA_PLUS_200": (
+        1, "traced", "traced",
+        "AgfaPhoto Vista Plus sheet, section 11 'Characteristic Curves' p4; "
+        "softplus fit rms 0.0090/0.0161/0.0090 D over 70 points per record"),
+    "AGFA_VISTA_PLUS_400": (
+        1, "traced", "traced",
+        "AgfaPhoto Vista Plus sheet, section 11 p8; softplus fit rms "
+        "0.0115/0.0145/0.0102 D"),
+    # -- Fuji vendor datasheets ---------------------------------------------
+    "FUJI_PROVIA_100F": (
+        1, "traced", "traced",
+        "Fujifilm, PROVIA 100F Professional [RDP III] data sheet, p6 "
+        "'Characteristic Curves'; one record complete, fitted at rms 0.0151 D"),
+    "FUJICOLOR_PRO_400H": (
+        1, "traced", "traced",
+        "Fujifilm, FUJICOLOR PRO 400H Professional data sheet, p8 "
+        "'Characteristic Curves', traced 2026-09-02e"),
+    "FUJI_NEOPAN_SS": (
+        1, "traced", "traced",
+        "Fujifilm AF3-411E(N) section 9 'Characteristic Curves', Microfine "
+        "20 C small tank; the panel prints the average gradient of each of its "
+        "five development times, which is what fixes the trace"),
+    # -- Kodak Ultra Color, publication E-4035 ------------------------------
+    "KODAK_ULTRA_COLOR_100UC": (
+        1, "traced", "traced",
+        "Eastman Kodak, ULTRA COLOR 100UC and 400UC Films, publication E-4035, "
+        "May 2007 p6, figure F009_0585AC; kodak_still_curves.py, fit rms "
+        "0.017/0.016/0.024 D over log H -3.15..+0.82"),
+    "KODAK_ULTRA_COLOR_400UC": (
+        1, "traced", "traced",
+        "Eastman Kodak, ULTRA COLOR 100UC and 400UC Films, publication E-4035, "
+        "May 2007 p7; kodak_still_curves.py, fit rms 0.008/0.009/0.012 D"),
+    # -- Kodak PORTRA E-190, via _KODAK_STILL_HARVEST ------------------------
+    # ⚠ THESE FOUR ARE WHY THIS BLOCK EXISTS. Their curves are reproduced bit
+    # for bit by `_KODAK_STILL_HARVEST`, which carries the fit residual, while
+    # their per-parameter record read `tier 3 assumed`. Their own sister stocks
+    # on the same sheet -- PORTRA 160, 400, 800, GOLD, ULTRAMAX -- were already
+    # marked traced, so the four variants were simply missed.
+    "KODAK_PORTRA_160NC": (
+        1, "traced", "traced",
+        "Eastman Kodak, PORTRA 160NC/160VC/400NC/400VC/400UC/800, publication "
+        "E-190, May 2003 p9; kodak_still_curves.py, fit rms 0.0100/0.0073/"
+        "0.0084 D"),
+    "KODAK_PORTRA_160VC": (
+        1, "traced", "traced",
+        "Eastman Kodak, publication E-190, May 2003 p10; kodak_still_curves.py, "
+        "fit rms 0.0037/0.0068/0.0056 D"),
+    "KODAK_PORTRA_400NC": (
+        1, "traced", "traced",
+        "Eastman Kodak, publication E-190, May 2003 p11; kodak_still_curves.py, "
+        "fit rms 0.0119/0.0058/0.0081 D"),
+    "KODAK_PORTRA_400VC": (
+        1, "traced", "traced",
+        "Eastman Kodak, publication E-190, May 2003 p12; kodak_still_curves.py, "
+        "fit rms 0.0047/0.0103/0.0051 D"),
+    # -- Ferrania -----------------------------------------------------------
+    "FERRANIA_P30": (
+        1, "traced", "traced",
+        "Ferrania 'Curve caratteristiche e sensibilita spettrali', P30 New "
+        "plot p1, cross-checked against the p2 comparison plot to 0.01 D; "
+        "2195 samples, fit rms 0.007 D, max 0.022"),
+    # -- ORWO, a 1972 journal half-tone re-derived on every build ------------
+    # ⚠ D-MIN IS `derived`, NOT `traced`, ON THIS ONE STOCK. Its own comment
+    # records that the stored D-mins are the fitted model's asymptotes and sit
+    # 0.08-0.10 D below the traced floors; calling them traced would claim a
+    # point on the plot that is not there.
+    "ORWOCOLOR_NC3": (
+        1, "traced", "derived",
+        "Tamm and Weisflog, VEB Filmfabrik Wolfen, 'NC 3 - ein neuer "
+        "Color-Negativfilm', BILD UND TON 11/1972 pp. 341-344, Bild 5; "
+        "re-derived by orwo_nc3_1972.py on every build, constrained fit rms "
+        "0.0409/0.0363/0.0376 D on a 1.6 D span"),
+    # -- Ansco, a journal figure --------------------------------------------
+    "SUPER_ANSCOCHROME_1957": (
+        1, "traced", "traced",
+        "Journal of Imaging Science 1957, Fig. 4 p12 (queue #214/#215); fit "
+        "rms 0.0245/0.0197/0.0240 D, worst 0.063 D"),
+    # -- The 1952 Kodak sheet families: the gamma is PRINTED -----------------
+    # ⚠ `stated`, NOT `traced`, AND ONLY THE GAMMA. Each sheet draws a curve
+    # family with the gamma LABELLED on every member, and the adopted value is
+    # the label at the sheet's own recommended development time. Nothing was
+    # traced off these plots, and the D-min is not evidenced by them, so it
+    # keeps whatever record it already had.
+    "KODAK_PANATOMIC_X_SHEET_1952": (
+        1, "stated", "",
+        "Kodak sheet-film data, DK-50 curve family; labels 5 min y=.80 and "
+        "6 min y=.90, processing table gives 5.5 min intermittent at 68 F -- "
+        "the exact midpoint, y=0.852 (queue E1)"),
+    "KODAK_TRI_X_SHEET_1952": (
+        1, "stated", "",
+        "Kodak sheet-film data, DK-50 curve family; labels 8.5 min y=.80 and "
+        "12 min y=.90, Commercial Photography row is 9.5 min at 68 F, bracket "
+        "0.829-0.832 (queue E1)"),
+    "KODAK_ORTHO_X_SHEET_1952": (
+        1, "stated", "",
+        "Kodak sheet-film data; the Commercial Photography row is DK-50 9 min "
+        "intermittent at 68 F and 9 min is one of the five PRINTED curve "
+        "labels, y=.80 exactly -- no interpolation (queue E1)"),
+    "KODAK_VERICHROME_1952": (
+        1, "stated", "",
+        "Kodak roll-film data, D-76 curve family; the adopted gamma 0.744 is "
+        "read off the sheet's printed labels rather than traced (queue E1)"),
+}
+
+#: Stocks whose CURVE VALUE was replaced by a fresh trace today, so their old
+#: per-parameter records describe a number that no longer exists and must be
+#: REPLACED rather than left in place.
+#:
+#: ⚠⚠ THIS IS THE ONE PLACE IN THIS FILE THAT DELETES A ParamSource, and the
+#: licence is narrow: the record said `analogy`, the value it described is
+#: gone, and leaving it would make the database cite a comparable stock as
+#: evidence for a number traced off the film's own sheet. Everything else in
+#: this block only ever ADDS.
+_CURVE_RETRACED: dict[str, tuple[int, str, str]] = {
+    "KODAK_EKTAR_100": (
+        1, "traced",
+        "Eastman Kodak, «KODAK PROFESSIONAL EKTAR 100 Film», publication "
+        "E-4046, February 2016, p4 'Characteristic Curves'; traced by "
+        "kodak_still_curves.py, fit rms 0.0209/0.0201/0.0186 D. The 2010 and "
+        "2016 editions agree to 1.1e-5 D. Replaces an analogy that carried no "
+        "orange mask (dmin 0.20/0.19/0.19 against a drawn 0.221/0.643/0.855)"),
+    "KODAK_BW400CN": (
+        1, "traced",
+        "Eastman Kodak, «KODAK PROFESSIONAL BW400CN Film», publication F-4036, "
+        "January 2004, p5 'Characteristic Curve', figure F009_0274AC; traced by "
+        "kodak_still_curves.py, fit rms 0.0218/0.0211/0.0256 D over -3.440.."
+        "0.555 log H. Exposure daylight, densitometry Status M. Replaces one "
+        "grey curve copied into three channels (dmin 0.24 flat against a drawn "
+        "0.275/0.702/0.948) on a film the profile itself calls orange-masked"),
+}
+
+_curve_retraced = 0
+for _s, (_t, _st, _cite) in _CURVE_RETRACED.items():
+    _keep = tuple(_r for _r in _PARAM_SOURCES.get(_s, ())
+                  if _r.param not in ("curves.g.gamma", "curves.g.dmin"))
+    _PARAM_SOURCES[_s] = _keep + (
+        ParamSource(
+            param="curves.g.gamma", tier=_t, status=_st, unit="dimensionless",
+            conditions="green record, softplus fit; see ToneCurve.is_degenerate "
+                       "before reading gamma as a slope",
+            source=_cite, confidence="high",
+            note="Re-traced 2026-09-20; the previous value was an analogy."),
+        ParamSource(
+            param="curves.g.dmin", tier=_t, status=_st, unit="density",
+            conditions="green record, base+fog",
+            source=_cite, confidence="high",
+            note="Re-traced 2026-09-20; the previous value was an analogy "
+                 "with no orange mask."),
+    )
+    _curve_retraced += 2
+
+CURVE_RETRACED_CELLS = _curve_retraced
+CURVE_RETRACED_STOCKS = tuple(_CURVE_RETRACED)
+
+#: Stocks whose stored curve was ALREADY the sheet's own traced value while the
+#: provenance register described it as assumed. The VALUE does not move; only
+#: the record of where it came from does.
+#:
+#: ⚠⚠ THIS IS A DIFFERENT OPERATION FROM `_CURVE_RETRACED` ABOVE AND MUST STAY
+#: SEPARATE. That dict exists because a value was WRONG and was replaced; this
+#: one exists because a value was RIGHT and was mislabelled. Collapsing them
+#: would put "re-traced today, the previous value was an analogy" on a curve
+#: that has not changed since it was adopted, which is a false statement in the
+#: audit trail -- and the audit trail is the product here.
+_CURVE_PROVENANCE_REPLACE: dict[str, str] = {
+    "KODAK_ULTRA_COLOR_100UC":
+        "Eastman Kodak, «KODAK PROFESSIONAL ULTRA COLOR 100UC / 400UC Film», "
+        "publication E-4035, May 2007, p6 '100UC Characteristic Curves'; "
+        "traced by kodak_still_curves.py, fit rms 0.0186/0.0164/0.0244 D. "
+        "Re-measured 2026-09-20c and the stored dmin/gamma reproduce EXACTLY "
+        "(0.2992/0.5212, 0.7064/0.5654, 0.9958/0.651), so this corrects the "
+        "record and not the number",
+    "KODAK_ULTRA_COLOR_400UC":
+        "Eastman Kodak, «KODAK PROFESSIONAL ULTRA COLOR 100UC / 400UC Film», "
+        "publication E-4035, May 2007, p7 '400UC Characteristic Curves, "
+        "EI 400'; traced by kodak_still_curves.py, fit rms 0.0086/0.0098/"
+        "0.0168 D. Re-measured 2026-09-20c and the stored dmin/gamma reproduce "
+        "EXACTLY (0.3364/0.5511, 0.767/0.5754, 1.0543/0.6652). ⚠ The sheet "
+        "also prints an EI 800 push panel on the same page; it is NOT this "
+        "profile's curve and is not taken",
+}
+
+_curve_relabelled = 0
+for _s, _cite in _CURVE_PROVENANCE_REPLACE.items():
+    _keep = tuple(_r for _r in _PARAM_SOURCES.get(_s, ())
+                  if _r.param not in ("curves.g.gamma", "curves.g.dmin"))
+    _PARAM_SOURCES[_s] = _keep + (
+        ParamSource(
+            param="curves.g.gamma", tier=1, status="traced",
+            unit="dimensionless",
+            conditions="green record, softplus fit; see ToneCurve.is_degenerate "
+                       "before reading gamma as a slope",
+            source=_cite, confidence="high",
+            note="⚠ THE VALUE DID NOT MOVE. The register said tier 3 `assumed` "
+                 "about a number that was traced from the film's own sheet; "
+                 "re-measuring reproduces it exactly. Corrected 2026-09-20c."),
+        ParamSource(
+            param="curves.g.dmin", tier=1, status="traced",
+            unit="density", conditions="green record, base+fog",
+            source=_cite, confidence="high",
+            note="⚠ THE VALUE DID NOT MOVE -- see the gamma record beside this "
+                 "one. Corrected 2026-09-20c."),
+    )
+    _curve_relabelled += 2
+
+CURVE_PROVENANCE_RELABELLED = _curve_relabelled
+# ⚠ `_keep` IS DELETED BY THE `_CURVE_RETRACED` BLOCK BELOW, NOT HERE. Both
+# loops bind it; deleting it twice raises NameError on import, which is exactly
+# what happened when this block was first inserted.
+del _curve_relabelled
+
+# ---------------------------------------------------------------------------
+#  reciprocity_table provenance -- the 2026-09-20c sweep
+# ---------------------------------------------------------------------------
+#: ⚠⚠ FIFTEEN STOCKS GAINED A PRINTED RECIPROCITY TABLE AND NONE OF THEM HAD A
+#: PROVENANCE ROW FOR THE FIELD, because the field was empty. Every entry here
+#: is TRANSCRIBED from the stock's own manufacturer sheet -- tier 1, status
+#: `stated` -- which is the same status the seven pre-existing tables carry and
+#: for the same reason: these are printed numbers read off a page, not values
+#: fitted to a plot.
+#:
+#: ⚠ THE SOURCE STRING IS NOT REPEATED HERE. It lives on the `ReciprocityTable`
+#: itself, where it is emitted to C++ beside the numbers it describes; a second
+#: copy in the provenance register is a second thing to keep in step. The record
+#: below points at it.
+_RECIP_SWEEP_2026_09_20 = (
+    "KODAK_VISION3_50D_5203", "KODAK_VISION3_200T_5213",
+    "KODAK_VISION3_250D_5207", "EASTMAN_EXR_50D_5245",
+    "EASTMAN_EXR_200T_5293", "KODAK_TRI_X_REVERSAL_200",
+    "KODAK_TMAX_400", "KODAK_TMAX_P3200", "KODAK_TRI_X_400TX",
+    "KODAK_TRI_X_320TXP", "KODAK_BW400CN", "KONICA_CHROME_R100",
+    "KONICA_CHROME_CENTURIA_100", "FUJI_VELVIA_50", "FUJI_SENSIA_100",
+)
+
+#: Stocks in the sweep whose sheet prints ONLY the zero-correction range, so the
+#: record says "onset" rather than "ladder". Distinguished because the two are
+#: different strengths of evidence and collapsing them would overstate nine of
+#: the fifteen.
+_RECIP_ONSET_ONLY = frozenset({
+    "KODAK_VISION3_50D_5203", "KODAK_VISION3_200T_5213",
+    "KODAK_VISION3_250D_5207", "EASTMAN_EXR_50D_5245",
+    "EASTMAN_EXR_200T_5293", "KODAK_TMAX_P3200", "KODAK_BW400CN",
+    "FUJI_VELVIA_50", "FUJI_SENSIA_100",
+})
+
+_recip_rows = 0
+for _s in _RECIP_SWEEP_2026_09_20:
+    _tbl = _RECIPROCITY_TABLES.get(_s)
+    if _tbl is None or not _tbl.times_s:
+        raise RuntimeError(
+            f"{_s} is named in the 2026-09-20c reciprocity sweep but carries no "
+            f"table -- the provenance register must not describe an empty field")
+    if any(_r.param == "reciprocity_table"
+           for _r in _PARAM_SOURCES.get(_s, ())):
+        continue
+    _onset = _s in _RECIP_ONSET_ONLY
+    _note = (
+        "⚠ ONSET ONLY: the sheet prints the range over which NO correction is "
+        "needed and no correction ladder, so the table holds the zero-correction "
+        "endpoints and nothing beyond them is extrapolated. That endpoint is "
+        "still a measurement -- it is where the stock's reciprocity failure "
+        "begins -- and for FUJI SENSIA 100 and VELVIA 50 it replaces a "
+        "colour-reversal CLASS DEFAULT of 1 s that was 64x and 4x too early."
+        if _onset else
+        "⚠ FULL LADDER: the sheet prints a correction against exposure time and "
+        "every printed cell is stored. Where the sheet also prints a "
+        "COLOUR-COMPENSATING FILTER the failure is chromatic, which a "
+        "Schwarzschild exponent cannot express at any value -- that is the "
+        "argument for holding the table rather than fitting an exponent to it."
+    )
+    _PARAM_SOURCES[_s] = _PARAM_SOURCES.get(_s, ()) + (
+        ParamSource(
+            param="reciprocity_table", tier=1, status="stated",
+            unit="stops of lens opening against exposure time in seconds",
+            conditions="the sheet's own reciprocity section",
+            source=_tbl.source, confidence="high", note=_note),
+    )
+    _recip_rows += 1
+
+RECIPROCITY_SWEEP_ROWS = _recip_rows
+RECIPROCITY_SWEEP_STOCKS = _RECIP_SWEEP_2026_09_20
+del _recip_rows
+
+del _curve_retraced, _keep
+
+_curve_upgraded = 0
+for _s, (_t, _gs, _ds, _cite) in _CURVE_PROVENANCE_UPGRADE.items():
+    _existing = {_r.param for _r in _PARAM_SOURCES.get(_s, ())}
+    _rows = []
+    if _gs and "curves.g.gamma" not in _existing:
+        _rows.append(ParamSource(
+            param="curves.g.gamma", tier=_t, status=_gs,
+            unit="dimensionless",
+            conditions="green record, softplus fit; see ToneCurve.is_degenerate "
+                       "before reading gamma as a slope",
+            source=_cite, confidence="high",
+            note="Provenance upgraded 2026-09-20 from the register-gap "
+                 "placeholder; the value itself is unchanged."))
+    if _ds and "curves.g.dmin" not in _existing:
+        _rows.append(ParamSource(
+            param="curves.g.dmin", tier=_t, status=_ds,
+            unit="density", conditions="green record, base+fog",
+            source=_cite, confidence="high",
+            note="Provenance upgraded 2026-09-20 from the register-gap "
+                 "placeholder; the value itself is unchanged."))
+    if _rows:
+        _PARAM_SOURCES[_s] = _PARAM_SOURCES.get(_s, ()) + tuple(_rows)
+        _curve_upgraded += len(_rows)
+
+#: How many placeholder curve cells this pass displaced, as data rather than as
+#: a sentence, so `verify.py` can assert it and notice when a stock is added to
+#: the table above without its evidence.
+CURVE_PROVENANCE_UPGRADED = _curve_upgraded
+CURVE_PROVENANCE_STOCKS = tuple(_CURVE_PROVENANCE_UPGRADE)
+del _curve_upgraded, _s, _t, _gs, _ds, _cite, _existing, _rows
+
 
 #: The nine parameters `FilmActiveProfiles.md` prints, with the unit and
 #: conditions the EM-A6 records already use, so a generated row is
@@ -59931,6 +60970,13 @@ FILM_PROFILES = tuple(_apply_ah_position(_p) for _p in FILM_PROFILES)
 #: ⚠ NOTHING RENDERS DIFFERENTLY. `mask_encoding` is metadata: it says what
 #: the stored dmin triple MEANS, not what it is. The numbers are untouched.
 _P47_LADDER_CONFIRMED: frozenset[str] = frozenset({
+    # ⚠ ADDED 2026-09-20 WITH THE EKTAR RE-TRACE, AND IT IS THE CLEANEST ENTRY
+    # IN THIS SET: the ladder is not inferred from the stored numbers, it was
+    # READ OFF THE SHEET -- E-4046 p4 draws dmin 0.221 / 0.643 / 0.855. The
+    # profile said `neutral_dmin` while it carried the maskless analogy, which
+    # was consistent; it is not consistent with a traced mask, and G-MASKENC
+    # caught exactly that the moment the curves landed.
+    "KODAK_EKTAR_100",
     "AGFA_NEG_TYPE_3",
     "AGFA_OPTIMA_200",
     "AGFA_OPTIMA_400",

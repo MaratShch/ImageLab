@@ -1,0 +1,139 @@
+{
+  "schema_version": 48,
+  "model_hash": "478d15a70c5d5913",
+  "scene_px": [
+    1536,
+    864
+  ],
+  "px_per_mm": 61.71,
+  "scenes": [
+    "chart",
+    "pictorial"
+  ],
+  "metric": "mean CIE76 delta-E, display-referred, clipped at 1.0",
+  "sample": [
+    "EASTMAN_EXR_50D_5245",
+    "EASTMAN_EXR_100T_5248",
+    "KODAK_VISION2_50D_5201",
+    "KODAK_VISION2_500T_5218",
+    "KODAK_VISION_200T_5274",
+    "KODAK_VISION_500T_5279",
+    "AGFA_OPTIMA_100",
+    "AGFA_OPTIMA_200",
+    "AGFA_RSX_II_50",
+    "AGFA_RSX_II_100",
+    "AGFA_RSX_II_200",
+    "AGFA_APX_25",
+    "AGFA_APX_100",
+    "AGFA_APX_400",
+    "AGFA_SCALA_200X",
+    "EASTMAN_PLUS_X_5231",
+    "KODAK_BW400CN",
+    "KODAK_TMAX_400"
+  ],
+  "axes": {
+    "tone_curve": {
+      "what": "traced characteristic curve",
+      "stocks_measured": 16,
+      "delta_e_median": 15.546070420730402,
+      "delta_e_max": 31.645480573489568,
+      "worst_stock": "KODAK_VISION2_500T_5218",
+      "render_settings": {}
+    },
+    "grain_amplitude": {
+      "what": "published rms granularity",
+      "stocks_measured": 18,
+      "delta_e_median": 0.4549509561482773,
+      "delta_e_max": 2.958496845273928,
+      "worst_stock": "EASTMAN_EXR_50D_5245",
+      "render_settings": {}
+    },
+    "grain_shape": {
+      "what": "measured sigma(D) shape",
+      "stocks_measured": 6,
+      "delta_e_median": 0.45031321763048876,
+      "delta_e_max": 0.778892781275266,
+      "worst_stock": "KODAK_VISION_500T_5279",
+      "render_settings": {}
+    },
+    "sharpness_mtf": {
+      "what": "measured MTF",
+      "stocks_measured": 17,
+      "delta_e_median": 0.20592615099947614,
+      "delta_e_max": 1.5728077392914894,
+      "worst_stock": "AGFA_RSX_II_200",
+      "render_settings": {}
+    },
+    "edge_effects": {
+      "what": "measured adjacency overshoot",
+      "stocks_measured": 18,
+      "delta_e_median": 0.3027353173738897,
+      "delta_e_max": 1.2961063304912988,
+      "worst_stock": "KODAK_VISION_500T_5279",
+      "render_settings": {}
+    },
+    "spectral_sensitivity": {
+      "what": "traced spectral sensitivity",
+      "stocks_measured": 18,
+      "delta_e_median": 2.2145406067723066,
+      "delta_e_max": 5.804332462974983,
+      "worst_stock": "AGFA_RSX_II_200",
+      "render_settings": {
+        "spectral_balance": true,
+        "spectral_mono": true,
+        "scene_kelvin": 3200.0,
+        "wb_strength": 1.0
+      }
+    },
+    "dye_density": {
+      "what": "traced spectral dye density",
+      "stocks_measured": 12,
+      "delta_e_median": 2.060684110310307,
+      "delta_e_max": 9.796040314196135,
+      "worst_stock": "AGFA_RSX_II_100",
+      "render_settings": {}
+    },
+    "dye_matrix": {
+      "what": "measured reader/status matrix",
+      "stocks_measured": 11,
+      "delta_e_median": 2.9183199164672375,
+      "delta_e_max": 6.88003958607335,
+      "worst_stock": "AGFA_RSX_II_100",
+      "render_settings": {}
+    },
+    "interimage": {
+      "what": "interimage coefficients",
+      "stocks_measured": 11,
+      "delta_e_median": 5.829394567149924,
+      "delta_e_max": 8.053956444707865,
+      "worst_stock": "KODAK_VISION2_500T_5218",
+      "render_settings": {}
+    },
+    "halation": {
+      "what": "halation gain",
+      "stocks_measured": 6,
+      "delta_e_median": 0.7406172287685275,
+      "delta_e_max": 0.774453646710841,
+      "worst_stock": "KODAK_VISION2_500T_5218",
+      "render_settings": {}
+    },
+    "callier": {
+      "what": "measured Callier Q",
+      "stocks_measured": 6,
+      "delta_e_median": 5.649742842148058,
+      "delta_e_max": 5.808411273546591,
+      "worst_stock": "EASTMAN_PLUS_X_5231",
+      "render_settings": {}
+    },
+    "reciprocity": {
+      "what": "published reciprocity table",
+      "stocks_measured": 18,
+      "delta_e_median": 3.4721473483383893,
+      "delta_e_max": 15.290777531452173,
+      "worst_stock": "AGFA_APX_100",
+      "render_settings": {
+        "exposure_time_s": 8.0
+      }
+    }
+  }
+}

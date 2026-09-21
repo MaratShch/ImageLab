@@ -338,7 +338,9 @@ void AlgoMakeGrainFieldTerms
     const AlgoType                  anisotropy,
     const eALGO_RNG_STAGE           rngStage,
     const uint32_t                  seed,
-    const int32_t                   frameIndex
+    const int32_t                   frameIndex,
+    const AlgoType                  frameCorrelation,
+    const AlgoType                  fixedFraction
 ) noexcept
 {
     // A stock with no spectrum or no granularity figure has no modelled grain.
@@ -478,16 +480,36 @@ void AlgoMakeGrainFieldTerms
     //  defined and wraps, and wrapping is harmless because the mixer treats all
     //  64-bit values alike.
     // ----------------------------------------------------------------------
-    const uint64_t frameSalt =
-        static_cast<uint64_t>(static_cast<uint32_t>(frameIndex)) * ALGO_RNG_GOLDEN;
-
-    const uint64_t seedField = (static_cast<uint64_t>(seed) << 32) ^ frameSalt;
-
     const uint64_t stageField =
         (static_cast<uint64_t>(UnderlyingType(rngStage) >> 8) & 0xFFull) << 24;
 
-    const __m256i vBase =
-        _mm256_set1_epi64x(static_cast<long long>(seedField ^ stageField));
+    //  ⚠⚠ THE BASE IS NOW PER TAP, v49. The temporal model draws the emulsion
+    //  field as a weighted sum over neighbouring FRAMES, and the frame index
+    //  lives inside `seedField`, so the hoisted broadcast has to be rebuilt for
+    //  each tap. With frameCorrelation = 0 the kernel is one tap and this is
+    //  the pre-v49 expression evaluated once -- same constant, same numbers,
+    //  same order.
+    auto algoBaseForFrame = [seed, stageField](const int32_t fi) noexcept
+    {
+        const uint64_t salt =
+            static_cast<uint64_t>(static_cast<uint32_t>(fi)) * ALGO_RNG_GOLDEN;
+        const uint64_t sf = (static_cast<uint64_t>(seed) << 32) ^ salt;
+        return _mm256_set1_epi64x(static_cast<long long>(sf ^ stageField));
+    };
+
+    HighPrecType kern[2 * ALGO_GRAIN_TEMPORAL_MAX_TAPS + 1];
+    const int32_t taps = AlgoGrainTemporalKernel(
+        static_cast<HighPrecType>(frameCorrelation), kern);
+    const int32_t half = taps / 2;
+
+    const HighPrecType fClamp =
+        (fixedFraction < ALGO_ZERO) ? 0.0
+        : ((static_cast<HighPrecType>(fixedFraction) > 1.0)
+               ? 1.0 : static_cast<HighPrecType>(fixedFraction));
+    const AlgoType wEmul = static_cast<AlgoType>(std::sqrt(1.0 - fClamp));
+    const AlgoType wFix  = static_cast<AlgoType>(std::sqrt(fClamp));
+
+    const __m256i vBase = algoBaseForFrame(frameIndex);
 
     // Lane ordinal offsets. The ordinals of eight consecutive pixels differ by
     // 0..7, so one add per vector produces all eight counters.
@@ -546,6 +568,54 @@ void AlgoMakeGrainFieldTerms
 
                 _mm256_maskstore_ps(pRow + x, algoTailMaskLocal(tailN),
                                     algoNormal8(vBase, ordLo, ordHi));
+            }
+        }
+
+        //  ⚠ THE REMAINING TAPS AND THE FIXED PATTERN, ACCUMULATED IN PLACE.
+        //  The loop above laid down the centre tap unweighted, which is the
+        //  whole field when taps == 1. Anything further is a correction on top,
+        //  so the common path pays nothing: no extra pass, no extra broadcast,
+        //  and the scalar twin takes the same branch on the same condition.
+        if (taps > 1 || fClamp > 0.0)
+        {
+            const AlgoType wCentre = static_cast<AlgoType>(kern[half]);
+
+            for (int32_t y = 0; y < sizeY; y++)
+            {
+                AlgoType* RESTRICT pRow =
+                    pScrNoise + static_cast<std::ptrdiff_t>(y) * pitch;
+                const std::ptrdiff_t rowOrd =
+                    static_cast<std::ptrdiff_t>(y) * pitch;
+
+                for (int32_t x = 0; x < sizeX; x++)
+                {
+                    const uint32_t ordinal =
+                        static_cast<uint32_t>(rowOrd + x);
+
+                    HighPrecType emul =
+                        static_cast<HighPrecType>(pRow[x])
+                        * ((taps > 1) ? static_cast<HighPrecType>(wCentre)
+                                      : 1.0);
+
+                    for (int32_t i = 0; i < taps; i++)
+                    {
+                        if (i == half) { continue; }
+                        emul += kern[i] * AlgoRngNormal(AlgoRngCounter(
+                            seed, frameIndex + (i - half), rngStage, ordinal));
+                    }
+
+                    HighPrecType v = emul;
+                    if (fClamp > 0.0)
+                    {
+                        const HighPrecType fixed =
+                            AlgoRngNormal(AlgoRngCounter(
+                                seed, ALGO_GRAIN_FIXED_FRAME, rngStage,
+                                ordinal));
+                        v = static_cast<HighPrecType>(wEmul) * emul
+                            + static_cast<HighPrecType>(wFix) * fixed;
+                    }
+                    pRow[x] = static_cast<AlgoType>(v);
+                }
             }
         }
     }
@@ -1219,7 +1289,11 @@ void AlgoStage11_Grain
                                 scanSigmaPx, pxPerMm,
                                 static_cast<AlgoType>(gs.anisotropy),
                                 eALGO_RNG_STAGE::eRNG_GRAIN_G,
-                                grainSeed, grainFrame);
+                                grainSeed, grainFrame,
+                                static_cast<AlgoType>(
+                                    profile.temporal.grain_frame_correlation),
+                                static_cast<AlgoType>(
+                                    params.scannerFixedPattern));
 
         // ⚠ THE MARGINAL CORRECTION IS APPLIED ONCE, to the single shared
         // field, and against the GREEN record's density. A monochrome stock
@@ -1272,7 +1346,12 @@ void AlgoStage11_Grain
                                     ALGO_GRAIN_USE_JINC,
                                     rms[c], scanSigmaPx, pxPerMm,
                                     static_cast<AlgoType>(gs.anisotropy),
-                                    stream[c], grainSeed, grainFrame);
+                                    stream[c], grainSeed, grainFrame,
+                                    static_cast<AlgoType>(
+                                        profile.temporal
+                                            .grain_frame_correlation),
+                                    static_cast<AlgoType>(
+                                        params.scannerFixedPattern));
 
         // Three emulsions, three counts, three corrections.
         AlgoType* RESTRICT dstPl[3] = { pDstR, pDstG, pDstB };

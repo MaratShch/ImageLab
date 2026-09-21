@@ -2015,6 +2015,116 @@ if _sec_on():
         % (sorted(set(_inert) - _expect_inert),
            sorted(_expect_inert - set(_inert))))
 
+
+# ---- 5b. TEMPORAL GRAIN (schema v49) --------------------------------------
+#
+# ⚠⚠ THE SPEC THIS ANSWERS OPENED BY STATING THAT THE GRAIN WAS STATIC ACROSS
+# FRAMES, AND IT WAS NOT. Measured before anything was built: the pre-v49 field
+# already keyed on frame index and adjacent frames correlated at r = 0.008,
+# which is as uncorrelated as two different seeds. The model was at the OTHER
+# failure the same spec names -- complete frame-to-frame randomisation -- and
+# the carrier that would control it, `TemporalSpec.grain_frame_correlation`,
+# was 0.0 on all 191 stocks and read by no code path.
+#
+# ⚠ AND r = 0 IS PHYSICALLY RIGHT FOR AN EMULSION. Every frame of a motion
+# picture is a different piece of film and shares no silver grains with its
+# neighbours, so these guards do NOT assert that the shipped corpus is
+# correlated. They assert that the MECHANISM is exact, that it is inert at the
+# shipped defaults, and that it cannot silently change how much grain there is.
+if _sec_on():
+    _tg_h = _tg_w = 96
+    _tg_ppm = 41.67
+
+    def _tg_field(rho, fixed, frame, seed=21):
+        _p = get_profile("5219")
+        _gs = _p.grain
+        _terms = film_profiles.grain_gauss_terms(
+            "boolean_jinc", clump_um=_gs.clump_um_g, clump_gain=_gs.clump_gain,
+            grain_um=_gs.grain_um_rgb()[1], size_sigma_log=_gs.size_sigma_log)
+        return fs.make_grain_field(
+            _tg_h, _tg_w, _tg_ppm, _terms, _gs.rms_granularity, 0.0,
+            _gs.anisotropy, seed, frame, fs.RngStage.GRAIN_G,
+            film_profiles.grain_aperture_model("boolean_jinc"), rho, fixed)
+
+    def _tg_corr(a, b):
+        _a = a - a.mean()
+        _b = b - b.mean()
+        _d = math.sqrt(float((_a * _a).sum()) * float((_b * _b).sum()))
+        return float((_a * _b).sum()) / _d if _d > 0.0 else 0.0
+
+    # 1. THE IDENTITY. rho = 0 and fixed = 0 must reproduce the pre-v49 field
+    #    BIT FOR BIT, because that is the contract the whole v49 change was
+    #    made under: a default render does not move.
+    _white_ref = fs.counter_normal_plane(_tg_h, _tg_w, 21, 7, fs.RngStage.GRAIN_G)
+    _white_v49 = fs.temporal_white(_tg_h, _tg_w, 21, 7, fs.RngStage.GRAIN_G,
+                                   0.0, 0.0)
+    chk("G-V49-IDENTITY  rho=0 and fixed=0 draw exactly the pre-v49 white field",
+        bool(np.array_equal(_white_ref, _white_v49)),
+        "bit-identical over %d samples" % _white_ref.size)
+
+    # 2. VARIANCE IS PRESERVED AT EVERY SETTING. This is the guard that stops
+    #    either control becoming a grain-amount control by accident -- the
+    #    failure mode that would make `rms_granularity` stop meaning the number
+    #    the datasheet prints.
+    _tg_bad = []
+    for _rho in (0.0, 0.5, 0.9):
+        for _fx in (0.0, 0.5, 1.0):
+            _v = float(fs.temporal_white(256, 256, 21, 3,
+                                         fs.RngStage.GRAIN_G, _rho, _fx).std())
+            if abs(_v - 1.0) > 0.02:
+                _tg_bad.append((_rho, _fx, round(_v, 4)))
+    chk("G-V49-VARIANCE  the temporal composition is unit variance at every "
+        "rho and every fixed fraction, so neither control changes how much "
+        "grain there is", not _tg_bad,
+        "9 combinations, all within 2%% of 1.0" if not _tg_bad
+        else "offenders (rho, fixed, sigma): %s" % (_tg_bad,))
+
+    # 3. THE CORRELATION IS THE ONE THAT WAS ASKED FOR. tau is bisected onto
+    #    the kernel's OWN lag-1 autocorrelation rather than assumed from an
+    #    AR(1) coefficient of the same name, so this checks the solve.
+    _tg_bad = []
+    for _rho in (0.3, 0.6, 0.9):
+        _c = fs.temporal_kernel(_rho)
+        _got = sum(_c[_i] * _c[_i + 1] for _i in range(len(_c) - 1))
+        if abs(_got - _rho) > 5e-3:
+            _tg_bad.append((_rho, round(_got, 4)))
+    chk("G-V49-RHO  the temporal kernel's own lag-1 autocorrelation equals the "
+        "requested grain_frame_correlation", not _tg_bad,
+        "0.3 / 0.6 / 0.9 all hit within 5e-3" if not _tg_bad
+        else "requested vs achieved: %s" % (_tg_bad,))
+
+    # 4. THE FIXED PATTERN IS FIXED. At f = 1 the field must be IDENTICAL on
+    #    every frame -- that is the whole definition of a sensor pattern, and
+    #    it is the half of the model the emulsion cannot express.
+    _f0 = _tg_field(0.0, 1.0, 0)
+    _f9 = _tg_field(0.0, 1.0, 900)
+    chk("G-V49-FIXED  at fixed=1 the grain field is the same on every frame, "
+        "which is what a scanner's fixed-pattern noise is",
+        bool(np.allclose(_f0, _f9, rtol=0, atol=1e-12)),
+        "frame 0 and frame 900 identical")
+
+    # 5. AND IT IS NOT FIXED WHEN IT SHOULD NOT BE. The complementary check,
+    #    because a bug that froze the field would pass #4 and look fine.
+    _e0 = _tg_field(0.0, 0.0, 0)
+    _e1 = _tg_field(0.0, 0.0, 1)
+    _r01 = abs(_tg_corr(_e0.astype(np.float64), _e1.astype(np.float64)))
+    chk("G-V49-EMULSION  at the shipped defaults successive frames are "
+        "UNCORRELATED, which is what a camera negative does -- every frame is "
+        "a different piece of film", _r01 < 0.10,
+        "|r(frame 0, frame 1)| = %.4f" % _r01)
+
+    # 6. DETERMINISM, WITH BOTH MECHANISMS ACTIVE. The spec requires the same
+    #    seed, profile, settings and frame to reproduce exactly; a sliding
+    #    kernel over neighbouring frames is precisely the kind of change that
+    #    could have introduced order dependence, so it is asserted here rather
+    #    than assumed from the counter RNG.
+    _d1 = _tg_field(0.7, 0.3, 4242)
+    _d2 = _tg_field(0.7, 0.3, 4242)
+    chk("G-V49-DETERMINISM  the temporal field is reproducible at an arbitrary "
+        "frame with both mechanisms active, with no state and no warm-up",
+        bool(np.array_equal(_d1, _d2)),
+        "frame 4242 rendered twice, bit-identical")
+
 # ---- 6. grain field statistics -------------------------------------------
 if _sec_on():
     # 4000 px over super35 = 161 px/mm, so a 17.5 um clump spans ~2.8 px and the
@@ -2291,6 +2401,31 @@ if _sec_on():
     chk("Agfacolor Neu is much less saturated than a clean reversal stock",
         s_ag < 0.5 * s_ek, f"agfacolor={s_ag:.4f} ektachrome={s_ek:.4f}")
     # The full hierarchy must come out in the physically sensible order.
+    #
+    # ⚠⚠ UPDATED 2026-09-21: THE LARGE INVERSION THIS NOTE DESCRIBED IS GONE.
+    # Adopting `M_reader . M_status^-1` instead of the raw status matrices puts
+    # VELVIA back at 0.509 -- from 0.326, against 0.755 before any adoption --
+    # and it is once more ABOVE Kodachrome, so the first pair orders correctly
+    # again. What remains failing is the SINGLE ADJACENT-PAIR inversion this
+    # file has carried as its one accepted FAIL since long before any of this:
+    # 5219 against 5296, two stocks a hundredth apart. The check is still not
+    # relaxed, re-ordered or baselined away.
+    #
+    # ⚠ THE NOTE AS IT STOOD ON 2026-09-20, KEPT BECAUSE IT IS WHY THE
+    # CORRECTION HAPPENED: The
+    # owner adopted `_MEASURED_DYE_MATRIX` with the double count explained and
+    # the consequence quoted; this is where the consequence shows up as a
+    # number. VELVIA -- the cleanest-dye stock in the set -- fell from 0.755 to
+    # 0.326 and now sits BELOW Kodachrome, so the ordering breaks at its first
+    # pair. That is a status density being multiplied by a matrix built from
+    # the absorptions the status density already contains.
+    #
+    # ⚠ THE CHECK IS NOT RELAXED, RE-ORDERED OR BASELINED AWAY, and it must not
+    # be. It was already the file's one accepted FAIL for a different and
+    # smaller reason (technicolor 0.179 against 5219's 0.196, two adjacent
+    # stocks a fifth of a unit apart); it now carries a second, much larger
+    # inversion that a single line -- `_MEASURED_DYE_MATRIX_ADOPTED = False` --
+    # would remove. Leaving it red is what keeps that line findable.
     _order = ["velvia", "kodachrome", "technicolor", "5219", "5296", "agfacolor", "orwocolor"]
     _sats = [sat_and_contrast(n, mids)[0] for n in _order]
     chk("saturation hierarchy is ordered clean -> impure dyes",
@@ -2365,11 +2500,37 @@ if _sec_on():
     # the neutral shift this census measures is computed THROUGH the curve, so
     # a stock that previously read as unmasked now reads as masked. The census
     # moving is the fill landing, not a regression.
+    # ⚠ 84 -> 85 over 0.01 D and 27 -> 28 over 0.05 D on 2026-09-20, median
+    # 0.0342 -> 0.0344. One stock moved and it is EKTAR 100: its curves were
+    # re-traced from E-4046 p4 and the maskless analogy they replaced read as
+    # UNMASKED through this census. A stock that starts carrying the orange
+    # ladder its own sheet draws starts reading as masked here. Same shape as
+    # the 2026-09-15b entry above -- the census moving is the correction
+    # landing, not a regression, and dye_matrix itself was not touched.
+    # ⚠⚠ 108 -> 113 NON-IDENTITY, 85 -> 91 over 0.01 D, 28 -> 38 over 0.05 D
+    # and median 0.0344 -> 0.0355 on 2026-09-20b, ALL OF IT FROM THE
+    # MEASURED-DYE-MATRIX ADOPTION. 26 stocks swapped a symmetric `_dye(k)`
+    # scalar for a measured asymmetric matrix, and an asymmetric matrix shifts
+    # the neutral further -- ten more stocks now past 0.05 D. ⚠ UNLIKE THE
+    # EKTAR ENTRY ABOVE THIS IS NOT A CORRECTION LANDING: the previous census
+    # moved because a curve became more truthful, this one moved because
+    # `dye_matrix` itself was replaced by an owner decision this file argues
+    # against (see the saturation-hierarchy note). The baseline is updated so
+    # the census still catches the NEXT movement; the reason it moved is
+    # recorded here rather than absorbed.
+    # ⚠⚠ AND MOVED AGAIN ON 2026-09-21, THIS TIME *DOWN* PAST WHERE IT STARTED.
+    # Switching the adoption from the raw status matrices to
+    # `M_reader . M_status^-1` takes it 91 -> 82 over 0.01 D, 38 -> 25 over
+    # 0.05 D and median 0.0355 -> 0.0262 -- BELOW the 85 / 28 / 0.0344 the
+    # database carried before any of this started. The reader-corrected
+    # matrices disturb the neutral LESS than the hand-set `_dye(k)` scalars
+    # they replaced, which is the outcome the derivation predicts and is
+    # independent evidence that the raw table was the wrong magnitude.
     chk("dye_matrix neutral-shift census is unchanged "
-        "(108 non-identity stocks, 84 over 0.01 D, 27 over 0.05 D, "
-        "median 0.0342 D, worst 0.1437 D on ORWOCOLOR_NC3)",
-        len(_shift) == 108 and _n01 == 84 and _n05 == 27
-        and abs(_med - 0.0342) < 5e-4
+        "(113 non-identity stocks, 82 over 0.01 D, 25 over 0.05 D, "
+        "median 0.0262 D, worst 0.1437 D on ORWOCOLOR_NC3)",
+        len(_shift) == 113 and _n01 == 82 and _n05 == 25
+        and abs(_med - 0.0262) < 5e-4
         and _shift[0][1] == "ORWOCOLOR_NC3" and abs(_shift[0][0] - 0.1437) < 5e-4,
         f"n={len(_shift)} over0.01={_n01} over0.05={_n05} "
         f"median={_med:.4f} worst={_shift[0][0]:.4f} on {_shift[0][1]}")
@@ -2616,7 +2777,7 @@ if _sec_on():
     # gamma is, whether a dye-impurity ratio was measured in transmission or
     # reflection. Those are ingest-side truth, and each one exists because the
     # harvest actually made that mistake before the field did.
-    chk("schema version is 48", _fpm.SCHEMA_VERSION == 48, f"v={_fpm.SCHEMA_VERSION}")
+    chk("schema version is 49", _fpm.SCHEMA_VERSION == 49, f"v={_fpm.SCHEMA_VERSION}")
 
     # ==== 2026-09-01: THE TWO CARRIERS THAT STOPPED BEING INERT =============
     # `reciprocity_table` and `process_variants` were both listed as "carried,
@@ -5630,7 +5791,7 @@ if _sec_on():
              # this probe is that an inert carrier is still
              # reachable and validated on a real profile.
              "sub_layers"))
-        and film_profiles.SCHEMA_VERSION == 48
+        and film_profiles.SCHEMA_VERSION == 49
         and all(hasattr(_ps, "spectral") for _ps in film_profiles.PRINT_STOCKS)
         # ⚠ v25, and it is the first entry in this probe that is NOT a carrier.
         # The others are here to prove an inert field is reachable; this one is
@@ -11538,18 +11699,54 @@ if _sec_on():
         #    the same function measured in another laboratory in another
         #    decade: worth having as a guard, worth nothing as a second copy
         #    of the rule.
+        #    ⚠⚠ NARROWED 2026-09-20 TO SILVER STOCKS, AND THE GUARD IS WHAT
+        #    FORCED THE QUESTION. `_CHROMOGENIC_MONO` -- KODAK BW400CN and
+        #    T400CN -- moved to callier_q = 1.0 that day, because their image
+        #    is dye and nothing else and `film_sim.callier_density`'s own
+        #    docstring says a dye image scatters almost nothing. This check
+        #    immediately failed on both at 0.790 and 0.816. IT WAS RIGHT TO
+        #    FAIL AND IT IS RIGHT TO BE NARROWED: Stricker measured DEVELOPED
+        #    SILVER, the quantity his table is a function of is silver
+        #    scattering against contrast, and applying it to a chromogenic
+        #    stock asks a measurement of one material to validate a value for
+        #    another. ⚠ THE EXCLUSION IS BY THE SAME NAMED SET THE DATABASE
+        #    USES, not by a tolerance widened until the failure stopped --
+        #    which would have hidden the next real offender.
         _q = [(_p.name,
                abs(_p.callier_q
                    - _fp.stricker_callier_q(_p.curves.g.mid_slope)))
-              for _p in FILM_PROFILES if _p.is_monochrome]
+              for _p in FILM_PROFILES
+              if _p.is_monochrome and _p.name not in _fp._CHROMOGENIC_MONO]
         _q_bad = [(n, round(d, 3)) for n, d in _q if d > 0.25]
         chk("G-STRICKER  the project's Callier rule agrees with Stricker's "
             "independently measured Q(gamma) table within 0.25 on every "
-            "monochrome stock", not _q_bad,
+            "SILVER monochrome stock (the two chromogenic ones are dye images "
+            "and Stricker measured silver)", not _q_bad,
             "%d stocks, mean |diff| %.4f, max %.4f"
             % (len(_q), sum(d for _, d in _q) / max(len(_q), 1),
                max(d for _, d in _q)) if _q and not _q_bad
             else "offenders: %s" % (_q_bad[:3],))
+
+        # 7b. AND THE COVERAGE THE NARROWING ABOVE WOULD OTHERWISE HAVE LOST.
+        #     Removing two stocks from a guard without replacing the check is
+        #     how a field goes unguarded, so the exclusion is paid for here:
+        #     the chromogenic pair must carry EXACTLY the colour value, must
+        #     be read as Status M, and must not be handed a silver beta again
+        #     by some later edit to `_apply_schema_v2`.
+        _chromo = [_p for _p in FILM_PROFILES
+                   if _p.name in _fp._CHROMOGENIC_MONO]
+        _chromo_bad = [(_p.name, _p.callier_q, _p.density_metric)
+                       for _p in _chromo
+                       if _p.callier_q != 1.0 or _p.density_metric != "status_m"]
+        chk("G-CHROMO  the two chromogenic black-and-white stocks carry the "
+            "DYE-IMAGE pair -- Callier Q exactly 1.0 and Status M "
+            "densitometry -- and not the silver pair their is_monochrome flag "
+            "would otherwise select",
+            len(_chromo) == 2 and not _chromo_bad,
+            "%s" % ([(_p.name, _p.callier_q, _p.density_metric)
+                     for _p in _chromo],)
+            if not _chromo_bad
+            else "offenders: %s" % (_chromo_bad,))
 
         # 8. NEUTRAL BALANCE SURVIVES THE INTERIMAGE STAGE (2026-09-10b).
         #
@@ -14253,7 +14450,12 @@ if _sec_on():
         # artefact of the estimate that produced it, and relabelling them
         # would promote a guess into a claim about a measured mask. They are
         # named in `_P47_LADDER_UNCONFIRMED` and stay pinned here.
-        chk("G-MASKENC  the mask_encoding mislabel count is UNCHANGED -- 38 "
+        # ⚠ 38 -> 39 ON 2026-09-20. EKTAR 100's curves were re-traced from
+        # E-4046 p4 and the sheet DRAWS the ladder (dmin 0.221 / 0.643 /
+        # 0.855), so the stock moved from the maskless analogy it had into
+        # `_P47_LADDER_CONFIRMED`. The HELD count is untouched at 12: nothing
+        # was promoted on an estimate.
+        chk("G-MASKENC  the mask_encoding mislabel count is UNCHANGED -- 39 "
             "relabelled on tier-1 provenance, 12 held because theirs is an "
             "estimate",
             len(_mislab) == _MISLABEL_BASELINE,

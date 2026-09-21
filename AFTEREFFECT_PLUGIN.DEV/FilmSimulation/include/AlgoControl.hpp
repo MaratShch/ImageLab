@@ -1831,6 +1831,60 @@ struct AlgoControls
     double scannerSpecular;
 
     /**
+     *  1  NAME           scannerFixedPattern
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider
+     *  4  UNIT           dimensionless FRACTION on 0..1 -- the share of grain
+     *                    VARIANCE that is frame-locked scanner fixed-pattern
+     *                    noise rather than emulsion grain
+     *  5  MIN            0
+     *  6  MAX            1
+     *  7  DEFAULT        0.0   (AlgoControl.cpp, getAlgoControlsDefault) --
+     *                    a pure emulsion field, which is the film behaviour and
+     *                    the pre-v49 path bit for bit
+     *  8  STEP           0.01
+     *  9  PURPOSE        Separates the two statistically distinct things that
+     *                    look like grain in a scanned motion picture. EMULSION
+     *                    grain is different silver on every frame, because
+     *                    every frame is a different piece of film; SENSOR
+     *                    fixed-pattern noise is identical on every frame it
+     *                    digitises. Before v49 the engine modelled only the
+     *                    first, and modelled it as fully independent frame to
+     *                    frame, which is right for the emulsion and leaves the
+     *                    scanner unrepresented.
+     * 10  OUTPUT EFFECT  At 0 the grain field decorrelates completely between
+     *                    frames. At 1 it is the SAME field on every frame. In
+     *                    between, the frame-to-frame correlation of the grain
+     *                    equals this value, flat across all lags -- which is
+     *                    what distinguishes it from the emulsion's
+     *                    grain_frame_correlation, whose correlation DECAYS
+     *                    with lag. Total grain variance is unchanged at every
+     *                    setting.
+     * 11  STAGES         8 (grain), via make_grain_field / temporal_white
+     * 12  INTERACTIONS   Combines with film::TemporalSpec::grain_frame_correlation
+     *                    as sqrt(1-f)*E + sqrt(f)*S with E and S independent
+     *                    and unit variance, so neither control can change how
+     *                    MUCH grain there is -- only how it behaves in time.
+     * 13  SCALAR/AVX2    External semantics identical; the kernel weights are
+     *                    computed from the same closed form in both.
+     * 14  FULL/LITE      Both. The composition is pointwise on the white field.
+     *
+     * !! A CONTROL AND NOT A DATABASE COLUMN, DELIBERATELY. Fixed-pattern noise
+     *    is a property of the INSTRUMENT: the same negative on two scanners
+     *    carries two different patterns and on none carries neither. A column
+     *    on FilmProfile would state that a 1936 emulsion has a sensor -- the
+     *    same category error corrected for callier_q under queue C22.
+     *
+     * !! DEFAULT 0 BECAUSE THE CORPUS HOLDS NO MEASUREMENT. Queue M1b/P88 found
+     *    no scanner spectral response in 177 documents and the one candidate --
+     *    a reflective document scanner's mathematically recovered responsivity
+     *    -- was refused on three grounds. The mechanism ships built and inert,
+     *    which is this project's standard treatment for a law whose data has
+     *    not arrived.
+     */
+    double scannerFixedPattern;
+
+    /**
      *  1  NAME           sceneKelvin
      *  2  TYPE           double
      *  3  AE CONTROL     slider, or a colour-temperature control if the panel

@@ -186,7 +186,8 @@ def _callier(p) -> str:
 # The six FilmDamage controls the header marks NO READER IN THE CURRENT ENGINE.
 # storageSeverity, colourVeil and processingQuality have no data; dryingMarks
 # and scannerArtifacts have no database field at all; flickerStops has data on
-# 184/184 and no defined spectral shape or channel split. All open questions.
+# every stock and no defined spectral shape or channel split. All open
+# questions.
 def _no_reader(p) -> str:
     return Q
 
@@ -196,6 +197,17 @@ def _no_reader(p) -> str:
 #
 #  (panel label, C++ field, predicate, why O, why ?)
 # ---------------------------------------------------------------------------
+
+# ⚠ EVERY COUNT IN THIS FILE'S PROSE IS DERIVED HERE AND NOWHERE ELSE.
+# Three of them were written as literals against a 184-stock database and were
+# seven stocks stale by the time anyone read them again -- the same failure
+# doc_consistency.py exists to end, in a file that is itself generated.
+_N_STOCKS = len(FP.FILM_PROFILES)
+_N_PROGRESS_UNKNOWN = sum(
+    1 for _p in FP.FILM_PROFILES
+    if str(getattr(_p.processing, "progress", "")).endswith("UNKNOWN"))
+_N_FLICKER = sum(1 for _p in FP.FILM_PROFILES if _p.temporal.flicker_pct > 0.0)
+
 
 DEV_Q = ("this stock has no group of development points that can place a "
          "curve — see the Development appendix")
@@ -225,7 +237,10 @@ GROUPS: list[tuple[str, list[tuple[str, str, object, str, str]]]] = [
     ("Development", [
         ("Development Time",        "developmentMinutes", _development, "", DEV_Q),
         ("Development Temperature", "developmentCelsius", _dev_temp, "", DEVTEMP_Q),
-        ("Storage Age",             "storageYears",       _storage,   "", STORAGE_Q),
+        # ⚠ THE PANEL CALLS IT "Years of Dark Storage" AND SO DOES THIS FILE
+        # SINCE 2026-09-19d. It read "Storage Age" here, which is a second name
+        # for one control in two documents the owner reads side by side.
+        ("Years of Dark Storage",   "storageYears",       _storage,   "", STORAGE_Q),
     ]),
     ("Colour & White Balance", [
         ("Scene Colour Temperature", "sceneKelvin", _colour,
@@ -269,6 +284,13 @@ GROUPS: list[tuple[str, list[tuple[str, str, object, str, str]]]] = [
         ("Scanner Specularity", "scannerSpecular", _callier,
          "Callier Q = 1.0 — scatter is a developed-silver effect and a dye "
          "image has none", ""),
+        # ⚠ AVAILABLE ON EVERY STOCK, AND THAT IS NOT LAZINESS. Fixed-pattern
+        # noise is a property of the SCANNER, so it applies to any film the
+        # scanner digitises and to no film on its own. There is no stock this
+        # control is inapplicable to and none whose database entry gates it --
+        # unlike Scanner Specularity beside it, which needs the film to have
+        # silver to scatter.
+        ("Scanner Fixed Pattern", "scannerFixedPattern", _always, "", ""),
     ]),
     ("Film Damage & Age", [
         ("Enable Film Damage",   "filmDamageEnabled",       _always, "", ""),
@@ -277,14 +299,25 @@ GROUPS: list[tuple[str, list[tuple[str, str, object, str, str]]]] = [
         ("Dust",                 "damage.dustLevel",        _always, "", ""),
         ("Debris",               "damage.debrisLevel",      _always, "", ""),
         ("Fibres",               "damage.fibreLevel",       _always, "", ""),
+        # ⚠ THE ORDER OF THESE SIX IS THE MOCKUP PANEL'S, NOT THIS FILE'S OWN
+        # AND NOT THE STRUCT'S, AND THE THREE DISAGREED UNTIL 2026-09-19d.
+        # `AlgoControl.hpp` declares them scratchTransport, scratchHandling,
+        # ... gateDirt, weaveAmount, damageEvents -- a declaration order driven
+        # by the stage that consumes each, which is the right order for a
+        # header and the wrong one for a panel. The mockup's own register table
+        # carried a third order while its README called that table "one row per
+        # structure field, IN PANEL ORDER". The panel is what an editor sees
+        # and is therefore the authority; `film_params_mask.hpp` assigns its
+        # bits from this list, so the three now agree by construction.
         ("Clumping",             "damage.dirtClumping",     _always, "", ""),
+        ("Gate Dirt",            "damage.gateDirt",         _always, "", ""),
         ("Transport Scratches",  "damage.scratchTransport", _always, "", ""),
         ("Handling Scratches",   "damage.scratchHandling",  _always, "", ""),
-        ("Gate Dirt",            "damage.gateDirt",         _always, "", ""),
         ("Gate Weave",           "damage.weaveAmount",      _always, "", ""),
         ("Splice & Tear Events", "damage.damageEvents",     _always, "", ""),
         ("Processing Quality",   "damage.processingQuality", _no_reader, "",
-         "no reader; `processing.progress` is UNKNOWN on 175 of 184 stocks"),
+         "no reader; `processing.progress` is UNKNOWN on "
+         f"{_N_PROGRESS_UNKNOWN} of {_N_STOCKS} stocks"),
         ("Drying Marks",         "damage.dryingMarks",       _no_reader, "",
          "no reader and **no database field exists** for drying marks"),
         ("Storage Severity",     "damage.storageSeverity",   _no_reader, "",
@@ -293,8 +326,9 @@ GROUPS: list[tuple[str, list[tuple[str, str, object, str, str]]]] = [
          "no reader; 9 of the 10 driving `aging.*` / `dye_stability.*` fields "
          "are empty"),
         ("Printer Flicker",      "damage.flickerStops",      _no_reader, "",
-         "no reader; data present on 184/184 but the spectral shape and the "
-         "channel split are undefined, so the model cannot be written"),
+         f"no reader; data present on {_N_FLICKER}/{_N_STOCKS} but the "
+         "spectral shape and the channel split are undefined, so the model "
+         "cannot be written"),
         ("Scanner Artifacts",    "damage.scannerArtifacts",  _no_reader, "",
          "no reader and **no database field exists** for scanner artefacts"),
     ]),
@@ -369,14 +403,15 @@ def build(profiles, names) -> str:
       "supplies zero, so the arithmetic is the identity. A datasheet, a traced "
       "curve or a measurement closes it.")
     w("2. **The engine has no reader.** The control exists with a documented "
-      "range and no stage consumes it. Code closes it. Eight controls are in "
-      "this state on all 184 rows.")
+      "range and no stage consumes it. Code closes it. Six controls are in "
+      f"this state on all {_N_STOCKS} rows.")
     w("3. **Both.**")
     w("")
     w("⚠ A `?` says nothing about whether the corpus is empty. Development is "
-      "the clearest case: the column is `?` on all 184 rows because the engine "
-      "has no reader, while 83 stocks carry a traced development time. The "
-      "Development appendix separates the two halves.")
+      f"the clearest case: development TEMPERATURE is `?` on all {_N_STOCKS} "
+      "rows because the temperature rows carry no contrast to place a curve "
+      "with, while the corpus holds traced development data on many of those "
+      "same stocks. The Development appendix separates the two halves.")
     w("")
     w("A `V` says the control acts. It says nothing about how well evidenced "
       "the underlying figure is — a manufacturer measurement and a Tier-3 era "
@@ -413,7 +448,7 @@ def build(profiles, names) -> str:
             if m.count(Q):
                 bits.append(f"{m.count(Q)} ?")
             parts.append(f"**{label}** {' / '.join(bits)}")
-        w("Across the 184 stocks — " + ", ".join(parts) + ".")
+        w(f"Across the {_N_STOCKS} stocks — " + ", ".join(parts) + ".")
         w("")
         w("| Film stock | " + " | ".join(c[0] for c in cols) + " |")
         w("|---" * (len(cols) + 1) + "|")
