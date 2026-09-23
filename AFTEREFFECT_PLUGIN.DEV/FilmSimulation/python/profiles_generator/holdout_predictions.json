@@ -5,10 +5,10 @@
   "truth": "the sheet's own printed gamma at that time",
   "unit": "gamma",
   "tolerance": 0.05,
-  "n": 291,
-  "stocks": 18,
-  "median_abs": 0.01465274594164545,
-  "p90_abs": 0.042762080517174006,
+  "n": 295,
+  "stocks": 19,
+  "median_abs": 0.014913357414930162,
+  "p90_abs": 0.04283800405364333,
   "worst": {
    "stock": "KODAK_PANATOMIC_X",
    "developer": "KODAK D-76",
@@ -19,7 +19,7 @@
    "error": -0.12136867478647928,
    "n_fit": 3
   },
-  "pass": 267,
+  "pass": 270,
   "rows": [
    {
     "stock": "EASTMAN_DOUBLE_X_5222",
@@ -70,6 +70,46 @@
     "predicted": 0.9422889163841224,
     "error": -0.10771108361587767,
     "n_fit": 4
+   },
+   {
+    "stock": "EASTMAN_SUPER_XX_1938",
+    "developer": "Kodak SD-21",
+    "celsius": 18.3,
+    "minutes": 7.0,
+    "printed": 0.46,
+    "predicted": 0.43172734700280707,
+    "error": -0.02827265299719295,
+    "n_fit": 3
+   },
+   {
+    "stock": "EASTMAN_SUPER_XX_1938",
+    "developer": "Kodak SD-21",
+    "celsius": 18.3,
+    "minutes": 9.0,
+    "printed": 0.54,
+    "predicted": 0.5444872927356575,
+    "error": 0.004487292735657511,
+    "n_fit": 3
+   },
+   {
+    "stock": "EASTMAN_SUPER_XX_1938",
+    "developer": "Kodak SD-21",
+    "celsius": 18.3,
+    "minutes": 12.0,
+    "printed": 0.65,
+    "predicted": 0.6749946322099124,
+    "error": 0.024994632209912382,
+    "n_fit": 3
+   },
+   {
+    "stock": "EASTMAN_SUPER_XX_1938",
+    "developer": "Kodak SD-21",
+    "celsius": 18.3,
+    "minutes": 18.0,
+    "printed": 0.87,
+    "predicted": 0.7892117217344957,
+    "error": -0.08078827826550428,
+    "n_fit": 3
    },
    {
     "stock": "KODAK_COMMERCIAL_1956",

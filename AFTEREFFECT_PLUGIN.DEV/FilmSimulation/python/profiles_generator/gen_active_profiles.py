@@ -462,6 +462,16 @@ _STATUS_MARK = {
     "spec_limit": "TU",
     "estimated": "-",
     "assumed": "-",
+    # ⚠ "synthesized" MARKS RED, AND THAT IS NOT A DEMOTION OF THE EVIDENCE --
+    # it is the honest answer to the question this column asks. The mark means
+    # "is this number documented FOR THIS FILM", and for a synthesis it is
+    # not: the inputs are documented, but at least one of them belongs to a
+    # different film or a different document. A reader scanning for "what did
+    # the manufacturer publish about THIS stock" must not find a plain mark
+    # against a value the manufacturer never published about it. The strength
+    # of the synthesis lives in the ParamSource's own source and note, which
+    # name every contributing document.
+    "synthesized": "-",
 }
 
 
@@ -1179,9 +1189,18 @@ def main() -> int:
       f"and confidence, all stated per parameter. Those cells are not subject "
       f"to any of the limitations in the next section.")
     w("")
-    w("The six recorded statuses collapse onto this file's three markings: "
-      "`measured` / `traced` / `derived` print plain, `spec_limit` prints blue, "
-      "`estimated` / `assumed` print red.")
+    w("The eight recorded statuses collapse onto this file's three markings: "
+      "`measured` / `traced` / `derived` / `stated` print plain, `spec_limit` "
+      "prints blue, and `estimated` / `assumed` / `synthesized` print red.")
+    w("")
+    w("⚠ **`synthesized` printing red is not a judgement on the number.** It "
+      "means the value was computed by a stated rule from documented inputs "
+      "at least one of which belongs to a *different film or document* — so "
+      "it is not something the manufacturer published about this stock, which "
+      "is what a plain mark asserts. Some synthesized values are better "
+      "grounded than the estimates they replaced; the per-parameter record "
+      "names every contributing source so the chain can be judged, and "
+      "re-derived, without the original documents.")
     w("")
     w("⚠ **Absence of a `ParamSource` is not a claim.** It means the "
       "parameter's provenance has not been recorded separately from the "

@@ -938,7 +938,11 @@ struct ParamSource
     /// field that no longer exists.
     std::string param;
     int32_t     tier;        ///< 1|2|3 for THIS parameter; may differ from the profile's
-    /// "measured" | "traced" | "derived" | "spec_limit" | "estimated" | "assumed"
+    /// "measured" | "traced" | "derived" | "stated" | "spec_limit"
+    /// | "estimated" | "assumed" | "synthesized"
+    /// NOTE: "synthesized" (2026-09-23) is computed by a stated rule from
+    ///       documented values belonging to a DIFFERENT film or document --
+    ///       weaker than "derived", whose rule never leaves one source.
     std::string status;
     std::string unit;
     /// The conditions the number is only valid under. ⚠ A granularity figure
@@ -1029,6 +1033,82 @@ struct AimDensity
     float       forehead_dark_lo,   forehead_dark_hi;
     std::string filter;   ///< "status_m_red" on every published table so far
     std::string source;
+};
+
+
+/// A MANUFACTURING ACCEPTANCE BAND, not a measurement (schema v51, INERT).
+///
+/// Every other source in this database publishes TYPICAL values -- Kodak's own
+/// wording is "averages of a number of production coatings" -- and prints a
+/// curve. A Soviet «Технические условия» publishes neither. It is the contract
+/// a factory was inspected against, and every number in it is a LIMIT: «не
+/// менее 100» means a roll testing at 99 is rejected, and says nothing about
+/// what a good roll did.
+///
+/// Until v51 that distinction lived only in prose. The scalar fields had to
+/// hold SOMETHING, so they hold the worst legal example where a one-sided
+/// limit is all there is and the mid-point of a band otherwise -- and the band
+/// itself, the whole content of ten documents, was discarded.
+///
+/// \warning LAYER ORDER IS R, G, B; THE SOURCES PRINT B, G, R. A Soviet table
+/// reads «за светофильтрами: синим, зеленым, красным» and a layer table reads
+/// нижний / средний / верхний, bottom being red-sensitive. Every triple is
+/// reversed from its page.
+///
+/// ZERO MEANS NOT STATED, as in ProcessingSpec. A band with a lower limit and
+/// no upper one leaves the upper at 0.
+struct ToleranceSpec
+{
+    // -- speed, in the source's own units (ед. ГОСТ 9160-82 for the Soviet
+    // -- corpus; the unit is named in `source`) -----------------------------
+    float speed_nominal;      ///< «номинальная светочувствительность»
+    float speed_min;          ///< «общая светочувствительность», «не менее»
+    /// Upper acceptance limit where a band is printed. A roll that is too FAST
+    /// fails inspection just as one that is too slow does.
+    float speed_max;
+    /// «Минимальное значение светочувствительности любого из слоёв»: the floor
+    /// under the SLOWEST layer, a different test from the overall speed.
+    float layer_speed_min;
+    float speed_balance_min;  ///< Б_S, low edge where a band is printed
+    float speed_balance_max;  ///< Б_S «не более»: largest legal layer ratio
+    // -- contrast -----------------------------------------------------------
+    float gamma_nominal_r, gamma_nominal_g, gamma_nominal_b;
+    float gamma_lo_r, gamma_lo_g, gamma_lo_b;
+    float gamma_hi_r, gamma_hi_g, gamma_hi_b;
+    /// True when ONE contrast is specified for the film rather than one per
+    /// layer, in which case the triples repeat one number.
+    bool  gamma_is_overall;
+    float contrast_balance_max;   ///< Б_γ: largest legal gamma DIFFERENCE
+    float contrast_time_min;      ///< t_пр the gamma band is quoted at, min
+    float contrast_time_max;
+    // -- density ------------------------------------------------------------
+    float dmin_max_r, dmin_max_g, dmin_max_b;
+    float dmin_min_r, dmin_min_g, dmin_min_b;
+    float dmax_min_r, dmax_min_g, dmax_min_b;
+    // -- image structure ----------------------------------------------------
+    float latitude_min;           ///< lg H, «не менее»
+    float resolving_power_min;    ///< lines/mm, «не менее»
+    float granularity_max_r, granularity_max_g, granularity_max_b;
+    float mtf_min_r, mtf_min_g, mtf_min_b;
+    /// Frequency the MTF limits are quoted at, mm^-1. \warning 0 WITH A
+    /// NON-ZERO LIMIT IS A REAL STATE: ЛН-8's табл. 2 п. 8 sets the symbol and
+    /// both values and leaves the numeral blank.
+    float mtf_freq_mm;
+    /// True when granularity and MTF are stated once for the film with no
+    /// filter named. Separate from gamma_is_overall because the two disagree
+    /// on ЦО-Т-90ЛМ, whose contrast IS per layer and whose structure is not.
+    bool  structure_is_overall;
+    // -- uniformity ---------------------------------------------------------
+    /// «Фотографическая однородность внутри оси», per cent: the legal spread
+    /// ACROSS THE WIDTH of one roll. No Western sheet in this corpus has one.
+    float uniformity_pct_max;
+    float coating_uniformity_d_max;  ///< «равномерность полива», density units
+    // -- bookkeeping --------------------------------------------------------
+    std::string category;   ///< quality grade, where the source files one
+    /// True on the record the profile's own scalars and curves represent.
+    /// Exactly one record per profile carries it.
+    bool        is_default;
+    std::string source;     ///< document, table and clause
 };
 
 
@@ -1152,6 +1232,51 @@ struct ReciprocitySpec {
     float onset_s;            ///< seconds below which no correction applies
 };
 
+/// The physical SUPPORT, and the raw stock's own storage recommendation
+/// (schema v50, 2026-09-22d). INERT -- nothing in either engine reads it.
+///
+/// \warning THIS STRUCT EXISTS BECAUSE A WHOLE DOCUMENT HAD NOWHERE TO LAND.
+/// Kodak's «Storage and Preservation of Motion-Picture Film» (1957) was read
+/// against AgingSpec and DyeStabilitySpec and yields not one number either
+/// can hold: those two describe damage already done to an image, and the book
+/// is about the support, the package and the room.
+struct BaseSpec {
+    /// "cellulose nitrate", "cellulose acetate", "cellulose triacetate",
+    /// "cellulose acetate propionate", "cellulose acetate butyrate",
+    /// "cellulose diacetate", "polyester", "paper", or "" for not stated.
+    std::string base_type;
+    /// Support thickness in MICROMETRES. 0.0 = not stated.
+    /// \warning On a FilmProfile this stays 0.0 and EmulsionSpec::base_um is
+    /// authoritative -- two stores for one quantity is how a corpus starts
+    /// disagreeing with itself. It exists for PrintStock, which has no
+    /// EmulsionSpec and had nowhere to put H-1-5302's 5.6 mils.
+    float base_um;
+    /// Thickness of the whole COATED film, micrometres. 0.0 = not stated.
+    /// \warning A THIRD QUANTITY, not a rounding of the other two: Kodak
+    /// states the base and never the total, Agfa states base and emulsion
+    /// separately, Soviet ТУ state the total and never the support.
+    float total_film_um;
+    float specific_gravity;    ///< of the support material; 0.0 = not stated
+    /// True only where a document states the LOW-SHRINK support. Kodak
+    /// changed motion-picture safety base in JUNE 1954, so this is a DATED
+    /// property and not a chemistry.
+    bool  lower_shrink;
+    /// Mechanism as the document describes it, e.g. "grey dye in the base".
+    /// \warning NOT a rendering parameter -- strength lives in HalationSpec.
+    std::string antihalation;
+    float raw_storage_max_f;   ///< max storage temp for UNEXPOSED stock, degF
+    /// Upper bound of the storage-ROOM RH the maker specifies, percent.
+    /// \warning NOT the same quantity as packaged_equilibrium_rh_pct: that
+    /// one is sealed inside the wrapper, this one is the room.
+    float raw_storage_max_rh_pct;
+    float packaged_equilibrium_rh_pct;  ///< RH the film is sealed at, percent
+    /// The maker's guarantee period for unexposed stock, months from the
+    /// month of manufacture. 0 = not stated. The only published bound in this
+    /// corpus on how old a real roll could have been when it was shot.
+    int   guaranteed_shelf_life_months;
+    std::string source;
+};
+
 /// Storage-age damage model (schema v2, DM-01). ALL ZEROS = FRESH STOCK.
 /// Data hooks only for now: every profile ships fresh and the reference
 /// renderer does not yet consume this struct.
@@ -1182,6 +1307,18 @@ struct AgingSpec {
     /// "pyrazolone", "five_pyrazolone", "pyrazoloazole", or "" for "the
     /// document does not say" -- which is every stock in this file.
     std::string magenta_coupler_class;
+    // -- schema v50 (2026-09-22d): SHRINKAGE IS A HUMIDITY EFFECT -----------
+    /// Multiplier on `shrinkage_pct` for the storage step 60 % -> 90 % RH.
+    /// 1.0 = no dependence stated, which is every stock in this file.
+    ///
+    /// \warning `shrinkage_pct` has been a bare number since v2 and shrinkage
+    /// is not a property of the film alone. Kodak's «Storage and Preservation
+    /// of Motion-Picture Film» (1957) states that raising storage humidity
+    /// from 60 % to 90 % DOUBLES the shrinkage of a cellulose-ester support,
+    /// so without this field a stored shrinkage silently means "at whatever
+    /// humidity the source happened to use". A CLASS CONSTANT, not a
+    /// per-stock measurement, and polyester is not covered by it.
+    float shrinkage_rh_factor;
 };
 
 /// Published Arrhenius dark-fade predictions (schema v12, INERT).
@@ -1891,6 +2028,15 @@ struct FilmProfile {
     /// The manufacturer's published aim densities, one record per exposure
     /// index, ascending. Empty on 152 of 165 profiles. See struct.
     std::vector<AimDensity>     aim_density;
+    // -- schema v50 (2026-09-22d), INERT -------------------------------------
+    /// The physical support this emulsion is coated on. See struct.
+    BaseSpec                    base;
+    // -- schema v51 (2026-09-23c), INERT -------------------------------------
+    /// The manufacturing acceptance bands this stock was inspected against,
+    /// one record per quality grade. Empty on every stock whose source
+    /// publishes typical values instead of limits -- which is every
+    /// non-Soviet document in the corpus. See struct.
+    std::vector<ToleranceSpec>  tolerance;
 
     bool isReversal() const { return kind == StockKind::Reversal; }
 };
@@ -1995,6 +2141,28 @@ struct PrintStock {
     /// table rather than being copied onto a stock that never claimed it.
     /// Populated on 1 of 11.
     ProcessingSpec processing;
+    // -- schema v50 (2026-09-22d, H-1-5302), INERT ---------------------------
+    /// The WHOLE published development axis, not the one condition
+    /// `processing` above records.
+    ///
+    /// \warning THE v39 GAP ON THE OTHER HALF OF THE DATABASE. FilmProfile
+    /// has carried a processing_family since v26 and PrintStock carried none,
+    /// so a positive stock whose sheet draws a FAMILY of characteristic
+    /// curves -- which is how every black-and-white sheet in this corpus
+    /// draws them -- could store exactly one and had to discard the rest.
+    /// H-1-5302 draws five, at 2, 3 1/2, 5, 7 and 9 minutes.
+    ProcessingFamily processing_family;
+    /// Datasheet resolving power, line pairs/mm, at TOC 1.6:1 and 1000:1.
+    /// 0.0 = not stated. Same names and meaning as
+    /// MTFSpec::resolving_power_lp_mm_lowc / _highc on the film side.
+    ///
+    /// \warning RESOLVING POWER IS NOT MTF AND NEITHER PREDICTS THE OTHER.
+    /// H-1-5302 prints 63 and 125 lp/mm beside an MTF still at 16 % response
+    /// at 100 cycle/mm.
+    float resolving_power_lp_mm_lowc;
+    float resolving_power_lp_mm_highc;
+    /// The physical support. See struct.
+    BaseSpec base;
 
 };
 
@@ -2548,6 +2716,47 @@ def _aim_density(seq) -> str:
     return "{ " + ", ".join(items) + " }"
 
 
+def _tolerance(seq) -> str:
+    """std::vector<ToleranceSpec> initialiser (schema v51).
+
+    ⚠ TRIPLES ARE FLATTENED to _r/_g/_b scalars for the same reason
+    `_aim_density` flattens its ranges: a three-float sub-struct would need its
+    own aggregate braces at eight places on every record, the C++ side reads
+    none of it, and the field naming already carries what the nesting would.
+    """
+    if not seq:
+        return "{}"
+    items = []
+    for t in seq:
+        items.append(
+            "{ "
+            + ", ".join(
+                [_f(t.speed_nominal), _f(t.speed_min), _f(t.speed_max),
+                 _f(t.layer_speed_min), _f(t.speed_balance_min),
+                 _f(t.speed_balance_max)]
+                + [_f(v) for v in t.gamma_nominal_rgb]
+                + [_f(v) for v in t.gamma_lo_rgb]
+                + [_f(v) for v in t.gamma_hi_rgb]
+                + ["true" if t.gamma_is_overall else "false",
+                   _f(t.contrast_balance_max), _f(t.contrast_time_min),
+                   _f(t.contrast_time_max)]
+                + [_f(v) for v in t.dmin_max_rgb]
+                + [_f(v) for v in t.dmin_min_rgb]
+                + [_f(v) for v in t.dmax_min_rgb]
+                + [_f(t.latitude_min), _f(t.resolving_power_min)]
+                + [_f(v) for v in t.granularity_max_rgb]
+                + [_f(v) for v in t.mtf_min_rgb]
+                + [_f(t.mtf_freq_mm),
+                   "true" if t.structure_is_overall else "false",
+                   _f(t.uniformity_pct_max), _f(t.coating_uniformity_d_max),
+                   f'"{_escape(t.category)}"',
+                   "true" if t.is_default else "false",
+                   f'"{_escape(t.source)}"'])
+            + " }"
+        )
+    return "{ " + ", ".join(items) + " }"
+
+
 def _emulsion(x) -> str:
     """EmulsionSpec initialiser (schema v17)."""
     return (
@@ -2667,6 +2876,25 @@ def _bromide_drag(b) -> str:
     )
 
 
+def _base(b) -> str:
+    """schema v50. BaseSpec -- the physical support."""
+    return (
+        '{ "%s", %s, %s, %s, %s, "%s", %s, %s, %s, %d, "%s" }' % (
+            _escape(b.base_type),
+            _f(b.base_um),
+            _f(b.total_film_um),
+            _f(b.specific_gravity),
+            "true" if b.lower_shrink else "false",
+            _escape(b.antihalation),
+            _f(b.raw_storage_max_f),
+            _f(b.raw_storage_max_rh_pct),
+            _f(b.packaged_equilibrium_rh_pct),
+            b.guaranteed_shelf_life_months,
+            _escape(b.source),
+        )
+    )
+
+
 def _aging(a) -> str:
     return (
         "{ "
@@ -2688,6 +2916,7 @@ def _aging(a) -> str:
             )
         )
         + f', "{_escape(a.magenta_coupler_class)}"'
+        + f", {_f(a.shrinkage_rh_factor)}"      # schema v50
         + " }"
     )
 
@@ -2862,7 +3091,9 @@ def _profile_block(p: FilmProfile) -> str:
             {_third_party(p.third_party)},
             {_param_sources(p.param_sources)},
             {_process_variants(p.process_variants)},
-            {_aim_density(p.aim_density)}
+            {_aim_density(p.aim_density)},
+            {_base(p.base)},
+            {_tolerance(p.tolerance)}
         }},
 """
 
@@ -2887,7 +3118,10 @@ def _print_block(s: PrintStock) -> str:
             {_matrix(s.printing_density_matrix)},
             {"true" if s.printing_matrix_measured else "false"},
             "{_escape(s.printing_matrix_source)}",
-            {_processing(s.processing)}
+            {_processing(s.processing)},
+            {_processing_family(s.processing_family)},
+            {_f(s.resolving_power_lp_mm_lowc)}, {_f(s.resolving_power_lp_mm_highc)},
+            {_base(s.base)}
         }},
 """
 

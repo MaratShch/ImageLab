@@ -95,7 +95,8 @@ Requires Python 3.12+. Pure stdlib.
 import math
 import re
 import warnings
-from dataclasses import dataclass, field, replace
+from dataclasses import MISSING as _DC_MISSING
+from dataclasses import dataclass, field, fields as _dc_fields, replace
 from enum import Enum, Flag, auto
 from typing import NamedTuple
 
@@ -129,6 +130,8 @@ __all__ = [
     "DyeImpurityRatio",
     "DyeImpurity",
     "LayerStack",
+    "BaseSpec",
+    "ToleranceSpec",
     "DevelopmentPoint",
     "ProcessingFamily",
     "PrintGrainIndex",
@@ -3003,7 +3006,38 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 # property of the instrument and not of the emulsion. A v49 render at
 # defaults is BIT-IDENTICAL to a v48 one: rho is 0.0 on all 191 stocks
 # and the control defaults to 0.0, which is the single-tap identity.
-SCHEMA_VERSION = 49
+# ⚠ v50 (2026-09-22d): THE KODAK HISTORICAL BATCH. Four new carriers, all
+# INERT, every one of them added because a document already in the corpus
+# held data no existing field could take:
+#   * `BaseSpec`, on both `FilmProfile` and `PrintStock`. «Storage and
+#     Preservation of Motion-Picture Film» (Kodak, 1957) yields not one
+#     number `AgingSpec` or `DyeStabilitySpec` can hold -- those two describe
+#     damage done to an image and the book is about the support, the package
+#     and the room. H-1-5302 states 5302's base in the same breath as its
+#     speed and had nowhere to put it either.
+#   * `AgingSpec.shrinkage_rh_factor`. `shrinkage_pct` has been a bare number
+#     since v2 and shrinkage is a humidity effect: 60 % -> 90 % RH DOUBLES it
+#     on a cellulose-ester support.
+#   * `PrintStock.processing_family`. The v39 gap on the other half of the
+#     database: H-1-5302 draws FIVE characteristic traces and a Time-Gamma
+#     inset, and a positive stock could store exactly one of them.
+#   * `PrintStock.resolving_power_lp_mm_lowc` / `_highc`. H-1-5302 prints 63
+#     and 125 lp/mm beside an MTF curve; `PrintStock` has no `MTFSpec`.
+# A v50 render at defaults is BIT-IDENTICAL to a v49 one: every new field is
+# read by nothing in either engine.
+#
+# -- v51 (2026-09-23c): ONE FIELD, AND IT RECORDS A KIND OF DOCUMENT ---------
+#   * `FilmProfile.tolerance`, a vector of `ToleranceSpec`. Every other source
+#     in this database publishes TYPICAL values; the ten Soviet documents
+#     publish ACCEPTANCE LIMITS, and the schema had no way to say which kind of
+#     number a stored scalar is. The bands were being discarded at the door --
+#     the profile kept the worst legal example or the mid-point and the width
+#     went nowhere. It is a vector because one mark can be sold in more than
+#     one quality grade against different numbers (ГОСТ 25120-82 табл. 6
+#     prints «Фото ЦНЛ-65» twice, and the two grades differ by 27 lin/mm).
+# A v51 render at defaults is BIT-IDENTICAL to a v50 one: the new field is
+# read by nothing in either engine.
+SCHEMA_VERSION = 51
 
 
 # -- v43 (2026-09-18c, queues P12 / P39 / P13 / P40 / P41 / M1a): SIX ROWS
@@ -7129,6 +7163,426 @@ class BromideDragSpec:
 
 
 # ---------------------------------------------------------------------------
+# The SUPPORT the emulsion is coated on (schema v50, 2026-09-22d)
+# ---------------------------------------------------------------------------
+#: The support chemistries this corpus can name. Taken from the taxonomy in
+#: «Storage and Preservation of Motion-Picture Film» (Kodak, 1957), which is
+#: the only document here that enumerates them, plus "polyester" for the
+#: post-1955 ESTAR/Mylar supports that book predates.
+#:
+#: ⚠ "cellulose acetate" AND "cellulose triacetate" ARE KEPT APART ON PURPOSE.
+#: They are not synonyms and the difference is load-bearing for shrinkage: the
+#: 1957 book records a JUNE 1954 change to a lower-shrink support, which is
+#: what `lower_shrink` below carries.
+_BASE_TYPES = frozenset({
+    "", "cellulose nitrate", "cellulose acetate", "cellulose triacetate",
+    "cellulose acetate propionate", "cellulose acetate butyrate",
+    "cellulose diacetate", "polyester", "paper",
+})
+
+
+@dataclass(frozen=True, slots=True)
+class BaseSpec:
+    """The physical SUPPORT, and the raw stock's own storage recommendation.
+
+    ⚠⚠ THIS STRUCT EXISTS BECAUSE A WHOLE DOCUMENT HAD NOWHERE TO LAND.
+    «Storage and Preservation of Motion-Picture Film» (Kodak, 1957) was read
+    on 2026-09-22 against `AgingSpec` and `DyeStabilitySpec`, the two carriers
+    that already model storage, and it yields NOT ONE NUMBER either struct can
+    hold: those two describe DAMAGE ALREADY DONE to an image, and the 1957
+    book is about the support, the packaging and the room. Recording its
+    contents in Markdown instead would have put manufacturer data in a report
+    file, which this project's method rule forbids.
+
+    WHY IT SITS ON BOTH `FilmProfile` AND `PrintStock`. A print stock has a
+    base exactly as a camera negative does, and H-1-5302 states 5302's in the
+    same breath as its speed: "clear acetate safety base with anti-static
+    protection, and a base thickness of 5.6 mils".
+
+    INERT. Nothing on either render path reads this struct. It records what
+    the stock is made of, in the same spirit as `dye_density`.
+
+    Attributes:
+        base_type: One of `_BASE_TYPES`. "" = the source does not say, which
+            is the honest default and is most of the corpus.
+        base_um: Support thickness in MICROMETRES. 0.0 = not stated.
+            ⚠⚠ ON A `FilmProfile` THIS MUST STAY 0.0 AND `EmulsionSpec.base_um`
+            IS AUTHORITATIVE. That carrier has existed since v23, the carrier
+            census in NotFound.md counts it, and two stores for one quantity
+            is how a corpus starts disagreeing with itself. The field exists
+            here for `PrintStock`, which has no `EmulsionSpec` at all and had
+            nowhere to put H-1-5302's "base thickness of 5.6 mils". verify.py
+            fails the build if a FilmProfile sets it.
+        total_film_um: Thickness of the whole COATED film -- support plus
+            emulsion plus any anti-curl or backing layer -- in micrometres.
+            0.0 = not stated.
+            ⚠ A THIRD QUANTITY, NOT A ROUNDING OF THE OTHER TWO, AND IT EXISTS
+            BECAUSE THE SOURCES SPLIT ON WHICH ONE THEY PRINT. Kodak states
+            the BASE and never the total ("a base thickness of 5.6 mils");
+            Agfa states base and emulsion SEPARATELY (120 µm + 7 µm); Soviet
+            ТУ state the TOTAL and never the support («Общая толщина
+            пленки... 0,150 мм»). Deriving a support thickness by subtracting
+            a DEFAULTED emulsion thickness from a stated total would
+            manufacture a measurement, so a total is stored as a total.
+        specific_gravity: Of the support material. 0.0 = not stated.
+        lower_shrink: True only where a document states this coating uses the
+            LOW-SHRINK support. ⚠ A DATED PROPERTY, NOT A CHEMISTRY: Kodak
+            changed motion-picture safety base to a lower-shrink formulation
+            in JUNE 1954, so the same product name is one thing before that
+            date and another after it, and a profile that cannot name a
+            coating year must leave this False.
+        antihalation: As the document describes it, e.g. "grey dye in the
+            base". "" = not stated. ⚠ NOT A RENDERING PARAMETER -- halation
+            strength lives in `HalationSpec`; this records the MECHANISM,
+            which is what tells a grey-base stock from a rem-jet one.
+        raw_storage_max_f: Manufacturer's maximum storage temperature for
+            UNEXPOSED stock, degrees Fahrenheit as printed. 0.0 = not stated.
+            ⚠ FAHRENHEIT EVEN FOR A SOVIET SPECIFICATION, which prints
+            Celsius: one unit or two spellings, and two spellings is how a
+            join across the corpus goes silently wrong. The Celsius figure as
+            printed belongs in `source`.
+        raw_storage_max_rh_pct: Upper bound of the storage-ROOM relative
+            humidity the maker specifies for unexposed stock, percent. 0.0 =
+            not stated. ⚠ NOT THE SAME QUANTITY as
+            `packaged_equilibrium_rh_pct`: that one is sealed inside the
+            wrapper and is a property the maker sets at coating; this one is
+            the room the user is told to keep.
+        packaged_equilibrium_rh_pct: The relative humidity the film is sealed
+            at in its own package, percent. 0.0 = not stated.
+        guaranteed_shelf_life_months: The maker's own guarantee period for
+            unexposed stock, counted from the month of manufacture. 0 = not
+            stated.
+            ⚠ IT IS HERE RATHER THAN IN `AgingSpec` FOR THE SAME REASON THE
+            STORAGE FIELDS ARE: `AgingSpec` describes damage already done to
+            an IMAGE, and this is a property of the packaged roll before
+            anything is exposed on it. It is the only published bound in the
+            corpus on how old a real roll of a given stock could have been
+            when it was shot, which is what makes it more than trivia --
+            ЛН-8's six months and Фото-65's two years are a factor of four,
+            on films of one maker and one decade.
+        source: Full citation. Required as soon as anything above is set.
+    """
+
+    base_type: str = ""
+    base_um: float = 0.0
+    total_film_um: float = 0.0
+    specific_gravity: float = 0.0
+    lower_shrink: bool = False
+    antihalation: str = ""
+    raw_storage_max_f: float = 0.0
+    raw_storage_max_rh_pct: float = 0.0
+    packaged_equilibrium_rh_pct: float = 0.0
+    guaranteed_shelf_life_months: int = 0
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return bool(self.base_type or self.base_um
+                    or self.total_film_um
+                    or self.specific_gravity or self.lower_shrink
+                    or self.antihalation or self.raw_storage_max_f
+                    or self.raw_storage_max_rh_pct
+                    or self.packaged_equilibrium_rh_pct
+                    or self.guaranteed_shelf_life_months)
+
+    def validate(self, label: str) -> None:
+        if self.base_type not in _BASE_TYPES:
+            raise ValueError(
+                f"{label}: BaseSpec base_type {self.base_type!r} is not one "
+                f"of {sorted(_BASE_TYPES)}")
+        for _nm, _v in (("base_um", self.base_um),
+                        ("total_film_um", self.total_film_um)):
+            if _v and not 40.0 <= _v <= 320.0:
+                raise ValueError(
+                    f"{label}: BaseSpec {_nm} {_v} is outside 40-320 um. "
+                    "Motion-picture and still supports run 60-200 um; a value "
+                    "outside that band is almost always MILLIMETRES or INCHES "
+                    "stored where MICROMETRES belong")
+        if (self.base_um and self.total_film_um
+                and self.total_film_um <= self.base_um):
+            raise ValueError(
+                f"{label}: BaseSpec total_film_um {self.total_film_um} is not "
+                f"greater than the support thickness {self.base_um}. A coated "
+                "film cannot be thinner than the support it is coated on, so "
+                "the two are stored the wrong way round")
+        if self.specific_gravity and not 1.0 <= self.specific_gravity <= 1.8:
+            raise ValueError(
+                f"{label}: BaseSpec specific_gravity {self.specific_gravity} "
+                "is outside 1.0-1.8")
+        for _nm, _v in (("packaged_equilibrium_rh_pct",
+                         self.packaged_equilibrium_rh_pct),
+                        ("raw_storage_max_rh_pct",
+                         self.raw_storage_max_rh_pct)):
+            if _v and not 0.0 < _v <= 100.0:
+                raise ValueError(
+                    f"{label}: BaseSpec {_nm} {_v} is not a percentage")
+        if self.guaranteed_shelf_life_months < 0:
+            raise ValueError(
+                f"{label}: BaseSpec guaranteed_shelf_life_months cannot be "
+                "negative")
+        if self.guaranteed_shelf_life_months > 120:
+            raise ValueError(
+                f"{label}: BaseSpec guaranteed_shelf_life_months "
+                f"{self.guaranteed_shelf_life_months} exceeds ten years -- no "
+                "maker guarantees raw stock that long, so this is almost "
+                "certainly a period in DAYS or a storage recommendation "
+                "stored in the wrong field")
+        if self.lower_shrink and self.base_type == "cellulose nitrate":
+            raise ValueError(
+                f"{label}: BaseSpec marks a NITRATE support low-shrink. The "
+                "June 1954 low-shrink change was made to SAFETY base; nitrate "
+                "motion-picture film was out of production by then")
+        if self.has_data and not self.source:
+            raise ValueError(
+                f"{label}: BaseSpec carries data and no source")
+
+
+# ---------------------------------------------------------------------------
+# Manufacturing acceptance bands (schema v51, 2026-09-23c)
+# ---------------------------------------------------------------------------
+#: Quality grades a record may be filed under. Empty = the source prints one
+#: unlabelled set of norms, which is the usual case.
+_TOLERANCE_CATEGORIES = frozenset({
+    "", "первая категория качества", "высшая категория качества",
+})
+
+
+@dataclass(frozen=True, slots=True)
+class ToleranceSpec:
+    """A MANUFACTURING ACCEPTANCE BAND, not a measurement.
+
+    ⚠⚠ THIS STRUCT EXISTS BECAUSE THE SOVIET CORPUS IS A DIFFERENT KIND OF
+    DOCUMENT FROM EVERY OTHER SOURCE IN THIS DATABASE, AND THE SCHEMA HAD
+    NOWHERE TO SAY SO. A Kodak or Fuji data sheet publishes TYPICAL values --
+    «averages of a number of production coatings», in Kodak's own words -- and
+    prints a curve. A Soviet «Технические условия» publishes neither. It is
+    the contract a factory was inspected against, and every one of its numbers
+    is a LIMIT: «не менее 100» means a roll testing at 99 is rejected and says
+    nothing whatever about what a good roll did.
+
+    Until this struct existed, that distinction was carried only in prose. The
+    scalar fields of `FilmProfile` had to be filled with SOMETHING, so they
+    were filled with the worst legal example of the stock where a one-sided
+    limit was all there was, and with the mid-point of a band otherwise -- and
+    the band itself, the actual content of the document, was thrown away. Nine
+    Soviet ТУ and one ГОСТ, 176 sheets, are almost entirely bands.
+
+    ⚠ WHAT THAT COSTS, CONCRETELY. ЦО-32Д's ТУ says the top layer develops to
+    γ 2,2-2,6 and the other two to 1,8-2,2. The profile can store one gamma per
+    layer, so it stores 2,4 / 2,0 / 2,0 and the reader cannot tell that a legal
+    roll could be 2,6 / 1,8 / 1,8 -- a 0,8 spread in gamma on a film whose own
+    specification ties green and red to within 0,3 of each other and leaves
+    blue untied. That asymmetry is the film's look, and it lives in the width
+    of the bands rather than in their centres.
+
+    ⚠ A RECORD IS A VECTOR ON THE PROFILE, NOT A SINGLE VALUE, because one
+    mark can be sold in more than one quality grade against DIFFERENT numbers.
+    ГОСТ 25120-82's табл. 6 prints «Фото ЦНЛ-65» twice, высшая and первая
+    категория качества, and they differ in speed band, Б_S, the gamma
+    tolerance and the resolving power -- 90 lin/mm against 63, which is not a
+    small difference. `is_default` marks the grade the profile's own stored
+    scalars and curves represent; the others are carried so the document is
+    not half-recorded.
+
+    ⚠ DESCRIPTIVE, NOT PREDICTIVE -- the same standing as `ProcessingSpec`.
+    Nothing on the render path reads this. It does not sample a batch or jitter
+    a curve; doing that honestly needs a distribution inside the band, and a
+    ТУ prints no distribution. What it does is make the band VISIBLE, so that
+    a future batch-variation model has documented limits to work from instead
+    of a guess, and so that a reader can see which stored scalar is a centre
+    and which is a worst case.
+
+    LAYER ORDER IS R, G, B THROUGHOUT, matching `spectral_weights`,
+    `MTFSpec` and every other triple in this file. ⚠ THE SOURCES PRINT THE
+    OPPOSITE ORDER: a Soviet table reads «за светофильтрами: синим, зеленым,
+    красным» (blue, green, red) and a layer table reads нижний / средний /
+    верхний (bottom = red-sensitive, top = blue-sensitive). Every triple below
+    is therefore REVERSED from the page, and that reversal is the single most
+    likely place for a transcription error to hide, which is why
+    `soviet_tu_corpus.py` re-derives the ГОСТ table in the printed order and
+    compares it to the stored order rather than to itself.
+
+    ZERO MEANS NOT STATED, everywhere, exactly as in `ProcessingSpec`. A band
+    with a lower limit and no upper one leaves the upper at 0.0.
+    """
+
+    # -- speed, in the source's own units (ед. ГОСТ 9160-82 for the Soviet
+    # -- corpus; the unit is named in `source` because it is not universal) --
+    #: «Номинальная светочувствительность» -- the number on the box.
+    speed_nominal: float = 0.0
+    #: «Общая светочувствительность», lower acceptance limit («не менее»).
+    speed_min: float = 0.0
+    #: Upper acceptance limit where the source prints a band. ⚠ A COLOUR
+    #: NEGATIVE WITH A TWO-SIDED SPEED BAND IS NOT A TYPO: ЦО-32Д's 32-63 and
+    #: ГОСТ's 32-65 are reversal and negative acceptance windows respectively,
+    #: and a roll that is too FAST fails inspection just as one that is too
+    #: slow does.
+    speed_max: float = 0.0
+    #: «Минимальное значение светочувствительности любого из слоёв» -- the
+    #: floor under the SLOWEST layer, which is a different statement from the
+    #: overall speed and from the balance below.
+    layer_speed_min: float = 0.0
+    #: «Баланс светочувствительности» Б_S: the largest legal RATIO between the
+    #: fastest and slowest layer. Lower bound only where a band is printed.
+    speed_balance_min: float = 0.0
+    speed_balance_max: float = 0.0
+
+    # -- contrast -----------------------------------------------------------
+    #: The printed CENTRE of the gamma or average-gradient specification, per
+    #: layer, R/G/B. 0.0 where the source prints a bare range with no nominal.
+    gamma_nominal_rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: The band itself, per layer. For a nominal-with-deviation these are
+    #: nominal-minus and nominal-plus, and the deviation is often ASYMMETRIC:
+    #: the four masked cine negatives all print «+0,06 / -0,04».
+    gamma_lo_rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    gamma_hi_rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: True when the source specifies ONE contrast for the film as a whole
+    #: rather than one per layer, in which case the triples carry the same
+    #: number three times and that repetition is a formatting artefact, not a
+    #: claim that the three layers were measured separately. ЦО-90Л only.
+    gamma_is_overall: bool = False
+    #: «Баланс контрастности» Б_γ / Б_к: the largest legal DIFFERENCE between
+    #: layer gammas. ⚠ Not always over all three layers -- see `source`.
+    contrast_balance_max: float = 0.0
+    #: «Время проявления для получения рекомендуемого коэффициента
+    #: контрастности» t_пр, the development time the gamma band is quoted at.
+    #: Min == max where a single time is printed.
+    contrast_time_min: float = 0.0
+    contrast_time_max: float = 0.0
+
+    # -- density ------------------------------------------------------------
+    #: «Минимальная плотность» / «суммарная оптическая плотность вуали и
+    #: маски», per filter, as an acceptance ceiling. R/G/B.
+    dmin_max_rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: Lower edge where the source prints a two-sided band (the blue channel
+    #: of a masked negative usually has one: the mask must be PRESENT).
+    dmin_min_rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: «Максимальная плотность … не менее», per layer: the floor under D_max
+    #: on a reversal stock.
+    dmax_min_rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
+
+    # -- image structure ----------------------------------------------------
+    #: «Общая фотографическая широта … не менее», in lg H.
+    latitude_min: float = 0.0
+    #: «Разрешающая способность R … не менее», lines/mm.
+    resolving_power_min: float = 0.0
+    #: «Среднеквадратическая гранулярность σ_D·1000 … не более», per filter.
+    granularity_max_rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: «Коэффициент передачи модуляции T … не менее» at `mtf_freq_mm`.
+    mtf_min_rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    #: The spatial frequency the MTF limits are quoted at, mm^-1. ⚠ 0.0 WITH A
+    #: NON-ZERO `mtf_min_rgb` IS A REAL STATE AND NOT AN OMISSION: ЛН-8's
+    #: табл. 2 п. 8 sets the symbol ν and both values and leaves the numeral
+    #: blank. See `_SOVIET_TU_MTF_FREQ_MM`.
+    mtf_freq_mm: float = 0.0
+    #: True when the source states granularity and MTF ONCE FOR THE FILM with
+    #: no filter named, in which case the two triples above carry the same
+    #: figure three times. ⚠ SEPARATE FROM `gamma_is_overall` BECAUSE THE TWO
+    #: DISAGREE ON THE SAME STOCK: ЦО-Т-90ЛМ's табл. 2 п. 3 reads «коэффициент
+    #: контрастности КАЖДОГО ИЗ СЛОЕВ» -- per layer, explicitly -- while its
+    #: пп. 8 and 9 print one granularity and one MTF for the film entire. One
+    #: bool would have had to lie about one of them.
+    structure_is_overall: bool = False
+
+    # -- uniformity ---------------------------------------------------------
+    #: «Фотографическая однородность внутри оси … не более», per cent. The
+    #: legal spread ACROSS THE WIDTH of one roll, which no Western data sheet
+    #: in this database publishes at all.
+    uniformity_pct_max: float = 0.0
+    #: «Равномерность полива эмульсионных слоёв … не более», density units.
+    coating_uniformity_d_max: float = 0.0
+
+    # -- bookkeeping --------------------------------------------------------
+    #: Quality grade, where the source files the numbers under one.
+    category: str = ""
+    #: True on the record the profile's own stored scalars and curves
+    #: represent. Exactly one record per profile must carry it.
+    is_default: bool = True
+    #: Document, table and clause. ⚠ Required whenever anything is set.
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return any((
+            self.speed_nominal, self.speed_min, self.speed_max,
+            self.layer_speed_min, self.speed_balance_min,
+            self.speed_balance_max, any(self.gamma_nominal_rgb),
+            any(self.gamma_lo_rgb), any(self.gamma_hi_rgb),
+            self.contrast_balance_max, self.contrast_time_min,
+            self.contrast_time_max, any(self.dmin_max_rgb),
+            any(self.dmin_min_rgb), any(self.dmax_min_rgb),
+            self.latitude_min, self.resolving_power_min,
+            any(self.granularity_max_rgb), any(self.mtf_min_rgb),
+            self.uniformity_pct_max, self.coating_uniformity_d_max,
+        ))
+
+    def validate(self, label: str) -> None:
+        if self.category not in _TOLERANCE_CATEGORIES:
+            raise ValueError(
+                f"{label}: ToleranceSpec category {self.category!r} is not in "
+                f"{sorted(_TOLERANCE_CATEGORIES)}")
+        if self.has_data and not self.source:
+            raise ValueError(
+                f"{label}: ToleranceSpec carries data and no source")
+        if self.source and not self.has_data:
+            raise ValueError(
+                f"{label}: ToleranceSpec carries a source and no data")
+        # A band must not be inverted, and a nominal must lie inside its own
+        # band. ⚠ THE SECOND TEST IS THE ONE THAT EARNS ITS KEEP: the Soviet
+        # deviations are asymmetric and printed as superscripts, so a
+        # transcription that swaps + for - produces two numbers that are
+        # individually plausible and jointly impossible.
+        for lo, hi, nom, what in (
+                (self.speed_min, self.speed_max, self.speed_nominal, "speed"),
+                (self.speed_balance_min, self.speed_balance_max, 0.0,
+                 "speed balance"),
+                (self.contrast_time_min, self.contrast_time_max, 0.0,
+                 "development time")):
+            if lo and hi and lo > hi:
+                raise ValueError(
+                    f"{label}: ToleranceSpec {what} band {lo}-{hi} is "
+                    "inverted")
+            if nom and lo and hi and not (lo <= nom <= hi):
+                raise ValueError(
+                    f"{label}: ToleranceSpec {what} nominal {nom} is outside "
+                    f"its own band {lo}-{hi}")
+        for _i, _ch in enumerate("RGB"):
+            _lo = self.gamma_lo_rgb[_i]
+            _hi = self.gamma_hi_rgb[_i]
+            _nm = self.gamma_nominal_rgb[_i]
+            if _lo and _hi and _lo > _hi:
+                raise ValueError(
+                    f"{label}: ToleranceSpec gamma band {_ch} {_lo}-{_hi} is "
+                    "inverted")
+            if _nm and _lo and _hi and not (_lo - 1e-9 <= _nm <= _hi + 1e-9):
+                raise ValueError(
+                    f"{label}: ToleranceSpec gamma nominal {_ch} {_nm} is "
+                    f"outside its own band {_lo}-{_hi}")
+            _dlo = self.dmin_min_rgb[_i]
+            _dhi = self.dmin_max_rgb[_i]
+            if _dlo and _dhi and _dlo > _dhi:
+                raise ValueError(
+                    f"{label}: ToleranceSpec D_min band {_ch} {_dlo}-{_dhi} "
+                    "is inverted")
+        if self.mtf_freq_mm and not any(self.mtf_min_rgb):
+            raise ValueError(
+                f"{label}: ToleranceSpec names an MTF frequency and no MTF "
+                "limit")
+        if self.gamma_is_overall and len(set(self.gamma_lo_rgb)) != 1:
+            raise ValueError(
+                f"{label}: ToleranceSpec says the contrast specification is "
+                "for the film as a whole, but the three layers differ")
+        if self.structure_is_overall:
+            for _trip, _what in ((self.granularity_max_rgb, "granularity"),
+                                 (self.mtf_min_rgb, "MTF")):
+                if any(_trip) and len(set(_trip)) != 1:
+                    raise ValueError(
+                        f"{label}: ToleranceSpec says the {_what} limit is "
+                        "for the film as a whole, but the three channels "
+                        f"differ ({_trip})")
+
+
+# ---------------------------------------------------------------------------
 # Aging / storage damage hooks (schema v2, DM-01)
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True, slots=True)
@@ -7215,6 +7669,35 @@ class AgingSpec:
     #: path reads it; `magenta_fade_default()` turns it into a fade fraction
     #: for a caller that asks, and returns None when it cannot.
     magenta_coupler_class: str = ""
+    # -- schema v50 (2026-09-22d): SHRINKAGE IS A HUMIDITY EFFECT ------------
+    #: Ratio of the RATE of permanent shrinkage at 90 % RH to the rate at
+    #: 60 % RH. 1.0 = no dependence stated, which is every stock in this file
+    #: and the pre-v50 behaviour.
+    #:
+    #: ⚠⚠ A RATE RATIO, NOT A MULTIPLIER ON `shrinkage_pct`, AND THE FIELD WAS
+    #: DOCUMENTED THE WRONG WAY ROUND FOR ONE DAY. The source sentence is
+    #: «Storage and Preservation of Motion-Picture Film» (Kodak, 1957) p.42:
+    #: "the permanent shrinkage of some motion-picture films is approximately
+    #: TWICE AS RAPID at 90 % R.H. as it is at 60 % R.H." Twice as *rapid* is
+    #: a speed. `shrinkage_pct` is a STATE -- how much a given roll has
+    #: already shrunk -- and multiplying a state by a rate ratio is a category
+    #: error that would silently double every stored shrinkage the moment a
+    #: humidity model was wired up. Corrected 2026-09-23 on reading the page.
+    #:
+    #: ⚠ THE SENTENCE CARRIES THREE QUALIFICATIONS AND ALL THREE MATTER:
+    #: "approximately", "SOME motion-picture films" -- not all, and not
+    #: cellulose-ester supports generically -- and it is prefaced "For
+    #: example". It is illustrative, not a specification. **There is no
+    #: tabulated shrinkage data anywhere in the 82-page book**: no percentage
+    #: at either humidity, no per-base figure, no time axis. This one ratio is
+    #: the only quantitative shrinkage statement in the volume, which is why
+    #: `_SHRINKAGE_RATE_RH_RATIO_1957` below holds it as a documented class
+    #: figure and NO PROFILE SETS THIS FIELD.
+    #:
+    #: ⚠ AND POLYESTER IS NOT COVERED. The 1957 book predates it entirely --
+    #: the words polyester, ESTAR and polyethylene terephthalate do not occur
+    #: once in 82 pages -- so a polyester-based stock must leave this at 1.0.
+    shrinkage_rh_factor: float = 1.0
 
     def fade_fraction_at(self, base_fraction: float, density: float) -> float:
         """`base_fraction`, restated for a density other than 1.0.
@@ -7239,6 +7722,17 @@ class AgingSpec:
                 f"{label}: magenta_coupler_class "
                 f"{self.magenta_coupler_class!r} not one of "
                 f"{sorted(_MAGENTA_COUPLER_CLASSES)}")
+        # -- schema v50 ------------------------------------------------------
+        if self.shrinkage_rh_factor < 1.0:
+            raise ValueError(
+                f"{label}: shrinkage_rh_factor {self.shrinkage_rh_factor} is "
+                "below 1.0. Wetter storage shrinks a cellulose-ester support "
+                "MORE, never less, so a factor below unity has the sign of "
+                "the effect backwards")
+        if self.shrinkage_rh_factor != 1.0 and not self.shrinkage_pct:
+            raise ValueError(
+                f"{label}: shrinkage_rh_factor is set but shrinkage_pct is "
+                "zero -- a multiplier on nothing is not a measurement")
 
 
 @dataclass(frozen=True, slots=True)
@@ -8623,7 +9117,31 @@ _PARAM_STATUS = (
     "spec_limit",   # a TU / state-standard CEILING; the film was no worse
     "estimated",    # this project's own value, with a written rationale
     "assumed",      # this project's own value, without one
+    "synthesized",  # computed by a stated rule from documented values that
+                    # belong to a DIFFERENT film or a different document --
+                    # i.e. the rule crosses a boundary the source never did
 )
+# ⚠ "synthesized" WAS ADDED 2026-09-23 BECAUSE "derived" WAS CARRYING TWO
+# DIFFERENT STRENGTHS OF CLAIM UNDER ONE NAME. "derived" means "computed from
+# another documented value by a stated rule", and its worked cases are all
+# INTERNAL: an f50 computed from the same sheet's own MTF point, a stop count
+# computed from the same sheet's own exposure index. The rule stays inside one
+# document describing one film, so the only thing that can be wrong is the
+# arithmetic.
+#
+# A cross-document synthesis is a weaker object. When ЦО-32Д's f50 is computed
+# from ЦО-32Д's own resolving power through a ratio calibrated on ЦО-Т-90ЛМ,
+# three things can be wrong instead of one: the arithmetic, the calibration,
+# and the assumption that the two emulsions share it. Filing that under
+# "derived" would have made it indistinguishable from an f50 read straight off
+# its own film's MTF curve, which is exactly the flattening this vocabulary
+# exists to prevent -- the same hole "stated" filled in 2026-08-27.
+#
+# ⚠ AND IT IS ORDERED LAST, AFTER "assumed", DELIBERATELY. A synthesis is not
+# automatically better evidence than a well-argued estimate: it is better only
+# when its inputs are documented AND its rule is sound, and the second half is
+# a judgement. Placing it at the end keeps anyone reading the tuple as a
+# quality ladder from inheriting a conclusion this project has not reached.
 # ⚠ "stated" WAS ADDED 2026-08-27 (task EM-A6) BECAUSE THE VOCABULARY HAD A
 # HOLE. A developer name, a process name or a base material is a fact the
 # source prints, but it is not "an instrument reading ... as a number", so
@@ -8793,6 +9311,18 @@ _PROCESS_FAMILIES = frozenset({
     # curve sets are indexed by. Filing it under E-6 would assert a chemistry
     # nineteen years too late.
     "Ansco reversal",
+    # ⚠ ADDED 2026-09-23, on the same argument as Gevachrome and Ansco
+    # reversal and with the same evidence behind it. The Soviet reversal chain
+    # is not E-6 and is not Agfacolor: ТУ 6-17-1000-88 табл. 4-5, ТУ
+    # 6-17-912-87 табл. 6-7 and ТУ 6-42-1514-90 табл. 4-6 each print all
+    # eleven steps and all five of their own baths -- a hydroquinone/phenidone
+    # first developer with potassium thiocyanate and 0.01 g/l potassium
+    # iodide, an acetate stop, a ЦПВ colour developer, a potassium
+    # ferricyanide bleach and a thiosulphate/ammonium sulphate fix -- with an
+    # OPTICAL re-exposure between them and NO chemical reversal bath anywhere
+    # in the corpus. Filing that under E-6 would assert a chemistry the three
+    # documents contradict step by step.
+    "Soviet reversal",
 })
 
 
@@ -9662,15 +10192,37 @@ class ReciprocityTable:
                 and len(self.development_correction_pct) != len(self.times_s)):
             raise ValueError(
                 f"{label}: development_correction_pct must match times_s in length")
-        # A development correction is a REDUCTION or nothing: no manufacturer
-        # asks for MORE development to compensate a long exposure, because the
-        # contrast error runs the other way. A positive value here would mean
-        # the sign convention had been misread, which is the failure this
-        # guard exists to catch.
-        if any(v > 0.0 for v in self.development_correction_pct):
+        # A development correction is a REDUCTION or nothing AT ONE SECOND AND
+        # LONGER: no manufacturer asks for MORE development to compensate a
+        # LONG exposure, because the contrast error runs the other way. A
+        # positive value there would mean the sign convention had been
+        # misread, which is the failure this guard exists to catch.
+        #
+        # ⚠⚠ AND THE SHORT END IS THE OPPOSITE CASE, WHICH THIS GUARD DENIED
+        # UNTIL 2026-09-22 BECAUSE NO SHEET IN THE CORPUS HAD EVER SUPPLIED
+        # ONE. KODAK TECHNICAL PAN's sheet, publication P-255 p3, prints
+        # **+30 % development at 1/10,000 s and +20 % at 1/1,000 s**, with no
+        # exposure correction at either. That is not a misread sign: it is
+        # HIGH-INTENSITY reciprocity failure, a different physical effect from
+        # the long-exposure case, and it costs CONTRAST rather than speed, so
+        # more development is exactly the remedy. The same sheet prints -10 %
+        # at 1 s and 10 s, the long-end reduction this guard was written for.
+        # One document carrying both signs is what showed the rule was half a
+        # rule.
+        #
+        # ⚠ THE GUARD IS NARROWED, NOT DROPPED. Below one second a positive
+        # value is a documented physical effect; at one second and beyond it
+        # is still a sign error and still refused. Same treatment as the
+        # F-4017 short-exposure finding: the class rule was not wrong, it was
+        # silent about an end of the scale nobody had data for.
+        _bad_dev = [(t, v) for t, v in
+                    zip(self.times_s, self.development_correction_pct)
+                    if v > 0.0 and t >= 1.0]
+        if _bad_dev:
             raise ValueError(
-                f"{label}: development_correction_pct is a reduction; "
-                f"positive values indicate a sign error")
+                f"{label}: development_correction_pct is a reduction at one "
+                f"second and longer; positive values there indicate a sign "
+                f"error -- offenders {_bad_dev}")
         if any(t <= 0.0 for t in self.times_s):
             raise ValueError(f"{label}: reciprocity times must be > 0")
         if list(self.times_s) != sorted(self.times_s):
@@ -10721,6 +11273,18 @@ class FilmProfile:
     #: nothing on the render path; see the AimDensity docstring for why an aim
     #: is a comparison and not a transform. Empty on 152 of 165 profiles.
     aim_density: tuple[AimDensity, ...] = ()
+    # -- schema v50 (2026-09-22d), INERT --------------------------------------
+    #: The physical SUPPORT this emulsion is coated on, and the manufacturer's
+    #: raw-stock storage recommendation. See `BaseSpec` for why a whole
+    #: document had nowhere to land before it existed.
+    base: BaseSpec = field(default_factory=BaseSpec)
+    # -- schema v51 (2026-09-23c), INERT --------------------------------------
+    #: The MANUFACTURING ACCEPTANCE BANDS this stock was inspected against, one
+    #: record per quality grade. Empty on every stock whose source publishes
+    #: typical values instead of limits, which is every non-Soviet document in
+    #: the corpus. See `ToleranceSpec` for why a band is not a measurement and
+    #: why this is a vector.
+    tolerance: tuple[ToleranceSpec, ...] = ()
 
     def source_for(self, param: str) -> ParamSource | None:
         """Per-parameter provenance, or None if only the profile tier applies.
@@ -10745,6 +11309,21 @@ class FilmProfile:
         self.curves.validate(self.name)
         self.anti_halation.validate(self.name)
         self.spectral.validate(self.name)
+        self.base.validate(self.name)          # schema v50
+        # -- schema v51 ------------------------------------------------------
+        for _t in self.tolerance:
+            _t.validate(self.name)
+        _defaults = [_t for _t in self.tolerance if _t.is_default]
+        if self.tolerance and len(_defaults) != 1:
+            raise ValueError(
+                f"{self.name}: {len(_defaults)} of {len(self.tolerance)} "
+                "ToleranceSpec records claim to be the one the stored scalars "
+                "represent; exactly one must")
+        _cats = [_t.category for _t in self.tolerance]
+        if len(set(_cats)) != len(_cats):
+            raise ValueError(
+                f"{self.name}: two ToleranceSpec records share a quality "
+                f"grade ({_cats}); a grade is the key of this vector")
         self.taking_filter.validate(self.name + ' taking_filter')
         # schema v7 -- inert carriers, but validated so bad data cannot enter
         self.dye_density.validate(self.name)
@@ -11111,9 +11690,60 @@ class PrintStock:
     #: `None` means the source states no process, which is the honest default
     #: for the digital-intermediate transforms that are not developed at all.
     processing: "ProcessingSpec | None" = None
+    # -- schema v50 (2026-09-22d, H-1-5302), INERT ---------------------------
+    #: THE WHOLE PUBLISHED DEVELOPMENT AXIS, not the single condition
+    #: `processing` above records.
+    #:
+    #: ⚠ THE SAME GAP v39 CLOSED ON THE OTHER HALF OF THE DATABASE.
+    #: `FilmProfile` has carried `processing_family` since v26 and
+    #: `PrintStock` carried none, so a positive stock whose sheet draws a
+    #: FAMILY of characteristic curves -- one per development time, which is
+    #: how every black-and-white sheet in this corpus draws them -- could
+    #: store exactly one of them and had to discard the rest.
+    #:
+    #: ⚠ H-1-5302 IS THE SHEET THAT FORCED IT. Its characteristic panel draws
+    #: FIVE traces at 2, 3 1/2, 5, 7 and 9 minutes, and its Time-Gamma inset
+    #: states the gamma each of those times produces. The stored curve is one
+    #: of the five; the other four plus the inset are the only published
+    #: description of what happens when the laboratory develops off aim, and
+    #: before this field there was nowhere to keep them.
+    processing_family: ProcessingFamily = field(
+        default_factory=ProcessingFamily)
+    #: Datasheet RESOLVING POWER, line pairs per millimetre, at the two test
+    #: object contrasts the ISO method uses. 0.0 = not stated.
+    #:
+    #: ⚠ SAME NAMES AND SAME MEANING AS `MTFSpec.resolving_power_lp_mm_lowc` /
+    #: `_highc` ON THE FILM SIDE, deliberately, so a join across the two
+    #: halves of the database compares like with like. `PrintStock` has no
+    #: `MTFSpec` -- it carries a bare `mtf_f50` scalar -- so the two fields are
+    #: added here rather than by giving the struct a carrier it does not
+    #: otherwise need.
+    #:
+    #: ⚠ RESOLVING POWER IS NOT MTF AND NEITHER PREDICTS THE OTHER. H-1-5302
+    #: prints both for one emulsion and they measure different things: 63
+    #: lp/mm at TOC 1.6:1, 125 lp/mm at TOC 1000:1, against an MTF that is
+    #: still at 16 % response at 100 cycle/mm. A threshold-detection number
+    #: and a modulation-ratio number are not interchangeable.
+    resolving_power_lp_mm_lowc: float = 0.0
+    resolving_power_lp_mm_highc: float = 0.0
+    #: The physical support. See `BaseSpec`; INERT.
+    base: BaseSpec = field(default_factory=BaseSpec)
 
     def validate(self) -> None:
         self.spectral.validate(self.name)
+        self.base.validate(self.name)
+        # -- schema v50 ------------------------------------------------------
+        _rp = (self.resolving_power_lp_mm_lowc,
+               self.resolving_power_lp_mm_highc)
+        if any(v < 0.0 for v in _rp):
+            raise ValueError(
+                f"{self.name}: resolving power cannot be negative")
+        if all(v > 0.0 for v in _rp) and _rp[0] >= _rp[1]:
+            raise ValueError(
+                f"{self.name}: resolving power at LOW test-object contrast "
+                f"({_rp[0]}) is not below the HIGH-contrast figure "
+                f"({_rp[1]}). A 1000:1 target always resolves finer than a "
+                "1.6:1 one; the two are stored the wrong way round")
         # -- schema v31 ------------------------------------------------------
         if self.density_geometry not in _DENSITY_GEOMETRIES:
             raise ValueError(
@@ -15174,6 +15804,31 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
             criterion="log_reciprocal_ergs_cm2_D1.0_above_gross_fog_D96_eff_exp_1.4s",
             source=("Eastman Kodak Company, «EASTMAN DOUBLE-X Negative Film 5222/7222 -- Technical Data», KODAK Publication No. H-1-5222, Revised 7-15 (header JULY 2015), (c) 2015, p3 'Spectral Sensitivity Curves'; PDF vector-path extraction 2026-08-26 by spectral_vector.extract_mono_sheet. Printed footnote in full: '*Sensitivity = reciprocal of exposure (ergs/cm2) required to produce specified density'. THE SPECIFIED DENSITY IS PRINTED HERE, twice: the panel draws TWO curves captioned 'D = 0.3 Above Gross Fog' and 'D = 1.0 Above Gross Fog', and the adopted set is the D 1.0 one, selected by matching that caption to the curve it sits above rather than by page order. Also printed inside the frame: 'Processing: KODAK Developer D-96 at 21 C (70 F) to recommended control gamma', 'Exposure: 1.4 sec', 'Densitometry: Diffuse Visual'. Traced extent 419-655 nm, 24 measured samples on the 380-680 nm grid, absolute peak log sensitivity 0.90 at 430 nm; the peak is thrown away by the schema's per-layer normalisation and survives only here. Axis from 11 wavelength ticks (worst residual 0.29 pt) and 5 sensitivity ticks (0.33 pt); the axis runs to -1.0 and Kodak draws that minus as an OVERBAR absent from the text layer, so the tick was signed by its position about the zero tick and the five-tick collinearity confirms it. ⚠ THIS REPLACES A READING OF THE SAME FIGURE from the sheet's OTHER EDITION: H-1-5222 revised 3-26 prints the identical plot as a raster and was read by hand on 2026-08-02. The two agree to rms 0.037 decades over the 23 mutually-measured samples and peak on the same 430 nm sample, so the numbers are confirmed rather than corrected; what changes is that they are now machine-derived with residuals on record"),
         ),
+        # -- schema v50 (2026-09-23), from the 1957 storage book -------------
+        base=BaseSpec(
+            base_type="cellulose triacetate",
+            antihalation=("neutral grey dye incorporated in the base, NOT "
+                          "removed in processing"),
+            specific_gravity=1.275,     # midpoint of the printed 1.26-1.29
+            lower_shrink=True,
+            packaged_equilibrium_rh_pct=60.0,
+            source=(
+                "«Storage and Preservation of Motion-Picture Film», Eastman "
+                "Kodak, 1957 -- the same four class statements that cover "
+                "EASTMAN_PLUS_X_5231 (p.5 grey dye in the base, p.6 "
+                "triacetate, p.45 footnote lower-shrink since June 1954, p.12 "
+                "packaged at approximately 60 % RH). "
+                "⚠ THIS STOCK IS TWO YEARS YOUNGER THAN THE BOOK -- 5222 was "
+                "introduced in 1959 and the statements are present-tense 1957 "
+                "-- so all four are CARRIED FORWARD by two years rather than "
+                "read off a page about this film. They are carried forward "
+                "because every one of them is stated about a CLASS (\"Eastman "
+                "black-and-white negative films\", \"Eastman motion-picture "
+                "negative and original camera films\", \"most Eastman "
+                "black-and-white motion-picture films\") that 5222 joined, "
+                "not about a product list it is missing from, and because the "
+                "June 1954 change predates the film entirely. The gap is "
+                "named here so a later reader can weigh it.")),
     ),
 
     # ------------------ Eastman Ektachrome EF news reversal ----------------
@@ -15193,10 +15848,49 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         kind=StockKind.REVERSAL,
         exposure_index=160,
         balance_kelvin=5500,
+        # ⚠ CURVES TRACED 2026-09-22 from H-1-5239 p3 'Sensitometric Curves',
+        # figure F002_0149AC, R/G/B named. Exposure daylight 1/100 s, process
+        # VNF-1, densitometry Status A. x is NEGATED log exposure, which is how
+        # film_sim renders a reversal stock, so toe_x governs the highlight.
+        # ⚠ THE SHEET CAPTIONS THIS PANEL 'Sensitometric Curves' WHERE EVERY
+        # STILL-FILM SHEET IN THE CORPUS SAYS 'Characteristic Curves' -- one
+        # word is the whole reason this panel went untraced for months.
+        # ⚠ BASE DENSITY IS A BOUND, NOT A READING. All three channels sit at
+        # the lower edge of the prior window around the drawn minimum 0.170:
+        # the fit wants an asymptote below the lowest density Kodak drew, and
+        # it is held back because a slide cannot be lighter than its own
+        # D-min. Residuals 0.0218 / 0.0078 / 0.0199 D.
+        #
+        # ⚠⚠ shoulder_k IS TIED TO toe_k, AND THE FIRST ATTEMPT WITHOUT THAT
+        # TIE PRODUCED THE EXACT PATHOLOGY `G-GAMMA` ALREADY WITNESSES. Six
+        # free parameters from a generic start converged to gamma
+        # 4.52 / 15.40 / 5.85 -- and 15.40 is within 0.03 of
+        # KODAK_EKTACHROME_100D_5285's pinned 15.43, the number verify.py
+        # calls "not a characteristic curve". It is a LOCAL MINIMUM, not a
+        # film: with the toe and shoulder overlapping, gamma stops being the
+        # drawn slope and the optimiser is free to run it anywhere. Tying
+        # shoulder_k to toe_k -- the only setting under which ToneCurve is
+        # monotone everywhere -- removes the corner, and the adopted curves
+        # realise a maximum slope of 1.87 / 1.95 / 1.96 against a DRAWN
+        # 1.99 / 1.95 / 1.99, with Dmax 3.15 / 3.24 / 3.26 against a drawn
+        # 3.10 / 3.24 / 3.22.
+        #
+        # ⚠ AND THAT IS A LEAD ON G-GAMMA, NOT ACTED ON HERE. 5285's 15.43
+        # was very probably the same local minimum; re-fitting it with the
+        # tie is a separate job with its own verification, and this note
+        # exists so the lead is not lost.
+        #
+        # ⚠ WHAT THE ANALOGY GOT WRONG, MEASURED: over the sheet's own
+        # exposure window the old curve never lightened -- D-min 1.33 / 1.39 /
+        # 1.49 where the film draws 0.170 -- and its maximum slope was 1.40
+        # against a drawn 1.95. A slide with no highlights.
         curves=RGBCurves(
-            r=_rev(0.19, 1.45, toe_x=-0.86, shoulder_x=1.04),
-            g=_rev(0.20, 1.48, toe_x=-0.88, shoulder_x=1.02),
-            b=_rev(0.23, 1.50, toe_x=-0.92, shoulder_x=0.98),
+            r=_rev(0.1500, 4.1605, toe_x=1.3562, toe_k=0.4227,
+                   shoulder_x=2.1724, shoulder_k=0.4227),
+            g=_rev(0.1500, 3.5927, toe_x=1.2845, toe_k=0.3974,
+                   shoulder_x=2.2505, shoulder_k=0.3974),
+            b=_rev(0.1500, 3.6046, toe_x=1.2466, toe_k=0.3945,
+                   shoulder_x=2.2059, shoulder_k=0.3945),
         ),
         # rms 14.0 [C1, 2026-08-13]: Kodak H-1-5239 prints "Diffuse RMS
         # Granularity 14" read at net diffuse visual density 1.0 through a
@@ -15228,10 +15922,18 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         kind=StockKind.REVERSAL,
         exposure_index=160,
         balance_kelvin=5500,
+        # ⚠ CURVES TRACED 2026-09-22 from H-1-5239 p3 'Sensitometric Curves',
+        # figure F002_0149AC, R/G/B named. Exposure daylight 1/100 s, process
+        # VNF-1, densitometry Status A. x is NEGATED log exposure, which is
+        # how film_sim renders a reversal stock. Base density pinned to the
+        # drawn minimum 0.170 -- see the 5239 note above, same panel.
         curves=RGBCurves(
-            r=_rev(0.19, 1.45, toe_x=-0.86, shoulder_x=1.04),
-            g=_rev(0.20, 1.48, toe_x=-0.88, shoulder_x=1.02),
-            b=_rev(0.23, 1.50, toe_x=-0.92, shoulder_x=0.98),
+            r=_rev(0.1500, 4.1605, toe_x=1.3562, toe_k=0.4227,
+                   shoulder_x=2.1724, shoulder_k=0.4227),
+            g=_rev(0.1500, 3.5927, toe_x=1.2845, toe_k=0.3974,
+                   shoulder_x=2.2505, shoulder_k=0.3974),
+            b=_rev(0.1500, 3.6046, toe_x=1.2466, toe_k=0.3945,
+                   shoulder_x=2.2059, shoulder_k=0.3945),
         ),
         # rms 14.0 [C1, 2026-08-13]: Kodak H-1-5239 prints "Diffuse RMS
         # Granularity 14" read at net diffuse visual density 1.0 through a
@@ -15638,6 +16340,46 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
             source=("Eastman Kodak Company, 'EASTMAN PLUS-X Negative Film "
                     "5231/7231', Technical Data H-1-5231, February 1999"),
         ),
+        # -- schema v50 (2026-09-23), from the 1957 storage book -------------
+        base=BaseSpec(
+            base_type="cellulose triacetate",
+            antihalation=("neutral grey dye incorporated in the base, NOT "
+                          "removed in processing"),
+            specific_gravity=1.275,     # midpoint of the printed 1.26-1.29
+            lower_shrink=True,
+            packaged_equilibrium_rh_pct=60.0,
+            source=(
+                "«Storage and Preservation of Motion-Picture Film», Eastman "
+                "Kodak, 1957, four statements, each naming the class this "
+                "stock belongs to. "
+                "p.5: \"Eastman black-and-white negative films and some "
+                "sound recording films are provided with antihalation "
+                "protection by the incorporation of a small amount of a "
+                "NEUTRAL GRAY DYE IN THE BASE which is not removed in "
+                "processing\" -- corroborated twice, by Table I footnote (6) "
+                "explaining these films' dimmer ultraviolet edge fluorescence "
+                "\"because of antihalation dye in base\", and by p.9's "
+                "\"Black-and-white negative films on GRAY triacetate base\". "
+                "p.6: \"virtually all Eastman 35mm motion-picture films… are "
+                "now made on triacetate support\". "
+                "p.45 footnote: \"Eastman motion-picture negative and "
+                "original camera films have been made on LOWER-SHRINK BASE "
+                "SINCE JUNE 1954 so that [sealing cans to retard shrinkage] "
+                "is no longer necessary\" -- a camera negative of the 1950s "
+                "to 2000s is inside that scope on both the product type and "
+                "the date. ⚠ The book gives NO NUMBER for how much lower; "
+                "there is no other mention of 1954 in 82 pages. "
+                "p.12: \"Most Eastman black-and-white motion-picture films "
+                "are in equilibrium with air at approximately 60 % relative "
+                "humidity when packaged at the factory\". "
+                "⚠ specific_gravity 1.275 is the midpoint of the 1.26-1.29 "
+                "the float-test table on p.67 prints for cellulose acetate "
+                "(high acetyl), which p.6 defines as triacetate. A MATERIAL "
+                "property. ⚠ NO THICKNESS: the book's 0.0055 in support and "
+                "0.006 in complete film are one figure for ALL acetate "
+                "motion-picture film, so they stay in "
+                "`_ACETATE_MP_BASE_UM_1957` as class values rather than "
+                "becoming 193 apparent measurements.")),
     ),
     # -----------------------------------------------------------------------
     # ADDED 2026-08-24, queue item C26, owner-approved. TWO 1963 BBC-MEASURED
@@ -15725,9 +16467,35 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.09, adjacency_um=16.0),
         # ⚠ ESTIMATE [T3]: panchromatic, so the still film's weights are used.
         spectral_weights=(0.26, 0.54, 0.20),
-        exposure_index_tungsten=250,
+        # ⚠ `exposure_index_tungsten=250` DELETED HERE 2026-09-23. The value is
+        # right and it already ships -- from `_EXPOSURE_INDEX_TUNGSTEN`, which
+        # is the ONLY source `_apply_schema_v2` reads for this field. The
+        # literal had been inert since the field existed and the value was
+        # re-honoured in that dict on 2026-09-06c; leaving the dead copy here
+        # only invites a future editor to "fix" the live entry by editing this
+        # one. See `_refuse_dead_literals`, which now makes it impossible.
         default_format="ff35",
         features=Feature.NONE,
+        # -- schema v50 (2026-09-23), from the 1957 storage book -------------
+        base=BaseSpec(
+            base_type="cellulose triacetate",
+            antihalation=("neutral grey dye incorporated in the base, NOT "
+                          "removed in processing"),
+            specific_gravity=1.275,     # midpoint of the printed 1.26-1.29
+            lower_shrink=True,
+            packaged_equilibrium_rh_pct=60.0,
+            source=(
+                "«Storage and Preservation of Motion-Picture Film», Eastman "
+                "Kodak, 1957 -- the same four class statements that cover "
+                "EASTMAN_PLUS_X_5231, and this stock is inside the same class "
+                "on all four: an Eastman black-and-white motion-picture "
+                "camera negative of the 1950s-1960s. p.5 the grey dye "
+                "incorporated in the base and not removed in processing; p.6 "
+                "triacetate support; p.45 footnote the lower-shrink base "
+                "since June 1954, whose scope is \"Eastman motion-picture "
+                "negative and original camera films\"; p.12 packaging at "
+                "approximately 60 % relative humidity. specific_gravity is "
+                "the p.67 float-test midpoint for the material.")),
     ),
     FilmProfile(
         name="KODAK_8374",
@@ -15788,13 +16556,30 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
     ),
     FilmProfile(
         name="EASTMAN_SUPER_XX_1938",
-        aliases=("super xx", "superxx", "super-xx", "1201", "1938"),
+        # ⚠⚠ "1201" REMOVED AND "1232" PUT IN ITS PLACE ON 2026-09-22d, AND
+        # THE CORRECTION IS A DIRECT READING OF THE MANUFACTURER'S OWN PAGE.
+        # «Eastman Motion Picture Films for Professional Use» (Kodak, 1942),
+        # PDF page 50 / printed page 45, is headed in as many words:
+        # "Specifications -- EASTMAN SUPER-XX PANCHROMATIC NEGATIVE FILM,
+        # Type 1232". The alias 1201 had been in this record since it was
+        # written and NO DOCUMENT IN THIS CORPUS SUPPORTS IT. An alias is a
+        # lookup key, so a wrong one is not cosmetic: it answers to a name the
+        # film never had, and it would silently shadow the real 1201 if that
+        # stock were ever added.
+        aliases=("super xx", "superxx", "super-xx", "1232", "1938"),
         description=(
             "The fast panchromatic negative that made 1940s Hollywood look the "
             "way it does -- deep-focus photography and film noir were shot on "
             "this. Fast for its day, so coarse and clustered grain, soft by "
             "modern standards, with a long straight line that holds shadow "
-            "detail far better than its contemporaries."
+            "detail far better than its contemporaries. "
+            "⚠ 2026-09-22d, from «Eastman Motion Picture Films for "
+            "Professional Use» (Kodak, 1942), printed page 45: the film is "
+            "TYPE 1232, its speeds are Kodak Film Speed 400 sunlight / 250 "
+            "tungsten with Weston 100 / 64 and G.E. 160 / 100, its "
+            "recommended IIb control gamma is 0.60 to 0.70, and its resolving "
+            "power of 55 lines/mm is measured IN KODAK SD-21 -- the developer "
+            "the whole specification is written against."
         ),
         era="1938-1950s",
         is_monochrome=True,
@@ -15881,6 +16666,81 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         spectral_weights=(0.24, 0.46, 0.30),
         misregistration_um=0.0,
         default_flare=0.10,
+        # ⚠⚠ THE FIRST TIME-GAMMA FAMILY THIS STOCK HAS EVER CARRIED, 2026-09-23,
+        # AND IT IS READ OFF THE MANUFACTURER'S OWN INSET RATHER THAN INFERRED.
+        # «Eastman Motion Picture Films for Professional Use» (Kodak, 1942),
+        # printed page 45 / PDF page 49, carries a characteristic-curve panel
+        # with a TIME-GAMMA INSET on a ruled grid, and the four members of the
+        # family are labelled by development time. Read off a native-resolution
+        # render of the 560 dpi scan: 7 min -> 0.46, 9 -> 0.54, 12 -> 0.65,
+        # 18 -> 0.87, all in Kodak SD-21 at 65 degF (18.3 degC).
+        #
+        # ⚠ AND THE FAMILY CORROBORATES THE SENTENCE THE PROFILE ALREADY HELD.
+        # `processing.contrast_index` is 0.65 because the same page says in
+        # words "For development in Kodak SD-21 to a gamma of 0.65", and the
+        # inset independently puts gamma 0.65 at 12 minutes. The prose and the
+        # plot were transcribed by different passes from different parts of the
+        # page and they agree exactly -- so the aim is now not just quoted but
+        # located on the development axis, which is what makes it usable.
+        #
+        # ⚠ 65 degF IS THE BOOKLET'S SENSITOMETRIC TEMPERATURE, NOT A PROCESS
+        # RECOMMENDATION, and the distinction is the booklet's own: printed
+        # page 17 states "Times of development cannot be specified because of
+        # the dissimilarity of various types of continuous processing
+        # machines". These four points are laboratory-sensitometer times. A
+        # renderer that reads them as lab practice is reading them correctly;
+        # one that reads them as what a 1942 Hollywood lab actually ran is not.
+        #
+        # ⚠⚠ `edition` IS DELIBERATELY NOT SET, THOUGH THE POINTS ARE PLAINLY
+        # A 1942 GENERATION. `verify.py` requires that a generation-tagged
+        # development point ALSO state the exposure index of the generation it
+        # measured -- the tag is only worth having if it is never ambiguous --
+        # and this booklet cannot supply one. Its speeds are KODAK FILM SPEED,
+        # Weston and G. E.; it prints no ASA, no DIN and no conversion to any
+        # of them, and says so (see `kodak_1942_eastman.SPEED_SCALES`). Tagging
+        # these points "1942" while leaving the index blank would assert a
+        # generation the reader cannot price, and filling the index from the
+        # profile's own EI 100 would assert that a Kodak Film Speed IS an ASA
+        # number, which the booklet explicitly declines to claim. The tag is
+        # withheld and the reason recorded, which is the same choice the
+        # Soviet «не менее» ceilings got.
+        #
+        # ⚠ THE COMPARISON PANEL ON PRINTED PAGE 40 PUTS THIS STOCK IN CONTEXT
+        # and is deliberately NOT merged in: it draws 1232, 1231, 1230 and 1213
+        # on one set of axes at gamma .65/.65/.65/.75, which is four films at a
+        # common aim rather than one film at four times. Same document, a
+        # different measurement, and averaging the two would destroy both.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="Kodak SD-21", minutes=7.0,
+                                 celsius=18.3, gamma=0.46,
+                                 film_format="35mm"),
+                DevelopmentPoint(developer="Kodak SD-21", minutes=9.0,
+                                 celsius=18.3, gamma=0.54,
+                                 film_format="35mm"),
+                DevelopmentPoint(developer="Kodak SD-21", minutes=12.0,
+                                 celsius=18.3, gamma=0.65,
+                                 film_format="35mm"),
+                DevelopmentPoint(developer="Kodak SD-21", minutes=18.0,
+                                 celsius=18.3, gamma=0.87,
+                                 film_format="35mm"),
+            ),
+            reference_developer="Kodak SD-21",
+            source=(
+                "«Eastman Motion Picture Films for Professional Use», Eastman "
+                "Kodak Company, (c) 1942, printed page 45 / PDF page 49 -- the "
+                "time-gamma inset of the Type 1232 characteristic-curve panel, "
+                "read 2026-09-23 off a native-resolution render of the 560 dpi "
+                "scan (the file has no text layer on any of its 98 pages). "
+                "Sensitometer exposure to sunlight, Type IIb, developed in "
+                "Kodak SD-21 at 65 degF. ⚠ THE SAME PAGE'S PROSE INDEPENDENTLY "
+                "GIVES THE 0.65 AIM and a 0.60-0.70 control band, and the "
+                "inset puts 0.65 at 12 minutes -- two transcriptions from two "
+                "parts of one page that agree. ⚠ THE BOOKLET REFUSES TO CALL "
+                "THESE PROCESS TIMES: printed page 17, «Times of development "
+                "cannot be specified because of the dissimilarity of various "
+                "types of continuous processing machines»."),
+        ),
         features=Feature.HALATION | Feature.NITRATE_BASE,
     ),
 
@@ -20101,6 +20961,35 @@ mtf=MTFSpec(89.6, 100.0, 108.3, adjacency=0.14, adjacency_um=13.0),
             source=("Eastman Kodak Company, 'KODACHROME 25, 64, and 200 "
                     "Professional Films', publication E-55, December 1996"),
         ),
+        # -- schema v50 (2026-09-23), from the 1957 storage book -------------
+        base=BaseSpec(
+            base_type="cellulose acetate propionate",
+            antihalation=("jet backing on the reverse of the base, removed in "
+                          "processing"),
+            specific_gravity=1.26,      # midpoint of the printed 1.25-1.27
+            source=(
+                "«Storage and Preservation of Motion-Picture Film», Eastman "
+                "Kodak, 1957, p.6: \"Although virtually all Eastman 35mm "
+                "motion-picture films, as well as 16mm black-and-white "
+                "motion-picture films, are now made on triacetate support, "
+                "KODACHROME FILM IS CURRENTLY MADE ON CELLULOSE ACETATE "
+                "PROPIONATE SUPPORT.\" One product line singled out from the "
+                "whole Eastman range for a different base. "
+                "⚠ THE STATEMENT IS PRESENT-TENSE 1957 AND THIS COATING IS "
+                "1974-2009, so it is CARRIED FORWARD across seventeen years "
+                "rather than measured on this emulsion. It is carried forward "
+                "and not withheld because the sentence is about the product "
+                "LINE, which ran continuously, and because p.40 corroborates "
+                "the material independently -- acetate propionate is singled "
+                "out there as the base that curls when exposed to methyl "
+                "chloroform. A reader who needs the 1938 coatings' base will "
+                "not find it here: those two profiles leave it empty, and the "
+                "same page's chronology is why. "
+                "specific_gravity 1.26 is the midpoint of the 1.25-1.27 the "
+                "float-test table on p.67 prints for this material -- a "
+                "MATERIAL property, not a measurement on this film. "
+                "⚠ AND NOT NITRATE: p.6, \"Kodachrome and Eastman Color "
+                "Films were never made on nitrate base.\"")),
     ),
     FilmProfile(
         name="KODAK_EKTACHROME_100D_5285",
@@ -22198,6 +23087,28 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # illuminant, or a printed Svema/GOST figure for image tone.
         silver_tone=0.0,
         features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
+        # -- schema v50 (2026-09-22d): storage, from the export packaging ТУ --
+        base=BaseSpec(
+            raw_storage_max_f=71.6,          # (14-22) C as printed
+            raw_storage_max_rh_pct=70.0,     # (50-70) % as printed
+            guaranteed_shelf_life_months=24,
+            source=(
+                "⚠ THE STORAGE NUMBERS COME FROM A DIFFERENT SHEET AND THAT IS DELIBERATE. ТУ 6-17-1371-86, «Пленки фотографические 35-мм перфорированные в рулонах», is the export packaging specification that covers Фото-65, ДС-4 and ЦНЛ-65 together, and it is the ONLY Soviet document in this corpus that prints storage conditions as numbers instead of delegating them to ГОСТ 26569-85. Clause 4.2 (sheet 6): «Упакованная фотопленка должна храниться у потребителя в вентилируемом складском помещении с относительной влажностью воздуха (50-70) % при температуре (14-22) °C на стеллажах», not less than 1 m from heating and 0,1 m from the floor, shielded from direct sun, in a room free of hydrogen sulphide, ammonia and mercury vapour, and never stored with radioactive substances or permanently luminous paints. 22 °C = 71.6 °F. "
+                "Clause 5.2 (sheet 6): «Гарантийный срок хранения для "
+                "фотопленки Фото-65 устанавливается два года, для фотопленок "
+                "ДС-4 и ЦНЛ-65 — 12 месяцев с месяца выпуска». "
+                "⚠ TWENTY-FOUR MONTHS AGAINST TWELVE FOR THE TWO COLOUR "
+                "FILMS ON THE SAME SHEET, AND FOUR TIMES ЛН-8's SIX. The "
+                "spread is not incidental: a black-and-white emulsion has no "
+                "colour couplers to drift, and that is exactly the ordering "
+                "the three guarantee periods on one page produce. This is the "
+                "only published bound in the corpus on how old a roll of a "
+                "given Soviet stock could have been when it was shot. "
+                "⚠ NO BASE AND NO THICKNESS: clause 1.2.1 delegates every "
+                "characteristic of Фото-65 to ГОСТ 24876-81 and this ТУ "
+                "states none of its own. Its roll form is 35 mm perforated, "
+                "(300 ± 15) м, with up to 15 % of a batch permitted at not "
+                "less than 200 м (clause 1.1.2).")),
     ),
     # ------------------------------- USSR ----------------------------------
     FilmProfile(
@@ -25148,6 +26059,23 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         misregistration_um=9.0,
         default_format="ff35",
         features=Feature.UNEVEN_EMULSION,
+        # -- schema v50 (2026-09-22d): storage, from the export packaging ТУ --
+        base=BaseSpec(
+            raw_storage_max_f=71.6,          # (14-22) C as printed
+            raw_storage_max_rh_pct=70.0,     # (50-70) % as printed
+            guaranteed_shelf_life_months=12,
+            source=(
+                "⚠ THE STORAGE NUMBERS COME FROM A DIFFERENT SHEET AND THAT IS DELIBERATE. ТУ 6-17-1371-86, «Пленки фотографические 35-мм перфорированные в рулонах», is the export packaging specification that covers Фото-65, ДС-4 and ЦНЛ-65 together, and it is the ONLY Soviet document in this corpus that prints storage conditions as numbers instead of delegating them to ГОСТ 26569-85. Clause 4.2 (sheet 6): «Упакованная фотопленка должна храниться у потребителя в вентилируемом складском помещении с относительной влажностью воздуха (50-70) % при температуре (14-22) °C на стеллажах», not less than 1 m from heating and 0,1 m from the floor, shielded from direct sun, in a room free of hydrogen sulphide, ammonia and mercury vapour, and never stored with radioactive substances or permanently luminous paints. 22 °C = 71.6 °F. "
+                "Clause 5.2 (sheet 6): «Гарантийный срок хранения для "
+                "фотопленки Фото-65 устанавливается два года, для фотопленок "
+                "ДС-4 и ЦНЛ-65 — 12 месяцев с месяца выпуска». "
+                "⚠ THE SAME SHEET'S MARKS TABLE (sheet 2) IS THE CORPUS'S ONE "
+                "WRITTEN-OUT STATEMENT OF THE ДС DESIGNATION: ДС-4 is «Цветная "
+                "негативная фотопленка... предназначена для съемок ПРИ "
+                "ДНЕВНОМ ОСВЕЩЕНИИ», against ЦНЛ-65 «при освещении объектов "
+                "лампами накаливания». ⚠ NO BASE AND NO THICKNESS: clause "
+                "1.2.3 delegates every characteristic of ДС-4 to "
+                "ТУ 6-17-622-84 and states none of its own.")),
     ),
     FilmProfile(
         name="SVEMA_CNL_32",
@@ -25347,6 +26275,23 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             source="ТУ 6-17-691-88 table 2 item 6 (sheet 3)",
         ),
         features=Feature.UNEVEN_EMULSION,
+        # -- schema v50 (2026-09-22d): the support, from the stock's own ТУ ---
+        base=BaseSpec(
+            base_type="cellulose triacetate",
+            total_film_um=150.0,            # 0.150 mm as printed
+            guaranteed_shelf_life_months=6,
+            source=(
+                "ТУ 6-17-691-88 clause 1.2.2 (sheet 2): «Кинопленка должна "
+                "изготовляться на триацетатцеллюлозной основе марки ОТБ-14 по "
+                "ОСТ 6-17-451-83». Clause 1.1.2 gives the TOTAL film "
+                "thickness as (0,150 +0,030) мм -- upper deviation only, and "
+                "the coated film rather than the support, exactly as on the "
+                "ЛН-8 sheet. ⚠ NO ANTIHALATION LAYER IS DESCRIBED; a yellow "
+                "filter layer is implied by table 2 item 10 «эффективность "
+                "фильтрового слоя >= 0,8». "
+                "Clause 6.2 (sheet 17): «Гарантийный срок хранения "
+                "устанавливается 6 месяцев с месяца выпуска кинопленки». "
+                "Storage delegated to ГОСТ 26569-85.")),
     ),
     FilmProfile(
         name="SVEMA_LN_8",
@@ -25367,7 +26312,39 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         ),
         era="1988-1991",
         exposure_index=100,
-        balance_kelvin=5500,
+        # ⚠⚠ 5500 -> 3200 ON 2026-09-22d, AND THIS IS A CORRECTION OF A
+        # RENDERED PROPERTY, NOT A LABEL. `balance_kelvin` feeds
+        # `balance_gains` on the render path: a tungsten stock declared
+        # daylight renders every tungsten-lit frame with the wrong white
+        # balance, which is a visible colour cast and not a bookkeeping
+        # detail.
+        #
+        # FOUR INDEPENDENT REASONS, THREE OF THEM IN DOCUMENTS THIS CORPUS
+        # NOW HOLDS:
+        #   1. THIS STOCK'S OWN SPECIFICATION. ТУ 6-17-1109-88 clause 3.5.2 item 1:
+        #      «экспонирование сенситограмм проводят источником света с
+        #      цветовой температурой 3200 К» -- the sensitometric illuminant
+        #      a film's speed and gradient are DEFINED against is the
+        #      illuminant it is balanced for.
+        #   2. THE SIBLING SPECIFICATION PROVES THE DISTINCTION IS
+        #      DELIBERATE. ТУ 6-17-691-88 for ДС-5М -- same publisher, same
+        #      year, same clause number 3.5.2 item 1 -- prints «цветовой
+        #      температурой 5500 К». Two clauses with the same number in two
+        #      sheets of one family carry two different temperatures, so
+        #      3200 here is a choice and not a default.
+        #   3. THE NAMING CONVENTION IS WRITTEN OUT IN A FOURTH DOCUMENT.
+        #      ТУ 6-17-1371-86 sheet 2 describes ЦНЛ-65 as intended for
+        #      shooting «при освещении объектов лампами накаливания» --
+        #      incandescent lamps -- and ДС-4 «при дневном освещении».
+        #      Л = лампы накаливания = tungsten; ДС = дневной свет =
+        #      daylight. That is the only place in the Soviet corpus where
+        #      the abbreviation is expanded in words.
+        #   4. THE DATABASE ALREADY KNEW. `SVEMA_LN_3` -- the same maker's
+        #      earlier Л stock -- has carried 3300 K since it was added.
+        #      Three of the four Л profiles said daylight and one said
+        #      tungsten, which is the shape of an error rather than of a
+        #      product range.
+        balance_kelvin=3200,
         # [T1] TU 6-17-1109-88 table 2 items 3 and 4, read visually from the
         # page image (the OCR of this typewritten scan detaches values from
         # their row labels). Mean gradient per filter: blue 0.60, green 0.54,
@@ -25441,6 +26418,29 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             source="ТУ 6-17-1109-88 table 2 item 6 (sheet 3)",
         ),
         features=Feature.UNEVEN_EMULSION,
+        # -- schema v50 (2026-09-22d): the support, from the stock's own ТУ ---
+        base=BaseSpec(
+            base_type="cellulose triacetate",
+            total_film_um=150.0,            # 0.150 mm as printed
+            guaranteed_shelf_life_months=6,
+            source=(
+                "ТУ 6-17-1109-88 clause 1.2.2 (sheet 3): «Кинопленка должна "
+                "изготовляться на триацетатцеллюлозной основе марки ОТБ-14 по "
+                "ОСТ 6-17-451-83» -- cellulose triacetate, base grade ОТБ-14. "
+                "Clause 1.1.2 (sheet 2) gives the TOTAL film thickness as "
+                "(0,150 +0,030) мм; ⚠ ONLY THE UPPER DEVIATION IS PRINTED, "
+                "there is no lower one on the page, and the figure is the "
+                "COATED FILM, not the support -- the ТУ never states the base "
+                "alone, which is why `thickness_in` stays 0. "
+                "⚠ NO ANTIHALATION LAYER IS DESCRIBED in this ТУ, unlike its "
+                "ЛН-9 sibling; a YELLOW FILTER layer is implied by table 2 "
+                "item 7 «эффективность фильтрового слоя >= 1,0» but that is a "
+                "different layer and is not recorded here. "
+                "Clause 6.2 (sheet 17): «Гарантийный срок хранения "
+                "устанавливается 6 месяцев с месяца выпуска» -- SIX MONTHS, "
+                "the shortest in the Soviet corpus. Storage itself is "
+                "delegated to ГОСТ 26569-85 and no temperature or humidity "
+                "number appears in this ТУ, so both storage fields stay 0.")),
     ),
     FilmProfile(
         name="SVEMA_LN_9",
@@ -25460,7 +26460,39 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         ),
         era="1988-1991",
         exposure_index=100,
-        balance_kelvin=5500,
+        # ⚠⚠ 5500 -> 3200 ON 2026-09-22d, AND THIS IS A CORRECTION OF A
+        # RENDERED PROPERTY, NOT A LABEL. `balance_kelvin` feeds
+        # `balance_gains` on the render path: a tungsten stock declared
+        # daylight renders every tungsten-lit frame with the wrong white
+        # balance, which is a visible colour cast and not a bookkeeping
+        # detail.
+        #
+        # FOUR INDEPENDENT REASONS, THREE OF THEM IN DOCUMENTS THIS CORPUS
+        # NOW HOLDS:
+        #   1. THIS STOCK'S OWN SPECIFICATION. ТУ 6-17-1443-88 clause 3.5.2 item 1:
+        #      «экспонирование сенситограмм проводят источником света с
+        #      цветовой температурой 3200 К» -- the sensitometric illuminant
+        #      a film's speed and gradient are DEFINED against is the
+        #      illuminant it is balanced for.
+        #   2. THE SIBLING SPECIFICATION PROVES THE DISTINCTION IS
+        #      DELIBERATE. ТУ 6-17-691-88 for ДС-5М -- same publisher, same
+        #      year, same clause number 3.5.2 item 1 -- prints «цветовой
+        #      температурой 5500 К». Two clauses with the same number in two
+        #      sheets of one family carry two different temperatures, so
+        #      3200 here is a choice and not a default.
+        #   3. THE NAMING CONVENTION IS WRITTEN OUT IN A FOURTH DOCUMENT.
+        #      ТУ 6-17-1371-86 sheet 2 describes ЦНЛ-65 as intended for
+        #      shooting «при освещении объектов лампами накаливания» --
+        #      incandescent lamps -- and ДС-4 «при дневном освещении».
+        #      Л = лампы накаливания = tungsten; ДС = дневной свет =
+        #      daylight. That is the only place in the Soviet corpus where
+        #      the abbreviation is expanded in words.
+        #   4. THE DATABASE ALREADY KNEW. `SVEMA_LN_3` -- the same maker's
+        #      earlier Л stock -- has carried 3300 K since it was added.
+        #      Three of the four Л profiles said daylight and one said
+        #      tungsten, which is the shape of an error rather than of a
+        #      product range.
+        balance_kelvin=3200,
         # [T1] TU 6-17-1443-88 table 2, read visually. Items 1-3 are shared by
         # both marks: S >= 100, balance <= 1.5, mean gradient blue 0.60 /
         # green 0.54 / red 0.50 (+0.06/-0.04). Item 4 differs BY MARK and is
@@ -25518,6 +26550,30 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             source="ТУ 6-17-1443-88 table 2 item 9 (sheet 4)",
         ),
         features=Feature.UNEVEN_EMULSION,
+        # -- schema v50 (2026-09-22d): the support, from the stock's own ТУ ---
+        base=BaseSpec(
+            base_type="cellulose triacetate",
+            antihalation=("colloidal-silver subbing layer between base and "
+                          "emulsion, removed during processing"),
+            guaranteed_shelf_life_months=9,
+            source=(
+                "ТУ 6-17-1443-88 clause 1.2.2 (sheet 3): «Кинопленка должна "
+                "изготовляться на триацетатцеллюлозной основе марки ОТБ-14 по "
+                "ОСТ 6-17-451-83. На основу, предназначенную для изготовления "
+                "кинопленки ЛН-9 должен быть нанесен противоореольный "
+                "грунтовый коллоидосеребряный слой... Противоореольные слои "
+                "удаляются в процессе химико-фотографической обработки». "
+                "⚠⚠ THIS IS THE ONE PLACE IN THE SOVIET CORPUS WHERE TWO "
+                "MARKS OF ONE EMULSION DIFFER ONLY IN THEIR ANTIHALATION "
+                "CONSTRUCTION, and the ТУ says so in its scope: ЛН-9 carries "
+                "the colloidal-silver subbing, ЛН-9С a soot lacquer BACKING. "
+                "The С suffix is «сажевый», soot -- NOT a colour balance. "
+                "⚠ NO THICKNESS: clause 1.1.2 delegates width and thickness "
+                "to ГОСТ 20904-82 / 4896-80 / 11272-78 rather than printing a "
+                "figure, unlike the ЛН-8 and ДС-5М sheets. "
+                "Clause 6.3 (sheet 18): «Гарантийный срок хранения "
+                "устанавливается 9 месяцев с месяца выпуска кинопленки». "
+                "Storage delegated to ГОСТ 26569-85, no numbers in this ТУ.")),
     ),
     FilmProfile(
         name="SVEMA_LN_9S",
@@ -25538,7 +26594,39 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         ),
         era="1988-1991",
         exposure_index=100,
-        balance_kelvin=5500,
+        # ⚠⚠ 5500 -> 3200 ON 2026-09-22d, AND THIS IS A CORRECTION OF A
+        # RENDERED PROPERTY, NOT A LABEL. `balance_kelvin` feeds
+        # `balance_gains` on the render path: a tungsten stock declared
+        # daylight renders every tungsten-lit frame with the wrong white
+        # balance, which is a visible colour cast and not a bookkeeping
+        # detail.
+        #
+        # FOUR INDEPENDENT REASONS, THREE OF THEM IN DOCUMENTS THIS CORPUS
+        # NOW HOLDS:
+        #   1. THIS STOCK'S OWN SPECIFICATION. ТУ 6-17-1443-88 clause 3.5.2 item 1:
+        #      «экспонирование сенситограмм проводят источником света с
+        #      цветовой температурой 3200 К» -- the sensitometric illuminant
+        #      a film's speed and gradient are DEFINED against is the
+        #      illuminant it is balanced for.
+        #   2. THE SIBLING SPECIFICATION PROVES THE DISTINCTION IS
+        #      DELIBERATE. ТУ 6-17-691-88 for ДС-5М -- same publisher, same
+        #      year, same clause number 3.5.2 item 1 -- prints «цветовой
+        #      температурой 5500 К». Two clauses with the same number in two
+        #      sheets of one family carry two different temperatures, so
+        #      3200 here is a choice and not a default.
+        #   3. THE NAMING CONVENTION IS WRITTEN OUT IN A FOURTH DOCUMENT.
+        #      ТУ 6-17-1371-86 sheet 2 describes ЦНЛ-65 as intended for
+        #      shooting «при освещении объектов лампами накаливания» --
+        #      incandescent lamps -- and ДС-4 «при дневном освещении».
+        #      Л = лампы накаливания = tungsten; ДС = дневной свет =
+        #      daylight. That is the only place in the Soviet corpus where
+        #      the abbreviation is expanded in words.
+        #   4. THE DATABASE ALREADY KNEW. `SVEMA_LN_3` -- the same maker's
+        #      earlier Л stock -- has carried 3300 K since it was added.
+        #      Three of the four Л profiles said daylight and one said
+        #      tungsten, which is the shape of an error rather than of a
+        #      product range.
+        balance_kelvin=3200,
         # [T1] Same TU, same table, the OTHER mark column: Dmin ceilings blue
         # 1.00, green 0.55, red 0.25 (item 4). Everything else identical to
         # LN-9 by the document's own layout -- items 1-3 and 5-10 are printed
@@ -25594,6 +26682,33 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             source="ТУ 6-17-1443-88 table 2 item 9 (sheet 4)",
         ),
         features=Feature.UNEVEN_EMULSION,
+        # -- schema v50 (2026-09-22d): the support, from the stock's own ТУ ---
+        base=BaseSpec(
+            base_type="cellulose triacetate",
+            antihalation=("soot (carbon-black) lacquer counter-layer on the "
+                          "rear of the base, washed off in a dedicated bath "
+                          "during processing"),
+            guaranteed_shelf_life_months=9,
+            source=(
+                "ТУ 6-17-1443-88 clause 1.2.2 (sheet 3): «...На основу, "
+                "предназначенную для изготовления кинопленки ЛН-9С должен "
+                "быть нанесен лаковый сажевый контрслой. Противоореольные "
+                "слои удаляются в процессе химико-фотографической обработки». "
+                "Base grade ОТБ-14 по ОСТ 6-17-451-83, the same support as "
+                "ЛН-9. "
+                "⚠ THE BACKING IS A PROCESSING STEP, NOT JUST A COATING: "
+                "table 4 (sheet 13) inserts an operation the ЛН-9 column does "
+                "not have -- «Промывание с удалением сажевого контрслоя (для "
+                "кинопленки ЛН-9С)», 0,5-1 мин at 11 ± 3 °C in a separate "
+                "bath with a special roller. That is what tells a rem-jet-"
+                "style backing from ЛН-9's in-base colloidal silver. "
+                "⚠ THE TWO MARKS' Dmin LIMITS DIFFER ACCORDINGLY and in the "
+                "expected direction: ЛН-9С is allowed LESS minimum density on "
+                "all three filters (1,00 / 0,55 / 0,25 against 1,10 / 0,60 / "
+                "0,30), which is what a backing that is removed rather than "
+                "bleached in situ buys. "
+                "Clause 6.3 (sheet 18): shelf life 9 months from the month of "
+                "manufacture. Storage delegated to ГОСТ 26569-85.")),
     ),
     FilmProfile(
         name="SVEMA_CO_32D",
@@ -25667,10 +26782,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                         anisotropy=1.04,
                         sigma_shape_toe=0.70, sigma_shape_mid=1.0,
                         sigma_shape_dmax=0.50),
-        # f50 [T2] from the documented resolving power >= 68 lin/mm; the TU
-        # prints no MTF value to convert, so this is inferred from resolving
-        # power the same way as the other Soviet stocks, not measured.
-        mtf=MTFSpec(30.0, 34.0, 38.0, adjacency=0.02),
+        # ⚠⚠ REBUILT 2026-09-23 FROM 30.0/34.0/38.0, A FACTOR OF 1.7 DOWN, and
+        # the old triple was not a reading of anything. Its note claimed it was
+        # "inferred from resolving power the same way as the other Soviet
+        # stocks" -- but that way was the project's era-and-class sharpness
+        # heuristic, which never touched this film's documented R = 68 at all.
+        # The bridge does: 68 / 3.436 = 19.8, where 3.436 is R/f50 on
+        # ЦО-Т-90ЛМ, the one Soviet stock whose ТУ publishes a resolving power
+        # AND an MTF point in the same table. See `_SOVIET_RP_BRIDGED`.
+        # ⚠ ONE NUMBER IN THREE CHANNELS, because «разрешающая способность» is
+        # one figure for the whole film in every Soviet ТУ. The old per-channel
+        # spread was invented on top of a single documented value.
+        mtf=MTFSpec(19.8, 19.8, 19.8, adjacency=0.02),
         halation=HalationSpec(radii_um=(16.0, 90.0, 380.0),
                               gain_r=0.14, gain_g=0.10, gain_b=0.08,
                               threshold_stops=1.5),
@@ -25680,6 +26803,41 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         misregistration_um=8.0,
         default_format="ff35",
         features=Feature.UNEVEN_EMULSION,
+        # -- schema v50 (2026-09-22d): the support, from the stock's own ТУ ---
+        base=BaseSpec(
+            base_type="cellulose triacetate",
+            antihalation=("colloidal-silver layer, specified to DECOLOURISE "
+                          "during processing rather than being washed off"),
+            raw_storage_max_f=71.6,          # 14-22 C as printed
+            raw_storage_max_rh_pct=70.0,     # (60 +/- 10) % as printed
+            guaranteed_shelf_life_months=12,
+            source=(
+                "ТУ 6-17-912-87 clause 2.2 (sheet 6): «Кинофотопленки должны "
+                "изготовляться на триацетатцеллюлозной основе по ОСТ "
+                "6-17-451-83: кинопленки — на основе марки ОТБ-11, "
+                "фотопленки — на основе марок ОТБ-10 и ОТБ-14». "
+                "⚠⚠ THREE BASE GRADES UNDER ONE PRODUCT NAME, WHICH NO OTHER "
+                "SOVIET SHEET IN THIS CORPUS DOES, and the split is by FORM "
+                "rather than by emulsion: the ciné loadings are coated on "
+                "ОТБ-11 and the still ones on ОТБ-10 or ОТБ-14. `base_type` "
+                "can hold only the chemistry they share; the grades are here "
+                "in words because averaging three grade designations into one "
+                "would be inventing a fourth. "
+                "Clause 2.6 (sheet 6): «Противоореольный коллоидно-серебряный "
+                "слой должен обесцвечиваться в процессе химико-"
+                "фотографической обработки» -- colloidal SILVER that is "
+                "BLEACHED IN PLACE, which is the opposite mechanism to ЛН-9С's "
+                "soot backing and is why the two are worded differently here. "
+                "⚠ NO THICKNESS: clause 4.3's «по толщине основы пленок — "
+                "±0,5 мм» is a MEASUREMENT TOLERANCE and is physically "
+                "impossible as a base thickness (compare ТУ 6-42-1514-90's "
+                "±0,01 мм for the same quantity); it is quoted here uncorrected "
+                "and NOT stored. "
+                "Clause 5.6 (sheet 20): storage «при температуре (14-22) °С и "
+                "относительной влажности (60 ± 10) %»; 22 °C = 71.6 °F. "
+                "Clause 7.2 (sheet 21): «Гарантийный срок хранения "
+                "кинофотопленки — один год с месяца выпуска», with delivery "
+                "to the trade required within two months of manufacture.")),
     ),
     # ---- queue C4, closed 2026-09-02, AND THE QUEUE ROW WAS WRONG ----------
     # C4 read "ЦО-90Д / ЦО-90Л — argued against, two documents with
@@ -25755,10 +26913,17 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # count, which exists precisely to keep that one literal visible.
         grain=GrainSpec(16.0, 4.839, 5.161, 5.968, clump_gain=1.15, fog_grain=0.20,
                         anisotropy=1.04),
-        # f50 [T2] inferred from the documented >= 75 mm^-1 the same way as the
-        # other Soviet stocks -- the TU prints no MTF curve to convert. 75 is
-        # ABOVE ЦО-32Д's 68, so the f50 triple is scaled up in proportion.
-        mtf=MTFSpec(33.0, 37.0, 42.0, adjacency=0.02),
+        # ⚠⚠ REBUILT 2026-09-23 FROM 33.0/37.0/42.0, AND THIS FILE ASKED FOR IT.
+        # The replaced note said the triple «is [T2] at best and is flagged so
+        # that a future MTF document replaces it rather than agreeing with
+        # it». ТУ 6-17-1000-88 табл. 2 п. 9 is that document. The old value
+        # was ЦО-32Д's heuristic f50 scaled by 75/68 -- the right ratio built
+        # on the wrong base, so both stocks were wrong together and agreed
+        # with each other, which is how it survived.
+        # 75 / 3.436 = 21.8, the same f50 the anchor stock itself carries,
+        # because the two publish the same resolving power. See
+        # `_SOVIET_RP_BRIDGED`.
+        mtf=MTFSpec(21.8, 21.8, 21.8, adjacency=0.02),
         halation=HalationSpec(radii_um=(16.0, 90.0, 380.0),
                               gain_r=0.14, gain_g=0.10, gain_b=0.08,
                               threshold_stops=1.5),
@@ -25770,6 +26935,36 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # still form is one sentence.
         default_format="16mm",
         features=Feature.UNEVEN_EMULSION,
+        # -- schema v50 (2026-09-22d): the support, from the stock's own ТУ ---
+        base=BaseSpec(
+            base_type="cellulose triacetate",
+            raw_storage_max_f=71.6,          # 22 C as printed
+            raw_storage_max_rh_pct=70.0,     # (60 +/- 10) % as printed
+            guaranteed_shelf_life_months=9,
+            source=(
+                "ТУ 6-42-1514-90 clause 1.3.1 (sheet 4): «Пленки должны "
+                "изготовляться на триацетатцеллюлозной основе марки ОТБ-14 по "
+                "ОСТ 6-17-451-83». ⚠ NO THICKNESS OF ANY KIND: clause 1.2.3 "
+                "refers width, thickness and perforation out to ГОСТ "
+                "20904-82, so neither the base nor the coated film is "
+                "dimensioned in this ТУ. ⚠ THE ANTIHALATION LAYER IS "
+                "MENTIONED AND NEVER DESCRIBED -- clause 1.3.4 requires only "
+                "that «эмульсионные и противоореольные слои не должны "
+                "плавиться, пузыриться, отставать друг от друга и от основы» "
+                "-- so the field stays empty rather than borrowing ЦО-32Д's "
+                "colloidal silver, which is a different specification. "
+                "Clauses 4.4-4.5 (sheets 16-17): storage on stellages in a "
+                "ventilated room «при температуре до 22 °С и относительной "
+                "влажности (60 ± 10) %», not less than 1 m from heating and "
+                "0,1 m from the floor, out of direct sun; no hydrogen "
+                "sulphide, acetylene, ammonia or mercury vapour; joint "
+                "storage with radioactive substances and permanently "
+                "luminous compositions prohibited. 22 °C = 71.6 °F, and the "
+                "60 ± 10 % band's UPPER bound is what is stored. "
+                "Clause 6.3 (sheet 18): «Гарантийный срок хранения "
+                "устанавливается 9 месяцев с месяца изготовления»; beyond it "
+                "fitness is for the user to establish by the section 3 "
+                "tests.")),
     ),
     FilmProfile(
         name="SVEMA_CNL_65",
@@ -25783,8 +26978,25 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "+/- 0.1 (top layer higher by 0.1-0.2), latitude 1.5 logH, "
             "Dmax 2.4, contrast balance 0.1, mask densities behind "
             "blue/green/red filters 0.75-1.1 / 0.4-0.6 / 0.3, R 63 lin/mm. "
-            "Curves/mask densities datasheet-grounded; grain and dye "
-            "impurity [T3] class estimates."
+            "Mask densities datasheet-grounded; grain and dye impurity [T3] "
+            "class estimates. "
+            "⚠⚠ THE STORED GAMMAS ARE NO LONGER GURLEV'S, CORRECTED "
+            "2026-09-23c. This mark is specified by the STATE STANDARD "
+            "ГОСТ 25120-82, табл. 6 -- which ТУ 6-17-1371-86 delegates it to "
+            "by name -- and that table prints рекомендуемый коэффициент "
+            "контрастности 0,55 / 0,60 / 0,65 ± 0,08 (нижнего / среднего / "
+            "верхнего слоя) at the 5-8 min development it prints beside "
+            "them. The stored 0.70 / 0.70 / 0.85 sat ABOVE the upper edge of "
+            "all three bands, so the profile was rendering a roll its own "
+            "specification would have rejected. The two sources agree on "
+            "SHAPE and differ by about 0.12 in LEVEL; the standard wins on "
+            "provenance and Gurlev's reading is kept above as the discrepancy "
+            "it is. "
+            "⚠ THE PROFILE IS THE ПЕРВАЯ КАТЕГОРИЯ КАЧЕСТВА GRADE, which "
+            "its stored R of 63 lin/mm identifies: табл. 6 prints this mark "
+            "TWICE and the высшая grade's floor is 90. Both grades' full "
+            "acceptance bands are carried in `_TOLERANCE`, which is why "
+            "`tolerance` is a vector."
         ),
         era="1970s-1980s",
         exposure_index=65,
@@ -25794,9 +27006,29 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # 0.70, top layer b 0.85. Straight section sized to the documented
         # L 1.5 logH -- notably wider than TsNL-32.
         curves=RGBCurves(
-            r=_neg(0.30, 0.700, toe_x=-1.20, toe_k=0.34, shoulder_x=1.40),
-            g=_neg(0.50, 0.700, toe_x=-1.22, toe_k=0.34, shoulder_x=1.40),
-            b=_neg(0.92, 0.850, toe_x=-1.16, toe_k=0.32, shoulder_x=1.36),
+            # ⚠⚠ GAMMAS CORRECTED 2026-09-23c FROM 0,70 / 0,70 / 0,85 TO THE
+            # STATE STANDARD'S OWN RECOMMENDED VALUES, AND THE OLD ONES WERE
+            # OUTSIDE THIS FILM'S LEGAL ACCEPTANCE BAND. ГОСТ 25120-82 табл. 6,
+            # столбец «Фото ЦНЛ-65, первая категория качества», пп. 4-5:
+            # рекомендуемый коэффициент контрастности нижнего слоя 0,55 ± 0,08,
+            # среднего 0,60 ± 0,08, верхнего 0,65 ± 0,08, at the 5-8 min
+            # development п. 6 prints for them. Stored 0,70 / 0,70 / 0,85 sat
+            # ABOVE the upper edge of all three bands -- 0,63 / 0,68 / 0,73 --
+            # so the profile was rendering a roll its own specification would
+            # have rejected. `soviet_tu_corpus.py` found it the first time it
+            # ran, which is the whole argument for storing the bands.
+            # ⚠ THE CONFLICT IS REAL AND IS NOT BEING HIDDEN. The old numbers
+            # come from Gurlev 1986 pp. 354-355, «gamma 0,7 ± 0,1 with the top
+            # layer 0,1-0,2 higher» -- a handbook reporting TYPICAL values at
+            # an unstated development, against a state specification that
+            # prints its contrast beside the time that produces it. The two
+            # AGREE ON SHAPE (top layer steepest, bottom shallowest, 0,10
+            # apart) and disagree on LEVEL by about 0,12. The standard wins on
+            # provenance; Gurlev's figures stay in the description as the
+            # discrepancy they are rather than being quietly deleted.
+            r=_neg(0.30, 0.550, toe_x=-1.20, toe_k=0.34, shoulder_x=1.40),
+            g=_neg(0.50, 0.600, toe_x=-1.22, toe_k=0.34, shoulder_x=1.40),
+            b=_neg(0.92, 0.650, toe_x=-1.16, toe_k=0.32, shoulder_x=1.36),
         ),
         # Grain [T3]: one GOST step faster than TsNL-32.
         grain=GrainSpec(17.0, 4.516, 4.839, 5.806, clump_gain=1.35, fog_grain=0.30,
@@ -25813,6 +27045,28 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         misregistration_um=9.0,
         default_format="ff35",
         features=Feature.UNEVEN_EMULSION,
+        # -- schema v50 (2026-09-22d): storage, from the export packaging ТУ --
+        base=BaseSpec(
+            raw_storage_max_f=71.6,          # (14-22) C as printed
+            raw_storage_max_rh_pct=70.0,     # (50-70) % as printed
+            guaranteed_shelf_life_months=12,
+            source=(
+                "⚠ THE STORAGE NUMBERS COME FROM A DIFFERENT SHEET AND THAT IS DELIBERATE. ТУ 6-17-1371-86, «Пленки фотографические 35-мм перфорированные в рулонах», is the export packaging specification that covers Фото-65, ДС-4 and ЦНЛ-65 together, and it is the ONLY Soviet document in this corpus that prints storage conditions as numbers instead of delegating them to ГОСТ 26569-85. Clause 4.2 (sheet 6): «Упакованная фотопленка должна храниться у потребителя в вентилируемом складском помещении с относительной влажностью воздуха (50-70) % при температуре (14-22) °C на стеллажах», not less than 1 m from heating and 0,1 m from the floor, shielded from direct sun, in a room free of hydrogen sulphide, ammonia and mercury vapour, and never stored with radioactive substances or permanently luminous paints. 22 °C = 71.6 °F. "
+                "Clause 5.2 (sheet 6): «Гарантийный срок хранения для "
+                "фотопленки Фото-65 устанавливается два года, для фотопленок "
+                "ДС-4 и ЦНЛ-65 — 12 месяцев с месяца выпуска». "
+                "⚠⚠ AND THE SAME SHEET IS WHAT SETTLES THIS STOCK'S COLOUR "
+                "BALANCE IN WORDS RATHER THAN BY CONVENTION. Its marks table "
+                "on sheet 2 describes ЦНЛ-65 as «Цветная негативная "
+                "маскированная фотопленка... предназначена для съемок при "
+                "освещении объектов ЛАМПАМИ НАКАЛИВАНИЯ», against ДС-4 «при "
+                "дневном освещении». This is THE ONLY PLACE IN THE SOVIET "
+                "CORPUS where the Л and ДС designations are expanded in "
+                "words, and it is the citation behind the 5500 -> 3200 K "
+                "correction made to ЛН-8, ЛН-9 and ЛН-9С the same day. "
+                "⚠ NO BASE AND NO THICKNESS: this ТУ delegates every "
+                "photographic and constructional characteristic of ЦНЛ-65 to "
+                "ГОСТ 25120-82 (clause 1.2.2) and states none of its own.")),
     ),
     FilmProfile(
         name="TASMA_OCH_45",
@@ -27631,7 +28885,15 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         is_monochrome=True,
         exposure_index=100,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.15, 0.72, -1.40, 0.24, 1.80, 0.36)),
+        # ⚠ CURVE TRACED 2026-09-22 from F-4016 (2007) p15, the D-76
+        # small-tank 20 C panel, which draws 6 / 7.5 / 10 minutes against a
+        # printed starting point of 6 1/2 minutes; the 6-minute trace is the
+        # nearest drawn one, half a minute below. Cross-check: fitted contrast
+        # index 0.548 against 0.543 on the drawn trace. ⚠ THE PANEL WAS
+        # UNREADABLE UNTIL TODAY and the reason is in kodak_still_curves: its
+        # exposure axis is ruled -4.0 -3.0 -2.0 -1.0 with NO zero tick, so the
+        # sign-recovery branch had nothing to pivot about.
+        curves=_mono(ToneCurve(0.2109, 0.5613, -2.1397, 0.1395, 2.00, 0.1395)),
         grain=GrainSpec(8.0, 4.516, 4.516, 4.516, clump_gain=0.30, fog_grain=0.14,
                         anisotropy=1.0),
         # ✅ MTF TRACED 2026-09-06 from F-4016 p8 (mtf_vector tag "tmax100").
@@ -27940,7 +29202,14 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         is_monochrome=True,
         exposure_index=400,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.70, -1.55, 0.26, 1.90, 0.38)),
+        # ⚠ CURVE TRACED 2026-09-22 from F-4043 (2007) p9, the D-76 small-tank
+        # 20 C panel, which draws 6 / 8 / 11 minutes. THE TWO KODAK SHEETS
+        # DISAGREE ABOUT THE TIME: F-4043's own table prints 7 1/2 minutes for
+        # D-76 small tank at 68 F and F-4016's prints 8 for the same film and
+        # condition. The 8-minute trace is adopted because it is DRAWN, where
+        # 7 1/2 would have to be interpolated between two curves. Cross-check:
+        # fitted contrast index 0.560 against 0.587 on the drawn trace.
+        curves=_mono(ToneCurve(0.2027, 0.7224, -2.4521, 0.3814, 2.00, 0.3814)),
         grain=GrainSpec(10.0, 5.161, 5.161, 5.161, clump_gain=0.35, fog_grain=0.16,
                         anisotropy=1.0),
         # ⚠ MTF STAYS AN ESTIMATE, AND THE REASON IS A CONTRADICTION BETWEEN
@@ -28927,7 +30196,15 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         is_monochrome=True,
         exposure_index=400,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.18, 0.68, -1.60, 0.30, 1.80, 0.36)),
+        # ⚠ CURVE TRACED 2026-09-22 from F-4017 (May 2007) p11, the 35 mm
+        # T-MAX Developer panel, small tank, 20 C, agitation at 30 s
+        # intervals. The panel draws 6 / 7 / 9 / 11 minutes and the sheet's own
+        # PROCESSING table gives 6 minutes for that developer, tank and
+        # temperature as the starting point for CONTRAST INDEX 0.56, so the
+        # 6-minute trace is adopted with no interpolation. Cross-check: the
+        # fitted curve's contrast index measures 0.548 and the drawn trace
+        # 0.558, against the 0.56 the sheet states.
+        curves=_mono(ToneCurve(0.3105, 0.5902, -2.7534, 0.2253, 2.00, 0.2253)),
         grain=GrainSpec(17.0, 6.129, 6.129, 6.129, clump_gain=1.00, fog_grain=0.22),
         # ✅ MTF TRACED 2026-09-06 from F-4017 (2016) p7 (tag "trix400").
         # ⚠ THE BEST-EVIDENCED MTF IN THE DATABASE: THREE INDEPENDENT DRAWINGS
@@ -31061,10 +32338,46 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
         era="1998-2006",
         exposure_index=100,
         balance_kelvin=3200,
+        # ⚠⚠ OWNER DECISION, 2026-09-22, OVERRIDING A STANDING REFUSAL. The
+        # curve below is traced from KODAK publication E-2468 p5, the sheet
+        # headed «KODAK PROFESSIONAL PORTRA 100T Film / Tungsten», and the
+        # owner directed that the sheet's own title decides whose curve it is.
+        #
+        # ⚠ THE CONFLICT IS NOT RESOLVED BY THAT DECISION, IT IS RECORDED
+        # ALONGSIDE IT, because the evidence does not go away. E-2468's
+        # characteristic panel carries figure id F009_0154AC, which is the id
+        # E-190 prints on its PORTRA 160VC page, and the two drawings are
+        # BIT-IDENTICAL: traced vertex-for-vertex they differ by 8.9e-16 D and
+        # 0.0 in log E, with identical vertex counts (R 106, G 111, B 101).
+        # E-190's figure ids run 0153 / 0154 / 0155 / 0156 across its own four
+        # films -- 160NC, 160VC, 400NC, 400VC -- a contiguous block that makes
+        # E-190 the native home of 0154. The spectral-sensitivity and dye
+        # panels on E-2468 travel with it (F009_0180AC, F009_0186AC).
+        #
+        # ⚠ THE CONSEQUENCE, STATED SO IT IS NOT DISCOVERED LATER: PORTRA 100T
+        # AND PORTRA 160VC NOW RENDER THE SAME TONE REPRODUCTION. A tungsten
+        # ISO 100 film and a daylight ISO 160 film share one curve. The values
+        # are therefore COPIED FROM 160VC EXACTLY rather than re-fitted, so
+        # the database does not pretend to two independent readings of one
+        # drawing -- the same treatment given to EKTACHROME 5239/7239, where
+        # one figure documents two gauges.
+        #
+        # Queue K6 is closed by owner decision rather than by a new document;
+        # if PORTRA 100T's own sensitometry is ever found, this is the entry
+        # to revisit.
+        # ⚠ THE FOUR TRACED NUMBERS PER CHANNEL ARE NOT HERE. They live in
+        # `_KODAK_STILL_HARVEST`, the same table PORTRA 160VC reads, and the
+        # applier builds both profiles' curves from it with the same code --
+        # `shoulder_k = 1.4 * toe_k` and the carried-over `shoulder_x` below.
+        # That is what makes the two BIT-IDENTICAL rather than merely equal to
+        # four decimals: a literal written out by hand here drifted from
+        # 160VC's 0.13999999999999999 at the first float, and verify.py caught
+        # it. The shoulder_x values below are therefore 160VC's, not this
+        # profile's former 2.22 / 2.16 / 2.06.
         curves=RGBCurves(
-            r=_neg(0.21, 0.558, toe_x=-1.84, toe_k=0.33, shoulder_x=2.22),
-            g=_neg(0.20, 0.576, toe_x=-1.78, toe_k=0.31, shoulder_x=2.16),
-            b=_neg(0.20, 0.594, toe_x=-1.68, toe_k=0.29, shoulder_x=2.06),
+            r=_neg(0.21, 0.558, toe_x=-1.84, toe_k=0.33, shoulder_x=2.2),
+            g=_neg(0.20, 0.576, toe_x=-1.78, toe_k=0.31, shoulder_x=2.14),
+            b=_neg(0.20, 0.594, toe_x=-1.68, toe_k=0.29, shoulder_x=2.04),
         ),
         grain=GrainSpec(4.0, 2.129, 2.323, 2.774, clump_gain=0.22, fog_grain=0.17),
         mtf=MTFSpec(66.0, 74.0, 84.0, adjacency=0.12, adjacency_um=17.0),
@@ -31914,15 +33227,104 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             "projected silver positive. rms 11 (x1000, D=1.0, 48 um, Vλ, "
             "Scala process) and RP 50/120 lp/mm printed on the sheet [C1]. "
             "Sheet documents push/pull ISO 100-1600 (processing axis, "
-            "queued) and contrast matched to Agfachrome RSX 100."
+            "queued) and contrast matched to Agfachrome RSX 100. "
+            "⚠⚠ THE CHARACTERISTIC CURVE BECAME [T1] ON 2026-09-22d and the "
+            "profile is no longer [T2] on that axis: the Standard trace of "
+            "the five-step push/pull panel on the same page 9 was digitised "
+            "off its bezier paths, cross-checked against the D-max markers "
+            "printed below it and against the ladder a THIRD reading of the "
+            "page built `push` from, and adopted. Until then this stock "
+            "carried an estimated curve beside five measured numbers read "
+            "from the identical sheet."
         ),
         era="1994-2005",
         kind=StockKind.REVERSAL,
         is_monochrome=True,
         exposure_index=200,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.10, 1.55, -0.72, 0.20, 0.88, 0.30)),
+        # ⚠⚠ TRACED 2026-09-22d, AND THIS WAS THE LAST UNREAD PANEL ON A PAGE
+        # THIS PROJECT HAD ALREADY MINED FOUR TIMES. Page 9 of «AGFA stocks»
+        # (F-PF-E3, 1st edition 09/1998) gave this profile its MTF, its
+        # resolving powers, its granularity and its whole push/pull ladder --
+        # and its CHARACTERISTIC CURVES panel, the one directly under the
+        # caption, had never been traced. The stored
+        # (0.10, 1.55, -0.72, 0.20, 0.88, 0.30) was an estimate sitting beside
+        # five [T1] numbers read off the same sheet.
+        #
+        # THE PANEL DRAWS FIVE TRACES, one per processing step, lettered in a
+        # legend inside the plot: Pull 1, Standard, Push 1, Push 2, Push 3.
+        # All five are PDF beziers, so there is no raster and no scanning
+        # error; the frame's own corners carry the axis (lg H -3.0 to +3.0,
+        # density 0 at the foot) and the printed density ladder reproduces to
+        # 0.0004.
+        #
+        # ⚠ THE LABEL ORDER IS NOT ASSUMED -- THE SAME PAGE CHECKS IT TWICE
+        # OVER. The panel below, «Contrast/maximum density with pushed/pulled
+        # processing», plots five MARKERS against an ISO abscissa, and their
+        # maximum densities read 3.067 / 2.966 / 2.716 / 2.466 / 2.216 against
+        # the five traces' own left-hand densities of 3.108 / 3.027 / 2.784 /
+        # 2.501 / 2.217 -- worst 0.068 D, and monotone in the same order. Two
+        # panels, two drawings, one answer, and the ordering that answer
+        # implies is the one a reversal film must have: pulling raises D-max,
+        # pushing lowers it.
+        #
+        # WHICH TRACE IS ADOPTED: Standard, because that is the process this
+        # profile's ISO 200/24 speed belongs to. Fit rms 0.0263 D, worst
+        # 0.0628 D over 145 traced points, strictly monotone.
+        #
+        # ⚠⚠ AND THE RESIDUAL IS A MODEL LIMITATION, RECORDED RATHER THAN
+        # TUNED AWAY. A free six-parameter fit to the same points reaches rms
+        # 0.0074 -- three and a half times better -- by letting shoulder_k
+        # (0.1219) fall below toe_k (0.2287), which leaves the only setting
+        # under which `ToneCurve` is monotone everywhere. 300 random restarts
+        # confirm 0.0263 is the global minimum of the TIED model, so this is
+        # the softplus difference failing to hold a reversal curve's
+        # asymmetric toe and shoulder at once, not an optimiser that stopped
+        # early. The same failure mode refused KODAK_TMAX_P3200 on 2026-09-22c.
+        #
+        # ⚠ PULL 1 IS REFUSED AS A CURVE AND ITS SCALARS ARE KEPT. Its tied
+        # fit converges to gamma 29.6 at rms 0.0742 -- a degenerate corner,
+        # not a film. Its D-max and contrast come from the marker panel, which
+        # is where `push` already gets them.
+        #
+        # THE THIRD CHECK IS AGFA'S OWN CONTRAST FIGURE, and it is close
+        # without being the same quantity: the adopted curve's secant between
+        # 0.05 above D-min and 0.05 below D-max is 1.513, against the 1.366
+        # the Contrast panel plots for Standard. The sheet never defines what
+        # it means by "contrast", so the two are recorded side by side rather
+        # than reconciled.
+        curves=_mono(ToneCurve(0.0822, 2.4117, -0.5764, 0.1653, 0.6535, 0.1653)),
         grain=GrainSpec(11.0, 4.839, 4.839, 4.839, clump_gain=0.60, fog_grain=0.12),
+        # -- schema v50 (2026-09-22d): the support, printed on the same page --
+        # ⚠ AGFA PRINT THE BASE AND THE EMULSION SEPARATELY, which almost no
+        # other sheet in this corpus does, so both fields can be filled from
+        # one source and `total_thickness_in` is a SUM rather than a reading:
+        # 120 um of base plus 7 um of emulsion.
+        base=BaseSpec(
+            base_type="polyester",
+            # ⚠⚠ NO THICKNESS HERE ON PURPOSE. `EmulsionSpec` on this profile
+            # ALREADY holds Agfa's own two figures -- coated_um 7.0 and
+            # base_um 120.0 -- and that carrier has existed since v23 with the
+            # carrier census in NotFound.md counting it. Repeating them in
+            # BaseSpec would give one quantity two stores, which is how a
+            # corpus starts disagreeing with itself. verify.py fails the build
+            # if any FilmProfile sets BaseSpec.base_um.
+            source=(
+                "Agfa-Gevaert, «AGFA stocks» / «Professional Films», "
+                "F-PF-E3, 1st edition 09/1998, page 9, the Agfa Scala 200x "
+                "column: «Layer thickness: 7 um», «Film base: 135 = 120 um, "
+                "120 = 95 um, sheet film = PET 175 um». "
+                "⚠⚠ THE MATERIAL IS NAMED FOR THE SHEET-FILM FORM ONLY. Agfa "
+                "write PET against the 175 um sheet base and give the 135 and "
+                "120 bases as bare thicknesses. `base_type` is set to "
+                "polyester because that is the one chemistry the sheet names "
+                "for this product, and the thickness stored is the 135 one, "
+                "which is the format `default_format` renders; the 120 "
+                "roll-film base is 95 um and the sheet-film base 175 um, so a "
+                "consumer that needs those must not read this field as "
+                "format-independent. "
+                "⚠ NO STORAGE CONDITIONS AND NO SHELF LIFE: this is a product "
+                "brochure, not a specification, and it states neither.")),
         # ✅ [T1] TRACED FROM AGFA'S «Sharpness» PANEL, 1998 p9 -- the FIRST
         # measured MTF this stock has ever carried. It shipped a RED estimated
         # triple while the panel sat unread in the corpus since 2026-09-01.
@@ -32217,7 +33619,43 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         misregistration_um=7.0,
         default_flare=0.07,
         default_format="ff35",
-        features=Feature.HALATION | Feature.NITRATE_BASE,
+        # ⚠⚠ Feature.NITRATE_BASE REMOVED 2026-09-23 ON KODAK'S OWN WORD.
+        # «Storage and Preservation of Motion-Picture Film» (Eastman Kodak,
+        # 1957) p.6: "Kodachrome and Eastman Color Films were NEVER made on
+        # nitrate base, but imbibition color print and various two-color print
+        # stocks were made on nitrate film for a number of years prior to
+        # 1951." Corroborated by Table I on p.8, whose "Formerly Made on
+        # Nitrate Base" column reads *no* for every Eastman Color product and
+        # whose *yes* rows are 35 mm negative, fine-grain release positive,
+        # duplitized positive and 65/70 mm -- so the refusal is bounded, not
+        # blanket, and EASTMAN_SUPER_XX_1938 keeps its flag correctly.
+        # ⚠ NOTHING RENDERS DIFFERENTLY: the flag is descriptive and no engine
+        # reads it. What changes is that the C++ the owner ships stops
+        # asserting a support Kodak says this film never had.
+        features=Feature.HALATION,
+        # -- schema v50 (2026-09-23), from the 1957 storage book -------------
+        base=BaseSpec(
+            antihalation=("jet backing on the reverse of the base, removed in "
+                          "processing"),
+            source=(
+                "«Storage and Preservation of Motion-Picture Film», Eastman "
+                "Kodak, 1957, p.5: \"In the case of Eastman Color Films and "
+                "Kodachrome Films, there are several emulsion layers coated "
+                "one on top of the other, and on the reverse side there is an "
+                "antihalation jet backing which is removed in processing.\" "
+                "⚠⚠ NO BASE CHEMISTRY IS SET, AND THE REASON IS A DATE. The "
+                "same book says on p.6 that \"Kodachrome Film is CURRENTLY "
+                "made on cellulose acetate propionate support\" -- present "
+                "tense in 1957, nineteen years after this coating. Its own "
+                "historical sequence on the same page puts propionate AFTER "
+                "the acetone-soluble cellulose acetate that was the only "
+                "safety base \"up to about 1938\", so carrying the 1957 "
+                "chemistry back onto a 1938 emulsion would assert the one "
+                "thing the page's chronology argues against. "
+                "⚠ WHAT IS CERTAIN IS WHAT IT WAS NOT: p.6, \"Kodachrome and "
+                "Eastman Color Films were never made on nitrate base\" -- "
+                "which is why Feature.NITRATE_BASE was removed from this "
+                "profile the same day.")),
     ),
 
     FilmProfile(
@@ -32261,7 +33699,36 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         misregistration_um=7.0,
         default_flare=0.07,
         default_format="ff35",
-        features=Feature.HALATION | Feature.NITRATE_BASE,
+        # ⚠⚠ Feature.NITRATE_BASE REMOVED 2026-09-23 ON KODAK'S OWN WORD.
+        # «Storage and Preservation of Motion-Picture Film» (Eastman Kodak,
+        # 1957) p.6: "Kodachrome and Eastman Color Films were NEVER made on
+        # nitrate base, but imbibition color print and various two-color print
+        # stocks were made on nitrate film for a number of years prior to
+        # 1951." Corroborated by Table I on p.8, whose "Formerly Made on
+        # Nitrate Base" column reads *no* for every Eastman Color product and
+        # whose *yes* rows are 35 mm negative, fine-grain release positive,
+        # duplitized positive and 65/70 mm -- so the refusal is bounded, not
+        # blanket, and EASTMAN_SUPER_XX_1938 keeps its flag correctly.
+        # ⚠ NOTHING RENDERS DIFFERENTLY: the flag is descriptive and no engine
+        # reads it. What changes is that the C++ the owner ships stops
+        # asserting a support Kodak says this film never had.
+        features=Feature.HALATION,
+        # -- schema v50 (2026-09-23), from the 1957 storage book -------------
+        base=BaseSpec(
+            antihalation=("jet backing on the reverse of the base, removed in "
+                          "processing"),
+            source=(
+                "«Storage and Preservation of Motion-Picture Film», Eastman "
+                "Kodak, 1957, p.5, the same statement that covers "
+                "KODACHROME_1938: the colour films carry \"an antihalation "
+                "jet backing which is removed in processing\", against the "
+                "permanent grey-in-base dye of the black-and-white negatives. "
+                "⚠ BASE CHEMISTRY WITHHELD FOR THE SAME REASON -- the book's "
+                "\"currently made on cellulose acetate propionate\" is "
+                "present tense in 1957 and this is a 1938 coating. "
+                "⚠ AND NOT NITRATE: p.6 states Kodachrome \"never\" was, "
+                "which removed Feature.NITRATE_BASE from this profile on "
+                "2026-09-23.")),
     ),
 
     FilmProfile(
@@ -32853,7 +34320,19 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # source is explicit that the source of the correction is the residual
         # coloured coupler acting as a positive image [C1 for the mechanism].
         dye_matrix=_dye(-0.06),
-        mask_encoding="orange_masked",
+        # ⚠⚠ `mask_encoding="orange_masked"` DELETED 2026-09-23, AND IT WAS
+        # NOT EVEN A LEGAL VALUE. `_MASK_ENCODINGS` is
+        # {dmin_ladder, neutral_dmin, none} and the schema guard at the bottom
+        # of this file rejects anything else -- so had the literal ever been
+        # honoured, this profile would have failed construction. It never was:
+        # `_apply_schema_v2` derives the field and discards literals, which is
+        # the only reason an illegal string sat here undetected. That is the
+        # precise cost of the silent-discard class: it hides not just wrong
+        # values but impossible ones.
+        # ⚠ NOTHING IS LOST. The stock ships `dmin_ladder` from queue P47
+        # (`_P47_LADDER_CONFIRMED`), which is the vocabulary's way of saying
+        # exactly what the dead string was reaching for, and the mask's colour
+        # is separately documented in `base_tint` on the next line.
         base_tint=(1.0, 0.760, 0.520),   # documented orange mask
         misregistration_um=9.5,
         default_flare=0.028,
@@ -33910,7 +35389,14 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         couplers=CouplerSpec(0.13, 50.0, 0.070, 11.0),
         dye_matrix=_dye(-0.10),
         misregistration_um=4.0,
-        mask_encoding="dmin_ladder",
+        # ⚠ Dead `mask_encoding="dmin_ladder"` deleted 2026-09-23.
+        # `_apply_schema_v2` derives this field and overwrites any literal;
+        # the value this profile ships is nonetheless `dmin_ladder`, awarded
+        # by queue P47 (`_P47_LADDER_CONFIRMED`) because its stored dmin
+        # triple really does ladder and its curve provenance is tier 1. The
+        # literal contributed nothing and agreed by luck, which is the worst
+        # of the three possible outcomes: it would have gone on agreeing if
+        # P47 had gone the other way.
         default_format="ff35",
         # [T1] TRACED from «12. Spectral Sensitivity Curves», p4. Wavelength
         # from the four printed gridlines (57.14 pt per 100 nm, uniform to
@@ -33988,15 +35474,28 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # [T1] PROCESS NAMED, SCHEDULE NOT. p3 section 9: «Vista Films are
         # "process-compatible" and are developed in the following process:
         # AP 70/CN-16/C41». ⚠ `ProcessingSpec` HAS NO `source` FIELD, so the
-        # citation lives here and in the ParamSource for
-        # `processing.developer`. ⚠ THE TIME AND TEMPERATURE BELOW ARE THE
-        # C-41 STANDARD'S, NOT THIS SHEET'S -- it names three interchangeable
-        # processes and prints no schedule for any of them.
-        processing=ProcessingSpec(
-            developer="C-41", dilution="stock", minutes=3.25, celsius=37.8,
-            agitation="rotary", contrast_index=0.60,
-        ),
-        exposure_index_tungsten=50,
+        # citation lives in the ParamSource for `processing.developer`.
+        # ⚠⚠ THE `processing=` LITERAL THAT STOOD HERE WAS DEAD AND WAS COSTING
+        # THREE FIELDS, 2026-09-23. `_apply_schema_v2` takes this field from
+        # `_PROCESSING` alone; the generic `_C41_STOCKS` sweep put a bare
+        # "Process C-41 / 3.25 min / 37.8 degC" on both Vista stocks and the
+        # literal's `dilution="stock"`, `agitation="rotary"` and
+        # `contrast_index=0.60` were dropped on the floor. All three are now
+        # restored through `_PROCESSING`, in the override block that runs after
+        # the `_C41_STOCKS` update -- search `_VISTA_C41_FULL`.
+        # ⚠⚠ AND `exposure_index_tungsten=50` WAS DELETED RATHER THAN MOVED,
+        # WHICH IS THE OPPOSITE CALL FROM THE PROCESSING SPEC ABOVE. 200
+        # daylight to 50 tungsten is EXACTLY TWO STOPS, which is the 80A
+        # conversion filter's own factor and not a property of the emulsion --
+        # the identical signature that got FUJICOLOR_PORTRAIT_NPZ_800's 200
+        # rejected by the guard on 2026-09-06c. This field is defined as
+        # UNFILTERED PAIRS ONLY (see `_EXPOSURE_INDEX_TUNGSTEN`'s header, and
+        # the same rule applied at EASTMAN_5293_250T_1982's `taking_filter`),
+        # verify.py asserts every entry in that dict is MONOCHROME, and this is
+        # a colour negative. The profile also carries `_NO_DATASHEET`
+        # provenance and no ParamSource for the field. The datum is recorded
+        # here and nowhere else on purpose: writing it into the dict would
+        # encode a piece of glass as a sensitisation difference.
         features=Feature.NONE,
     ),
 
@@ -34044,7 +35543,8 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         couplers=CouplerSpec(0.14, 50.0, 0.075, 11.0),
         dye_matrix=_dye(-0.10),
         misregistration_um=4.0,
-        mask_encoding="dmin_ladder",
+        # ⚠ Dead `mask_encoding="dmin_ladder"` deleted 2026-09-23; ships from
+        # queue P47. See the Vista plus 200 note above.
         default_format="ff35",
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
@@ -34103,11 +35603,11 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         ),
         # [T1] p7 section 9: «AP 70/CN-16/C41». ⚠ Time and temperature are
         # the C-41 standard's, not this sheet's; see the 200 above.
-        processing=ProcessingSpec(
-            developer="C-41", dilution="stock", minutes=3.25, celsius=37.8,
-            agitation="rotary", contrast_index=0.60,
-        ),
-        exposure_index_tungsten=100,
+        # ⚠ Dead `processing=` and `exposure_index_tungsten=100` literals
+        # deleted 2026-09-23. The spec is restored via `_VISTA_C41_FULL`; the
+        # tungsten index is REFUSED -- 400 to 100 is two stops, the 80A factor
+        # again. Both calls and their reasoning are written out in full on the
+        # Vista plus 200 above.
         features=Feature.NONE,
     ),
 
@@ -34362,10 +35862,17 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             "beside a schematic, Fig. 2, showing that a thin turbid layer "
             "and a thicker less turbid one can scatter equally. Recorded at "
             "tier 3 in _K5293_1982_PARAMS."),
-        processing=ProcessingSpec(
-            developer="ECN-2",
-            celsius=41.1,
-        ),
+        # ⚠ `processing=ProcessingSpec(developer="ECN-2", celsius=41.1)` STOOD
+        # HERE AND SHIPPED NOTHING AT ALL, 2026-09-23. This stock is not in
+        # `_ECN2_STOCKS`, so the derived spec was fully empty -- the one site
+        # in the sweep where the silent discard cost the WHOLE field rather
+        # than part of it. Restored as an explicit `_PROCESSING` entry.
+        # ⚠ AND IT IS NOT IN `_ECN2_STOCKS` BY CHOICE, not by oversight. That
+        # set carries `minutes=3.0` and `agitation=_H24_ECN2_AGITATION`
+        # ("turbulator") from Kodak H-24. The 1982 paper states NEITHER. Adding
+        # the name would have silently attributed two H-24 numbers to a
+        # document that prints only the developer and the temperature, which
+        # is the fabrication this file exists to prevent.
         # ⚠ THE FILTER, NOT THE FILTERED INDEX. The owner's T3 block gives
         # a daylight rating of 160 through a Wratten No. 85, and
         # `exposure_index_tungsten` may not hold it -- that field's rule is
@@ -34382,12 +35889,18 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
                    "camera negative and is stored pending official Kodak "
                    "documentation. No transmission curve is stored, because "
                    "none is quoted."),
-        provenance=Provenance(
-            tier=1,
-            sources=(_K5293_1982_SOURCE, _K5293_1982_T3),
-            fitted_from="datasheet_curve",
-            last_reviewed="2026-09-17",
-        ),
+        # ⚠ THE `provenance=` LITERAL WAS DELETED 2026-09-23 AND ONLY ONE OF
+        # ITS FOUR FIELDS WAS EVER REACHING THE SHIPPED OBJECT BY ACCIDENT.
+        # `_apply_schema_v2` builds this field from `_provenance_for`, so the
+        # literal was inert; `tier=1` and `fitted_from="datasheet_curve"`
+        # happened to be reproduced anyway (the [T1] tag in the description
+        # gives tier 1, and `_FITTED_FROM[1]` is "datasheet_curve"), the two
+        # `sources` survive because they are ALSO listed in
+        # `_PROVENANCE_SOURCES`, and `last_reviewed="2026-09-17"` was the one
+        # datum genuinely lost -- the profile shipped the 2026-07-30 default.
+        # The date is now carried by the `_5293_REVIEW_2026_09_17` hook in
+        # `_provenance_for`, which is where every other review-date correction
+        # in this file lives.
     ),
 
     # =======================================================================
@@ -34456,7 +35969,16 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         era="1956",
         is_monochrome=True,
         exposure_index=125,
-        exposure_index_tungsten=100,
+        # ⚠ THE FIVE 1956 `exposure_index_tungsten` LITERALS WERE DELETED
+        # 2026-09-23, HERE AND ON THE FOUR SHEETS BELOW. All five values are
+        # correct and all five already ship -- they were written into
+        # `_EXPOSURE_INDEX_TUNGSTEN` on 2026-09-17 (queue P63) precisely
+        # BECAUSE the literals were being discarded, and that dict's own P63
+        # block says so. What was left behind was a duplicate that no longer
+        # controlled anything: edit it and nothing moves, which is worse than
+        # having no value at all because it reads as if it does. 100 for
+        # SUPER PANCHRO PRESS B lives in the dict. `_refuse_dead_literals` now
+        # rejects this whole field class at construction.
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.0413, 0.7038, -1.4635, 0.2903,
                                0.6630, 0.1468)),
@@ -34487,7 +36009,8 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         era="1956",
         is_monochrome=True,
         exposure_index=50,
-        exposure_index_tungsten=32,
+        # ⚠ Dead `exposure_index_tungsten=32` deleted 2026-09-23; 32 ships from
+        # `_EXPOSURE_INDEX_TUNGSTEN`. See the SUPER PANCHRO PRESS B note above.
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.0674, 0.7308, -1.3178, 0.3448,
                                0.5930, 0.0895)),
@@ -34519,7 +36042,8 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         era="1956",
         is_monochrome=True,
         exposure_index=200,
-        exposure_index_tungsten=125,
+        # ⚠ Dead `exposure_index_tungsten=125` deleted 2026-09-23; 125 ships
+        # from `_EXPOSURE_INDEX_TUNGSTEN`. See SUPER PANCHRO PRESS B above.
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.1184, 0.7399, -1.4241, 0.2074,
                                0.6220, 0.2903)),
@@ -34552,7 +36076,11 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         era="1956",
         is_monochrome=True,
         exposure_index=25,
-        exposure_index_tungsten=25,
+        # ⚠ Dead `exposure_index_tungsten=25` deleted 2026-09-23; 25 ships from
+        # `_EXPOSURE_INDEX_TUNGSTEN`, where the comment records that the two
+        # indexes agreeing is a STATEMENT here and not a coincidence -- this
+        # sheet's daylight column is empty in the original and its
+        # `balance_kelvin` is 2850. That reasoning belongs with the live value.
         balance_kelvin=2850,
         curves=_mono(ToneCurve(0.0523, 0.7416, -1.2454, 0.4583,
                                1.7901, 0.6415)),
@@ -34589,7 +36117,8 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         era="1956",
         is_monochrome=True,
         exposure_index=25,
-        exposure_index_tungsten=6,
+        # ⚠ Dead `exposure_index_tungsten=6` deleted 2026-09-23; 6 ships from
+        # `_EXPOSURE_INDEX_TUNGSTEN`. See SUPER PANCHRO PRESS B above.
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.0100, 0.9260, -0.9993, 0.4661,
                                1.8124, 0.3095)),
@@ -34598,6 +36127,489 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         default_format="large4x5",
         mtf=MTFSpec(42.7, 42.7, 42.7, adjacency=0.10, adjacency_um=15.0,
                     resolving_power_lp_mm_highc=86.0),
+    ),
+    # -----------------------------------------------------------------------
+    # 2026-09-22d: the two Soviet specifications that describe stocks this
+    # database did not have. Both were in the owner's ТУ folder and neither
+    # had been read.
+    #
+    # ⚠⚠ EVERY PHOTOGRAPHIC NUMBER ON BOTH PROFILES IS AN ACCEPTANCE LIMIT,
+    # A TOLERANCE BAND OR A «РЕКОМЕНДУЕМОЕ» VALUE. A ТУ is a contract between
+    # a factory and its inspectorate, not a measurement report: «не менее 100»
+    # means a roll failing at 99 is rejected, and says nothing about what a
+    # good roll actually did. So the rendered film is the WORST LEGAL EXAMPLE
+    # of itself wherever a one-sided limit is all there is, and the mid-point
+    # of a two-sided band otherwise -- the same discipline SVEMA_LN_8 and
+    # SVEMA_CO_32D already carry, stated again here because it is the single
+    # most important thing about this class of source.
+    #
+    # ⚠ AND NEITHER DOCUMENT CONTAINS A SINGLE PLOTTED CURVE. Between them,
+    # 44 sheets: no characteristic curve, no spectral sensitivity, no spectral
+    # dye density, no MTF curve. ЦНД-64 has exactly one figure and it is an
+    # engineering drawing of a perforation. Every curve SHAPE below is
+    # therefore [T3] analogy on the nearest documented Soviet stock, and the
+    # ТУ fixes only the scalars it prints.
+    # -----------------------------------------------------------------------
+    FilmProfile(
+        name="SVEMA_CO_T_90LM",
+        gost_speed_class="reversal",
+        gost_speed_edition="9160-82",
+        aliases=("co-t-90lm", "cot90lm", "tso-t-90lm", "tsot90lm",
+                 "ЦО-Т-90ЛМ", "co-t-90", "svema co-t-90lm"),
+        description=(
+            "[T1-limits] Soviet COLOUR REVERSAL 16 mm cine film for "
+            "TELEVISION under incandescent light at 3200 K, S >= 100 GOST "
+            "9160-82, from ТУ 6-17-1000-88 (superseding ТУ 6-17-1000-79), "
+            "valid 1.11.88 to 1.11.93. ⚠ THE TELEVISION STOCK OF THE RANGE "
+            "AND ITS SCOPE SAYS SO: «предназначенную для съемок в телевидении "
+            "при освещении лампами накаливания с цветовой температурой "
+            "3200 К» -- which is what separates it from ЦО-90Л, the amateur "
+            "tungsten reversal film it otherwise resembles. 16 mm perforated "
+            "only, in (60 ± 2) and (120 ± 5) m rolls. Specified in table 2: "
+            "S >= 100; sensitivity balance <= 1.6; contrast coefficient of "
+            "EACH layer 1.40-1.60; overall latitude >= 0.6 B; Dmin <= 0.25 B "
+            "and Dmax >= 2.20 B per layer; resolving power >= 75 mm^-1; RMS "
+            "granularity <= 25; modulation transfer at 30 mm^-1 >= 0.27. "
+            "⚠ ITS CONTRAST BAND IS 0.2 WIDE WHERE ЦО-90Л's IS 0.6, and it is "
+            "specified PER LAYER rather than as one overall figure -- a "
+            "materially tighter specification, which is what a broadcaster "
+            "buying film for intercutting would insist on. "
+            "⚠ THE RED LAYER MUST BE THE SLOWEST AND THE BLUE AT LEAST AS "
+            "FAST AS THE GREEN (clause 1.2.3), an ordering the ТУ states in "
+            "words and which the stored curves respect. "
+            "⚠ AGEING IS SPECIFIED, NOT LEFT OPEN: clause 1.2.4 permits, "
+            "after not less than three months from release, a drop of up to "
+            "30 % in overall sensitivity and up to 0.2 B in maximum density. "
+            "ADDED 2026-09-22d from the owner's ТУ folder; the document had "
+            "never been read."
+        ),
+        era="1988-1993",
+        exposure_index=100,
+        balance_kelvin=3200,
+        kind=StockKind.REVERSAL,
+        # [T1-limits] ТУ 6-17-1000-88 table 2 (sheet 3), clause 1.2.2.
+        # gamma 1.50 is the MIDPOINT of the printed 1,40-1,60 band, which the
+        # ТУ applies to «каждого из слоев» -- one band for all three, so the
+        # three records take the same value and no per-layer spread is
+        # invented. dmin 0.25 is the printed CEILING «не более 0,25», used as
+        # stated: this is the worst legal slide, not a typical one.
+        # ⚠ THE THROW IS SET BY Dmax >= 2,20 AND LATITUDE >= 0,6 B TOGETHER,
+        # and those two are the only shape information in the document.
+        # 2.20 D reached over a 0,6 B useful interval needs a gradient near
+        # 1.5 through the straight section, which is exactly the contrast the
+        # same table specifies -- the two printed limits are consistent with
+        # each other, which is worth recording because they were set by
+        # different clauses and did not have to be.
+        # Toe, shoulder and their softnesses are [T3] and follow
+        # SVEMA_CO_90L, the nearest documented Soviet reversal stock.
+        curves=RGBCurves(
+            r=_rev(0.25, 1.500, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
+            g=_rev(0.25, 1.500, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
+            b=_rev(0.25, 1.500, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
+        ),
+        # [T1-limit] «Среднеквадратическая гранулярность (sigma_D * 1000) --
+        # не более 25» (table 2 item 8). ONE figure for the whole film: the
+        # ТУ does not resolve it per layer, so all three records carry the
+        # ceiling rather than a fabricated spread.
+        # ⚠ COARSER THAN ЦО-90Л's STORED 16 AND THAT IS NOT A CONTRADICTION:
+        # 25 is a limit and 16 is this project's estimate of a typical value,
+        # so they are not the same kind of number. The one thing that can be
+        # said is that no legal roll of this film was grainier than 25.
+        # clump_um follows SVEMA_CO_90L -- the ТУ prints no grain size.
+        grain=GrainSpec(25.0, 4.839, 5.161, 5.968, clump_gain=1.15,
+                        fog_grain=0.20, anisotropy=1.05,
+                        sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
+        # [T1-limit] «Коэффициент передачи модуляции при пространственной
+        # частоте 30 мм^-1 -- не менее 0,27» (table 2 item 9), and unlike the
+        # ЛН-8 sheet this one PRINTS the frequency, so nothing is assumed.
+        # Under the Gaussian core f50 = 30 / sqrt(log2(1/T)) = 21.8 cycle/mm,
+        # the same conversion SVEMA_LN_8 uses. One figure, so all three
+        # records take it.
+        # ⚠ resolving_power_lp_mm_highc 75 IS A SEPARATE MEASUREMENT AND NOT A
+        # RESTATEMENT: table 2 item 7 «Разрешающая способность -- не менее 75
+        # мм^-1», determined on the REVERSED image of a resolution target on
+        # a РП-2М resolvometer per ГОСТ 2819-84 (clause 3.5). A
+        # threshold-detection limit and a modulation ratio are different
+        # quantities, which is why both are stored.
+        # adjacency 0.02 is the labelled placeholder this file uses wherever
+        # no source prints an edge effect; see SVEMA_LN_8 for why it is not
+        # replaced by a borrowed class value.
+        mtf=MTFSpec(21.8, 21.8, 21.8, adjacency=0.02,
+                    resolving_power_lp_mm_highc=75.0),
+        halation=HalationSpec(radii_um=(16.0, 90.0, 380.0),
+                              gain_r=0.16, gain_g=0.11, gain_b=0.09,
+                              threshold_stops=1.5),
+        couplers=CouplerSpec(0.03, 70.0),
+        dye_matrix=_dye(0.22),
+        base_tint=(1.000, 0.990, 0.975),
+        misregistration_um=8.0,
+        default_format="16mm",
+        # ⚠ THE SHEET STATES THE SENSITOMETRIC EXPOSURE AND MOST SOVIET ONES
+        # DO NOT. Clause 3.4.2 item 1: «Экспонирование образцов кинопленки
+        # проводят в сенситометре с источником света с цветовой температурой
+        # 3200 К при выдержке 0,018 с». Only three of the nine ТУ read on
+        # 2026-09-22d print an exposure TIME at all.
+        # ⚠⚠ THE `processing=` LITERAL THAT USED TO SIT HERE WAS DEAD AND WAS
+        # REMOVED 2026-09-23. `_apply_schema_v2` sets
+        # `processing=_PROCESSING.get(p.name, ProcessingSpec())`
+        # UNCONDITIONALLY, so a literal on the profile never reached the
+        # shipped object -- the same silent-discard defect that has already
+        # cost this file `reciprocity`, `exposure_index_tungsten`,
+        # `aim_density` and `mask_encoding`. The full ТУ 6-17-1000-88 chemistry
+        # now lives in `_PROCESSING`, and the two sanctioned temperature
+        # regimes in `_PROCESS_VARIANTS`.
+        # ⚠ THE LAYER EXISTS AND THE DOCUMENT NEVER DESCRIBES IT. Clause 1.2.7
+        # requires that «эмульсионный и ПРОТИВООРЕОЛЬНЫЙ слои должны быть
+        # равномерно нанесены на основу» and that neither melts, blisters or
+        # separates in processing -- so a layer is certainly there -- and that
+        # is the whole of what ТУ 6-17-1000-88 says about it. No position, no
+        # dye, no density, and no statement of whether it survives processing.
+        # `position` is therefore left EMPTY rather than inheriting ЦО-32Д's
+        # colloidal-silver `in_pack`: the two are different products from
+        # different plants and a guess here would read as a reading.
+        anti_halation=AntiHalationSpec(
+            source="ТУ 6-17-1000-88 clause 1.2.7 (sheet 4) establishes that "
+                   "an antihalation layer exists -- «эмульсионный и "
+                   "противоореольный слои» -- and says nothing else about "
+                   "it. Clause 6.5 adds only a handling warning: avoid "
+                   "mechanical damage «эмульсионного и противоореольного "
+                   "слоев». No position, mechanism, dye or density is "
+                   "stated anywhere in the 18 sheets, so every numeric "
+                   "field here stays zero and `position` stays empty."),
+        # -- schema v50 --------------------------------------------------------
+        base=BaseSpec(
+            total_film_um=150.0,            # 0.150 mm as printed
+            guaranteed_shelf_life_months=9,
+            source=(
+                "ТУ 6-17-1000-88 clause 1.1.3 (sheet 2): total film thickness "
+                "(0,150 +0,030 / -0,010) мм -- the COATED FILM, and this sheet "
+                "prints BOTH deviations where the ЛН-8 and ДС-5М sheets print "
+                "only the upper one. ⚠⚠ NO BASE DESIGNATION ANYWHERE IN THE "
+                "DOCUMENT: unlike ЦО-90Л, ЦО-32Д, ЛН-8, ЛН-9 and ДС-5М, which "
+                "all name ОТБ-10/11/14 по ОСТ 6-17-451-83, this ТУ never says "
+                "what the support is made of, so `base_type` stays empty "
+                "rather than inheriting a sibling's triacetate. An "
+                "antihalation layer exists and is likewise never described -- "
+                "clause 1.2.7 requires only that «эмульсионный и "
+                "противоореольный слои должны быть равномерно нанесены на "
+                "основу» and must not melt, blister or separate. "
+                "Clause 5.2 (sheet 15): «Гарантийный срок хранения "
+                "устанавливается 9 месяцев с месяца выпуска». Transport and "
+                "storage are delegated to ГОСТ 26569-85 and no temperature or "
+                "humidity figure appears in this ТУ.")),
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    # =======================================================================
+    # Ð¤ÐÐ¢Ð Ð¦ÐÐ-32 -- ÐÐÐ¡Ð¢ 25120-82, added 2026-09-23c (tranche C)
+    #
+    # â â  THIS PROFILE EXISTS BECAUSE A COLUMN OF A STATE STANDARD HAD NOWHERE
+    # TO GO. ÐÐÐ¡Ð¢ 25120-82 ÑÐ°Ð±Ð». 6 has three columns -- Ð¤Ð¾ÑÐ¾ Ð¦ÐÐ-32 Ð¿ÐµÑÐ²Ð°Ñ
+    # ÐºÐ°ÑÐµÐ³Ð¾ÑÐ¸Ñ, Ð¤Ð¾ÑÐ¾ Ð¦ÐÐ-65 Ð²ÑÑÑÐ°Ñ, Ð¤Ð¾ÑÐ¾ Ð¦ÐÐ-65 Ð¿ÐµÑÐ²Ð°Ñ. The two Ð¦ÐÐ-65
+    # columns land on SVEMA_CNL_65's `tolerance` vector. The Ð¦ÐÐ-32 column
+    # named no stock in this database at all, and the alternative to adding
+    # one was to leave a fully specified film recorded only in a Markdown
+    # file, which is not a place a database keeps anything.
+    #
+    # â  IT IS NOT SVEMA_CND_64 AND IT IS NOT SVEMA_CNL_32, and both mistakes
+    # were available. Ð¦ÐÐ-64 is Ð¢Ð£ 6-17-1453-89, Â«Ð²Ð²Ð¾Ð´Ð¸ÑÑÑ Ð²Ð¿ÐµÑÐ²ÑÐµÂ» in 1989 --
+    # a different document, a different speed and a later decade. Ð¦ÐÐ-32 is
+    # Ð¢Ð£ 6-17-441-78, and the Ð is ÐÐÐÐÐ« ÐÐÐÐÐÐÐÐÐÐÐ¯: it is the TUNGSTEN mark,
+    # balanced 3200 K, while Ð is ÐÐÐÐÐÐÐ, daylight. The two share a speed and
+    # a resolving power -- both 32 and both 58 Ð»Ð¸Ð½/Ð¼Ð¼ -- which is exactly the
+    # coincidence that would have made merging them look reasonable.
+    #
+    # â  WHAT IS PRIMARY HERE AND WHAT IS NOT. Every SCALAR below is a printed
+    # norm of the state standard, so the tier tag is [T1-limits] on the same
+    # terms as ÐÐ¡-5Ð's. The CURVE SHAPE is not: ÐÐÐ¡Ð¢ 25120-82's 15 sheets
+    # contain no plotted curve of any kind, in common with the whole Soviet
+    # corpus, so the toe and shoulder are analogy on Ð¦ÐÐ-64 -- the nearest
+    # documented Soviet daylight colour negative -- and
+    # `_NO_CURVE_IN_PRIMARY_SOURCE` holds `fitted_from` at "analogy" rather
+    # than letting the [T1] tag promote it to "datasheet_curve".
+    # =======================================================================
+    FilmProfile(
+        name="SVEMA_CND_32",
+        gost_speed_class="neg_still",
+        gost_speed_edition="9160-82",
+        aliases=("cnd-32", "cnd32", "tsnd-32", "tsnd32", "ЦНД-32",
+                 "svema cnd-32", "svema tsnd 32"),
+        description=(
+            "[T1-limits] Soviet MASKED colour negative STILL film for "
+            "DAYLIGHT, S 32 GOST 9160-82, specified by the STATE STANDARD "
+            "ГОСТ 25120-82 «Пленки фотографические цветные негативные. "
+            "Технические условия» -- ОКП 23 7254, in force 01.01.83, reissued "
+            "July 1986 with Изменение № 1, and corresponding to МС ИСО 897-73, "
+            "1012-73 and 732-75 in the parts about sheet dimensions and "
+            "unperforated winding. Табл. 6, столбец «Фото ЦНД-32, первая "
+            "категория качества»: номинальная светочувствительность 32; "
+            "общая светочувствительность 32-65; баланс светочувствительности "
+            "не более 2,3; рекомендуемый коэффициент контрастности нижнего "
+            "0,55 ± 0,08, среднего 0,60 + 0,08, верхнего 0,65 ± 0,08; время "
+            "проявления для их получения 5-8 мин; баланс контрастности не "
+            "более 0,13; суммарная оптическая плотность вуали и маски за "
+            "синим не более 1,10, за зелёным 0,45, за красным 0,30; общая "
+            "фотографическая широта не менее 1,05; разрешающая способность "
+            "не менее 58 лин/мм. "
+            "⚠⚠ THE MIDDLE-LAYER CONTRAST CELL IS PRINTED «0,60 + 0,08», with "
+            "a plus where the cells above and below it use ±. Verified at "
+            "900 dpi and reproduced independently by the document's own OCR "
+            "layer, which renders the three cells «0,55 ±0,08» / «0,60+0,08» "
+            "/ «0,65±0,08». Almost certainly a typographic fault in the 1986 "
+            "reissue; it is recorded AS PRINTED in `_TOLERANCE`, because a "
+            "standard that says something odd is evidence and a standard "
+            "silently corrected is not. "
+            "⚠ THE UMBRELLA STANDARD DEFINES NOTHING IT MEASURES. "
+            "Светочувствительность, коэффициент контрастности, "
+            "фотографическая широта, минимальная плотность and both balances "
+            "are named as symbols with numeric limits and defined nowhere in "
+            "its 15 sheets -- all delegated to ГОСТ 9160-82, which is NOT in "
+            "this corpus. There is no density criterion, no colour "
+            "temperature, no exposure time, no sensitometer type and no "
+            "wedge. So the 5500 K below is ГОСТ 9160-82's daylight "
+            "condition and not a figure this document prints, exactly as on "
+            "ЦНД-64. "
+            "⚠⚠ NO GRANULARITY AND NO MTF ARE SPECIFIED, AND THE f50 IS "
+            "NEVERTHELESS NOT BRIDGED FROM THE 58 лин/мм. That conversion "
+            "exists in this file and would have taken one line, but the "
+            "ratio behind it is calibrated on ЦО-Т-90ЛМ, a REVERSAL stock "
+            "whose resolving power is read «по обращенному изображению миры» "
+            "-- on the POSITIVE image. A negative's R is read on the negative "
+            "image at a different effective contrast, nothing in 176 sheets "
+            "says the ratio survives that crossing, and G-TU-BRIDGE-POLARITY "
+            "has held that line for the five older Soviet negatives since "
+            "the bridge was built. So ЦО-32Д and ЦО-90Л carry a bridged "
+            "`synthesized` f50 and this stock does not: the 58 is stored as "
+            "a documented tier-1 spec limit in its own right, and the f50 is "
+            "an era-and-class estimate from SVEMA_CNL_32, which Gurlev 1986 "
+            "publishes at the same 58 лин/мм. "
+            "⚠ NOT ONE PLOTTED CURVE exists in the document; the curve shape "
+            "is analogy on ЦНД-64. ADDED 2026-09-23c."
+        ),
+        era="1983-1990",
+        exposure_index=32,
+        balance_kelvin=5500,
+        # [T1-limits] табл. 6 пп. 4-5 and п. 8, первая категория качества.
+        # ⚠ THE THREE DENSITIES ARE CEILINGS AND ARE STORED AT THE CEILING,
+        # which is this corpus's standing convention where a norm is one-sided
+        # («не более»): the profile then renders the WORST LEGAL EXAMPLE
+        # of its own stock and says so. ЦНД-64's blue and green are stored at
+        # midpoints instead, and the difference is not an inconsistency -- its
+        # ТУ prints two-sided bands for those two layers and this one does not.
+        # The ladder 0,30 / 0,45 / 1,10 R/G/B is the coloured-coupler mask.
+        # Gammas are the standard's own RECOMMENDED per-layer values,
+        # нижнего / среднего / верхнего = red / green / blue.
+        # Straight section sized to the specified latitude >= 1,05 lg H, which
+        # is the NARROWEST in the Soviet set -- ЦНЛ-65's first grade gets
+        # 1,50 and its top grade 1,65 out of the same table.
+        curves=RGBCurves(
+            r=_neg(0.30, 0.550, toe_x=-1.10, toe_k=0.34, shoulder_x=1.20),
+            g=_neg(0.45, 0.600, toe_x=-1.12, toe_k=0.34, shoulder_x=1.20),
+            b=_neg(1.10, 0.650, toe_x=-1.08, toe_k=0.32, shoulder_x=1.18),
+        ),
+        # [T3] CLASS ESTIMATE. The standard specifies no granularity at all --
+        # «гранулярность» does not occur in its 15 sheets -- so this is
+        # scaled from SVEMA_CNL_32, the S 32 Soviet masked still negative of
+        # the same decade whose figures Gurlev 1986 publishes, and NOT from
+        # ЦНД-64, which is a stop faster.
+        grain=GrainSpec(15.0, 4.194, 4.516, 5.484, clump_gain=1.30,
+                        fog_grain=0.28, anisotropy=1.06,
+                        sigma_shape_toe=0.50, sigma_shape_dmax=1.65),
+        # [T3] CLASS ANALOGY, AND THE BRIDGE IS DELIBERATELY *NOT* USED HERE.
+        # табл. 6 п. 10 prints «разрешающая способность R, лин/мм, не менее
+        # 58» and no modulation transfer of any kind, which is exactly the
+        # shape of gap `soviet_f50_from_rp` exists to fill -- 58 / 3.436 would
+        # give 16.9 c/mm in one line.
+        # ⚠⚠ IT MAY NOT BE USED, AND THE REASON IS POLARITY. The ratio 3.436
+        # is calibrated on ЦО-Т-90ЛМ, a REVERSAL stock whose R is read «по
+        # обращенному изображению миры» -- on the POSITIVE image. A negative's
+        # resolving power is read on the negative image at a different
+        # effective contrast, and NOTHING IN 176 SHEETS SAYS THE RATIO
+        # SURVIVES THAT CROSSING. G-TU-BRIDGE-POLARITY holds the line for the
+        # other five Soviet negatives and it holds it here.
+        # ⚠ SO THE R IS STORED AND THE f50 IS NOT DERIVED FROM IT. The 58
+        # лин/мм goes into `_RESOLVING_POWER` as a tier-1 `spec_limit`, where
+        # it is a documented number in its own right, and the f50 below is the
+        # era-and-class estimate taken from SVEMA_CNL_32 -- same speed, same
+        # decade, same masked-still class, and Gurlev publishes the same 58
+        # лин/мм for it. Refusing a one-line conversion is what keeps the
+        # bridged stocks' `synthesized` label meaningful.
+        mtf=MTFSpec(25.0, 29.0, 33.0, adjacency=0.02),
+        halation=HalationSpec(radii_um=(18.0, 95.0, 400.0),
+                              gain_r=0.16, gain_g=0.11, gain_b=0.09,
+                              threshold_stops=1.4),
+        couplers=CouplerSpec(0.04, 75.0),
+        dye_matrix=_dye(0.25),
+        base_tint=(1.000, 0.985, 0.960),
+        misregistration_um=9.0,
+        default_format="ff35",
+        features=Feature.UNEVEN_EMULSION,
+    ),
+    FilmProfile(
+        name="SVEMA_CND_64",
+        gost_speed_class="neg_still",
+        gost_speed_edition="9160-82",
+        aliases=("cnd-64", "cnd64", "tsnd-64", "tsnd64", "ЦНД-64",
+                 "svema cnd-64", "svema tsnd 64"),
+        description=(
+            "[T1-limits] Soviet COLOUR NEGATIVE STILL film for DAYLIGHT, "
+            "S >= 64 GOST 9160-82, from ТУ 6-17-1453-89 -- «Вводится "
+            "впервые», a new product registered in April 1989 and the latest "
+            "Soviet still-film specification in this corpus. 35 mm "
+            "perforated in 20- and 36-exposure lengths and 61,5 mm "
+            "unperforated roll film, «предназначенную для съемок в "
+            "любительской и профессиональной фотографии при естественном "
+            "освещении и автоматизированной обработке в центрах обслуживания "
+            "фотолюбителей» -- the minilab stock. Specified in table 4: "
+            "S_M >= 64; sensitivity balance <= 2.0; RECOMMENDED contrast "
+            "coefficient of all layers 0.80 ± 0.10 with a layer-to-layer "
+            "contrast balance <= 0.10; the development time that produces it, "
+            "8 min; Dmin behind the blue filter 0.65-0.85, green 0.25-0.60, "
+            "red <= 0.30; overall latitude >= 1.50 B; RMS granularity <= 20 "
+            "behind both green and red; modulation transfer at 30 mm^-1 "
+            ">= 0.30 green and >= 0.15 red. "
+            "⚠⚠ ITS CONTRAST IS THE ONLY «РЕКОМЕНДУЕМЫЙ» FIGURE IN THE WHOLE "
+            "SOVIET SET -- a RECOMMENDATION with a tolerance, not a pass/fail "
+            "limit -- and the sheet pairs it with the development time that "
+            "delivers it. Every other photographic row in every other ТУ read "
+            "on 2026-09-22d is «не менее», «не более» or a band. "
+            "⚠ AND IT SPECIFIES NO Dmax AT ALL, which no other colour "
+            "specification in this corpus omits. "
+            "⚠ NO COLOUR TEMPERATURE IS PRINTED ANYWHERE IN THE DOCUMENT: "
+            "the sensitometric illuminant is whatever ГОСТ 9160-82 "
+            "prescribes, and 5500 K here is that standard's daylight "
+            "condition, NOT a figure this ТУ states. "
+            "ADDED 2026-09-22d from the owner's ТУ folder; the document had "
+            "never been read."
+        ),
+        era="1989-1992",
+        exposure_index=64,
+        balance_kelvin=5500,
+        # [T1-limits] ТУ 6-17-1453-89 table 4 (sheet 5), clause 1.3.3.
+        # gamma 0.80 on all three records is the ТУ's own RECOMMENDED value
+        # «Рекомендуемый коэффициент контрастности всех слоев 0,80 ± 0,10»,
+        # and the layer-to-layer contrast balance is capped at 0.10, so a
+        # per-record spread is not merely unevidenced -- it is bounded to
+        # less than the tolerance on the value itself, and storing one figure
+        # for all three is what the document says.
+        # Dmin: blue 0,65-0,85 -> 0.75 midpoint, green 0,25-0,60 -> 0.425
+        # midpoint, red «не более 0,30» taken at the stated ceiling. Blue
+        # highest is the coloured-coupler mask, and the ORANGE MASK IS WHAT
+        # THE BLUE BAND'S 0,65-0,85 IS.
+        # Straight section sized to the specified latitude >= 1,50 B.
+        # CURVE SHAPE IS NOT IN THE DOCUMENT -- there is not one plotted curve
+        # in its 26 sheets -- so toe_x/toe_k/shoulder_* are [T3] and follow
+        # the ЛН-8 / ДС-5М family shape, the nearest documented Soviet colour
+        # negatives.
+        curves=RGBCurves(
+            r=_neg(0.30, 0.800, toe_x=-1.30, toe_k=0.32, shoulder_x=1.60),
+            g=_neg(0.425, 0.800, toe_x=-1.32, toe_k=0.32, shoulder_x=1.60),
+            b=_neg(0.75, 0.800, toe_x=-1.28, toe_k=0.30, shoulder_x=1.58),
+        ),
+        # [T1-limit] «Среднеквадратическая гранулярность (sigma_D * 1000) за
+        # светофильтрами: зеленым 20, красным 20 -- не более» (table 4 item
+        # 8). ⚠ NO BLUE FIGURE IS SPECIFIED, exactly as on the ЛН-8 sheet, so
+        # the blue record takes the pooled fallback rather than a guess.
+        grain=GrainSpec(20.0, 4.516, 4.839, 5.806, clump_gain=1.28,
+                        fog_grain=0.26, anisotropy=1.05,
+                        rms_r=20.0, rms_g=20.0,
+                        sigma_shape_toe=0.50, sigma_shape_dmax=1.70),
+        # [T1-limit] «Коэффициент передачи модуляции при пространственной
+        # частоте 30 мм^-1: зеленым 0,30, красным 0,15 -- не менее» (table 4
+        # item 9). THE FREQUENCY IS PRINTED HERE, which is what makes this
+        # sheet one of the three that justify the 30 mm^-1 assumption ЛН-8's
+        # own row leaves blank. f50 = 30/sqrt(log2(1/T)): green 22.8, red
+        # 18.1. Blue unspecified -> green value.
+        # ⚠ NO RESOLVING POWER IS SPECIFIED in this ТУ, unlike every reversal
+        # sheet in the set, so `resolving_power_lp_mm_*` stays 0.
+        mtf=MTFSpec(18.1, 22.8, 22.8, adjacency=0.02),
+        halation=HalationSpec(radii_um=(18.0, 100.0, 420.0),
+                              gain_r=0.18, gain_g=0.12, gain_b=0.10,
+                              threshold_stops=1.4),
+        couplers=CouplerSpec(0.04, 75.0),
+        dye_matrix=_dye(0.20),
+        base_tint=(1.000, 0.985, 0.960),
+        misregistration_um=9.0,
+        default_format="ff35",
+        # [T1] Table 4 item 5 and table 7 (sheet 20). The ТУ pairs the
+        # recommended contrast with the time that produces it, which is the
+        # one thing on the sheet that behaves like a measurement rather than
+        # like a limit: «Время проявления для получения рекомендуемого
+        # коэффициента контрастности -- 8 мин», and table 7 gives that
+        # development at 25,0 ± 0,3 °C.
+        # ⚠ THE PROCESS HAS NO NAME AND THE SEQUENCE IS NOT THE C-41 ORDER:
+        # develop 8 / stop 2 / BLEACH 4 / wash 2 / FIX 6 / wash 6, all at
+        # 25 °C, with no wash between developer and stop nor between stop and
+        # bleach. It is recorded as printed rather than mapped onto a Western
+        # process it is not.
+        # ⚠⚠ DEAD LITERAL REMOVED 2026-09-23, same reason as ЦО-Т-90ЛМ above:
+        # `_apply_schema_v2` overwrites `processing` from `_PROCESSING`, so
+        # this never reached the shipped profile. The ТУ 6-17-1453-89
+        # formulary and its 28-minute schedule are in `_PROCESSING` now, and
+        # so is the one thing that makes this stock unusual -- табл. 4 п. 5 is
+        # THE ONLY PLACE IN 176 SHEETS OF SOVIET STANDARDS where a development
+        # time is tied to a contrast value, «Время проявления для получения
+        # рекомендуемого коэффициента контрастности, tпр = 8 мин» against
+        # «рекомендуемый коэффициент контрастности всех слоев 0,80 ± 0,10».
+        # That is why `contrast_index` is populated on this stock and on no
+        # other Soviet one.
+        # ⚠ A DECOLOURISING LAYER ON THE BASE, i.e. bleached in place rather
+        # than washed off -- the same mechanism ЦО-32Д's colloidal-silver
+        # layer uses and the OPPOSITE of ЛН-9С's soot backing, which leaves
+        # the film in a dedicated wash with a roller. `removable=False`
+        # records that distinction: nothing is physically removed here.
+        # ⚠ `position` IS LEFT EMPTY THOUGH THE SHEET PLACES THE LAYER, and
+        # that is this field's contract rather than caution. G-V39-AH-POS
+        # asserts that the stocks carrying a POSITION are exactly the stocks
+        # naming a CONSTRUCTION in `emulsion.antihalation` -- the position is
+        # derived from what the layer is made of, not stated independently.
+        # ТУ 6-17-1453-89 gives the location («на основу … нанесен») and the
+        # behaviour («обесцвечивающийся») and never the material, and neither
+        # colloidal silver nor a dye can be read off «decolourises»: both
+        # bleach. Writing `in_pack` here would have entered this stock into a
+        # census of named constructions on the strength of a construction
+        # nobody named. The prose below keeps everything the sheet does say.
+        anti_halation=AntiHalationSpec(
+            removable=False,
+            source="ТУ 6-17-1453-89 clause 1.3.2 (sheet 3): «На основу "
+                   "должен быть нанесен противоореольный слой, "
+                   "ОБЕСЦВЕЧИВАЮЩИЙСЯ в процессе химико-фотографической "
+                   "обработки». ⚠ THE MATERIAL IS NOT NAMED -- the sheet "
+                   "says the layer is on the base and that it loses its "
+                   "colour in processing, and no more, so `dye` stays empty "
+                   "and no optical density is recorded. `position` is "
+                   "'in_pack' because «на основу … нанесен» places it "
+                   "between support and emulsion, not behind the film.",),
+        # -- schema v50 --------------------------------------------------------
+        base=BaseSpec(
+            total_film_um=170.0,            # 0.17 mm ceiling as printed
+            antihalation=("layer on the base, specified to DECOLOURISE during "
+                          "processing"),
+            raw_storage_max_f=71.6,          # (14-22) C as printed
+            raw_storage_max_rh_pct=70.0,     # (50-70) % as printed
+            guaranteed_shelf_life_months=12,
+            source=(
+                "ТУ 6-17-1453-89 clause 1.3.1 (sheet 3): «Общая толщина "
+                "пленки шириной 35 мм должна быть не более 0,17 мм» -- a "
+                "CEILING on the coated film, and nothing is stated for the "
+                "61,5 mm form. Clause 1.3.2: «На основу должен быть нанесен "
+                "противоореольный слой, обесцвечивающийся в процессе "
+                "химико-фотографической обработки» -- decolourising, i.e. "
+                "bleached in place rather than washed off, the same mechanism "
+                "ЦО-32Д's colloidal-silver layer uses and the opposite of "
+                "ЛН-9С's soot backing. ⚠ NO BASE DESIGNATION: the only "
+                "indirect statement about the support is clause 1.3.9, "
+                "safety per ГОСТ 8449-79, so `base_type` stays empty. "
+                "Clause 4.5 (sheet 23): storage «в вентилируемом складском "
+                "помещении с относительной влажностью воздуха от 50 до 70 % "
+                "при температуре от 14 до 22 °С», stellages not less than "
+                "0,1 m from the floor and 1 m from heating, out of direct "
+                "sun; clause 4.6 forbids hydrogen sulphide, ammonia, "
+                "acetylene and mercury vapour in the room and any joint "
+                "storage with radioactive substances. 22 °C = 71.6 °F. "
+                "Clause 6.2 (sheet 24): «Гарантийный срок хранения 12 мес с "
+                "месяца выпуска», and clause 6.3 requires shipment to the "
+                "user within two months of manufacture.")),
+        features=Feature.UNEVEN_EMULSION,
     ),
 )
 
@@ -35026,6 +37038,37 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     # manufacturer datasheet available" to every query. That is the exact gap
     # this dict was created to close, and it closes silently if a new stock
     # forgets to register.
+    # ⚠ ADDED 2026-09-23c WITH THE NEW PROFILE. A stock whose every scalar
+    # comes from a state standard must not answer "no official manufacturer
+    # datasheet available", which is what `_NO_DATASHEET` would have made it
+    # say. ⚠ ЦНД-64 and ЦО-90Л are in that position TOO and are deliberately
+    # left alone in this edit: their citations live in their descriptions, the
+    # gap predates this batch, and moving them would change a census this
+    # batch is already re-baselining for the new stock. Recorded here so the
+    # next reader does not have to rediscover it.
+    "SVEMA_CND_32": (
+        "ГОСТ 25120-82 «Пленки фотографические цветные негативные. "
+        "Технические условия», Государственный комитет СССР по стандартам, "
+        "15 sheets, ОКП 23 7254, in force 01.01.83-01.01.88 and reissued in "
+        "July 1986 with Изменение № 1; corresponds to МС ИСО 897-73, 1012-73 "
+        "and 732-75 in the parts about sheet dimensions and unperforated "
+        "winding. PROVENANCE CLASS: STATE STANDARD -- an acceptance "
+        "specification, not a measurement report, so every photographic "
+        "number it prints is a LIMIT and the profile renders the worst legal "
+        "example wherever the limit is one-sided. Табл. 6, столбец «Фото "
+        "ЦНД-32, первая категория качества» supplies the speed, the speed "
+        "balance, the three recommended per-layer contrasts and their "
+        "development-time band, the contrast balance, the three fog-plus-mask "
+        "ceilings, the latitude floor and the resolving power; cl. 2.1а "
+        "supplies the base and its thickness; табл. 7-8 supply the process. "
+        "The full acceptance band is carried in `_TOLERANCE`. "
+        "⚠ NOT PRINTED ANYWHERE IN THE DOCUMENT: any characteristic curve or "
+        "plot of any kind, spectral sensitivity, granularity, modulation "
+        "transfer, reciprocity, D_max, mask chemistry, curl, shrinkage, a "
+        "density criterion, a colour temperature, an exposure time, a "
+        "sensitometer type or a wedge -- the last six are delegated to ГОСТ "
+        "9160-82, which is NOT in this corpus. The standard names every "
+        "quantity it limits and defines none of them.",),
     "EASTMAN_5293_250T_1982": (
         "G. L. Kennel, R. C. Sehlin, F. R. Reinking, S. W. Spakowsky and "
         "G. L. Whittier (all Eastman Kodak Company), \u00abEastman Color "
@@ -36116,7 +38159,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "negative photographic films. Specifications', Table 6] "
         "",
         "Журба Ю. И., «Краткий справочник по фотографическим процессам и материалам», 3-е изд., М., 1990, табл. 2, с. 46 [Zhurba 1990, Table 2, p46] -- norms for Фото-32/64/125/250 per ГОСТ 10691.2-84. CONFLICT INVESTIGATED AND RESOLVED 2026-08-16 against the primary standard held on disk, ГОСТ 24876-81 (PDF/PROFILES/SOVIET STANDARDS): Table 6 of that standard, as amended, carries THREE successive norm sets, and its own note reads «Нормы, указанные в скобках, вводятся с 01.01.90» -- the parenthetical norms take effect 1990-01-01. Original 1981 table (p8): R >= 135/110 lin/mm (high/first quality category) for Фото-32. Amended table (p23): R >= 145 with (200) from 1990, MTF at 30 mm^-1 >= 0.60 with (0.80) from 1990, RMS (1000*sigma_D) <= 35 with (20) from 1990. Later amendment (p27, renamed ФН-32/64/125/250): R >= 195, MTF >= 0.80, RMS <= 20. Zhurba 1990 prints the 1990-01-01 set exactly (200/150/110/100; MTF 0.80/0.80/0.80/0.70; RMS 20/25/25/35) because the book is that year. Our stored R 135 and f50 42 (MTF 0.70 at 30 mm^-1) are the ORIGINAL 1981 top-category norms -- correct for the generation this profile models, and NOT in conflict with Zhurba. Both norm sets use the SAME measurement method, ГОСТ 2819-84 (named on p14 of 24876-81), so the figures are like-for-like: the norm was raised for a new emulsion generation, it is not a test-object-contrast difference. NO STORED VALUE WAS CHANGED from this table",
-        "«Пленки фотографические 35-мм перфорированные в рулонах. Технические условия», ТУ 6-17-1371-86, 8 sheets, Шосткинское ПО «Свема» (export specification for delivery to the Mongolian People's Republic, introduced 1986). ⚠ THIS DOCUMENT CONTAINS NO PHOTOGRAPHIC NORMS TABLE -- it is a packaging, marking, acceptance and transport specification, and it DEFERS every photographic characteristic to other documents (sheet 3): Фото-65 to ГОСТ 24876-81, ЦНЛ-65 to ГОСТ 25130-82, ДС-4 to ТУ 6-17-622-84. What it does document: 35 mm perforated, roll length 300 +/- 15 m; GUARANTEED SHELF LIFE Фото-65 two years, ДС-4 and ЦНЛ-65 twelve months from the month of manufacture (sheet 6); storage at 50-70 % RH and 14-22 C, away from hydrogen sulfide, ammonia and mercury vapour. The ГОСТ 25130-82 pointer for ЦНЛ-65 is a lead: that standard is NOT in this corpus and would be the primary source for the TsNL line",
+        "«Пленки фотографические 35-мм перфорированные в рулонах. Технические условия», ТУ 6-17-1371-86, 8 sheets, Шосткинское ПО «Свема» (export specification for delivery to the Mongolian People's Republic, introduced 1986). ⚠ THIS DOCUMENT CONTAINS NO PHOTOGRAPHIC NORMS TABLE -- it is a packaging, marking, acceptance and transport specification, and it DEFERS every photographic characteristic to other documents (sheet 3): Фото-65 to ГОСТ 24876-81, ЦНЛ-65 to ГОСТ 25120-82, ДС-4 to ТУ 6-17-622-84. What it does document: 35 mm perforated, roll length 300 +/- 15 m; GUARANTEED SHELF LIFE Фото-65 two years, ДС-4 and ЦНЛ-65 twelve months from the month of manufacture (sheet 6); storage at 50-70 % RH and 14-22 C, away from hydrogen sulfide, ammonia and mercury vapour. ⚠⚠ THE ЦНЛ-65 POINTER WAS READ AS «ГОСТ 25130-82» UNTIL 2026-09-23c AND THAT WAS AN OCR MISREAD WITH A REAL COST -- it carried the sentence «that standard is NOT in this corpus» while the document was sitting in the same folder all along, filed under a bare registry number that gives no clue what it is. Sheet 3's own line renders as «ГОСТ 3о130-о3»: this typescript's OCR confuses 2 with 3, 8 with о and 1 with с, and the digits that decide 25120 against 25130 are exactly the corrupted ones, so the pointer itself is UNREADABLE and is not evidence either way. What settles it is the standard's own text: ГОСТ 25120-82 «Пленки фотографические цветные негативные» табл. 6 SPECIFIES «Фото ЦНЛ-65» BY NAME, in two quality grades, and is in the corpus and read. Its norms are adopted on this profile and its full acceptance bands are in `_TOLERANCE`",
     ),
     "SVEMA_FOTO_250": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -36191,7 +38234,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "spectral zone, R 63 lin/mm, H&D curve family fig. 197",
         # ---- 2026-08-17: the film's own primary specification ----
         "«Пленка фотографическая цветная негативная ДС-4. Технические условия», ТУ 6-17-622-84, 9 sheets, Шосткинское ПО «Свема», in force 04.02.1985 to 1990, superseding ТУ 6-17-622-74 [primary state manufacturing specification]. Poor typewritten scan with NO text layer -- every figure below was read visually from the page images. Sheet 2: colour negative photographic film ДС-4 for daylight shooting in art, reportage and amateur photography; two forms, perforated and unperforated roll. TABLE 4 (sheet 4), all values NORMS: general sensitivity >= 45 ед. ГОСТ 9160-82; sensitivity balance <= 2.2; RECOMMENDED CONTRAST COEFFICIENT upper and middle layers 0.70 +/- 0.05, LOWER layer 0.60 +/- 0.05; development time to reach it 6-8 min; fog optical density <= 0.28 IN EVERY SPECTRAL ZONE (equal across zones -- confirms the film is unmasked); total photographic latitude >= 1.2; RESOLVING POWER >= 68 lin/mm. Sheet 4 also: deformation temperature >= 33 C; over the guaranteed shelf life sensitivity may fall <= 40 % and fog density rise <= 50 %. TEST METHODS (sheets 7-8): sensitometer ЦС-2М and densitometer «Макбет» in STATUS M plus ДП-1, both per ГОСТ 9160-82; resolving power on resolvometer РП-2М per ГОСТ 2819-84 -- the same method standard as ГОСТ 24876-81 uses, so this figure is like-for-like with the other Soviet resolving values in this database. Developer (table 5, pH 10.5-10.7): EDTA disodium salt 2-hydrate 2.0 g, hydroxylamine sulfate 1.2 g, p-aminodiethylaniline sulfate (ЦПВ-1) 2.3 g, anhydrous sodium sulfite 2.0 g, potassium carbonate 60.0 g per litre. NOT SPECIFIED in the document: Dmax, spectral sensitivity, RMS granularity, MTF, reciprocity, dye impurity ratios, characteristic-curve shape",
-        "«Пленки фотографические 35-мм перфорированные в рулонах. Технические условия», ТУ 6-17-1371-86, 8 sheets, Шосткинское ПО «Свема» (export specification for delivery to the Mongolian People's Republic, introduced 1986). ⚠ THIS DOCUMENT CONTAINS NO PHOTOGRAPHIC NORMS TABLE -- it is a packaging, marking, acceptance and transport specification, and it DEFERS every photographic characteristic to other documents (sheet 3): Фото-65 to ГОСТ 24876-81, ЦНЛ-65 to ГОСТ 25130-82, ДС-4 to ТУ 6-17-622-84. What it does document: 35 mm perforated, roll length 300 +/- 15 m; GUARANTEED SHELF LIFE Фото-65 two years, ДС-4 and ЦНЛ-65 twelve months from the month of manufacture (sheet 6); storage at 50-70 % RH and 14-22 C, away from hydrogen sulfide, ammonia and mercury vapour. The ГОСТ 25130-82 pointer for ЦНЛ-65 is a lead: that standard is NOT in this corpus and would be the primary source for the TsNL line",
+        "«Пленки фотографические 35-мм перфорированные в рулонах. Технические условия», ТУ 6-17-1371-86, 8 sheets, Шосткинское ПО «Свема» (export specification for delivery to the Mongolian People's Republic, introduced 1986). ⚠ THIS DOCUMENT CONTAINS NO PHOTOGRAPHIC NORMS TABLE -- it is a packaging, marking, acceptance and transport specification, and it DEFERS every photographic characteristic to other documents (sheet 3): Фото-65 to ГОСТ 24876-81, ЦНЛ-65 to ГОСТ 25120-82, ДС-4 to ТУ 6-17-622-84. What it does document: 35 mm perforated, roll length 300 +/- 15 m; GUARANTEED SHELF LIFE Фото-65 two years, ДС-4 and ЦНЛ-65 twelve months from the month of manufacture (sheet 6); storage at 50-70 % RH and 14-22 C, away from hydrogen sulfide, ammonia and mercury vapour. ⚠⚠ THE ЦНЛ-65 POINTER WAS READ AS «ГОСТ 25130-82» UNTIL 2026-09-23c AND THAT WAS AN OCR MISREAD WITH A REAL COST -- it carried the sentence «that standard is NOT in this corpus» while the document was sitting in the same folder all along, filed under a bare registry number that gives no clue what it is. Sheet 3's own line renders as «ГОСТ 3о130-о3»: this typescript's OCR confuses 2 with 3, 8 with о and 1 with с, and the digits that decide 25120 against 25130 are exactly the corrupted ones, so the pointer itself is UNREADABLE and is not evidence either way. What settles it is the standard's own text: ГОСТ 25120-82 «Пленки фотографические цветные негативные» табл. 6 SPECIFIES «Фото ЦНЛ-65» BY NAME, in two quality grades, and is in the corpus and read. Its norms are adopted on this profile and its full acceptance bands are in `_TOLERANCE`",
     ),
     "SVEMA_CNL_32": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -36236,7 +38279,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "filters <= 0.90/0.50/0.27 (top) 1.10/0.60/0.30 (first grade), "
         "latitude >= 1.65/1.50, R >= 63 lin/mm (first grade), colourless "
         "triacetate base D <= 0.05, base 0.11-0.15 mm (35 mm)",
-        "«Пленки фотографические 35-мм перфорированные в рулонах. Технические условия», ТУ 6-17-1371-86, 8 sheets, Шосткинское ПО «Свема» (export specification for delivery to the Mongolian People's Republic, introduced 1986). ⚠ THIS DOCUMENT CONTAINS NO PHOTOGRAPHIC NORMS TABLE -- it is a packaging, marking, acceptance and transport specification, and it DEFERS every photographic characteristic to other documents (sheet 3): Фото-65 to ГОСТ 24876-81, ЦНЛ-65 to ГОСТ 25130-82, ДС-4 to ТУ 6-17-622-84. What it does document: 35 mm perforated, roll length 300 +/- 15 m; GUARANTEED SHELF LIFE Фото-65 two years, ДС-4 and ЦНЛ-65 twelve months from the month of manufacture (sheet 6); storage at 50-70 % RH and 14-22 C, away from hydrogen sulfide, ammonia and mercury vapour. The ГОСТ 25130-82 pointer for ЦНЛ-65 is a lead: that standard is NOT in this corpus and would be the primary source for the TsNL line",
+        "«Пленки фотографические 35-мм перфорированные в рулонах. Технические условия», ТУ 6-17-1371-86, 8 sheets, Шосткинское ПО «Свема» (export specification for delivery to the Mongolian People's Republic, introduced 1986). ⚠ THIS DOCUMENT CONTAINS NO PHOTOGRAPHIC NORMS TABLE -- it is a packaging, marking, acceptance and transport specification, and it DEFERS every photographic characteristic to other documents (sheet 3): Фото-65 to ГОСТ 24876-81, ЦНЛ-65 to ГОСТ 25120-82, ДС-4 to ТУ 6-17-622-84. What it does document: 35 mm perforated, roll length 300 +/- 15 m; GUARANTEED SHELF LIFE Фото-65 two years, ДС-4 and ЦНЛ-65 twelve months from the month of manufacture (sheet 6); storage at 50-70 % RH and 14-22 C, away from hydrogen sulfide, ammonia and mercury vapour. ⚠⚠ THE ЦНЛ-65 POINTER WAS READ AS «ГОСТ 25130-82» UNTIL 2026-09-23c AND THAT WAS AN OCR MISREAD WITH A REAL COST -- it carried the sentence «that standard is NOT in this corpus» while the document was sitting in the same folder all along, filed under a bare registry number that gives no clue what it is. Sheet 3's own line renders as «ГОСТ 3о130-о3»: this typescript's OCR confuses 2 with 3, 8 with о and 1 with с, and the digits that decide 25120 against 25130 are exactly the corrupted ones, so the pointer itself is UNREADABLE and is not evidence either way. What settles it is the standard's own text: ГОСТ 25120-82 «Пленки фотографические цветные негативные» табл. 6 SPECIFIES «Фото ЦНЛ-65» BY NAME, in two quality grades, and is in the corpus and read. Its norms are adopted on this profile and its full acceptance bands are in `_TOLERANCE`",
     ),
     "TASMA_OCH_45": (
         "Гурлев Д. С., «Справочник по фотографии (светотехника и "
@@ -49997,6 +52040,31 @@ _TI0835_F50_VISUAL_NOT_ADOPTED = 46.9
 _TI0835_DMIN = (0.173, 0.531, 0.962)
 
 _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
+    # -- ЦО-Т-90ЛМ AND ЦО-90Л: TWO SANCTIONED REGIMES, AND DELIBERATELY NOT
+    # -- RECORDED HERE, 2026-09-23 -------------------------------------------
+    # ⚠⚠ THIS ABSENCE IS A DECISION AND NOT AN OVERSIGHT. Both ТУ print a
+    # second complete bath schedule under «Допускается обработку кинопленки
+    # проводить по режиму, указанному в табл. 6» -- a slower, cooler cycle
+    # sanctioned by the same document as the machine cycle in табл. 5. They
+    # were written as `ProcessVariant` records and then taken out again, for
+    # a reason this record's own docstring supplies: a variant is "a second
+    # complete measured response with its own EI", and these are not that.
+    # Neither sheet prints a second set of norms, a second curve, a second
+    # speed or any statement that the result differs -- both regimes are
+    # offered as routes to the SAME табл. 2 / табл. 3 values. Every field a
+    # variant exists to carry (`curves`, `gamma_scale`, `dmin_shift`,
+    # `push_stops`, `exposure_index`) would have had to sit at its neutral
+    # value, and the record would have asserted a difference by existing.
+    #
+    # ⚠ AND THE COST WAS NOT ZERO. Each development needs a
+    # ProcessVariantCtrl enumerator in AlgoControlEnums.hpp -- see
+    # `_apply_v37_variant_ids`, which refuses a variant without one rather
+    # than defaulting it. Four new enumerators in the shipped C++ ABI, for
+    # four developments that render identically to each other, is a bad
+    # trade. The schedules are kept in full in `_PROCESSING` (the default
+    # regime, which is what the norms were taken at) and in
+    # `_SOVIET_TU_ALT_REGIME` (the alternative, step by step), so nothing is
+    # lost except a claim nobody made.
     # -- SUPER ANSCOCHROME, 2026-09-05, queue #215 ----------------------------
     # ⚠ THE FIRST FOUR-POINT DEVELOPMENT LADDER IN THIS DATABASE, and the first
     # source anywhere in the corpus that labels a push by EXPOSURE INDEX ONLY.
@@ -50712,6 +52780,18 @@ def _processing_with_progress(p: FilmProfile) -> ProcessingSpec:
                    rate_size_coeff_um_min=coeff)
 
 
+#: Tier-1 stocks whose PRIMARY SOURCE PUBLISHES NO CHARACTERISTIC CURVE, so the
+#: tier-to-`fitted_from` mapping would otherwise assert a trace that never
+#: happened. See the third hook in `_provenance_for`.
+#: ⚠ ONLY ДС-5М IS HERE AND THAT IS NOT BECAUSE THE OTHERS ARE FINE -- it is
+#: because the other seven Soviet ТУ stocks are untagged and already resolve to
+#: "analogy" by the tier rule. If any of them is ever promoted to [T1] on the
+#: strength of its tabulated norms, it must be added here in the same edit.
+_NO_CURVE_IN_PRIMARY_SOURCE: frozenset[str] = frozenset({
+    "SVEMA_DS_5M",
+})
+
+
 def _provenance_for(p: FilmProfile) -> Provenance:
     """DM-19. Tier parsed from the [T*] tag; untagged stocks are inferred."""
     m = re.match(r"\[T([123])\]", p.description)
@@ -50736,6 +52816,34 @@ def _provenance_for(p: FilmProfile) -> Provenance:
     if p.name in _KODAK_STILL_HARVEST_CURVES:
         reviewed = "2026-08-26"
         fitted = "datasheet_curve"
+    # ⚠⚠ THE SAME HOOK USED IN THE OPPOSITE DIRECTION, 2026-09-23, AND IT IS
+    # THE E1 DEFECT CLASS FOR THE THIRD TIME. `fitted_from` is derived from the
+    # tier, and tier 1 maps to "datasheet_curve" -- "the softplus parameters
+    # were fitted to a published characteristic curve". For ДС-5М that is
+    # FALSE, and its own provenance string says so in as many words: it ends
+    # «NOT SPECIFIED anywhere in the document: resolving power, spectral
+    # sensitivity curves, reciprocity, Dmax, CHARACTERISTIC-CURVE SHAPE». The
+    # profile was asserting a trace and citing a document that publishes no
+    # curve, in the same record.
+    #
+    # ⚠ IT IS TIER 1 AND SHOULD STAY TIER 1. The stock's NUMBERS are primary --
+    # gradients, D_min, latitude, MTF, granularity, the mask ladder and the
+    # colour-separation matrix are all printed norms in ТУ 6-17-691-88 табл. 2.
+    # What is not primary is the CURVE SHAPE, which was built by taking those
+    # tabulated endpoints and borrowing a toe and shoulder from a sibling.
+    # That is precisely what "analogy" means, and it is what ЛН-8, ЛН-9,
+    # ЛН-9С, ЦНД-64, ЦО-Т-90ЛМ, ЦО-32Д and ЦО-90Л already correctly carry.
+    # ДС-5М was the outlier only because it is the one Soviet stock whose
+    # description carries a [T1] tag.
+    #
+    # ⚠ AND THIS IS A WHOLE-CORPUS FACT, NOT A ONE-OFF. The nine Soviet
+    # documents were read end to end on 2026-09-23 -- 176 sheets -- and contain
+    # four mechanical drawings and NOT ONE PLOTTED CURVE OF ANY KIND. So no
+    # Soviet stock in this database can ever honestly carry "datasheet_curve"
+    # from a ТУ, and the set below is the place to say it once.
+    if p.name in _NO_CURVE_IN_PRIMARY_SOURCE:
+        fitted = "analogy"
+        reviewed = "2026-09-23"
     # ⚠ SAME HOOK, SECOND USE, 2026-08-27. Ten profiles had data written on
     # 2026-08-27 -- nine took a third-party halation gain/threshold where the
     # spec had been fully default (effect OFF), and CINESTILL_800T gained a
@@ -50775,12 +52883,41 @@ def _provenance_for(p: FilmProfile) -> Provenance:
     # opposite call from `_RETRACED_2026_09_20` above and is deliberate.
     if p.name in _DATASHEET_CURVE_RELABEL_2026_09_20:
         fitted = "datasheet_curve"
+    # ⚠ SEVENTH USE OF THE HOOK, 2026-09-22, AND IT MOVES BOTH FIELDS. These
+    # six had their curves REPLACED today by traces off their own
+    # manufacturers' plots, so `fitted_from` becomes "datasheet_curve" and the
+    # review date moves with the value -- the same call as
+    # `_RETRACED_2026_09_20`, for the same reason. Tier tags stay where they
+    # are: grain, MTF and spectral response on these profiles did not move.
+    if p.name in _RETRACED_2026_09_22:
+        fitted = "datasheet_curve"
+        reviewed = "2026-09-22"
+    # ⚠ EIGHTH USE OF THE HOOK, 2026-09-23, AND IT IS A RECOVERY RATHER THAN A
+    # CORRECTION. EASTMAN_5293_250T_1982 carried a full `provenance=` literal,
+    # which this function overrides in silence. Three of its four fields were
+    # reproduced anyway -- tier 1 from the [T*] tag, "datasheet_curve" from
+    # `_FITTED_FROM[1]`, and both `sources` from `_PROVENANCE_SOURCES` -- so
+    # the profile looked correct and exactly one datum was being lost: the
+    # 2026-09-17 review, the day the owner's T3 block was added to it. It was
+    # shipping the 2026-07-30 default. Neither the tier nor the curve method
+    # moves; only the date, which is what the 2026-09-20 EKTAR note above
+    # establishes as the right call when a profile gained data on a stated day.
+    if p.name in _5293_REVIEW_2026_09_17:
+        reviewed = "2026-09-17"
     return Provenance(
         tier=tier,
         sources=srcs,
         fitted_from=fitted,
         last_reviewed=reviewed,
     )
+
+
+#: ⚠ ONE NAME, AND IT IS A SET RATHER THAN AN `if p.name ==` FOR THE SAME
+#: REASON EVERY OTHER HOOK ABOVE IS: the next stock to lose a review date this
+#: way -- and the 2026-09-23 sweep suggests there will be one -- goes here
+#: instead of growing a second branch. See the eighth-use note in
+#: `_provenance_for`.
+_5293_REVIEW_2026_09_17 = frozenset({"EASTMAN_5293_250T_1982"})
 
 
 #: Profiles whose characteristic curves were replaced by traced ones in the
@@ -50811,6 +52948,14 @@ _KODAK_STILL_HARVEST_CURVES = frozenset({
     "KODAK_PORTRA_160VC",
     "KODAK_PORTRA_400NC",
     "KODAK_PORTRA_400VC",
+    # ⚠⚠ ADDED 2026-09-22 BY OWNER DECISION, and it is the one name in this set
+    # whose figure is NOT its own. E-2468's characteristic panel is PORTRA
+    # 160VC's F009_0154AC -- see the profile and verify.py. The owner directed
+    # that the sheet's title decides whose curve it is, so 100T now reads the
+    # SAME four-tuples as 160VC out of `_KODAK_STILL_HARVEST`. Routing it
+    # through the table rather than writing literals on the profile is what
+    # guarantees the two stay bit-identical.
+    "KODAK_PORTRA_100T",
     # ⚠⚠ ADDED 2026-09-20. EKTAR 100, traced from E-4046 p4 by the same reader.
     # It is the first name in this set whose curve was REPLACED because the old
     # one was wrong rather than merely unevidenced: the stored analogy had
@@ -50846,6 +52991,55 @@ _KODAK_STILL_HARVEST_CURVES = frozenset({
 #: Profiles whose characteristic curves were RE-traced on 2026-09-20, so their
 #: review date must be today rather than whatever an earlier hook left behind.
 _RETRACED_2026_09_20 = frozenset({"KODAK_EKTAR_100", "KODAK_BW400CN"})
+
+
+#: ⚠⚠ THE NINE-FILM PASS, 2026-09-22. Six profiles whose characteristic curves
+#: were traced today out of documents THAT WERE ALREADY IN THE CORPUS. None of
+#: these needed finding: the profile named its publication, the PDF sat on
+#: disk, and the tracing had simply never been done -- including on three of
+#: the most-used black-and-white stocks in the database, which were rendering
+#: analogy curves the whole time.
+#:
+#: ⚠ THE PASS OPENED WITH NINE CANDIDATES AND THREE OF THEM DID NOT SURVIVE
+#: CONTACT WITH THEIR OWN DOCUMENTS, which is recorded here because the list
+#: of nine was published to the owner before the documents were opened:
+#:
+#:   EASTMAN_5247_1974   TI0835 IS on file and prints NO characteristic panel
+#:                       at all -- nine pages of tables, and the phrase the
+#:                       search matched is "curve placement" inside the
+#:                       Laboratory Aim Density paragraph. A keyword is not a
+#:                       plot.
+#:   KODAK_TRI_X_320TXP  panel read, four traces, fit converged -- and the
+#:                       fitted curve's contrast index came out 0.528 where the
+#:                       DRAWN trace measures 0.594. A 0.066 contrast error is
+#:                       a visibly different film; not adopted.
+#:   KODAK_PORTRA_100T   REFUSED, THEN ADOPTED BY OWNER DECISION the same
+#:                       day. The panel traced cleanly at rms
+#:                       0.0025/0.0027/0.0033 D and came back within 0.005 D
+#:                       of PORTRA 160VC's pinned values, because E-2468
+#:                       prints 160VC's figure F009_0154AC on both editions.
+#:                       verify.py caught the adoption and failed the build.
+#:                       The owner directed that the sheet's title -- «KODAK
+#:                       PROFESSIONAL PORTRA 100T Film / Tungsten» -- decides
+#:                       whose curve it is, so the curve is now carried,
+#:                       COPIED FROM 160VC EXACTLY, with the figure-id
+#:                       conflict recorded at the profile and the guard
+#:                       rewritten to assert the shared figure instead of
+#:                       refusing it. Queue K6 closed by decision, not by a
+#:                       new document.
+#:   KODAK_TMAX_P3200    same test, worse: fitted 0.640 against a drawn 0.710,
+#:                       at a fit residual of 0.043 D. The softplus-difference
+#:                       model does not reproduce this emulsion's long shallow
+#:                       toe. Not adopted, and the model limitation is the
+#:                       finding.
+_RETRACED_2026_09_22 = frozenset({
+    "KODAK_TRI_X_400TX",
+    "KODAK_PORTRA_100T",
+    "KODAK_TMAX_400",
+    "KODAK_TMAX_100",
+    "EASTMAN_EKTACHROME_5239",
+    "EASTMAN_EKTACHROME_7239",
+})
 
 
 #: ⚠⚠ THE LABEL LAG, CORRECTED 2026-09-20. Seven profiles carried
@@ -50896,6 +53090,25 @@ _DMIN_LADDER = {
     # the traced toe plateaus are 0.784/0.568/0.209 and 1.020/0.803/0.382
     # B/G/R. Those dmins now ARE the mask, so the encoding is a ladder.
     "KODAK_VERICOLOR_III_160", "KODAK_EKTAPRESS_PJ400",
+    # ⚠ ЦНД-64, 2026-09-22d, AND IT IS HERE FOR THE REASON THE PARAGRAPH
+    # ABOVE GIVES -- a literal on the profile would be discarded by
+    # `_apply_schema_v2`. ТУ 6-17-1453-89 table 4 item 6 prints «Минимальная
+    # плотность, Б, за светофильтрами» as THREE SEPARATE PER-FILTER LIMITS --
+    # blue 0,65-0,85, green 0,25-0,60, red не более 0,30 -- which is a
+    # coloured-coupler mask stated as a ladder, not a neutral base.
+    # ⚠ AND IT IS NOT THE P47 CASE. Queue P47 held twelve stocks back because
+    # their ladder might be an artefact of the ESTIMATE that produced their
+    # curve. This one's three dmins are printed values from a manufacturing
+    # specification; only the curve SHAPE around them is analogy, and a shape
+    # cannot invent three numbers the document states.
+    "SVEMA_CND_64",
+    # ⚠ ФОТО ЦНД-32, 2026-09-23c, AND IT IS HERE ON EXACTLY ЦНД-64'S ARGUMENT.
+    # ГОСТ 25120-82 табл. 6 п. 8 prints «суммарная оптическая плотность вуали
+    # И МАСКИ за светофильтрами» as THREE SEPARATE PER-FILTER CEILINGS -- синим
+    # не более 1,10, зеленым 0,45, красным 0,30 -- and names the mask in the row
+    # title. A 0,80 D spread between blue and red IS a coloured-coupler ladder,
+    # stated by a state standard, not inferred from a curve.
+    "SVEMA_CND_32",
     # ⚠⚠ ADDED 2026-09-20, AND IT IS THE FIRST `is_monochrome` NAME IN THIS
     # SET. BW400CN is chromogenic black-and-white on an orange-masked base and
     # F-4036 p5 draws the mask as a dmin ladder 0.2754 / 0.7021 / 0.9475 --
@@ -50909,6 +53122,11 @@ _DMIN_LADDER = {
     # so the mask is encoded in dmin exactly as for their siblings.
     "KODAK_PORTRA_160NC", "KODAK_PORTRA_160VC",
     "KODAK_PORTRA_400NC", "KODAK_PORTRA_400VC",
+    # ⚠ Added 2026-09-22 with the owner's E-2468 decision. PORTRA 100T now
+    # carries the same 0.2045/0.6087/0.8121 ladder as 160VC because it now
+    # carries the same curve; its previous FLAT 0.21/0.20/0.20 was the reason
+    # it was `neutral_dmin`, and that reason is gone.
+    "KODAK_PORTRA_100T",
     "FUJICOLOR_A250", "GEVACOLOR_NEG_682",
     "AGFA_OPTIMA_100",
     "AGFA_VISTA_200",
@@ -50991,6 +53209,25 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
     # stated in the table, so the high-contrast slot carries it, matching the
     # convention used for the other Soviet single-figure sources.
     "SVEMA_CO_32D": (0.0, 68.0),
+    # ⚠ ADDED 2026-09-23 -- PRINTED IN ITS OWN ТУ SINCE 1990 AND NEVER READ.
+    # ТУ 6-42-1514-90 табл. 3 п. 7: «Общая разрешающая способность (R), мм⁻¹,
+    # не менее 75». The stock carried a heuristic f50 scaled off ЦО-32Д while
+    # this number, which the f50 should have been built from, sat unharvested.
+    # ⚠ THE LOW-CONTRAST SLOT STAYS 0.0 AND THAT IS THE DOCUMENT, NOT AN
+    # OMISSION: Soviet ТУ print ONE resolving power, never the (low, high)
+    # test-object-contrast pair the Kodak and Fuji sheets give, and ГОСТ
+    # 2819-84 is not reproduced in any of the nine so its target contrast is
+    # not recoverable from this corpus.
+    "SVEMA_CO_90L": (0.0, 75.0),
+    # ⚠ ADDED 2026-09-23c WITH THE NEW ФОТО ЦНД-32 PROFILE, and it is the
+    # first documented resolving power on a Soviet NEGATIVE in this table.
+    # ГОСТ 25120-82 табл. 6 п. 10, столбец «Фото ЦНД-32, первая категория
+    # качества»: «Разрешающая способность R, лин/мм, не менее 58».
+    # ⚠⚠ ITS f50 IS NOT BRIDGED FROM IT. `soviet_f50_from_rp` is calibrated on
+    # a REVERSAL stock, read «по обращенному изображению миры»; crossing that
+    # ratio to a negative is exactly what G-TU-BRIDGE-POLARITY forbids. The R
+    # is a documented number in its own right and stops there.
+    "SVEMA_CND_32": (0.0, 58.0),
     # 2026-08-15 batch -- new manufacturer sheets, both TOCs printed:
     "AGFA_VISTA_200": (50.0, 130.0),   # AGFACOLOR Vista brochure (AF 06/2000),
                                        # per-film table: 50 at 1.6:1, 130 at
@@ -51197,6 +53434,23 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
     # `_reciprocity_for`. EASTMAN_TRI_X_5223 has carried an ignored 250 in its
     # literal for as long as the field has existed; it is honoured here now.
     "EASTMAN_TRI_X_5223": 250,
+    # ⚠ EASTMAN SUPER-XX, 2026-09-22d, AND IT IS AN UNFILTERED PAIR, which is
+    # the only kind this field may hold: a MONOCHROME film needs no conversion
+    # filter, so the ratio is a statement about the sensitisation rather than
+    # about a piece of glass. «Eastman Motion Picture Films for Professional
+    # Use» (Kodak, 1942), printed page 45, "Specifications -- EASTMAN SUPER-XX
+    # PANCHROMATIC NEGATIVE FILM, Type 1232", the speed table: WESTON 100 in
+    # sunlight and 64 in tungsten, printed side by side with no filter named
+    # for either. `exposure_index` already holds the 100.
+    # ⚠⚠ THE BOOKLET PRINTS FOUR SCALES FOR ONE FILM AND THEY CONVERT EXACTLY,
+    # which is what makes the pair checkable rather than merely transcribed:
+    # Kodak Film Speed 400 / 250, Weston 100 / 64, G.E. 160 / 100 --
+    # Weston = 0.25 x Kodak Film Speed (100/400 = 0.250, 64/250 = 0.256) and
+    # G.E. = 0.40 x Kodak Film Speed (160/400 and 100/250, both exactly 0.40).
+    # The daylight-to-tungsten step is 100/64 on the Weston scale and 400/250
+    # on Kodak's own, i.e. 2/3 stop either way -- the classic panchromatic
+    # figure, arrived at twice from independent columns.
+    "EASTMAN_SUPER_XX_1938": 64,
     # ⚠ THE FIVE 1956 SHEET EMULSIONS, 2026-09-17 (queue P63), AND THEY ARE
     # HERE RATHER THAN IN THEIR OWN LITERALS FOR EXACTLY THE REASON THE
     # PARAGRAPH ABOVE GIVES: `_apply_schema_v2` reads this dict and nothing
@@ -51273,6 +53527,24 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
 # exists to expose rather than to paper over.
 # ---------------------------------------------------------------------------
 _PROCESSING: dict[str, ProcessingSpec] = {
+    # -- EASTMAN SUPER-XX Type 1232, 2026-09-22d -----------------------------
+    # «Eastman Motion Picture Films for Professional Use» (Kodak, 1942),
+    # printed page 45: "Speed and Recommended Exposure Meter Settings: For
+    # development in Kodak SD-21 to a gamma of 0.65", and further down the
+    # same page "Recommended IIb Control Gamma: 0.60 to 0.70".
+    # ⚠ NO TIME AND NO TEMPERATURE ARE PRINTED. The booklet names the
+    # developer and the contrast AIM and leaves the clock to the laboratory --
+    # exactly what H-1-5302 still does fifty-seven years later -- so `minutes`
+    # and `celsius` stay 0.0 rather than being filled from a modern D-76
+    # table. 0.65 is stored as the aim, and it is the CENTRE of the 0.60-0.70
+    # control band the same page prints, which is a consistency the two
+    # sentences did not have to have.
+    # ⚠ THE SAME PAGE'S RESOLVING POWER IS ALREADY IN `_RESOLVING` AND IT IS
+    # TIED TO THIS DEVELOPER: "55 lines per mm. in Kodak SD-21". A resolving
+    # power without its developer is not comparable with anything, which is
+    # why the two entries belong together.
+    "EASTMAN_SUPER_XX_1938": ProcessingSpec(
+        developer="Kodak SD-21", contrast_index=0.65),
     # -- ORWOCOLOR NC 3, 2026-09-15 ------------------------------------------
     # Tabelle 3, "ORWO-Verarbeitungsvorschrift 5186", Tamm & Weisflog 1972
     # p343. The sheet prints the whole six-bath chain and only the colour
@@ -51773,6 +54045,1239 @@ _PROCESSING.update({
     for _n in _C41_STOCKS
 })
 
+# ---------------------------------------------------------------------------
+# ⚠⚠ THE DEAD-LITERAL RECOVERY OF 2026-09-23. Three stocks carried a
+# `processing=` literal on the profile, which `_apply_schema_v2` discards in
+# silence -- the class documented at `_DMIN_LADDER` and at
+# `_EXPOSURE_INDEX_TUNGSTEN`, and now blocked outright by
+# `_refuse_dead_literals`. The two Agfa entries MUST come after the
+# `_C41_STOCKS` update above, because that sweep also names them and would
+# otherwise win; the 5293 entry is order-independent and sits here so that all
+# three recoveries read as one decision.
+# ---------------------------------------------------------------------------
+
+#: AgfaPhoto Vista plus 200 p3 section 9 and Vista plus 400 p7 section 9:
+#: «Vista Films are "process-compatible" and are developed in the following
+#: process: AP 70/CN-16/C41».
+#:
+#: ⚠ THE SHEET NAMES THREE INTERCHANGEABLE PROCESSES AND PRINTS NO SCHEDULE
+#: FOR ANY OF THEM, so `minutes` and `celsius` below are the C-41 standard's,
+#: exactly as the generic `_C41_STOCKS` sweep supplies them and exactly as the
+#: profile comments have always said. What the sweep does NOT supply, and what
+#: the discarded literals did carry, is the other three fields -- and they are
+#: the reason this override exists rather than being folded into the sweep.
+#: ⚠ `ProcessingSpec` HAS NO `source` FIELD; the citation lives in the
+#: ParamSource rows for `processing.developer` on both stocks.
+_VISTA_C41_FULL = ("AGFA_VISTA_PLUS_200", "AGFA_VISTA_PLUS_400")
+_PROCESSING.update({
+    _n: ProcessingSpec(
+        developer="Process C-41", dilution="stock", minutes=3.25,
+        celsius=37.8, agitation="rotary", contrast_index=0.60)
+    for _n in _VISTA_C41_FULL
+})
+
+#: EASTMAN COLOR HIGH-SPEED NEGATIVE 5293/7293, 1982. The paper names the
+#: process and its developer temperature and stops there.
+#:
+#: ⚠ DELIBERATELY NOT ADDED TO `_ECN2_STOCKS`, which would have attached
+#: `minutes=3.0` and `agitation="turbulator"` from Kodak H-24 to a 1982
+#: document that states neither. The two empty fields are the measurement.
+#: ⚠ `developer` READS "Process ECN-2" AND NOT THE LITERAL'S "ECN-2", to match
+#: the spelling every other ECN-2 stock in this dict uses. The profile's
+#: description and its ParamSource rows carry the paper's own wording.
+_PROCESSING["EASTMAN_5293_250T_1982"] = ProcessingSpec(
+    developer="Process ECN-2", celsius=41.1)
+
+
+# ---------------------------------------------------------------------------
+# THE SOVIET ТУ CORPUS, read in full 2026-09-23
+#
+# Nine local documents, 176 sheets, every numeric table re-rendered from the
+# PDF at 250-1400 dpi and read visually because the OCR layer confuses 8/6/Ь,
+# 2/с, 9/Я, 0/О and 1/I and got several values wrong:
+#
+#   ТУ 6-17-691-88   ДС-5М            22 sheets   colour negative cine, 5500 K
+#   ТУ 6-17-1109-88  ЛН-8             21          colour negative cine, 3200 K
+#   ТУ 6-17-1443-88  ЛН-9 / ЛН-9С     23          colour negative cine, 3200 K
+#   ТУ 6-17-1000-88  ЦО-Т-90ЛМ        18          reversal 16 mm, TV, 3200 K
+#   ТУ 6-17-912-87   ЦО-32Д           23          reversal cine + still
+#   ТУ 6-42-1514-90  ЦО-90Л           20          reversal cine + still, 3200 K
+#   ТУ 6-17-1453-89  ЦНД-64           26          colour negative still
+#   ТУ 6-17-1371-86  Фото-65/ДС-4/ЦНЛ-65  8       bulk-roll export, delegating
+#   ГОСТ 25120-82    Фото ЦНД-32 / ЦНЛ-65 15      the umbrella state standard
+#
+# ⚠⚠ THE KEYSTONE DOCUMENT IS NOT IN THE CORPUS. Every one of the nine
+# delegates its DEFINITIONS to **ГОСТ 9160-82** -- the speed criterion, the
+# gradient criterion, the latitude endpoints, the wedge, the illuminant
+# default, the blue/green/red separation filters, the densitometer response.
+# ГОСТ 25120-82, the umbrella *state* standard, defines nothing either: its
+# cl. 4.3.2 reads in full «Сенситометрические показатели определяют по ГОСТ
+# 9160-82 со следующими уточнениями: химико-фотографическая обработка… табл.
+# 7». So every Soviet speed, gamma and latitude number this database holds
+# rests on a criterion nobody in the corpus states. ГОСТ 9160-82 is the single
+# highest-value acquisition target in the Soviet line.
+# ---------------------------------------------------------------------------
+
+#: ⚠⚠ THE AGEING NUMBERS ARE HERE AND NOT IN `AgingSpec`, FOR TWO REASONS THAT
+#: EACH WOULD BE SUFFICIENT ON ITS OWN.
+#:
+#: (1) `_apply_schema_v2` writes `aging=AgingSpec()` UNCONDITIONALLY -- «every
+#:     profile ships fresh; hooks only (DM-01)». A literal on a profile would
+#:     be discarded in silence, which is the defect class that has already cost
+#:     this file `reciprocity`, `exposure_index_tungsten`, `aim_density`,
+#:     `processing` and `mask_encoding`.
+#: (2) EVEN IF IT SURVIVED IT WOULD BE THE WRONG QUANTITY. `AgingSpec.dmin_lift`
+#:     is a STATE -- the fog a given roll has actually grown. What every ТУ
+#:     prints is a BOUND: «в течение гарантийного срока хранения ДОПУСКАЕТСЯ
+#:     увеличение минимальной плотности не более, чем на 0,15 Б». That is the
+#:     worst drift the manufacturer will still accept at the end of the
+#:     guarantee period, not the drift of any particular roll. Writing a
+#:     ceiling into a state field is the same error as writing the p.42
+#:     shrinkage RATE ratio into `shrinkage_pct`, corrected earlier this batch.
+#:
+#: The structure of the table is itself a result worth keeping: a NEGATIVE ages
+#: by losing speed and GAINING D_min, a REVERSAL by losing speed and LOSING
+#: D_max. The sign flips with the stock kind, which is physically right and is
+#: a free correctness check on any ageing model built from these bounds.
+#:
+#: Fields: (guarantee months, max speed loss fraction, density drift in
+#: density units SIGNED -- positive = D_min rises, negative = D_max falls,
+#: which quantity moves, the clause, the verbatim Russian).
+_SOVIET_TU_SHELF_DRIFT: dict[str, tuple[int, float, float, str, str, str]] = {
+    "SVEMA_DS_5M": (6, 0.40, +0.15, "dmin", "ТУ 6-17-691-88 cl. 1.2.5 / 6.2",
+        "«снижение общей светочувствительности не более чем на 40 %»; "
+        "«увеличение минимальной плотности для каждого из трех слоев не "
+        "более чем на 0,15 Б»; «Гарантийный срок хранения устанавливается "
+        "6 месяцев с месяца выпуска кинопленки»"),
+    "SVEMA_LN_8": (6, 0.40, +0.15, "dmin", "ТУ 6-17-1109-88 cl. 1.2.5 / 6.2",
+        "same wording as ДС-5М: 40 % speed, 0,15 Б on each of three layers, "
+        "6 months from the month of issue"),
+    "SVEMA_LN_9": (9, 0.30, +0.15, "dmin", "ТУ 6-17-1443-88 cl. 1.2.5 / 6.3",
+        "«снижение светочувствительности … не более, чем на 30 %»; "
+        "«увеличение минимальной плотности для каждого из слоев не более, "
+        "чем на 0,15 Б»; «Гарантийный срок хранения устанавливается 9 "
+        "месяцев с месяца выпуска кинопленки»"),
+    "SVEMA_LN_9S": (9, 0.30, +0.15, "dmin", "ТУ 6-17-1443-88 cl. 1.2.5 / 6.3",
+        "one clause covers both marks; ЛН-9 and ЛН-9С differ in Table 2 row 4 "
+        "only, and the DRIFT allowance is common to them"),
+    # ⚠ THE ГОСТ'S ALLOWANCE IS THE LOOSEST IN THE CORPUS BY A WIDE MARGIN --
+    # half the speed, against 30-40 % everywhere else -- and it comes from the
+    # STATE standard rather than from a factory ТУ, which is the opposite of
+    # what one might expect. прим. к табл. 6: «допускается снижение общей
+    # светочувствительности не более чем на 50 % и увеличение суммарной
+    # оптической плотности вуали и маски за каждым из трех светофильтров не
+    # более чем на 0,15 от норм, установленных в табл. 6».
+    "SVEMA_CND_32": (12, 0.50, +0.15, "dmin",
+        "ГОСТ 25120-82 прим. к табл. 6 / cl. 6.2",
+        "«снижение общей светочувствительности не более чем на 50 % и "
+        "увеличение суммарной оптической плотности вуали и маски за каждым "
+        "из трех светофильтров не более чем на 0,15»; «Гарантийный срок "
+        "хранения пленок -- 1 год со дня изготовления»"),
+    "SVEMA_CND_64": (12, 0.30, +0.10, "dmin", "ТУ 6-17-1453-89 cl. 1.3.4 / 6.2",
+        "«снижение общей светочувствительности не более, чем на 30 % и "
+        "увеличение минимальной плотности за каждым из трех светофильтров "
+        "не более, чем на 0,10 D»; «Гарантийный срок хранения 12 мес»"),
+    "SVEMA_CO_T_90LM": (9, 0.30, -0.20, "dmax",
+        "ТУ 6-17-1000-88 cl. 1.2.4 / 5.2",
+        "«По истечении не менее 3 месяцев с момента выпуска допускается "
+        "снижение общей светочувствительности не более чем на 30 % и "
+        "уменьшение максимальной плотности не более чем на 0,2 Б»; "
+        "«Гарантийный срок хранения 9 месяцев с месяца выпуска»"),
+    "SVEMA_CO_32D": (12, 0.40, -0.20, "dmax", "ТУ 6-17-912-87 cl. 2.4 / 7.2",
+        "«снижение светочувствительности не более, чем на 40 %»; "
+        "«уменьшение максимальной оптической плотности не более, чем на "
+        "0,2 Б»; «Гарантийный срок хранения … один год с месяца выпуска»"),
+    "SVEMA_CO_90L": (9, 0.40, -0.30, "dmax", "ТУ 6-42-1514-90 cl. 1.3.3 / 6.3",
+        "«снижение светочувствительности не более чем на 40 %»; «уменьшение "
+        "максимальной плотности не более чем на 0,3»; «Гарантийный срок "
+        "хранения 9 месяцев с месяца изготовления»"),
+}
+
+#: The flat part of the ageing curve. The three cine negatives and ЦНД-64 all
+#: state that speed and D_min stay INSIDE the release norms «в течение двух
+#: месяцев», so the drift above does not start accruing on day one -- the
+#: envelope is flat for two months and then runs to the bound by month 6, 9 or
+#: 12. ЦО-Т-90ЛМ says the same thing from the other end: its drift allowance
+#: applies «по истечении НЕ МЕНЕЕ 3 месяцев».
+_SOVIET_TU_DRIFT_FREE_MONTHS: dict[str, int] = {
+    "SVEMA_DS_5M": 2, "SVEMA_LN_8": 2, "SVEMA_LN_9": 2, "SVEMA_LN_9S": 2,
+    "SVEMA_CND_64": 2, "SVEMA_CO_T_90LM": 3,
+}
+
+#: ⚠ «ТЕРМОСТАТНАЯ УСАДКА ПРИ ВЫПУСКЕ» IS NOT `AgingSpec.shrinkage_pct` AND IS
+#: DELIBERATELY NOT WRITTEN THERE. That field is documented in this file as
+#: "shrinkage AFTER PROCESSING, not storage damage … what the film measures the
+#: moment it comes off the processor". The ТУ figure is a different
+#: measurement entirely: an oven test on RAW, UNPROCESSED stock per ГОСТ
+#: 11477-65, run at the factory as a release check on the support. Putting an
+#: unprocessed-support oven figure into a processed-film dimension field would
+#: assert a measurement nobody made. Percent, «не более».
+_SOVIET_TU_THERMOSTAT_SHRINKAGE: dict[str, tuple[float, str]] = {
+    "SVEMA_DS_5M":     (0.3, "ТУ 6-17-691-88 табл. 3 п. 3"),
+    "SVEMA_LN_8":      (0.3, "ТУ 6-17-1109-88 табл. 3 п. 3"),
+    "SVEMA_LN_9":      (0.2, "ТУ 6-17-1443-88 табл. 3 п. 3"),
+    "SVEMA_LN_9S":     (0.2, "ТУ 6-17-1443-88 табл. 3 п. 3"),
+    "SVEMA_CO_T_90LM": (0.4, "ТУ 6-17-1000-88 табл. 3 п. 5"),
+    "SVEMA_CO_32D":    (0.4, "ТУ 6-17-912-87 cl. 2.11"),
+    "SVEMA_CO_90L":    (0.3, "ТУ 6-42-1514-90 cl. 1.3.8"),
+}
+
+#: ⚠ THE SPATIAL FREQUENCY, PER STOCK, BECAUSE ONE OF THEM DOES NOT HAVE ONE.
+#: Every Soviet MTF value in this database was converted to an f50 through
+#: `f50 = nu / sqrt(log2(1/T))`, and that conversion needs nu. ДС-5М, ЛН-9,
+#: ЛН-9С and ЦНД-64 all print «при пространственной частоте ν = 30 мм⁻¹».
+#: ⚠⚠ ЛН-8 DOES NOT. Its table 2 item 8 sets the symbol ν and the two values
+#: 0,30 and 0,15, and THE NUMERAL WAS NEVER TYPED -- verified on a 700 dpi
+#: render of sheet 4, the cell is blank, not faint. Its f50 therefore rests on
+#: an assumption (30 mm⁻¹, by analogy with its three siblings), and that is
+#: recorded here and in a ParamSource rather than left to look documented.
+_SOVIET_TU_MTF_FREQ_MM: dict[str, tuple[float, bool, str]] = {
+    "SVEMA_DS_5M":  (30.0, True,  "ТУ 6-17-691-88 табл. 2 п. 7, printed"),
+    "SVEMA_LN_8":   (30.0, False,
+        "ТУ 6-17-1109-88 табл. 2 п. 8 -- ⚠ THE FREQUENCY IS BLANK IN THE "
+        "TYPESCRIPT. 30 мм⁻¹ is ASSUMED from ДС-5М, ЛН-9 and ЦНД-64, which "
+        "all print it. The stock's f50 is derived through that assumption."),
+    "SVEMA_LN_9":   (30.0, True,  "ТУ 6-17-1443-88 табл. 2 п. 7, printed"),
+    "SVEMA_LN_9S":  (30.0, True,  "ТУ 6-17-1443-88 табл. 2 п. 7, printed"),
+    "SVEMA_CND_64": (30.0, True,  "ТУ 6-17-1453-89 табл. 4 п. 9, printed"),
+}
+
+#: ⚠ ЛН-9 AND ЛН-9С ARE THE ONLY SOVIET STOCKS WHOSE MTF IS A NOMINAL WITH A
+#: TOLERANCE RATHER THAN A FLOOR. Everyone else's reads «не менее». Theirs
+#: reads 0,40 ± 0,05 (green) and 0,22 ± 0,03 (red), so the stored f50 is the
+#: CENTRE of a band and not a worst case -- a different thing to compare
+#: against a Kodak f50, and the reason the tolerance is kept.
+_SOVIET_TU_MTF_TOLERANCE: dict[str, tuple[float, float, str]] = {
+    "SVEMA_LN_9":  (0.05, 0.03, "ТУ 6-17-1443-88 табл. 2 п. 7 (sheet 4)"),
+    "SVEMA_LN_9S": (0.05, 0.03, "ТУ 6-17-1443-88 табл. 2 п. 7 (sheet 4)"),
+}
+
+# ---------------------------------------------------------------------------
+#  THE RESOLVING-POWER / MTF BRIDGE, 2026-09-23
+#
+# ⚠⚠ A CLAIM MADE IN THIS FILE'S OWN NOTES WAS WRONG AND IS CORRECTED HERE.
+# ЦО-32Д's and ЦО-90Л's MTF comments, and the 2026-09-22d harvest summary,
+# both say that resolving power and MTF never appear together in the Soviet
+# corpus -- that the four negatives publish MTF and no resolving power and the
+# three reversals publish resolving power and no MTF. THAT IS FALSE.
+# ТУ 6-17-1000-88 табл. 2 publishes BOTH for ЦО-Т-90ЛМ, six rows apart:
+#
+#   п. 7  «Разрешающая способность (R), мм⁻¹, не менее                75»
+#   п. 9  «Коэффициент передачи модуляции при пространственной
+#          частоте ν = 30 мм⁻¹ (T), не менее                        0,27»
+#
+# One emulsion, one table, one document, measured by both Soviet methods:
+# R per ГОСТ 2819-84 «по обращенному изображению миры» on a РП-2М
+# resolvometer, T per ОСТ 6-17-452-78. That is the only stock anywhere in this
+# database -- Soviet or otherwise -- that carries an independently measured
+# resolving power and MTF from the same page, and it is therefore the only
+# available calibration of one against the other.
+#
+# ⚠⚠ AND NINE OF THE TEN SOVIET STOCKS THAT LOOK LIKE THEY COULD CALIBRATE IT
+# CANNOT. SVEMA_CNL_32, CNL_65, ДС-4, Фото-32/65/130/250, TASMA_OCH_45 and
+# (until today) ЦО-32Д all carry a resolving power AND an f50 -- and every one
+# of those f50 values reads «No published MTF curve for this stock; f50 comes
+# from the project's era-and-class sharpness heuristic». Calibrating R against
+# those would be calibrating this project's own heuristic against itself and
+# reporting the result as a measurement. One real pair, nine mirrors.
+#
+# ⚠ THE RULE, STATED SO IT CAN BE REFUTED. `f50 = nu / sqrt(log2(1/T))` gives
+# the anchor stock f50 = 21.83 cycles/mm from its own MTF point, against its
+# own R = 75, so R / f50 = 3.436 for a Soviet reversal film whose resolving
+# power was read off the REVERSED image. The bridge applies that one ratio to
+# the two Soviet reversals that publish R and no MTF. It is deliberately NOT
+# applied to the four negatives: their resolving power, if it were published,
+# would be read on the NEGATIVE image at a different effective contrast, and
+# nothing in this corpus says the ratio survives the change of polarity.
+#
+# ⚠ BOTH INPUTS ARE «НЕ МЕНЕЕ» FLOORS, NOT TYPICALS, AND THE RATIO OF TWO
+# FLOORS IS ONLY MEANINGFUL IF BOTH WERE SET WITH THE SAME CONSERVATISM. There
+# is no way to check that from the document. It is the largest single
+# uncertainty in the bridge and is the reason every value it produces is
+# `synthesized` and tier 2 rather than `derived` and tier 1.
+#
+# ⚠ WHAT THE BRIDGE FOUND. The two f50 triples it replaces were about 1.7x too
+# high -- ЦО-32Д shipped 30/34/38 against a bridged 19.8, ЦО-90Л 33/37/42
+# against 21.8. Both had been rendering far sharper than their own documented
+# resolving power allows. The file predicted this: ЦО-90Л's own note said the
+# triple «is [T2] at best and is flagged so that a future MTF document
+# replaces it rather than agreeing with it». ТУ 6-17-1000-88 табл. 2 п. 9 is
+# that document.
+#
+# ⚠ AND THE CHANNEL SPREAD GOES AWAY, WHICH IS ALSO A CORRECTION. Both stocks
+# carried three different f50 values. Their ТУ print «ОБЩАЯ разрешающая
+# способность» -- one figure for the whole film, no per-layer breakdown
+# anywhere -- so a three-channel spread was this project's invention on top of
+# a single documented number. The bridged value is one number in three
+# channels, exactly as the anchor stock already stores it.
+# ---------------------------------------------------------------------------
+_SOVIET_RP_ANCHOR_STOCK = "SVEMA_CO_T_90LM"
+_SOVIET_RP_ANCHOR_NU_MM = 30.0          # табл. 2 п. 9, printed
+_SOVIET_RP_ANCHOR_T = 0.27              # табл. 2 п. 9, «не менее»
+_SOVIET_RP_ANCHOR_R = 75.0              # табл. 2 п. 7, «не менее»
+_SOVIET_RP_ANCHOR_SRC = (
+    "ТУ 6-17-1000-88 «Кинопленка цветная обращаемая ЦО-Т-90ЛМ», табл. 2 "
+    "(sheet 3), items 7 and 9, read off a 250 dpi render 2026-09-23. R by "
+    "ГОСТ 2819-84 «по обращенному изображению миры» on a резольвометр РП-2М "
+    "(cl. 3.5); T by ОСТ 6-17-452-78 (cl. 3.7).")
+
+
+def _soviet_f50_from_mtf(t: float, nu_mm: float) -> float:
+    """f50 from ONE MTF point, the conversion used throughout this file."""
+    import math
+    return nu_mm / math.sqrt(math.log2(1.0 / t))
+
+
+def soviet_rp_to_f50_ratio() -> float:
+    """R / f50 on the one Soviet stock that publishes both. 3.436."""
+    return _SOVIET_RP_ANCHOR_R / _soviet_f50_from_mtf(
+        _SOVIET_RP_ANCHOR_T, _SOVIET_RP_ANCHOR_NU_MM)
+
+
+def soviet_f50_from_rp(r_lp_mm: float) -> float:
+    """Bridge a documented Soviet REVERSAL resolving power to an f50."""
+    return r_lp_mm / soviet_rp_to_f50_ratio()
+
+
+#: The two stocks the bridge is applied to, and the R each publishes.
+#: ⚠ ЦО-90Л's 75 IS ALSO A HARVEST FIX. Its resolving power is printed in its
+#: own ТУ and was absent from this database entirely --
+#: `mtf.resolving_power_lp_mm_highc` read 0.0 -- so the stock carried a
+#: heuristic f50 while the documented number it should have been built from
+#: sat unread. Found only by trying to cross-check R against MTF.
+_SOVIET_RP_BRIDGED: dict[str, tuple[float, str]] = {
+    "SVEMA_CO_32D": (68.0,
+        "ТУ 6-17-912-87 табл. 5 п. 9 (sheet 7): «Разрешающая способность, "
+        "лин/мм, не менее 68», method cl. 4.8.3 «по ГОСТ 2819-84 по "
+        "обращенному изображению миры», резольвометр РП-2М (cl. 4.8.1)"),
+    "SVEMA_CO_90L": (75.0,
+        "ТУ 6-42-1514-90 табл. 3 п. 7 (sheet 4): «Общая разрешающая "
+        "способность (R), мм⁻¹, не менее 75», method cl. 3.6.4 «по ГОСТ "
+        "2819-84 по обращенному изображению миры», резольвометр РП-2М "
+        "(cl. 3.6.1). ⚠ THIS FIGURE WAS MISSING FROM THE DATABASE until "
+        "2026-09-23 and is added to `_RESOLVING_POWER` in the same edit."),
+}
+
+#: ⚠ THE SECOND SANCTIONED PROCESSING REGIME, for the two reversal stocks that
+#: publish one. Both ТУ introduce it with «Допускается обработку кинопленки
+#: проводить по режиму, указанному в табл. 6» and neither prints a second set
+#: of norms against it, so it is an alternative ROUTE to the same табл. 2 /
+#: табл. 3 values rather than a second measured response -- which is why it is
+#: a table here and not a `ProcessVariant`; see the note at the head of
+#: `_PROCESS_VARIANTS`.
+#:
+#: ⚠ AND THE ALTERNATIVE CYCLE IS ЦО-32Д'S ONLY CYCLE. ТУ 6-17-912-87 табл. 7
+#: prints these same eleven steps at these same times and temperatures as that
+#: stock's single regime, with no 30 degC option at all -- so what is an
+#: alternative for two of the three Soviet reversals is the process for the
+#: third. That is the strongest evidence in the corpus that the two regimes
+#: really are interchangeable: one manufacturer shipped a product specified
+#: only at the slow one.
+#:
+#: Steps as (operation, minutes, degrees C); a None temperature marks the
+#: optical re-exposure, which has a duration and no bath.
+_SOVIET_TU_ALT_REGIME: dict[str, tuple[str, tuple]] = {
+    "SVEMA_CO_T_90LM": (
+        "ТУ 6-17-1000-88 табл. 6 (sheets 13-14)", (
+            ("черно-белое проявление", "9-11", 25.0),
+            ("промывание", "1", 15.0),
+            ("останавливающая ванна", "2", 20.0),
+            ("промывание", "5", 15.0),
+            ("засветка, 2 x 100 W at 0.3 m, emulsion side", "2-3", None),
+            ("цветное проявление", "10", 25.0),
+            ("промывание", "20", 15.0),
+            ("отбеливание", "3-5", 20.0),
+            ("промывание", "5", 15.0),
+            ("фиксирование", "5", 20.0),
+            ("промывание", "15", 15.0))),
+    "SVEMA_CO_90L": (
+        "ТУ 6-42-1514-90 табл. 6 (sheet 15)", (
+            ("черно-белое проявление", "8-12", 25.0),
+            ("промывание", "2", 15.0),
+            ("останавливающая ванна", "2-3", 20.0),
+            ("промывание", "5", 15.0),
+            ("засветка, 2 x 100 W at 0.3 m, emulsion side", "2-3", None),
+            ("цветное проявление", "10", 25.0),
+            ("промывание", "20", 15.0),
+            ("отбеливание", "5", 20.0),
+            ("промывание", "5", 15.0),
+            ("фиксирование", "5", 20.0),
+            ("промывание", "15", 15.0))),
+}
+
+#: ⚠ ЛН-8's RED SENSITISATION LIMIT -- THE ONLY SPECTRAL NUMBER IN 176 SHEETS.
+#: Table 2 item 10: «Предел сенсибилизации красночувствительного слоя, нм --
+#: не более 690». Method, cl. 3.10: read visually off spectrograms taken on a
+#: ДФС-8 diffraction spectrograph or an ИСП-73 prism instrument, per МИ
+#: 6-17-02-141-84. It is a CUT-OFF, not a sensitivity curve, so it cannot fill
+#: `SpectralSensitivity` -- that struct wants log-S samples on a wavelength
+#: grid and this is one bound on where the red record stops. It is kept as a
+#: constraint the spectral weights must respect.
+_SOVIET_SENSITISATION_LIMIT_NM: dict[str, tuple[float, str]] = {
+    "SVEMA_LN_8": (690.0,
+        "ТУ 6-17-1109-88 табл. 2 п. 10 (sheet 4), «не более 690 нм», read "
+        "per МИ 6-17-02-141-84 on a ДФС-8 or ИСП-73 spectrograph"),
+}
+
+#: ⚠⚠ THE DENSITY BASIS OF THE FOUR CINE NEGATIVES IS NOT STATUS M, AND THE
+#: CLASS RULE IN `_apply_schema_v2` HAD MADE IT SO. Their cl. 3.5.1 specifies
+#: «денситометр с относительной спектральной чувствительностью фотоприемников
+#: для измерения КОПИРОВАЛЬНЫХ ПЛОТНОСТЕЙ» -- PRINTING densities, the response
+#: of the print stock these negatives were made to be printed onto, per ГОСТ
+#: 9160-82. Status A and Status M appear in these documents exactly once each,
+#: inside Приложение 2, and there with the OPPOSITE assignment to ours: «при
+#: испытании НЕГАТИВНЫХ пленок -- по СТАТУС А; позитивных и контратипных -- по
+#: статус М».
+#:
+#: ⚠ THIS MATTERS BECAUSE THE STORED CURVES ARE BUILT FROM THOSE VERY NUMBERS.
+#: ДС-5М's dmins 0.250/0.380/0.880 are table 2 row 4 (red «не более 0,25»,
+#: green 0,25-0,50 centred, blue 0,70-1,05 centred) and its gammas
+#: 0.500/0.540/0.600 are row 3 verbatim. Same for ЛН-8, ЛН-9 and ЛН-9С. So the
+#: curve IS in printing density and labelling it status M asserted a
+#: measurement geometry the source contradicts.
+#:
+#: ⚠ ЦНД-64 IS DELIBERATELY ABSENT. Its cl. 3.3 delegates the densitometry to
+#: ГОСТ 9160-82 without naming копировальные плотности, so its basis is
+#: unstated rather than known-to-be-printing, and the class default stands.
+_DENSITY_METRIC_OVERRIDES: dict[str, tuple[str, str]] = {
+    _n: ("printing",
+         "%s cl. 3.5.1: «денситометр … для измерения копировальных "
+         "плотностей, соответствующий требованиям ГОСТ 9160-82». The stored "
+         "curve's dmins and gammas are that document's table 2 rows 3 and 4, "
+         "so the curve carries the same basis as the norms it was built from."
+         % _d)
+    for _n, _d in (("SVEMA_DS_5M", "ТУ 6-17-691-88"),
+                   ("SVEMA_LN_8", "ТУ 6-17-1109-88"),
+                   ("SVEMA_LN_9", "ТУ 6-17-1443-88"),
+                   ("SVEMA_LN_9S", "ТУ 6-17-1443-88"))
+}
+
+# ---------------------------------------------------------------------------
+# Soviet processing, from the ТУ themselves (2026-09-23)
+#
+# ⚠ NO TRADE PROCESS NAME EXISTS ANYWHERE IN THE CORPUS. ЦНД-2, ЦНД-3, ОБ-1,
+# УП-2, C-41, E-6 -- none of these strings occurs in any of the nine
+# documents. Each ТУ defines its process ONLY by printing the full formulary
+# in g/l with pH bands (табл. 5 or табл. 4/6) and the bath schedule with times
+# and temperatures (табл. 4, 5 or 7). The `developer` strings below therefore
+# name the agent and its concentration rather than a kit, because that is what
+# the source supports.
+#
+# ⚠ THE COLOUR DEVELOPING AGENT IS THE SAME MOLECULE IN ALL NINE:
+# п-аминодиэтиланилинсульфат по ГОСТ 24801-81, called ЦПВ-1 where the sheets
+# abbreviate it -- 2,3 g/l in the negatives, 4,0 g/l in the reversals. The
+# bleach is always potassium ferricyanide, never a blix, and the negatives run
+# a DOUBLE fix with the bleach BETWEEN the two, which is the structural
+# signature of this process family.
+#
+# ⚠ `minutes` IS THE CENTRE OF THE PRINTED WINDOW, NOT A NEW NUMBER. Every
+# development step is stated as a range (5-7, 6-8, 8-12); the midpoint is
+# stored and the range is named in the `dilution` field, which is where this
+# file keeps a condition string that has nowhere better to go.
+#
+# ⚠ `contrast_index` IS FILLED ONLY WHERE THE DOCUMENT TIES A TIME TO A
+# CONTRAST. That happens exactly once in 176 sheets -- ЦНД-64 табл. 4 п. 5,
+# «Время проявления для получения рекомендуемого коэффициента контрастности,
+# tпр = 8 мин» against п. 3 «рекомендуемый коэффициент контрастности всех
+# слоев 0,80 ± 0,10». Everywhere else the time and the gamma are printed in
+# different tables with no stated relation, so the field stays 0.0 rather than
+# implying an aim the manufacturer did not publish.
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# THE ACCEPTANCE BANDS, ten documents, 2026-09-23c (tranche C)
+#
+# ⚠⚠ THIS TABLE IS THE ANSWER TO A COMPLAINT THE CORPUS RECORD MADE AND COULD
+# NOT ACT ON. Nine ТУ and one ГОСТ were read end to end on 2026-09-23 and the
+# reading ends: «A ТУ is a contract, not a measurement report… a profile built
+# from one of these sheets renders the WORST LEGAL EXAMPLE of its own stock
+# wherever a one-sided limit is all there is, and the mid-point of a two-sided
+# band otherwise.» That was true, it was recorded in prose, and the BANDS
+# THEMSELVES -- the entire content of ten documents -- went nowhere, because
+# `FilmProfile` had one slot per quantity and a band needs two.
+#
+# ⚠ LAYER ORDER IS R, G, B AND THE SOURCES PRINT B, G, R. Every Soviet table
+# reads «за светофильтрами: синим, зеленым, красным», and every layer table
+# reads нижний / средний / верхний, bottom being the red-sensitive layer. So
+# each triple below is written REVERSED from its page. That reversal is the
+# most likely place for a silent transcription error in this whole batch,
+# which is why `soviet_tu_corpus.py` re-derives ГОСТ 25120-82's табл. 6 in the
+# PRINTED order and compares it against these tuples after reversing, rather
+# than comparing the table to itself.
+#
+# ⚠ WHAT IS NOT HERE IS AS DELIBERATE AS WHAT IS. No non-Soviet stock carries
+# a record, and that is not a backlog: a Kodak or Fuji sheet publishes typical
+# values and explicitly disclaims being a specification -- KODAK F-5's own
+# words, already quoted in `_PROVENANCE_SOURCES`, are that its curves «do not
+# represent standards or specifications which must be met». A tolerance record
+# on such a stock would be a fabrication, not a gap.
+# ---------------------------------------------------------------------------
+
+#: The average-gradient deviation the four masked cine negatives share, and it
+#: is ASYMMETRIC: «+0,06 / −0,04» printed as superscripts on all three layers
+#: of ДС-5М, ЛН-8, ЛН-9 and ЛН-9С. Factored out because a hand-written copy in
+#: four places is four chances to transpose the signs, and because the shared
+#: value is itself a finding -- one contrast specification ran across the whole
+#: Свема masked-negative line for at least the three years 1988-1990.
+_TU_GRADIENT_PLUS = 0.06
+_TU_GRADIENT_MINUS = 0.04
+#: R, G, B -- the page prints синим 0,60 · зеленым 0,54 · красным 0,50.
+_TU_GRADIENT_NOMINAL = (0.50, 0.54, 0.60)
+
+
+def _tu_gradient_band() -> tuple[tuple[float, float, float],
+                                 tuple[float, float, float]]:
+    """(lo, hi) triples for the shared masked-negative gradient band."""
+    lo = tuple(round(g - _TU_GRADIENT_MINUS, 4) for g in _TU_GRADIENT_NOMINAL)
+    hi = tuple(round(g + _TU_GRADIENT_PLUS, 4) for g in _TU_GRADIENT_NOMINAL)
+    return lo, hi                                    # type: ignore[return-value]
+
+
+_TU_GRAD_LO, _TU_GRAD_HI = _tu_gradient_band()
+
+#: ГОСТ 25120-82 табл. 6 prints the recommended contrast per layer as нижний
+#: 0,55 · средний 0,60 · верхний 0,65 -- here reversed to R, G, B -- with the
+#: tolerance differing by quality grade.
+_GOST_25120_GAMMA_NOMINAL = (0.55, 0.60, 0.65)
+
+
+def _gost_gamma_band(tol: float, middle_one_sided: bool = False):
+    """(lo, hi) for ГОСТ 25120-82's per-layer recommended contrast.
+
+    ⚠ `middle_one_sided` REPRODUCES A DEFECT IN THE PRINTED STANDARD AND IS
+    NOT A MODELLING CHOICE. The Фото ЦНД-32 column's middle-layer cell reads
+    «0,60 **+** 0,08» where the cells above and below it read «±», verified at
+    900 dpi and again by the OCR layer, which renders the three cells
+    `0,55 ±0,08` / `0,60+0,08` / `0,65±0,08`. Almost certainly a typographic
+    fault in the 1986 reissue; recorded as printed, because a standard that
+    says something odd is evidence and a standard silently corrected is not.
+    """
+    lo = [round(g - tol, 4) for g in _GOST_25120_GAMMA_NOMINAL]
+    hi = [round(g + tol, 4) for g in _GOST_25120_GAMMA_NOMINAL]
+    if middle_one_sided:
+        lo[1] = _GOST_25120_GAMMA_NOMINAL[1]
+    return tuple(lo), tuple(hi)
+
+
+_TOLERANCE: dict[str, tuple[ToleranceSpec, ...]] = {
+
+    # -- ДС-5М, ТУ 6-17-691-88 табл. 2 + 1.2.4 + 1.2.7 -----------------------
+    "SVEMA_DS_5M": (ToleranceSpec(
+        speed_min=50.0, speed_balance_max=1.9,
+        gamma_nominal_rgb=_TU_GRADIENT_NOMINAL,
+        gamma_lo_rgb=_TU_GRAD_LO, gamma_hi_rgb=_TU_GRAD_HI,
+        # синим 0,70-1,05 · зеленым 0,25-0,50 · красным не более 0,25.
+        dmin_min_rgb=(0.0, 0.25, 0.70), dmin_max_rgb=(0.25, 0.50, 1.05),
+        latitude_min=1.2,
+        granularity_max_rgb=(30.0, 22.0, 0.0),
+        mtf_min_rgb=(0.15, 0.30, 0.0), mtf_freq_mm=30.0,
+        uniformity_pct_max=20.0, coating_uniformity_d_max=0.05,
+        source=(
+            "ТУ 6-17-691-88 (ПО «Свема», Шостка), кинопленка цветная "
+            "негативная маскированная ДС-5М, табл. 2 пп. 1-8 with cl. 1.2.4 "
+            "«фотографическая однородность внутри оси … не более 20 %» and "
+            "cl. 1.2.7 «равномерность полива эмульсионных слоёв … не более "
+            "0,05 Б». Read visually from page images at 250-1400 dpi; the OCR "
+            "layer of this typescript renders табл. 2 п. 2 as «1,9» correctly "
+            "but garbles the gradient superscripts to «-к) ,00 / °»60-0 04», "
+            "which is why the values are transcribed and not parsed. "
+            "⚠ THE 1,2 LATITUDE HAS A DOCUMENTED RELAXATION the schema cannot "
+            "hold: прим. 1 to табл. 2 allows 1,05 lg H for up to 25 % of "
+            "batches, i.e. the acceptance floor is itself two-valued with a "
+            "quota attached. The stricter figure is stored; the quota is in "
+            "doc/SOVIET_TU_CORPUS_2026-09-23.md. "
+            "⚠ BLUE GRANULARITY AND BLUE MTF ARE NOT SPECIFIED -- the table "
+            "prints green and red only, for all four masked negatives, so the "
+            "0.0 in the blue slot is the document's silence and not a default. "
+            "⚠ Три нормы provisional at issue, «уточняются до 01.10.88 г.»: "
+            "the colour-separation matrix (п. 9), the swollen-layer strength "
+            "(табл. 3 п. 6) and the 0,05 coating uniformity above"),
+    ),),
+
+    # -- ЛН-8, ТУ 6-17-1109-88 табл. 2 + 1.2.4 -------------------------------
+    "SVEMA_LN_8": (ToleranceSpec(
+        speed_min=100.0, layer_speed_min=80.0, speed_balance_max=2.0,
+        gamma_nominal_rgb=_TU_GRADIENT_NOMINAL,
+        gamma_lo_rgb=_TU_GRAD_LO, gamma_hi_rgb=_TU_GRAD_HI,
+        dmin_min_rgb=(0.0, 0.25, 0.70), dmin_max_rgb=(0.25, 0.60, 1.05),
+        latitude_min=1.5,
+        granularity_max_rgb=(21.0, 19.0, 0.0),
+        mtf_min_rgb=(0.15, 0.30, 0.0), mtf_freq_mm=0.0,
+        uniformity_pct_max=20.0,
+        source=(
+            "ТУ 6-17-1109-88 (ПО «Свема»), кинопленка цветная негативная "
+            "ЛН-8, табл. 2 пп. 1-9 with cl. 1.2.4. "
+            "⚠⚠ `mtf_freq_mm` IS 0.0 BECAUSE THE FREQUENCY WAS NEVER TYPED. "
+            "табл. 2 п. 8 sets the symbol ν and both limits and leaves the "
+            "numeral blank -- verified at 700 dpi on sheet 4, the cell is "
+            "white space and not a faint glyph. Every f50 this project ships "
+            "for ЛН-8 rests on assuming 30 mm⁻¹ from its three siblings, and "
+            "that assumption is recorded, flagged, in "
+            "`_SOVIET_TU_MTF_FREQ_MM`; it is deliberately NOT repeated here, "
+            "because this record states what the document states. "
+            "⚠ п. 1 прим. 1 adds a SECOND speed floor that the profile's "
+            "single `exposure_index` cannot carry: «минимальное значение "
+            "светочувствительности любого из слоёв 80» -- the overall 100 and "
+            "a per-layer 80 are different acceptance tests, and a roll can "
+            "fail the second while passing the first. `layer_speed_min` "
+            "exists for that pair. "
+            "⚠ Clause 1.2.11 DOES NOT EXIST in the printed text (numbering "
+            "jumps 1.2.10 → 1.2.12) although three other clauses cite it"),
+    ),),
+
+    # -- ЛН-9 / ЛН-9С, ТУ 6-17-1443-88 табл. 2 + 1.2.4 -----------------------
+    # ⚠ ROW 4 IS THE ONLY TABLE-2 ROW WHERE THE TWO MARKS DIFFER, and 9С is
+    # lower in every layer -- consistent with the сажевый contre-layer against
+    # 9's colloidal-silver subbing. Everything else in табл. 2 is shared, so
+    # the two records below differ in exactly three numbers and that is the
+    # document's own statement, not an editing slip.
+    "SVEMA_LN_9": (ToleranceSpec(
+        speed_min=100.0, layer_speed_min=80.0, speed_balance_max=1.5,
+        gamma_nominal_rgb=_TU_GRADIENT_NOMINAL,
+        gamma_lo_rgb=_TU_GRAD_LO, gamma_hi_rgb=_TU_GRAD_HI,
+        dmin_max_rgb=(0.30, 0.60, 1.10),
+        latitude_min=1.5,
+        granularity_max_rgb=(11.0, 11.0, 0.0),
+        # п. 7 is the one Soviet MTF printed as a NOMINAL WITH A TOLERANCE --
+        # «0,40 ± 0,05» green, «0,22 ± 0,03» red -- where every other Soviet
+        # stock's reads «не менее». The lower edge is stored, so the field
+        # keeps its meaning across the corpus; the centre is in
+        # `_SOVIET_TU_MTF_TOLERANCE` and is what the profile's f50 uses.
+        mtf_min_rgb=(0.19, 0.35, 0.0), mtf_freq_mm=30.0,
+        uniformity_pct_max=15.0,
+        source=(
+            "ТУ 6-17-1443-88 (ПО «Свема»), кинопленки цветные негативные ЛН-9 "
+            "и ЛН-9С, табл. 2 пп. 1-8 with cl. 1.2.4, ЛН-9 column. Validity "
+            "01.04.88-01.04.91. ⚠ MTF stored as the LOWER EDGE of a nominal "
+            "band, «0,40 ± 0,05» green and «0,22 ± 0,03» red at ν = 30 мм⁻¹; "
+            "the red digits are a typed correction struck over an earlier "
+            "value and read 22 at native scan resolution. ⚠ The periodic-test "
+            "interval for табл. 2 пп. 6-10 (cl. 2.6.4) has its numeral "
+            "UNREADABLE -- never typed -- verified at 1000 dpi"),
+    ),),
+    "SVEMA_LN_9S": (ToleranceSpec(
+        speed_min=100.0, layer_speed_min=80.0, speed_balance_max=1.5,
+        gamma_nominal_rgb=_TU_GRADIENT_NOMINAL,
+        gamma_lo_rgb=_TU_GRAD_LO, gamma_hi_rgb=_TU_GRAD_HI,
+        dmin_max_rgb=(0.25, 0.55, 1.00),
+        latitude_min=1.5,
+        granularity_max_rgb=(11.0, 11.0, 0.0),
+        mtf_min_rgb=(0.19, 0.35, 0.0), mtf_freq_mm=30.0,
+        uniformity_pct_max=15.0,
+        source=(
+            "ТУ 6-17-1443-88, табл. 2 пп. 1-8 with cl. 1.2.4, ЛН-9С column. "
+            "⚠ THE ONLY ROW THAT DIFFERS FROM ЛН-9 IS п. 4, D_мин, and 9С is "
+            "lower in all three layers: 1,00 / 0,55 / 0,25 against 1,10 / "
+            "0,60 / 0,30 (printed синий / зеленый / красный). The two marks "
+            "are one emulsion with two antihalation constructions -- ЛН-9 a "
+            "грунтовый коллоидосеребряный layer, ЛН-9С a лаковый сажевый "
+            "контрслой washed off in a dedicated tank -- and the D_мин split "
+            "is what that difference costs. Mechanical rows in табл. 3 differ "
+            "too, all in 9С's favour"),
+    ),),
+
+    # -- ЦО-Т-90ЛМ, ТУ 6-17-1000-88 табл. 2 ----------------------------------
+    "SVEMA_CO_T_90LM": (ToleranceSpec(
+        speed_min=100.0, speed_balance_max=1.6,
+        gamma_lo_rgb=(1.40, 1.40, 1.40), gamma_hi_rgb=(1.60, 1.60, 1.60),
+        dmin_max_rgb=(0.25, 0.25, 0.25), dmax_min_rgb=(2.20, 2.20, 2.20),
+        latitude_min=0.6,
+        resolving_power_min=75.0,
+        granularity_max_rgb=(25.0, 25.0, 25.0),
+        mtf_min_rgb=(0.27, 0.27, 0.27), mtf_freq_mm=30.0,
+        structure_is_overall=True,
+        source=(
+            "ТУ 6-17-1000-88 (ПО «Свема»), кинопленка цветная обращаемая "
+            "ЦО-Т-90ЛМ для телевидения, табл. 2 пп. 1-9. Validity "
+            "1.11.88-1.11.93, 16 мм only. "
+            "⚠⚠ THE ONE PLACE IN 176 SHEETS WHERE A RESOLVING POWER AND AN "
+            "MTF ARE PRINTED FOR THE SAME STOCK -- п. 7 «разрешающая "
+            "способность не менее 75 мм⁻¹» and п. 9 «коэффициент передачи "
+            "модуляции не менее 0,27 при ν = 30 мм⁻¹». That coincidence is "
+            "the entire calibration of the Soviet R↔f50 bridge; see "
+            "`_SOVIET_RP_ANCHOR_STOCK`. "
+            "⚠ `structure_is_overall` -- пп. 8 and 9 name no filter and state "
+            "one granularity and one MTF for the film, while п. 3 reads "
+            "«коэффициент контрастности КАЖДОГО ИЗ СЛОЕВ 1,40-1,60», per "
+            "layer and explicitly so. "
+            "⚠ cl. 1.2.3 adds an ORDERING RULE the schema has no field for: "
+            "«значение светочувствительности красночувствительного слоя "
+            "должно быть наименьшим, а … синечувствительного … равным или "
+            "большим … зеленочувствительного», i.e. S_red ≤ S_green ≤ S_blue "
+            "inside the 1,6 balance. ЦО-90Л repeats it almost word for word"),
+    ),),
+
+    # -- ЦО-32Д, ТУ 6-17-912-87 табл. 5 --------------------------------------
+    "SVEMA_CO_32D": (ToleranceSpec(
+        speed_nominal=32.0, speed_min=32.0, speed_max=63.0,
+        speed_balance_min=1.3, speed_balance_max=1.8,
+        # верхний 2,2-2,6 · средний и нижний 1,8-2,2, reversed to R, G, B.
+        gamma_lo_rgb=(1.80, 1.80, 2.20), gamma_hi_rgb=(2.20, 2.20, 2.60),
+        contrast_balance_max=0.3,
+        dmin_max_rgb=(0.25, 0.25, 0.25), dmax_min_rgb=(2.20, 2.20, 2.20),
+        latitude_min=1.2,
+        resolving_power_min=68.0,
+        source=(
+            "ТУ 6-17-912-87 (ПО «Свема»), кинофотопленки цветные обращаемые "
+            "ЦО-32Д, табл. 5 пп. 1-9. Validity 10.06.87-10.06.92. "
+            "⚠⚠ THE ASYMMETRY THAT MAKES THIS FILM WARM WITH PALE BLUES IS IN "
+            "THE SPECIFICATION ITSELF, and it is visible only as a band. п. 5 "
+            "ties ONLY «баланс контрастности между нижним и средним слоями» "
+            "-- red to green -- to не более 0,3 and says nothing about the "
+            "upper layer, while п. 4 specifies that same upper layer STEEPER "
+            "than the other two. So the yellow-forming layer is both the "
+            "steepest and the only one untied from its neighbours: the worst "
+            "legal spread is 2,6 against 1,8, i.e. 0,8 in gamma, on a film "
+            "whose green and red must agree within 0,3. A single stored gamma "
+            "per layer cannot say that. "
+            "⚠ `latitude_min` HOLDS A DIFFERENT QUANTITY HERE and the "
+            "difference is stated rather than smoothed over: п. 8 prints "
+            "«полезный интервал экспозиции между плотностями 0,3 и 2,1 не "
+            "менее 1,2», a useful-interval between two named densities, not "
+            "the «общая фотографическая широта» the negatives print. "
+            "⚠ NEITHER GRANULARITY NOR MTF IS SPECIFIED: «гранулярность», "
+            "«зернистость» and «коэффициент передачи модуляции» do not occur "
+            "anywhere in the 23 sheets, and no spatial frequency is named"),
+    ),),
+
+    # -- ЦО-90Л, ТУ 6-42-1514-90 табл. 3 -------------------------------------
+    "SVEMA_CO_90L": (ToleranceSpec(
+        speed_min=80.0, speed_balance_max=2.0,
+        gamma_lo_rgb=(1.60, 1.60, 1.60), gamma_hi_rgb=(2.20, 2.20, 2.20),
+        gamma_is_overall=True,
+        contrast_balance_max=0.4,
+        dmin_max_rgb=(0.25, 0.25, 0.25), dmax_min_rgb=(2.00, 2.00, 2.00),
+        resolving_power_min=75.0,
+        source=(
+            "ТУ 6-42-1514-90 (НПО «Свема»), кинопленка и фотопленка "
+            "обращаемые марок ЦО-90Л, табл. 3 пп. 1-7. «Вводятся впервые», "
+            "validity 01.07.90-01.07.95 -- the youngest document in the "
+            "corpus and the last Soviet film specification this project "
+            "holds. "
+            "⚠ `gamma_is_overall` -- п. 3 reads «ОБЩИЙ коэффициент "
+            "контрастности γ 1,6-2,2», one figure for the film, with п. 4 "
+            "«баланс коэффициента контрастности γ_б не более 0,4» holding "
+            "the layers together. ЦО-32Д and ЦО-Т-90ЛМ both specify per "
+            "layer; this one does not, and the triple repeats one number. "
+            "⚠⚠ THE 75 мм⁻¹ IN п. 7 WAS PRINTED IN 1990 AND WAS ABSENT FROM "
+            "THIS DATABASE UNTIL 2026-09-23: `resolving_power_lp_mm_highc` "
+            "read 0.0 while the stock carried a heuristic f50. It surfaced "
+            "only when the corpus was searched for stocks holding both a "
+            "resolving power and an MTF. "
+            "⚠ NO GRANULARITY AND NO MTF are specified, so the f50 this "
+            "project ships is bridged from the R above and is labelled "
+            "`synthesized`"),
+    ),),
+
+    # -- ЦНД-64, ТУ 6-17-1453-89 табл. 4 -------------------------------------
+    "SVEMA_CND_64": (ToleranceSpec(
+        speed_min=64.0, speed_balance_max=2.0,
+        gamma_nominal_rgb=(0.80, 0.80, 0.80),
+        gamma_lo_rgb=(0.70, 0.70, 0.70), gamma_hi_rgb=(0.90, 0.90, 0.90),
+        contrast_balance_max=0.10,
+        contrast_time_min=8.0, contrast_time_max=8.0,
+        dmin_min_rgb=(0.0, 0.25, 0.65), dmin_max_rgb=(0.30, 0.60, 0.85),
+        latitude_min=1.50,
+        granularity_max_rgb=(20.0, 20.0, 0.0),
+        mtf_min_rgb=(0.15, 0.30, 0.0), mtf_freq_mm=30.0,
+        source=(
+            "ТУ 6-17-1453-89 (ПО «Свема»), пленка фотографическая цветная "
+            "негативная ЦНД-64, табл. 4 пп. 1-9. Литера О₁, «вводится "
+            "впервые». "
+            "⚠⚠ п. 5 IS THE ONLY PLACE IN 176 SHEETS WHERE A DEVELOPMENT TIME "
+            "IS TIED TO A CONTRAST VALUE: «время проявления для получения "
+            "рекомендуемого коэффициента контрастности t_пр 8 мин», against "
+            "«рекомендуемый коэффициент контрастности всех слоёв 0,80 ± 0,10» "
+            "in п. 3. Everywhere else in the corpus the time and the gamma sit "
+            "in different tables with no stated relation, which is why "
+            "`contrast_time_min` and `_max` are 0.0 on every other Soviet "
+            "record here and 8/8 on this one. "
+            "⚠ табл. 7 прим. 2 raises the BLUE D_min ceiling to 1,10 for the "
+            "alternative process of ГОСТ 25120-82 cl. 4.3.2; the stored 0,85 "
+            "is this ТУ's own process. "
+            "⚠ NO MASK DATA OF ANY KIND is specified -- no «маскирующие "
+            "компоненты», no «эффективность фильтрового слоя», no «соотношение "
+            "вредных и полезных плотностей», no УЭП matrix -- which makes this "
+            "the one Soviet colour negative whose colour rendering is "
+            "controlled entirely through the four numbers in this record"),
+    ),),
+
+    # -- Фото ЦНД-32, ГОСТ 25120-82 табл. 6, первая категория качества -------
+    # ⚠ THE COLUMN THAT HAD NO STOCK until SVEMA_CND_32 was added in this same
+    # edit. Three columns in табл. 6, two of them ЦНЛ-65's; this one named a
+    # film the database did not model, and a documented state specification
+    # with nowhere to live is how data gets lost.
+    "SVEMA_CND_32": (ToleranceSpec(
+        speed_nominal=32.0, speed_min=32.0, speed_max=65.0,
+        speed_balance_max=2.3,
+        gamma_nominal_rgb=_GOST_25120_GAMMA_NOMINAL,
+        gamma_lo_rgb=_gost_gamma_band(0.08, middle_one_sided=True)[0],
+        gamma_hi_rgb=_gost_gamma_band(0.08, middle_one_sided=True)[1],
+        contrast_balance_max=0.13,
+        contrast_time_min=5.0, contrast_time_max=8.0,
+        dmin_max_rgb=(0.30, 0.45, 1.10),
+        latitude_min=1.05, resolving_power_min=58.0,
+        category="первая категория качества", is_default=True,
+        source=(
+            "ГОСТ 25120-82 «Пленки фотографические цветные негативные. "
+            "Технические условия», табл. 6, столбец «Фото ЦНД-32, первая "
+            "категория качества», reissue of July 1986 with Изменение № 1. "
+            "⚠⚠ THE MIDDLE-LAYER GAMMA IS ONE-SIDED AS PRINTED. The cell "
+            "reads «0,60 + 0,08» where the cells above and below it read "
+            "«0,55 ±0,08» and «0,65 ±0,08» -- verified at 900 dpi and "
+            "reproduced independently by the document's own OCR layer, which "
+            "renders the three as `0,55 ±0,08` / `0,60+0,08` / `0,65±0,08`. "
+            "Almost certainly a typographic fault in the reissue. Recorded as "
+            "printed: `gamma_lo_rgb` holds 0,60 for green where the symmetric "
+            "reading would give 0,52. `soviet_tu_corpus.py` re-derives this "
+            "cell from the OCR layer and fails if it is ever quietly "
+            "symmetrised. "
+            "⚠ THE LATITUDE FLOOR 1,05 IS THE NARROWEST IN THE SOVIET SET, "
+            "against 1,50 for ЦНЛ-65's first grade and 1,65 for its top grade "
+            "out of the same table -- the slow daylight mark was held to a "
+            "visibly weaker standard than the fast tungsten one. "
+            "⚠ Ageing allowance, прим. к табл. 6: speed −50 % and "
+            "fog-plus-mask +0,15 behind each of the three filters, which is "
+            "the loosest ageing envelope in the corpus by a wide margin"),
+    ),),
+
+    # -- Фото ЦНЛ-65, ГОСТ 25120-82 табл. 6, BOTH QUALITY GRADES -------------
+    # ⚠⚠ THE REASON `tolerance` IS A VECTOR. The state standard prints this
+    # mark twice, высшая and первая категория качества, and the two columns
+    # differ in the speed band, Б_S, the gamma tolerance, the fog-plus-mask
+    # ceiling, the latitude floor and the resolving power -- 90 lin/mm against
+    # 63, which is not a grading nicety but a different film to shoot. The
+    # profile's own stored scalars are the первая column (its R is 63), so
+    # that record is `is_default` and the высшая column rides along rather
+    # than being discarded for not matching.
+    "SVEMA_CNL_65": (
+        ToleranceSpec(
+            speed_nominal=65.0, speed_min=45.0, speed_max=90.0,
+            speed_balance_max=2.4,
+            gamma_nominal_rgb=_GOST_25120_GAMMA_NOMINAL,
+            gamma_lo_rgb=_gost_gamma_band(0.08)[0],
+            gamma_hi_rgb=_gost_gamma_band(0.08)[1],
+            contrast_balance_max=0.13,
+            contrast_time_min=5.0, contrast_time_max=8.0,
+            dmin_max_rgb=(0.30, 0.60, 1.10),
+            latitude_min=1.50, resolving_power_min=63.0,
+            category="первая категория качества", is_default=True,
+            source=(
+                "ГОСТ 25120-82 «Пленки фотографические цветные негативные. "
+                "Технические условия», табл. 6, столбец «Фото ЦНЛ-65, первая "
+                "категория качества». ОКП 23 7254; in force 01.01.83-01.01.88, "
+                "reissued July 1986 with Изменение № 1. This is the grade the "
+                "profile's own scalars represent: its stored resolving power "
+                "is 63 lin/mm, which is this column's п. 10 and not the "
+                "высшая column's 90. "
+                "⚠ ТУ 6-17-1371-86 (the Polish export packaging sheet) states "
+                "nothing photographic about ЦНЛ-65 and delegates it to this "
+                "standard by name, which is what ties the two documents "
+                "together. "
+                "⚠ Ageing allowance, прим. к табл. 6: speed −50 % and "
+                "fog-plus-mask +0,15 behind each of the three filters, over "
+                "the guarantee period"),
+        ),
+        ToleranceSpec(
+            speed_nominal=65.0, speed_min=65.0, speed_max=90.0,
+            speed_balance_max=2.2,
+            gamma_nominal_rgb=_GOST_25120_GAMMA_NOMINAL,
+            gamma_lo_rgb=_gost_gamma_band(0.05)[0],
+            gamma_hi_rgb=_gost_gamma_band(0.05)[1],
+            contrast_balance_max=0.13,
+            contrast_time_min=5.0, contrast_time_max=8.0,
+            dmin_max_rgb=(0.27, 0.50, 0.90),
+            latitude_min=1.65, resolving_power_min=90.0,
+            category="высшая категория качества", is_default=False,
+            source=(
+                "ГОСТ 25120-82 табл. 6, столбец «Фото ЦНЛ-65, высшая "
+                "категория качества». NOT the grade this profile's curves and "
+                "scalars represent -- carried because the column exists and "
+                "the alternative was to throw a documented specification away. "
+                "⚠ THE TWO GRADES ARE THE SAME MARK AND A DIFFERENT PRODUCT: "
+                "the tolerance on every recommended contrast tightens from "
+                "±0,08 to ±0,05, the speed band narrows from 45-90 to 65-90, "
+                "Б_S falls 2,4 → 2,2, the blue fog-plus-mask ceiling falls "
+                "1,10 → 0,90 and the resolving power floor rises 63 → 90 "
+                "lin/mm. A roll of the higher grade is a sharper, cleaner, "
+                "more consistent film sold under the same name"),
+        ),
+    ),
+}
+_TU_MACHINE = ("continuous, проявочная машина per ГОСТ 9160-82; the "
+               "production regime is set by each machine's аттестат from the "
+               "базовая метрологическая служба по сенситометрии и "
+               "светотехнике Госкино СССР, and the times below are the "
+               "ARBITRATION regime the ТУ prints")
+
+_PROCESSING.update({
+    # -- ЛН-8, ТУ 6-17-1109-88 табл. 4-5 (sheets 14-16) ----------------------
+    # Soak 2-4 @ 18±3 · DEVELOP 5-7 @ 20,0±0,3 · after-develop <=5 @ 20,0±0,3 ·
+    # fix 4-7 @ 19±3 · wash 6-8 · BLEACH 4 @ 19±3 · wash 4-5 · fix 4 @ 19±3 ·
+    # wash 9-15. Developer: трилон Б 2,0 · гидроксиламин сернокислый 1,2 ·
+    # ЦПВ-1 2,3±0,1 · сульфит натрия 2,0±0,2 · поташ 60,0±3,0 · KBr 2,00±0,16,
+    # pH 10,6±0,1 at 20 °C. Wash water 5-7 мг-экв/л per ГОСТ 4151-72.
+    "SVEMA_LN_8": ProcessingSpec(
+        developer="ЦПВ-1 colour developer (п-аминодиэтиланилинсульфат ГОСТ "
+                  "24801-81, 2.3 g/l; sodium sulfite 2.0 g/l; potassium "
+                  "carbonate 60.0 g/l; potassium bromide 2.00 g/l; "
+                  "hydroxylamine sulfate 1.2 g/l; Trilon B 2.0 g/l; "
+                  "pH 10.6 +/- 0.1 at 20 degC)",
+        dilution="working strength; ТУ prints the development step as 5-7 min "
+                 "and 6.0 is its midpoint",
+        minutes=6.0, celsius=20.0, agitation=_TU_MACHINE),
+    # -- ЛН-9, ТУ 6-17-1443-88 табл. 4-5 (sheets 13-16) ----------------------
+    # Soak 1,5-2 @ 18,0±2,0 · DEVELOP 6-8 @ 20,0±0,3 · after-develop 4-5 ·
+    # fix 4-7 · wash 10-12 · BLEACH 4 · wash 5 · fix 4 · wash 15-25.
+    # Drying air 40-45 °C -- the only drying temperature in the whole corpus.
+    "SVEMA_LN_9": ProcessingSpec(
+        developer="ЦПВ-1 colour developer (п-аминодиэтиланилинсульфат ГОСТ "
+                  "24801-81, 2.30 +/- 0.10 g/l; sodium sulfite 2.00 g/l; "
+                  "potassium carbonate 60.00 g/l; potassium bromide 2.00 g/l; "
+                  "hydroxylamine sulfate 1.20 g/l; Trilon B 2.00 g/l or "
+                  "sodium hexametaphosphate 4.00 g/l; pH 10.60 +/- 0.10)",
+        dilution="working strength; development printed as 6-8 min, 7.0 is "
+                 "its midpoint; drying air 40-45 degC",
+        minutes=7.0, celsius=20.0, agitation=_TU_MACHINE),
+    # -- ЛН-9С: THE SAME CHEMISTRY PLUS ONE EXTRA BATH ----------------------
+    # ⚠ табл. 4 gives ЛН-9С a step ЛН-9 does not have: «Промывание с удалением
+    # сажевого контрслоя, 0,5-1 мин, 11,0±3,0 °C», and прим. 2 says it runs in
+    # a SEPARATE TANK with a SPECIAL ROLLER. That is rem-jet removal, and it is
+    # the process-side half of the antihalation difference between the pair.
+    # прим. 1 adds the mirror fact: the soak may be SKIPPED for ЛН-9 only.
+    "SVEMA_LN_9S": ProcessingSpec(
+        developer="ЦПВ-1 colour developer (п-аминодиэтиланилинсульфат ГОСТ "
+                  "24801-81, 2.30 +/- 0.10 g/l; sodium sulfite 2.00 g/l; "
+                  "potassium carbonate 60.00 g/l; potassium bromide 2.00 g/l; "
+                  "hydroxylamine sulfate 1.20 g/l; Trilon B 2.00 g/l; "
+                  "pH 10.60 +/- 0.10)",
+        dilution="working strength; development 6-8 min, midpoint 7.0. ⚠ "
+                 "PRECEDED BY A REM-JET REMOVAL WASH the ЛН-9 cycle does not "
+                 "have: 0.5-1 min at 11.0 +/- 3.0 degC in a separate tank "
+                 "with a special roller (табл. 4 прим. 2)",
+        minutes=7.0, celsius=20.0, agitation=_TU_MACHINE),
+    # -- ЦНД-64, ТУ 6-17-1453-89 табл. 6-7 (sheets 18-20) -------------------
+    # DEVELOP 8 @ 25,0±0,3 · stop 2 @ 25,0±0,5 · BLEACH 4 · wash 2 · fix 6 ·
+    # wash 6. Total 28 min. ⚠ THE BLEACH COMES BEFORE THE FIX HERE, which is
+    # the opposite of the cine negatives' bleach-between-two-fixes, and it is
+    # a still-film process at 25 °C rather than 20 °C.
+    # ⚠ THE ONLY TIME-TO-CONTRAST STATEMENT IN THE CORPUS, hence contrast_index.
+    # -- ФОТО ЦНД-32, ГОСТ 25120-82 табл. 7-8 (sheets 6-8) -------------------
+    # DEVELOP 5-8 @ 20,0±0,3 · after-develop 5 @ 20,0±0,3 · fix 4-7 @ 18±2 ·
+    # wash 10-12 @ 11±3 · BLEACH 4 @ 20±1 · wash 5 · fix 4 · wash 15-25.
+    # ⚠ THE CINE ORDER, not ЦНД-64's: bleach BETWEEN TWO FIXES and development
+    # at 20 °C, which is what the four masked cine negatives do and what the
+    # later still ТУ abandoned for a 25 °C minilab cycle. The state standard of
+    # 1982 is still specifying a laboratory process.
+    # ⚠ `minutes` TAKES THE LOW END OF THE PRINTED 5-8 BAND and `contrast_index`
+    # is left 0.0, because the band is tied to THREE per-layer recommended
+    # gammas (0,55 / 0,60 / 0,65) and not to one contrast the way ЦНД-64's
+    # single 8 min is tied to 0,80. The full band is in `_TOLERANCE`.
+    "SVEMA_CND_32": ProcessingSpec(
+        developer="Soviet colour negative developer per ГОСТ 25120-82 "
+                  "табл. 8 (цветное проявляющее вещество ЦПВ-2; pH 10,5-10,7 "
+                  "at 20 °C); the standard names the bath chemistry and "
+                  "delegates the sensitometric conditions to ГОСТ 9160-82",
+        dilution="working strength; develop -> after-develop -> fix -> wash "
+                 "-> bleach -> wash -> fix -> wash",
+        minutes=5.0, celsius=20.0,
+        agitation="ГОСТ 9160-82 processing device; wash water 5-7 мг·экв/л "
+                  "per ГОСТ 4151-77"),
+    "SVEMA_CND_64": ProcessingSpec(
+        developer="Soviet colour negative developer per ТУ 6-17-1453-89 "
+                  "табл. 6 (п-аминодиэтиланилинсульфат ГОСТ 24801-81, "
+                  "2.3 g/l; sodium sulfite 2.0 g/l; potassium carbonate "
+                  "60.0 g/l; potassium bromide 2.0 g/l; hydroxylamine "
+                  "sulfate 1.2 g/l; Trilon B 2.0 g/l; pH 10.5-10.7)",
+        dilution="working strength; 28 min total wet time, develop -> stop -> "
+                 "bleach -> wash -> fix -> wash",
+        minutes=8.0, celsius=25.0, contrast_index=0.80,
+        agitation="ГОСТ 9160-82 processing device; wash water потable per "
+                  "ГОСТ 2874-82, hardness not stated"),
+    # -- ЦО-Т-90ЛМ, ТУ 6-17-1000-88 табл. 4-5 (sheets 10-13) ----------------
+    # REVERSAL, and the fogging is OPTICAL: «Засветка двумя лампами по 100 Вт
+    # на расстоянии 0,3 м со стороны светочувствительного слоя», 1-2 min. No
+    # chemical reversal bath exists in any Soviet reversal ТУ.
+    # B&W develop 4,5-6,0 @ 30,0±0,3 · wash · stop 1 @ 30±1 · wash · FOG 1-2 ·
+    # colour develop 4-4,5 @ 30,0±0,3 · wash 8 · bleach 3 · wash · fix 2 · wash.
+    # `minutes`/`celsius` carry the FIRST developer, which is the step that
+    # sets the reversal image's speed and contrast.
+    "SVEMA_CO_T_90LM": ProcessingSpec(
+        developer="first developer per ТУ 6-17-1000-88 табл. 4 (hydroquinone "
+                  "4.5 g/l + phenidone or 4-methylphenidone 0.25 g/l; sodium "
+                  "sulfite 40 g/l; borax 15 g/l; potassium carbonate 22 g/l; "
+                  "potassium thiocyanate 2.5 g/l; potassium iodide 0.01 g/l; "
+                  "Trilon B 2.0 g/l; pH 10.0 +/- 0.1), then optical fogging "
+                  "and a ЦПВ colour developer (4.0 g/l, pH 10.9 +/- 0.1)",
+        dilution="30 degC cycle (табл. 5); first development printed as "
+                 "4.5-6.0 min, 5.25 is its midpoint; re-exposure two 100 W "
+                 "lamps at 0.3 m on the emulsion side for 1-2 min; colour "
+                 "development 4-4.5 min at 30.0 +/- 0.3 degC",
+        minutes=5.25, celsius=30.0,
+        agitation="проявочная машина; wash-water hardness 5-7 мг-экв/л"),
+    # -- ЦО-32Д, ТУ 6-17-912-87 табл. 6-7 (sheets 13-15) --------------------
+    # ⚠ ONE REGIME ONLY -- unlike its two siblings this ТУ prints no
+    # alternative temperature cycle. B&W develop 8-12 @ 25,0±0,5 · wash 2 ·
+    # stop 2-3 @ 20±1 · wash 5 · FOG 2-3 · colour develop 10 @ 25,0±0,5 ·
+    # wash 20 · bleach 5 @ 20±1 · wash 5 · fix 5 @ 20±1 · wash 15. 77-83 min.
+    # ⚠ THE COLOUR DEVELOPER IS TWO-PART: раствор А (Trilon B 1,0 +
+    # hydroxylamine 1,2 + ЦПВ 4,0, to 500 ml) poured together with раствор Б
+    # (Trilon B 1,0 + поташ 75,0 + сульфит 2,0 + KBr 2,0, to 500 ml).
+    # прим. 4: for HAND processing the stop bath may be replaced by a
+    # hardening-stop of potassium alum 20,0 g/l.
+    "SVEMA_CO_32D": ProcessingSpec(
+        developer="first developer per ТУ 6-17-912-87 табл. 6 (hydroquinone "
+                  "4.5 g/l + phenidone 0.25 g/l; sodium sulfite 40.0 g/l; "
+                  "borax 15.0 g/l; potassium carbonate 20.0 g/l; potassium "
+                  "bromide 2.0 g/l; potassium thiocyanate 2.5 g/l; potassium "
+                  "iodide 0.01 g/l; Trilon B 2.0 g/l; pH 10.0 +/- 0.1), then "
+                  "optical fogging and a TWO-PART colour developer "
+                  "(A+B, ЦПВ 4.0 g/l, pH 10.75 +/- 0.25)",
+        dilution="single regime, no alternative cycle is printed; first "
+                 "development 8-12 min, 10.0 is its midpoint; re-exposure two "
+                 "100 W lamps at 0.3 m on the emulsion side for 2-3 min; "
+                 "colour development 10 min at 25.0 +/- 0.5 degC",
+        minutes=10.0, celsius=25.0,
+        agitation="проявочная машина; wash-water hardness 5-7 мг-экв/л per "
+                  "ГОСТ 4151-72; from the stop bath onward работа на свету"),
+})
+
+
+# ---------------------------------------------------------------------------
+#  SOVIET ТУ PROVENANCE, 2026-09-23
+#
+# ⚠ THESE ARE HAND ENTRIES AND SEVERAL EXIST TO DISPLACE A DERIVED ONE.
+# `_PARAM_SOURCES_DERIVED` gave every Soviet stock a `processing.developer`
+# record reading «NO DEVELOPER RECORDED … which developer they refer to is
+# unknown». That sentence was true when it was written and is false now: the
+# developer is printed in full, with every component in g/l and a pH band, in
+# each film's own ТУ. The filters below drop exactly that one cell per
+# profile and leave the rest of the derived record alone.
+# ---------------------------------------------------------------------------
+_TU_DEV_SRC = {
+    "SVEMA_LN_8": "ТУ 6-17-1109-88 sheets 14-16, табл. 4 (bath schedule) and "
+                  "табл. 5 (formulary)",
+    "SVEMA_LN_9": "ТУ 6-17-1443-88 sheets 13-16, табл. 4 and табл. 5",
+    "SVEMA_LN_9S": "ТУ 6-17-1443-88 sheets 13-16, табл. 4 and табл. 5",
+    "SVEMA_CND_64": "ТУ 6-17-1453-89 sheets 18-20, табл. 6 and табл. 7",
+    "SVEMA_CND_32": "ГОСТ 25120-82 sheets 6-8, табл. 7 (bath schedule) and "
+                    "табл. 8 (formulary)",
+    "SVEMA_CO_T_90LM": "ТУ 6-17-1000-88 sheets 10-13, табл. 4 and табл. 5",
+    "SVEMA_CO_32D": "ТУ 6-17-912-87 sheets 13-15, табл. 6 and табл. 7",
+}
+_TU_DEV_NOTE = (
+    "⚠ CORRECTED 2026-09-23, AND THE PREVIOUS TEXT WAS FALSE. This cell "
+    "inherited «NO DEVELOPER RECORDED» from _PARAM_SOURCES_DERIVED, written "
+    "before the Soviet ТУ corpus was read. The developer IS published: every "
+    "one of these documents prints its complete formulary in grams per litre "
+    "with a pH band and its complete bath schedule with times, temperatures "
+    "and tolerances. ⚠ WHAT IS STILL NOT KNOWN is what the stored "
+    "CHARACTERISTIC CURVE was developed to, and for a different reason from "
+    "the usual one: NONE OF THESE DOCUMENTS PRINTS A CURVE AT ALL. All 176 "
+    "sheets of the nine-document corpus contain four mechanical drawings and "
+    "no plotted curve of any kind, so the stored curve was built from the "
+    "documents' TABULATED dmin and gradient norms rather than traced, and "
+    "the development it represents is the arbitration regime those norms are "
+    "defined at. ⚠ AND NO TRADE PROCESS NAME EXISTS ANYWHERE IN THE CORPUS: "
+    "ЦНД-2, ЦНД-3, ОБ-1, УП-2, C-41 and E-6 do not occur in any of the nine, "
+    "so the `developer` string names the agent and its concentration rather "
+    "than a kit.")
+for _tn, _tsrc in _TU_DEV_SRC.items():
+    _PARAM_SOURCES[_tn] = tuple(
+        _r for _r in _PARAM_SOURCES.get(_tn, ())
+        if _r.param != 'processing.developer') + (
+        ParamSource(
+            param='processing.developer', tier=1, status='stated',
+            unit='',
+            conditions=('arbitration regime; the production regime is set by '
+                        'each machine\'s Goskino metrology certificate and is '
+                        'not in the document'),
+            source=_tsrc, confidence='high', note=_TU_DEV_NOTE),)
+del _tn, _tsrc
+
+#: ⚠ THE DENSITY BASIS, RECORDED BECAUSE IT WAS WRONG UNTIL TODAY. See
+#: `_DENSITY_METRIC_OVERRIDES` for the full argument.
+for _tn in ('SVEMA_DS_5M', 'SVEMA_LN_8', 'SVEMA_LN_9', 'SVEMA_LN_9S'):
+    _PARAM_SOURCES[_tn] = tuple(
+        _r for _r in _PARAM_SOURCES.get(_tn, ())
+        if _r.param != 'density_metric') + (
+        ParamSource(
+            param='density_metric', tier=1, status='stated',
+            unit='',
+            conditions=('production densitometry of the norms the stored '
+                        'curve was built from'),
+            source=_DENSITY_METRIC_OVERRIDES[_tn][1],
+            confidence='high',
+            note="⚠⚠ CORRECTED 2026-09-23 FROM 'status_m', WHICH THE CLASS "
+                 "RULE IN `_apply_schema_v2` HAD ASSIGNED AND THE SOURCE "
+                 "CONTRADICTS. These sheets specify «денситометр … для "
+                 "измерения КОПИРОВАЛЬНЫХ плотностей» -- the spectral "
+                 "response of the print stock, not an ISO 5-3 status. Status "
+                 "A and Status M occur in these documents exactly once each, "
+                 "in Приложение 2, and with the opposite assignment to the "
+                 "one we had: «при испытании НЕГАТИВНЫХ пленок -- по статус "
+                 "А; позитивных и контратипных -- по статус М». The stored "
+                 "curve is in this basis because its dmins and gammas ARE "
+                 "табл. 2 rows 4 and 3."),)
+del _tn
+
+#: ⚠⚠ ЛН-8's MTF FREQUENCY WAS NEVER TYPED INTO THE ORIGINAL. Recorded here
+#: because the f50 this database ships for the stock cannot be read as
+#: documented without it.
+_PARAM_SOURCES['SVEMA_LN_8'] = tuple(
+    _r for _r in _PARAM_SOURCES.get('SVEMA_LN_8', ())
+    if not _r.param.startswith('mtf.f50_')) + tuple(
+    ParamSource(
+        param='mtf.f50_%s' % _ch, tier=2, status='derived',
+        unit='cycles/mm',
+        conditions=('converted from a single MTF value through '
+                    'f50 = nu / sqrt(log2(1/T)), with nu ASSUMED'),
+        source=_SOVIET_TU_MTF_FREQ_MM['SVEMA_LN_8'][2],
+        confidence='low',
+        note="⚠⚠ THE SPATIAL FREQUENCY IS BLANK IN THE TYPESCRIPT. Табл. 2 "
+             "п. 8 of ТУ 6-17-1109-88 sets the symbol ν and the two values "
+             "«за зеленым 0,30» and «за красным 0,15» and the numeral for ν "
+             "WAS NEVER TYPED -- verified on a 700 dpi render of sheet 4, "
+             "the cell is white space and not a faint glyph. 30 mm-1 is "
+             "assumed from ДС-5М, ЛН-9, ЛН-9С and ЦНД-64, which all print "
+             "it, and the whole f50 rests on that assumption. ⚠ THERE IS "
+             "ALSO NO BLUE-LAYER MTF IN ANY SOVIET NEGATIVE: all four "
+             "specify green and red only, so f50_b is f50_g's value and not "
+             "a second measurement.")
+    for _ch in ('r', 'g', 'b'))
+
+#: ⚠ ЛН-9 AND ЛН-9С ARE THE ONLY SOVIET STOCKS WHOSE MTF IS A CENTRED BAND.
+for _tn in ('SVEMA_LN_9', 'SVEMA_LN_9S'):
+    _PARAM_SOURCES[_tn] = tuple(
+        _r for _r in _PARAM_SOURCES.get(_tn, ())
+        if not _r.param.startswith('mtf.f50_')) + tuple(
+        ParamSource(
+            param='mtf.f50_%s' % _ch, tier=1, status='derived',
+            unit='cycles/mm',
+            conditions=('converted from T at nu = 30 mm-1 through '
+                        'f50 = nu / sqrt(log2(1/T))'),
+            source=_SOVIET_TU_MTF_TOLERANCE[_tn][2],
+            confidence='medium',
+            note="⚠ A NOMINAL WITH A TOLERANCE, NOT A FLOOR -- the only "
+                 "Soviet MTF in this database that is. Табл. 2 п. 7 prints "
+                 "«за зеленым 0,40 ± 0,05» and «за красным 0,22 ± 0,03», "
+                 "where ДС-5М, ЛН-8 and ЦНД-64 all print «не менее». So the "
+                 "stored f50 is the CENTRE of a band and is directly "
+                 "comparable with a manufacturer's typical figure, whereas "
+                 "its three siblings' are worst cases and are not. ⚠ The "
+                 "red digits are a typed correction struck over an earlier "
+                 "value; at native scan resolution they read 22. ⚠ No "
+                 "blue-layer MTF is specified.")
+        for _ch in ('r', 'g', 'b'))
+del _tn
+
+#: ⚠⚠ ЦО-32Д'S GRAIN AND MTF ARE NOT IN ITS ТУ AT ALL.
+_PARAM_SOURCES['SVEMA_CO_32D'] = tuple(
+    _r for _r in _PARAM_SOURCES.get('SVEMA_CO_32D', ())
+    if not (_r.param.startswith('mtf.f50_')
+            or _r.param == 'grain.rms_granularity')) + (
+    ParamSource(
+        param='grain.rms_granularity', tier=3, status='estimated',
+        unit='sigma(D) x 1000',
+        conditions='not stated by the product standard',
+        source='ТУ 6-17-912-87, read in full 2026-09-23 -- 23 sheets',
+        confidence='low',
+        note="⚠⚠ THE PRODUCT STANDARD SPECIFIES NO GRANULARITY. Neither "
+             "«гранулярность» nor «зернистость» occurs anywhere in ТУ "
+             "6-17-912-87; its табл. 5 has nine rows and none of them is a "
+             "grain figure. The stored value therefore does NOT come from "
+             "this film's own standard and must not be read as a "
+             "manufacturer norm. Its siblings ЦО-Т-90ЛМ (<=25) and the four "
+             "negatives (11-30) do publish one, which makes the absence here "
+             "a property of this document rather than of the Soviet corpus."),
+    )
+
+
+# ---------------------------------------------------------------------------
+#  PROVENANCE FOR THE BRIDGE, 2026-09-23
+# ---------------------------------------------------------------------------
+#: ⚠ THE ANCHOR ITSELF IS `derived`, NOT `synthesized`. Its f50 is computed
+#: from ITS OWN sheet's MTF point by the file's own conversion; the rule never
+#: leaves the document. That is the distinction the new status exists to keep.
+_PARAM_SOURCES['SVEMA_CO_T_90LM'] = tuple(
+    _r for _r in _PARAM_SOURCES.get('SVEMA_CO_T_90LM', ())
+    if not _r.param.startswith('mtf.')) + tuple(
+    ParamSource(
+        param='mtf.f50_%s' % _ch, tier=1, status='derived',
+        unit='cycles/mm',
+        conditions='f50 = nu / sqrt(log2(1/T)) from T = 0.27 at nu = 30 mm-1',
+        source=_SOVIET_RP_ANCHOR_SRC, confidence='medium',
+        note="⚠⚠ THIS IS THE ANCHOR OF THE SOVIET RESOLVING-POWER / MTF "
+             "BRIDGE AND IT REPLACES A PLACEHOLDER. The cell previously read "
+             "«PLACEHOLDER, NOT A JUDGEMENT: this cell had NO per-parameter "
+             "provenance». It has one now, and a strong one: ТУ 6-17-1000-88 "
+             "табл. 2 publishes this film's resolving power (п. 7, 75 mm-1) "
+             "and its MTF point (п. 9, T >= 0.27 at 30 mm-1) six rows apart "
+             "in the same table, which makes it the ONLY stock in this "
+             "database carrying both from one page. ⚠ A CLAIM ELSEWHERE IN "
+             "THIS FILE SAID NO SUCH STOCK EXISTED and was wrong; see the "
+             "bridge block for the correction. ⚠ T IS A «не менее» FLOOR, so "
+             "the f50 is a floor too -- the film was no worse than 21.8, and "
+             "a typical coating was better by an unknown margin."
+    ) for _ch in ('r', 'g', 'b'))
+
+#: ⚠ AND THE TWO BRIDGED STOCKS ARE `synthesized`, WHICH IS THE WHOLE POINT OF
+#: THE NEW STATUS: their own ТУ publish a resolving power and no MTF, so the
+#: conversion had to borrow a ratio from a DIFFERENT FILM'S document.
+for _bn, (_br, _bsrc) in _SOVIET_RP_BRIDGED.items():
+    _bf50 = round(soviet_f50_from_rp(_br), 1)
+    _PARAM_SOURCES[_bn] = tuple(
+        _r for _r in _PARAM_SOURCES.get(_bn, ())
+        if not _r.param.startswith('mtf.')) + tuple(
+        ParamSource(
+            param='mtf.f50_%s' % _ch, tier=2, status='synthesized',
+            unit='cycles/mm',
+            conditions=('bridged from this film\'s own documented resolving '
+                        'power through R/f50 = 3.436, calibrated on '
+                        'ЦО-Т-90ЛМ, the one Soviet stock publishing both'),
+            source='%s -- bridged against %s' % (_bsrc, _SOVIET_RP_ANCHOR_SRC),
+            confidence='low',
+            note="⚠⚠ REPLACES A VALUE THAT WAS ABOUT 1.7x TOO HIGH AND WAS "
+                 "NOT A READING OF ANYTHING. The former f50 came from this "
+                 "project's era-and-class sharpness heuristic and never "
+                 "touched this film's own documented resolving power. ⚠ "
+                 "THREE THINGS CAN BE WRONG HERE AND THAT IS WHY IT IS "
+                 "`synthesized` RATHER THAN `derived`: the arithmetic, the "
+                 "calibration, and the assumption that two different "
+                 "emulsions share one R/f50 ratio. ⚠ WHAT MAKES IT DEFENSIBLE "
+                 "ANYWAY is that the borrowing stays inside one narrow class: "
+                 "all three are Soviet colour REVERSAL films, all three have "
+                 "their R read «по обращенному изображению миры» per ГОСТ "
+                 "2819-84 on the same РП-2М resolvometer, so the image "
+                 "polarity, the target, the instrument and the standard are "
+                 "the same across the borrow. That is not true of the four "
+                 "Soviet NEGATIVES, whose R would be read on the negative "
+                 "image at a different effective contrast, and the bridge is "
+                 "deliberately not extended to them. ⚠ BOTH INPUTS ARE «не "
+                 "менее» FLOORS, so the output is a floor."
+        ) for _ch in ('r', 'g', 'b'))
+    del _bf50
+del _bn, _br, _bsrc
+
+#: ⚠ ЦО-90Л's RESOLVING POWER, PRINTED SINCE 1990 AND UNREAD UNTIL TODAY.
+_PARAM_SOURCES['SVEMA_CO_90L'] = _PARAM_SOURCES.get('SVEMA_CO_90L', ()) + (
+    ParamSource(
+        param='mtf.resolving_power_lp_mm_highc', tier=1, status='spec_limit',
+        unit='lines/mm',
+        conditions=('ГОСТ 2819-84, reversed image of the target, резольвометр '
+                    'РП-2М, developed for the optimum b/w development time'),
+        source=_SOVIET_RP_BRIDGED['SVEMA_CO_90L'][1], confidence='high',
+        note="⚠ A FLOOR, NOT A TYPICAL: «не менее 75». ⚠ FOUND BY "
+             "CROSS-CHECKING, NOT BY RE-READING: the number sat in табл. 3 of "
+             "this film's own ТУ while the database carried 0.0 and built a "
+             "heuristic f50 instead. It surfaced only when the corpus was "
+             "searched for stocks holding BOTH a resolving power and an MTF, "
+             "which is the case for combining sources rather than reading "
+             "them one at a time. ⚠ THE LOW-CONTRAST SLOT STAYS EMPTY because "
+             "Soviet ТУ print one resolving power and never the two "
+             "test-object contrasts the Western sheets pair."),)
+
+
+
 
 _RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
     # ⚠ 2026-09-06c, AND IT IS HERE BECAUSE A PROFILE LITERAL COULD NOT HOLD IT.
@@ -52053,6 +55558,114 @@ _RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
 #: least. An empty string is an ACHROMATIC statement where the sheet says so,
 #: not a gap.
 _RECIPROCITY_TABLES: dict[str, ReciprocityTable] = {
+    # =======================================================================
+    #  THE 2026-09-22 RECIPROCITY HARVEST -- six tables read out of documents
+    #  THE CORPUS ALREADY HELD. Nothing was searched for: each profile named
+    #  its publication, the PDF was on disk, and the reciprocity paragraph had
+    #  never been read. Reciprocity is the second-largest realism gap in the
+    #  project (17.5 % of measured render influence, 43 % coverage) and the
+    #  cheapest to close -- a curve must be traced and fitted, a reciprocity
+    #  table is a printed paragraph.
+    # =======================================================================
+    #
+    # ⚠ FOUR OF THE SIX ARE ZERO-CORRECTION RANGES, AND THAT IS DATA. A sheet
+    # that says "no correction from A to B" fixes the ONSET of the stock's
+    # reciprocity failure, which is the single most useful number on this
+    # axis: it is what the class default gets wrong by orders of magnitude.
+    "EASTMAN_DOUBLE_X_5222": ReciprocityTable(
+        times_s=(1.0e-4, 1.0),
+        stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «EASTMAN DOUBLE-X Negative Film "
+                "5222/7222 -- Technical Data», KODAK Publication No. H-1-5222, "
+                "p1 'RECIPROCITY CHARACTERISTICS', read 2026-09-22: 'No "
+                "exposure or filter compensation is required for exposure "
+                "times from 1/10,000 second to 1 second.' Onset only -- the "
+                "sheet prints no ladder beyond 1 s, so nothing past the "
+                "endpoint is extrapolated. Replaces the general class default "
+                "p = 0.95 with onset 1 s, which happened to name the same "
+                "onset by coincidence rather than by evidence."),
+    ),
+    "KODAK_EKTACHROME_100D_5285": ReciprocityTable(
+        times_s=(1.0e-4, 1.0),
+        stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK EKTACHROME 100D Color Reversal "
+                "Film 5285/7285 -- Technical Data», KODAK Publication No. "
+                "H-1-5285, p1 'RECIPROCITY CHARACTERISTICS', read 2026-09-22: "
+                "'You do not need to make any filter corrections or exposure "
+                "adjustments for exposure times from 1/10,000 to 1 second.' "
+                "⚠ THIS SENTENCE WAS ALREADY QUOTED IN THE PROFILE'S OWN "
+                "PROVENANCE NOTE and no table was built from it, which is why "
+                "the stock was still running the colour-reversal class default "
+                "0.93/0.92/0.94 -- a triple it shared byte for byte with "
+                "EASTMAN_EKTACHROME_7239, two process generations and forty "
+                "years apart. Reading a sentence is not adopting it."),
+    ),
+    "EASTMAN_EKTACHROME_5239": ReciprocityTable(
+        times_s=(1.0e-4, 1.0),
+        stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «EASTMAN EKTACHROME Film (Daylight) "
+                "7239», KODAK Publication No. H-1-5239, Minor Revision 2-99, "
+                "p2 'RECIPROCITY CHARACTERISTICS', read 2026-09-22: 'You do "
+                "not need any filter or exposure adjustments for exposure "
+                "times from 1 second to 1/10,000 second.' One sheet covers "
+                "5239 and 7239, so both carry this table and they must stay "
+                "identical."),
+    ),
+    "EASTMAN_EKTACHROME_7239": ReciprocityTable(
+        times_s=(1.0e-4, 1.0),
+        stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «EASTMAN EKTACHROME Film (Daylight) "
+                "7239», KODAK Publication No. H-1-5239, Minor Revision 2-99, "
+                "p2 'RECIPROCITY CHARACTERISTICS' -- the same sentence and the "
+                "same sheet as 5239, which documents both gauges as one "
+                "product."),
+    ),
+    # ⚠⚠ THE RICHEST TABLE IN THE HARVEST, AND THE ONLY ONE IN THE WHOLE
+    # DATABASE THAT PRINTS A DEVELOPMENT ADJUSTMENT AT THE SHORT END. P-255
+    # asks for +30 % development at 1/10,000 s and +20 % at 1/1,000 s with NO
+    # exposure correction at either -- high-intensity reciprocity failure
+    # showing up as lost CONTRAST rather than lost speed, which is a different
+    # physical effect from the long-exposure case every other row in this
+    # table describes. It also prints NEGATIVE development corrections, -10 %
+    # at 1 s and 10 s, where the long exposure has raised contrast instead.
+    # A Schwarzschild exponent cannot express any of that at any value.
+    "KODAK_TECHNICAL_PAN": ReciprocityTable(
+        times_s=(1.0e-4, 1.0e-3, 1.0e-2, 0.1, 1.0, 10.0, 100.0),
+        stops_correction=(0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 1.5),
+        development_correction_pct=(30.0, 20.0, 0.0, 0.0, -10.0, -10.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK TECHNICAL PAN Film», KODAK "
+                "Publication No. P-255, June 2003, p3 'Adjustments for Long "
+                "and Short Exposures', read 2026-09-22. Seven printed rows: "
+                "1/10,000 s none +30 % development; 1/1,000 s none +20 %; "
+                "1/100 s and 1/10 s none; 1 s none -10 %; 10 s +1/2 stop (or "
+                "15 s) -10 %; 100 s +1 1/2 stops (adjust aperture) none. "
+                "⚠ THE DEVELOPMENT COLUMN IS THE POINT: this is the only sheet "
+                "in the corpus that prints a development adjustment at the "
+                "SHORT end, where the failure costs contrast rather than "
+                "speed. Replaces the class default p = 0.95, onset 1 s."),
+    ),
+    "KODAK_TMAX_100": ReciprocityTable(
+        times_s=(1.0e-4, 1.0e-3, 1.0e-2, 0.1, 1.0, 10.0, 100.0),
+        stops_correction=(1.0 / 3.0, 0.0, 0.0, 0.0, 1.0 / 3.0, 0.5, 1.0),
+        source=("Eastman Kodak Company, «KODAK PROFESSIONAL T-MAX Films», "
+                "publication F-4016, 2007, p5 'Adjustments for Long and Short "
+                "Exposures', the T-MAX 100 table, read 2026-09-22: 1/10,000 s "
+                "+1/3 stop; 1/1,000, 1/100 and 1/10 s none; 1 s +1/3 stop; "
+                "10 s +1/2 stop (or 15 s); 100 s +1 stop (or 200 s). ⚠ THE "
+                "SHORT-END ROW IS REAL DATA AT 1e-4 s, which is the end the "
+                "corpus has almost nothing on -- see the standing note on "
+                "ReciprocitySpec.short_onset_s. ⚠ AND THE SAME PAGE PRINTS "
+                "T-MAX 400's TABLE, WHICH DISAGREES WITH THE ONE THIS "
+                "DATABASE ALREADY HOLDS: F-4016 (2007) gives 400 +1/3 stop at "
+                "1 s and +1/2 at 10 s, where F-4043 (2016) -- the film's own "
+                "dedicated sheet, and the stored source -- gives none at 1 s "
+                "and +1/3 at 10 s. Both agree on +1 1/2 stops at 100 s. The "
+                "stored F-4043 table is KEPT, being newer and film-specific; "
+                "the disagreement is recorded rather than averaged. It is the "
+                "SECOND contradiction found between these two publications "
+                "today, after the 7 1/2 against 8 minute D-76 development "
+                "time for the same film."),
+    ),
     # ---- KODAK VISION2, the three stocks whose sheets print TWO points ------
     # All three print the identical two-point ladder, which is why a single
     # exponent cannot carry them: 2/3 stop is already gone at 1 s and only 1/3
@@ -55014,8 +58627,111 @@ def stricker_callier_q(gamma: float) -> float:
     return pts[-1][1]  # unreachable; keeps the type checker happy
 
 
+#: ⚠⚠ THE SILENT-LITERAL-DISCARD SET, PINNED 2026-09-23.
+#:
+#: `_apply_schema_v2` writes each of these fourteen fields UNCONDITIONALLY in
+#: its `replace(...)` call, from a table, a helper or a class rule. A value
+#: written on the profile literal is therefore overwritten and NOTHING SAYS SO.
+#: This is the single most expensive defect class in the file's history -- it
+#: has cost `reciprocity`, `exposure_index_tungsten`, `aim_density`,
+#: `processing` and `mask_encoding` on separate occasions, each found by
+#: accident months later, and the 2026-09-23 sweep found fifteen more sites
+#: still live, one of them holding a value (`mask_encoding="orange_masked"`)
+#: that is not even in the vocabulary and would have failed the schema guard
+#: had it ever been honoured.
+#:
+#: ⚠ THE FIX IS STRUCTURAL, NOT A CLEAN-UP. Deleting the fifteen literals
+#: removes the instances; it does not remove the trap, and the trap is what
+#: keeps catching people -- writing `processing=...` on a profile is the
+#: obvious thing to do and the file gives no feedback that it did nothing.
+#: `_refuse_dead_literals` below makes the mistake IMPOSSIBLE instead of
+#: merely absent, which is exactly what `_reciprocity_for` already does for
+#: `reciprocity` (it RAISES on a literal) and is the precedent followed here.
+#:
+#: The value beside each name is where the datum must go instead.
+_SCHEMA_V2_DERIVED_FIELDS: dict[str, str] = {
+    "aging": "nowhere on the profile -- `aging=AgingSpec()` ships on every "
+             "stock (DM-01, 'every profile ships fresh; hooks only'). "
+             "Documented ageing BOUNDS are not states: see "
+             "`_SOVIET_TU_SHELF_DRIFT` and the note above it",
+    "callier_q": "`_callier_beta_for`, or the class branch at the head of "
+                 "`_apply_schema_v2` (`_CHROMOGENIC_MONO` for a dye-image "
+                 "monochrome stock)",
+    "coating": "`_coating_for`",
+    "density_metric": "`_DENSITY_METRIC_OVERRIDES`, or the class branch",
+    "exposure_index_tungsten": "`_EXPOSURE_INDEX_TUNGSTEN` -- and read its "
+                               "header first: UNFILTERED PAIRS ONLY",
+    "interimage": "`_interimage_for`",
+    "mask_encoding": "`_DMIN_LADDER`, or queue P47 "
+                     "(`_P47_LADDER_CONFIRMED`), or the class branch",
+    "processing": "`_PROCESSING`, including the `_ECN2_STOCKS` / "
+                  "`_C41_STOCKS` sweeps and the overrides that follow them",
+    "provenance": "`_provenance_for` -- `_PROVENANCE_SOURCES` for sources, "
+                  "the [T*] description tag for tier, and one of the "
+                  "review-date hooks for `last_reviewed`",
+    "referred": "nowhere -- derived from `default_print`",
+    "speed_criterion": "the class branch at the head of `_apply_schema_v2`",
+    "speed_point_x": "nowhere -- the per-render anchor solve owns it",
+    "temporal": "`_TEMPORAL_OVERRIDES`",
+    "trim": "nowhere -- the per-render anchor solve owns it",
+    # -- schema v51 (2026-09-23c) --------------------------------------------
+    # ⚠ THE FIRST FIELD ADDED TO THE SCHEMA *AFTER* THIS GUARD EXISTED, and it
+    # went into the guarded set when it was added rather than becoming the
+    # sixteenth dead-literal site months later. That is exactly what
+    # `G-DEAD-SET-PINNED` is for: the question "does the computation read
+    # `p.<field>`?" now has to be answered at the moment the field appears.
+    "tolerance": "`_TOLERANCE`, keyed by profile name",
+}
+
+
+def _schema_v2_field_defaults() -> dict[str, object]:
+    """Default value of each field in `_SCHEMA_V2_DERIVED_FIELDS`.
+
+    Read off the dataclass rather than written out, so the guard cannot drift
+    from the schema the way a hand-copied table would.
+    """
+    out: dict[str, object] = {}
+    for f in _dc_fields(FilmProfile):
+        if f.name not in _SCHEMA_V2_DERIVED_FIELDS:
+            continue
+        if f.default is not _DC_MISSING:
+            out[f.name] = f.default
+        elif f.default_factory is not _DC_MISSING:   # type: ignore[misc]
+            out[f.name] = f.default_factory()        # type: ignore[misc]
+    missing = set(_SCHEMA_V2_DERIVED_FIELDS) - set(out)
+    if missing:
+        raise ValueError(
+            "_SCHEMA_V2_DERIVED_FIELDS names fields that are not defaulted "
+            f"fields of FilmProfile: {sorted(missing)}")
+    return out
+
+
+_SCHEMA_V2_DEFAULTS = _schema_v2_field_defaults()
+
+
+def _refuse_dead_literals(p: FilmProfile) -> None:
+    """RAISE if a profile sets a field `_apply_schema_v2` will overwrite.
+
+    The whole point is that this is LOUD. A silently discarded literal is
+    indistinguishable from a datum that was never recorded, so the value looks
+    present in the source, is absent from the shipped object, and the
+    disagreement can sit unnoticed for months. Every one of the five fields
+    named in `_SCHEMA_V2_DERIVED_FIELDS`' header was found that way.
+    """
+    for name, where in _SCHEMA_V2_DERIVED_FIELDS.items():
+        if getattr(p, name) != _SCHEMA_V2_DEFAULTS[name]:
+            raise ValueError(
+                f"{p.name}: the profile literal sets `{name}`, which "
+                f"`_apply_schema_v2` OVERWRITES UNCONDITIONALLY -- the value "
+                f"would be discarded in silence and the profile would ship "
+                f"something else. Put the datum in {where}. "
+                f"(Guard added 2026-09-23 after a sweep found 15 such dead "
+                f"literals, one of them holding an illegal value.)")
+
+
 def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
     """Fill every schema-v2 field from the rules and tables above."""
+    _refuse_dead_literals(p)
     y = _era_start(p.era)
     historic = y < 1960 and "present" not in p.era.lower()
     if p.name in _CHROMOGENIC_MONO:
@@ -55079,6 +58795,19 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
         speed_criterion = "iso5800"
         callier_q = 1.0
         mask_encoding = "dmin_ladder" if p.name in _DMIN_LADDER else "neutral_dmin"
+
+    # ⚠⚠ A PER-STOCK DENSITY BASIS BEATS THE CLASS RULE, 2026-09-23. The four
+    # Soviet cine negatives are read in КОПИРОВАЛЬНЫЕ ПЛОТНОСТИ -- printing
+    # densities -- by their own cl. 3.5.1, and the curves this database stores
+    # for them were built from exactly those norms. See
+    # `_DENSITY_METRIC_OVERRIDES` for the wording and for why ЦНД-64 is not in
+    # the table. This is an OVERRIDE and not a fifth branch above, because the
+    # class rule is still right for the other 189 stocks and the exception is
+    # a property of the document, not of the emulsion kind.
+    _dmo = _DENSITY_METRIC_OVERRIDES.get(p.name)
+    if _dmo is not None:
+        density_metric = _dmo[0]
+
     if historic:
         speed_criterion = "manufacturer_ei"
 
@@ -55117,6 +58846,7 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
         # already carry an INLINE reciprocity_table literal, and silently
         # preferring one source over the other would drop a document.
         reciprocity_table=_reciprocity_table_for(p),
+        tolerance=_TOLERANCE.get(p.name, ()),   # schema v51
         aging=AgingSpec(),  # every profile ships fresh; hooks only (DM-01)
         # schema v6. Both default to "not stated" and are filled only where a
         # source prints the value; see the two dicts above for why the
@@ -55362,6 +59092,37 @@ _KODAK_STILL_HARVEST: dict = {
     # eleven documents to print more than a single "no correction required"
     # bound.
     "KODAK_PORTRA_100T": dict(
+        # ⚠⚠ CURVES ADDED 2026-09-22 BY OWNER DECISION, AND THEY ARE PORTRA
+        # 160VC'S FOUR-TUPLES, CHARACTER FOR CHARACTER. E-2468's
+        # characteristic panel carries figure id F009_0154AC, the id E-190
+        # prints on its 160VC page, and the two drawings are bit-identical:
+        # 8.9e-16 D and 0.0 in log E vertex-for-vertex, with identical vertex
+        # counts R 106 / G 111 / B 101. E-190's ids run 0153 / 0154 / 0155 /
+        # 0156 across its own four films, which makes E-190 the native home of
+        # 0154. From 2026-08-26 the project REFUSED this panel and held 100T on
+        # an estimate; the owner directed on 2026-09-22 that the sheet's own
+        # title -- «KODAK PROFESSIONAL PORTRA 100T Film / Tungsten» -- decides
+        # whose curve it is.
+        #
+        # ⚠ THEY LIVE HERE, IN THE SHARED TABLE, RATHER THAN AS LITERALS ON THE
+        # PROFILE, AND THAT IS THE WHOLE POINT. Both films are built by the same
+        # applier from the same numbers, so `shoulder_k = 1.4 * toe_k` lands on
+        # the same float for both. Hand-written literals did not: 0.14 against
+        # 160VC's computed 0.13999999999999999, and verify.py caught it.
+        # The residuals below are 160VC's, because it is 160VC's fit.
+        #
+        # ⚠ CONSEQUENCE, STATED SO IT IS NOT REDISCOVERED: PORTRA 100T AND
+        # PORTRA 160VC NOW RENDER THE SAME TONE REPRODUCTION -- a tungsten ISO
+        # 100 film and a daylight ISO 160 film sharing one curve. Queue K6 is
+        # closed by decision, not by a new document.
+        curves={
+            "r": (0.2045, 0.5809, -2.2900, 0.100),
+            "g": (0.6087, 0.6050, -2.3400, 0.090),
+            "b": (0.8121, 0.6691, -2.4400, 0.110),
+        },
+        curve_rms=(0.0037, 0.0068, 0.0056),
+        curve_worst=(0.0088, 0.0166, 0.0077),
+        curve_logE=(-3.140, 0.860),
         reciprocity_table=ReciprocityTable(
             times_s=(5.0, 10.0, 30.0, 60.0, 120.0),
             stops_correction=(0.0, 0.3333, 0.6667, 1.0, 1.3333),
@@ -57019,6 +60780,210 @@ for _s, (_t, _st, _cite) in _CURVE_RETRACED.items():
 CURVE_RETRACED_CELLS = _curve_retraced
 CURVE_RETRACED_STOCKS = tuple(_CURVE_RETRACED)
 
+
+#: The 2026-09-22 nine-film pass. Same operation as `_CURVE_RETRACED` above --
+#: the old curve records describe values that no longer exist -- kept as its
+#: own table only because the note text and the date differ.
+#:
+#: ⚠ EVERY CITATION BELOW CARRIES FOUR THINGS, and a trace missing any of them
+#: is tier 2 however good the plot: the PUBLICATION and PAGE, the PROCESS, the
+#: DENSITOMETRY, and the FIT RESIDUAL over the span actually drawn. The
+#: black-and-white entries carry a fifth, because a monochrome sheet draws a
+#: FAMILY of curves rather than one: which DEVELOPMENT TIME was adopted, what
+#: the sheet's own starting-point recommendation is, and the contrast index
+#: the fitted curve measures against the drawn one.
+_CURVE_RETRACED_0922: dict[str, tuple[int, str, str]] = {
+    "KODAK_TRI_X_400TX": (
+        1, "traced",
+        "Eastman Kodak, «KODAK PROFESSIONAL TRI-X 320 and 400 Films», "
+        "publication F-4017, May 2007, p11 'Characteristic Curves', the 35 mm "
+        "T-MAX Developer panel; traced by kodak_still_curves.py, fit rms "
+        "0.0090 D (max 0.0404) over -3.450..0.350 log H. Process KODAK "
+        "PROFESSIONAL T-MAX Developer, small tank, 20 C, agitation at 30 s "
+        "intervals; densitometry diffuse visual. THE 6-MINUTE TRACE, which is "
+        "the sheet's own PROCESSING-table starting point for that developer, "
+        "tank and temperature and is printed on the panel, so no "
+        "interpolation was needed. CROSS-CHECK: contrast index 0.548 fitted "
+        "and 0.558 on the drawn trace, against the 0.56 the sheet states the "
+        "recommendation is intended to produce. Replaces an analogy "
+        "(dmin 0.18, gamma 0.68)"),
+    "KODAK_TMAX_400": (
+        1, "traced",
+        "Eastman Kodak, «KODAK PROFESSIONAL T-MAX 400 Film», publication "
+        "F-4043, 2007, p9 'Characteristic Curves', figure F4043C, the D-76 "
+        "small-tank panel; traced by kodak_still_curves.py, fit rms 0.0088 D "
+        "(max 0.0175) over -3.501..-0.175 log H. Process KODAK PROFESSIONAL "
+        "Developer D-76, small tank, 20 C; exposure daylight; densitometry "
+        "diffuse visual. THE 8-MINUTE TRACE. ⚠ THE TWO KODAK SHEETS DISAGREE "
+        "ABOUT THE TIME: F-4043's own table prints 7 1/2 minutes for D-76 "
+        "small tank at 68 F and F-4016's table prints 8 for the same film and "
+        "the same condition. The drawn 8-minute curve is adopted because 7 1/2 "
+        "would have to be interpolated between two traces. CROSS-CHECK: "
+        "contrast index 0.560 fitted, 0.587 drawn. Replaces an analogy "
+        "(dmin 0.16, gamma 0.70)"),
+    "KODAK_TMAX_100": (
+        1, "traced",
+        "Eastman Kodak, «KODAK PROFESSIONAL T-MAX 100 Film», publication "
+        "F-4016, 2007, p15 'Characteristic Curves', the D-76 small-tank "
+        "panel; traced by kodak_still_curves.py, fit rms 0.0046 D (max "
+        "0.0109) over -3.150..-0.075 log H. Process KODAK PROFESSIONAL "
+        "Developer D-76, small tank, 20 C; exposure daylight; densitometry "
+        "diffuse visual. THE 6-MINUTE TRACE against a printed starting point "
+        "of 6 1/2 minutes -- the nearest drawn curve, half a minute below. "
+        "CROSS-CHECK: contrast index 0.548 fitted, 0.543 drawn. ⚠ THIS PANEL "
+        "WAS UNREADABLE BY THIS PROJECT UNTIL 2026-09-22 and the cause was in "
+        "the reader, not the sheet: F-4016 rules its exposure axis -4.0 -3.0 "
+        "-2.0 -1.0 with NO ZERO TICK, and the macron-minus recovery in "
+        "kodak_still_curves needed a zero to pivot the signs about. Both "
+        "editions of the sheet had been skipping silently. Replaces an "
+        "analogy (dmin 0.15, gamma 0.72)"),
+    "KODAK_PORTRA_100T": (
+        1, "traced",
+        "Eastman Kodak Company, «KODAK PROFESSIONAL PORTRA 100T Film / "
+        "Tungsten», publication E-2468, p5 'Characteristic Curves', figure "
+        "F009_0154AC, R/G/B named; process C-41, densitometry Status M. "
+        "Traced by kodak_still_curves.py at fit rms 0.0025/0.0027/0.0033 D "
+        "over -3.140..0.860 log H. ⚠⚠ ADOPTED BY OWNER DECISION 2026-09-22 "
+        "OVER A STANDING REFUSAL, and the reason for that refusal is recorded "
+        "here rather than removed: figure F009_0154AC is the id E-190 prints "
+        "on its PORTRA 160VC page, the two drawings are BIT-IDENTICAL "
+        "(8.9e-16 D and 0.0 log E vertex-for-vertex, identical vertex counts "
+        "R 106 / G 111 / B 101), and E-190's ids run 0153/0154/0155/0156 "
+        "across its own four films, which makes E-190 the native home of "
+        "0154. The owner directed that the sheet's own title decides whose "
+        "curve it is. ⚠ THE STORED VALUES ARE COPIED FROM PORTRA 160VC "
+        "EXACTLY, not re-fitted, so the corpus does not claim two independent "
+        "readings of one drawing -- the treatment already used for EKTACHROME "
+        "5239/7239. CONSEQUENCE: PORTRA 100T and PORTRA 160VC now render the "
+        "same tone reproduction, a tungsten ISO 100 film and a daylight ISO "
+        "160 film sharing one curve. Replaces a flat-dmin analogy "
+        "(0.21/0.20/0.20) that asserted no orange mask at all; the film is "
+        "therefore also moved into _DMIN_LADDER. Queue K6 closed by decision, "
+        "not by a new document"),
+    "EASTMAN_EKTACHROME_5239": (
+        1, "traced",
+        "Eastman Kodak, «EASTMAN EKTACHROME Film (Daylight) 7239», KODAK "
+        "Publication No. H-1-5239, Minor Revision 2-99, p3 'Sensitometric "
+        "Curves', figure F002_0149AC, R/G/B named; traced by "
+        "kodak_still_curves.py, fit rms 0.0218/0.0078/0.0199 D over "
+        "-0.070..2.670 in NEGATED log H, which is the axis film_sim renders a "
+        "reversal stock against. Exposure daylight 1/100 s, process VNF-1, "
+        "densitometry Status A. ⚠ THE CAPTION IS WHY THIS WENT UNTRACED: "
+        "Kodak's MOTION-PICTURE sheets title the panel 'Sensitometric Curves' "
+        "where every still-film sheet in this corpus says 'Characteristic "
+        "Curves'. ⚠ BASE DENSITY IS A BOUND, NOT A READING: all three "
+        "channels sit at the lower edge of the prior window around the drawn "
+        "minimum 0.170, because the fit wants an asymptote below the lowest "
+        "density Kodak drew and a slide cannot be lighter than its own D-min. "
+        "⚠ shoulder_k is TIED to toe_k: six free parameters converged to gamma "
+        "4.52/15.40/5.85, and 15.40 is within 0.03 of the pinned 15.43 that "
+        "G-GAMMA calls impossible -- a local minimum, not a film. The adopted "
+        "curves realise max slope 1.87/1.95/1.96 against a DRAWN 1.99/1.95/"
+        "1.99. Replaces an analogy (dmin 0.19/0.20/0.23, gamma 1.45/1.48/1.50) "
+        "that over this window never lightened past D 1.33 and peaked at slope "
+        "1.40"),
+    "EASTMAN_EKTACHROME_7239": (
+        1, "traced",
+        "Eastman Kodak, «EASTMAN EKTACHROME Film (Daylight) 7239», KODAK "
+        "Publication No. H-1-5239, Minor Revision 2-99, p3 'Sensitometric "
+        "Curves', figure F002_0149AC, R/G/B named; traced by "
+        "kodak_still_curves.py, fit rms 0.0218/0.0078/0.0199 D over "
+        "-0.070..2.670 in NEGATED log H. Exposure daylight 1/100 s, process "
+        "VNF-1, densitometry Status A. THE SAME PANEL AS 5239 AND DELIBERATELY "
+        "THE SAME NUMBERS: H-1-5239 documents 5239 and 7239 as one product in "
+        "two gauges and draws ONE curve set for both, so two independent "
+        "values here would be an invention. ⚠ Base density is a bound, not a "
+        "reading -- see the 5239 record. Replaces an analogy"),
+}
+
+_curve_retraced_0922 = 0
+for _s, (_t, _st, _cite) in _CURVE_RETRACED_0922.items():
+    _keep22 = tuple(_r for _r in _PARAM_SOURCES.get(_s, ())
+                    if _r.param not in ("curves.g.gamma", "curves.g.dmin"))
+    _PARAM_SOURCES[_s] = _keep22 + (
+        ParamSource(
+            param="curves.g.gamma", tier=_t, status=_st, unit="dimensionless",
+            conditions="green record, softplus fit; see ToneCurve.is_degenerate "
+                       "before reading gamma as a slope",
+            source=_cite, confidence="high",
+            note="Traced 2026-09-22 from a document already held in the "
+                 "corpus; the previous value was an analogy."),
+        ParamSource(
+            param="curves.g.dmin", tier=_t, status=_st, unit="density",
+            conditions="green record, base+fog",
+            source=_cite, confidence="high",
+            note="Traced 2026-09-22 from a document already held in the "
+                 "corpus; the previous value was an analogy."),
+    )
+    _curve_retraced_0922 += 2
+
+del _keep22, _curve_retraced_0922
+CURVE_RETRACED_0922_STOCKS = tuple(_CURVE_RETRACED_0922)
+
+#: 2026-09-22d -- the AGFA SCALA 200x characteristic curve, traced off the
+#: bezier paths of the panel that had been skipped on a page this project had
+#: already mined four times.
+_CURVE_RETRACED_0922D: dict[str, tuple[int, str, str]] = {
+    "AGFA_SCALA_200X": (
+        1, "traced",
+        "Agfa-Gevaert, «AGFA stocks» / «Professional Films», F-PF-E3, 1st "
+        "edition 09/1998, page 9, the Agfa Scala 200x column, panel "
+        "'Characteristic curves' -- the STANDARD trace of the five-step "
+        "push/pull family, which is the process this profile's ISO 200/24 "
+        "speed belongs to. VECTOR artwork: the five traces are PDF beziers, "
+        "so there is no raster and no scanning error, and the printed density "
+        "ladder reproduces on its own frame to 0.0004. Softplus fit rms "
+        "0.0263 D, worst 0.0628 D over 145 sampled points, shoulder_k TIED to "
+        "toe_k and the result strictly monotone. "
+        "⚠⚠ THE FIVE TRACES CARRY NO LABELS OF THEIR OWN -- the names sit in "
+        "a legend block inside the plot -- so the assignment is fixed by the "
+        "panel BELOW, 'Contrast/maximum density with pushed/pulled "
+        "processing', whose five markers read D-max 3.067 / 2.966 / 2.716 / "
+        "2.466 / 2.216 against the traces' own left-hand densities of 3.108 / "
+        "3.027 / 2.784 / 2.501 / 2.217: worst 0.068 D, monotone in the same "
+        "order, and in the direction a reversal film must go (pulling raises "
+        "D-max, pushing lowers it). A THIRD reading of the same page by "
+        "agfa_1998_curves.py, which is what PushSpec is built on, gives "
+        "3.064 / 2.983 / 2.740 / 2.456 / 2.171 -- 0.017 D from this one at "
+        "worst. "
+        "⚠ AGFA'S OWN PRINTED CONTRAST FIGURE for Standard is 1.366 against "
+        "the adopted curve's 1.513 secant between 0.05 above D-min and 0.05 "
+        "below D-max; the sheet never defines what it means by 'contrast', so "
+        "the two are recorded side by side rather than reconciled. "
+        "⚠ THE RESIDUAL IS A MODEL LIMITATION AND IS NOT TUNED AWAY: a free "
+        "six-parameter fit reaches rms 0.0074 by letting shoulder_k fall "
+        "below toe_k, which leaves the only setting under which ToneCurve is "
+        "monotone everywhere, and 300 random restarts confirm 0.0263 is the "
+        "global minimum of the tied model. ⚠ PULL 1 IS REFUSED: gamma 29.6 at "
+        "rms 0.0742, a degenerate corner rather than a film. "
+        "Replaces an estimate (dmin 0.10, gamma 1.55) that had been standing "
+        "beside five tier-1 numbers read from the identical sheet"),
+}
+
+for _s, (_t, _st, _cite) in _CURVE_RETRACED_0922D.items():
+    _keep22d = tuple(_r for _r in _PARAM_SOURCES.get(_s, ())
+                     if _r.param not in ("curves.g.gamma", "curves.g.dmin"))
+    _PARAM_SOURCES[_s] = _keep22d + (
+        ParamSource(
+            param="curves.g.gamma", tier=_t, status=_st, unit="dimensionless",
+            conditions="monochrome reversal, softplus fit against NEGATED log "
+                       "exposure; see ToneCurve.is_degenerate before reading "
+                       "gamma as a slope",
+            source=_cite, confidence="high",
+            note="Traced 2026-09-22d from a page this corpus had already "
+                 "taken five tier-1 numbers off; the previous value was an "
+                 "estimate."),
+        ParamSource(
+            param="curves.g.dmin", tier=_t, status=_st, unit="density",
+            conditions="the slide's clear D-min at the high-exposure end",
+            source=_cite, confidence="high",
+            note="Traced 2026-09-22d from a page this corpus had already "
+                 "taken five tier-1 numbers off; the previous value was an "
+                 "estimate."),
+    )
+del _keep22d
+CURVE_RETRACED_0922D_STOCKS = tuple(_CURVE_RETRACED_0922D)
+
 #: Stocks whose stored curve was ALREADY the sheet's own traced value while the
 #: provenance register described it as assumed. The VALUE does not move; only
 #: the record of where it came from does.
@@ -57147,6 +61112,60 @@ for _s in _RECIP_SWEEP_2026_09_20:
 RECIPROCITY_SWEEP_ROWS = _recip_rows
 RECIPROCITY_SWEEP_STOCKS = _RECIP_SWEEP_2026_09_20
 del _recip_rows
+
+
+#: The 2026-09-22 harvest. Same emission as the sweep above; a separate tuple
+#: only because the date and the onset/ladder split differ.
+_RECIP_SWEEP_2026_09_22 = (
+    "EASTMAN_DOUBLE_X_5222", "KODAK_EKTACHROME_100D_5285",
+    "EASTMAN_EKTACHROME_5239", "EASTMAN_EKTACHROME_7239",
+    "KODAK_TECHNICAL_PAN", "KODAK_TMAX_100",
+)
+
+#: Four of the six print only the zero-correction range.
+_RECIP_ONSET_ONLY_0922 = frozenset({
+    "EASTMAN_DOUBLE_X_5222", "KODAK_EKTACHROME_100D_5285",
+    "EASTMAN_EKTACHROME_5239", "EASTMAN_EKTACHROME_7239",
+})
+
+_recip_rows_0922 = 0
+for _s in _RECIP_SWEEP_2026_09_22:
+    _tbl = _RECIPROCITY_TABLES.get(_s)
+    if _tbl is None or not _tbl.times_s:
+        raise RuntimeError(
+            f"{_s} is named in the 2026-09-22 reciprocity harvest but carries "
+            f"no table")
+    if any(_r.param == "reciprocity_table"
+           for _r in _PARAM_SOURCES.get(_s, ())):
+        continue
+    _onset22 = _s in _RECIP_ONSET_ONLY_0922
+    _note22 = (
+        "⚠ ONSET ONLY: the sheet prints the range over which NO correction is "
+        "needed and no ladder beyond it, so the table holds the "
+        "zero-correction endpoints and nothing is extrapolated past them. The "
+        "endpoint is still a measurement -- it is where this stock's "
+        "reciprocity failure begins -- and it is what a class default gets "
+        "wrong. Read 2026-09-22 out of a document the corpus already held."
+        if _onset22 else
+        "⚠ FULL LADDER read 2026-09-22 out of a document the corpus already "
+        "held: every printed cell is stored, including the DEVELOPMENT "
+        "correction column where the sheet prints one. A Schwarzschild "
+        "exponent cannot express a development adjustment at any value, which "
+        "is the argument for holding the table rather than fitting an "
+        "exponent to it."
+    )
+    _PARAM_SOURCES[_s] = _PARAM_SOURCES.get(_s, ()) + (
+        ParamSource(
+            param="reciprocity_table", tier=1, status="stated",
+            unit="stops of lens opening against exposure time in seconds",
+            conditions="the sheet's own reciprocity section",
+            source=_tbl.source, confidence="high", note=_note22),
+    )
+    _recip_rows_0922 += 1
+
+RECIPROCITY_HARVEST_0922_ROWS = _recip_rows_0922
+RECIPROCITY_HARVEST_0922_STOCKS = _RECIP_SWEEP_2026_09_22
+del _recip_rows_0922
 
 del _curve_retraced, _keep
 
@@ -57322,8 +61341,31 @@ FILM_PROFILES = tuple(
 #     measured p at a finite intensity requires knowing how far that
 #     intensity sits from I0 -- the very quantity that is missing. Converting
 #     them would manufacture I0 out of an algebraic identity.
-#     `short_onset_s` keeps its 4e-5 s default, which is the documented bound
-#     and already correct for every stock.
+#     `short_onset_s` keeps its 4e-5 s default.
+#
+#     ⚠⚠ AND THE SENTENCE THAT USED TO FOLLOW HERE -- "which is the documented
+#     bound and already correct for every stock" -- IS FALSE AND IS RETRACTED
+#     2026-09-22. Kodak publication F-4017 prints, for TRI-X 320 and 400, a
+#     correction of +1 STOP AT 1/100,000 s = 1e-5 s: four times BELOW the bound
+#     that asserts no failure exists there. Glafkides §217's 4e-5 s is a class
+#     statement and this corpus now holds a manufacturer sheet that contradicts
+#     it on the only stocks carrying short-end data at all.
+#
+#     ⚠ THE DEFAULT IS LEFT AT 4e-5 ANYWAY, AND THE REASON IS NOT INERTIA. The
+#     field is read by NOTHING and emitted to NEITHER ENGINE, so its value
+#     changes no pixel; what does reach the render path is `ReciprocityTable`,
+#     which carries the printed sub-millisecond rows verbatim and is
+#     interpolated by `film_sim.reciprocity_log_shift` across its whole extent.
+#     TRI-X's +1 stop at 1e-5 IS rendered today, through the table, and
+#     `verify.G-RECIP-SHORT` measures it.
+#
+#     ⚠ SO DO NOT "FIX" THE `field_coverage` WARNING BY WIRING THIS SCALAR.
+#     On the 64 stocks with a table it would install a second, contradictory
+#     short-end rule; on the other 127 it would install a bound this corpus has
+#     falsified. `verify.G-RECIP-SCALAR-INERT` asserts it stays unemitted, and
+#     that guard is the note that survives a refactor. What would retire the
+#     field honestly is short-end rows on more stocks -- i.e. more table data,
+#     not more scalars.
 #
 #   InterimageSpec.interimage_gamma_ratio_r/g/b -- ZERO STOCKS. EP0608959B1
 #     measures 1.14 / 1.73 / 1.38 separation-over-neutral (storing as
@@ -61748,6 +65790,259 @@ def _apply_v35_wilhelm_fade(p: "FilmProfile") -> "FilmProfile":
 FILM_PROFILES = tuple(_apply_v35_wilhelm_fade(_p) for _p in FILM_PROFILES)
 
 
+# ---------------------------------------------------------------------------
+# H-1-5302, THE PARTS OF THE SHEET THAT DO NOT FIT IN A FIELD (2026-09-22d)
+# ---------------------------------------------------------------------------
+# ⚠⚠ THESE ARE MEASUREMENTS, NOT NOTES, AND THEY LIVE HERE RATHER THAN IN A
+# MARKDOWN FILE FOR THAT REASON. `KODAK_5302` stores one spectral criterion
+# and one f50 because those are the shapes its struct has; the sheet publishes
+# a second spectral criterion and a whole MTF curve, and both are CHECKS on
+# what was stored rather than decoration. `verify.py` section 5g asserts
+# against them, so if a future edit moves the adopted numbers out of agreement
+# with the sheet the build stops.
+#
+# Source for both: KODAK Publication H-1-5302, «EASTMAN Fine Grain Release
+# Positive Film 5302 / 7302», Minor Revision 2/99, page 3. Vector artwork;
+# every point below is read from the PDF path data rather than from a raster,
+# so there is no scanning error term at all -- the only error is the
+# draughtsman's and the axis fit's.
+
+#: Panel F010_0024AC, the SECOND spectral criterion: D = 1.0 above gross fog,
+#: on the same 400 nm .. 500 nm / 10 nm grid as the stored D = 0.3 record and
+#: normalised the same way (400 nm = 0.0, NOT the peak -- the plot starts at
+#: 400 and the emulsion does not).
+#: The two criteria's RAW readings at 400 nm, before either was normalised to
+#: its own 400 nm value: D = 0.3 reads log S +0.332 and D = 1.0 reads -0.185
+#: on Kodak's printed axis. ⚠ WITHOUT THIS PAIR THE TWO STORED RECORDS CANNOT
+#: BE COMPARED AT ALL -- normalising each to zero at 400 nm removes exactly
+#: the 0.517 log separation that is the evidence, which is the whole point of
+#: keeping the anchor rather than only the shapes.
+_H1_5302_SPECTRAL_ANCHOR_400: tuple[float, float] = (0.332, -0.185)
+
+_H1_5302_SPECTRAL_D10: tuple[float, ...] = (
+    0.000, -0.008, -0.044, -0.107, -0.192, -0.304,
+    -0.455, -0.661, -0.930, -1.248, -1.611,
+)
+
+#: Panel F010_0025AC, the modulation-transfer curve, as (cycle/mm, response %)
+#: at the frequencies the sheet itself rules. ⚠ THE 50 % CROSSING IS 38.2
+#: cycle/mm and that is what `KODAK_5302.mtf_f50` now holds, against the 85.0
+#: estimate it replaced.
+_H1_5302_MTF: tuple[tuple[float, float], ...] = (
+    (5.0, 93.4), (10.0, 86.8), (20.0, 74.2), (50.0, 38.5), (100.0, 16.0),
+)
+
+#: Panel F010_0023AC, the five drawn traces' own 0.3-decade maximum slopes,
+#: keyed by the development time lettered beside each one, beside the gamma
+#: the sheet's Time-Gamma inset gives at that same time.
+#: ⚠ THE PAIRING IS THE EVIDENCE THAT THE LABELS WERE ASSIGNED CORRECTLY, and
+#: it is checkable precisely because the two readings are independent: the
+#: traces are sorted by steepness with no reference to the inset, and the
+#: inset is read at the printed times with no reference to the traces.
+_H1_5302_TRACE_VS_INSET: tuple[tuple[float, float, float], ...] = (
+    # (minutes, drawn 0.3-decade slope, inset gamma at that time)
+    (2.0, 2.141, 1.892),
+    (3.5, 2.553, 2.487),
+    (5.0, 2.941, 2.778),
+    (7.0, 3.079, 3.070),
+    (9.0, 3.150, 3.267),
+)
+
+
+# ---------------------------------------------------------------------------
+# «STORAGE AND PRESERVATION OF MOTION-PICTURE FILM» (KODAK, 1957)
+# ---------------------------------------------------------------------------
+# ⚠⚠ THE BOOK THAT `BaseSpec` WAS ADDED FOR, AND WHAT IT ACTUALLY YIELDS.
+# 82 pages, no text layer on any of them, read off renders. It was opened
+# against `AgingSpec` and `DyeStabilitySpec` -- the two carriers this file
+# already had for storage -- and yields NOT ONE NUMBER either can hold, for a
+# reason that is structural rather than unlucky: those two structs describe
+# DAMAGE ALREADY DONE TO AN IMAGE, and this book is about the support, the
+# package and the room. Hence v50's `BaseSpec`.
+#
+# ⚠ AND WHAT IT YIELDS IS MOSTLY CLASS DATA, WHICH IS WHY MOST OF IT IS HERE
+# RATHER THAN ON A PROFILE. A specific gravity is a property of cellulose
+# triacetate, not of PLUS-X; a storage table is a property of a room. Stamping
+# a class figure onto 193 stocks would turn one measurement into 193 apparent
+# ones. What DOES go on a profile is the handful of statements that name a
+# product line: Kodachrome's support, the grey dye in the base of Eastman
+# black-and-white negatives, and the June 1954 base change.
+
+#: Printed p.67, the FLOAT TEST table, "Specific Gravity at 25 C". ⚠ THE
+#: TRICHLOROETHYLENE ROW IS THE POINT OF THE TABLE AND IS KEPT: its 1.477
+#: sits between nitrate and every safety base, which is what makes a punching
+#: that SINKS nitrate and one that FLOATS acetate. Remove it and the table
+#: stops being a test.
+#: ⚠ No figure is printed for "cellulose triacetate" under that name -- the
+#: book calls it "cellulose acetate (high acetyl)" and p.6 defines the two as
+#: the same material.
+_BASE_SPECIFIC_GRAVITY_1957: dict[str, tuple[float, float]] = {
+    "cellulose nitrate": (1.50, 1.53),
+    "trichloroethylene (the test liquid, not a base)": (1.477, 1.477),
+    "cellulose triacetate": (1.26, 1.29),
+    "cellulose acetate propionate": (1.25, 1.27),
+    "cellulose acetate butyrate": (1.22, 1.24),
+}
+
+#: Table VI, printed p.47: "Atmospheric Conditions Recommended for Storage of
+#: PROCESSED Motion-Picture Films". (temp_f, rh_pct) per storage class.
+#: ⚠ TWO TERMS, NOT THREE. The book knows only "Commercial" and "Archival";
+#: the medium-term / long-term / extended-term vocabulary of NAPM IT9.11 that
+#: H-1-5302 uses postdates it by thirty-five years. A reader who maps one onto
+#: the other is inventing a tier.
+#: ⚠ AND THE COMMERCIAL HUMIDITY BAND IS IDENTICAL ON ALL FOUR ROWS -- only
+#: TEMPERATURE separates acetate from nitrate on the commercial side.
+_KODAK_1957_TABLE_VI: dict[str, dict[str, tuple[str, str]]] = {
+    "acetate, black-and-white": {"commercial": ("below 80 F", "25-60 %"),
+                                 "archival": ("60-80 F", "40-50 %")},
+    "acetate, colour":          {"commercial": ("below 80 F", "25-60 %"),
+                                 "archival": ("below 0 F", "15-25 %")},
+    "nitrate, black-and-white": {"commercial": ("below 70 F", "25-60 %"),
+                                 "archival": ("below 50 F", "40-50 %")},
+    "nitrate, colour":          {"commercial": ("below 70 F", "25-60 %"),
+                                 "archival": ("below 0 F", "40-50 %")},
+}
+
+#: Printed pp.12-13. ⚠ THE COMMON SUMMARY OF THIS ("60 % black-and-white,
+#: 50 % colour") IS NOT WHAT THE PAGE SAYS. The 50 % group is colour AND some
+#: 16 mm: "Most Eastman black-and-white motion-picture films are in
+#: equilibrium with air at approximately 60 % relative humidity when packaged
+#: at the factory. Some 16mm films and all color motion-picture films are
+#: packaged in equilibrium with air at a relative humidity of approximately
+#: 50 %."
+_KODAK_1957_PACKAGED_RH: dict[str, float] = {
+    "most Eastman black-and-white motion-picture film": 60.0,
+    "all colour motion-picture film, and some 16 mm": 50.0,
+}
+
+#: Printed p.14: "The rate of decomposition of nitrate film approximately
+#: doubles every 10 F (or 5 C) increase in temperature."
+#: ⚠ THE BOOK'S OWN CELSIUS EQUIVALENT IS 5 C, NOT 5.6 -- a rounding in the
+#: original, transcribed rather than corrected.
+_NITRATE_DECOMP_DOUBLING_F = 10.0
+_NITRATE_DECOMP_DOUBLING_C_AS_PRINTED = 5.0
+
+#: Printed p.42. See `AgingSpec.shrinkage_rh_factor` for why NO PROFILE SETS
+#: THIS and why it is a RATE: "the permanent shrinkage of some motion-picture
+#: films is approximately twice as rapid at 90 % R.H. as it is at 60 % R.H."
+_SHRINKAGE_RATE_RH_RATIO_1957 = 2.0
+_SHRINKAGE_RATE_RH_FROM_TO_PCT = (60.0, 90.0)
+
+#: Printed p.6 (support) and p.12 (whole film), in micrometres. ⚠ ONE FIGURE
+#: COVERS ALL ACETATE MOTION-PICTURE FILM -- the book breaks it out neither by
+#: product nor by base chemistry -- so these are CLASS values and no profile
+#: takes them. The 12.7 um difference is every coating on the film.
+_ACETATE_MP_BASE_UM_1957 = 139.7       # "approximately 0.0055-inch"
+_ACETATE_MP_FILM_UM_1957 = 152.4       # "normal motion-picture thickness (0.006 inch)"
+
+#: Printed p.13 and p.19. The support's own service envelope, degrees F.
+_ACETATE_SERVICE_TEMP_F_1957 = (-65.0, 160.0)
+_ACETATE_DISTORTS_ABOVE_F_1957 = 250.0
+_ACETATE_SOFTENS_F_1957 = (300.0, 350.0)
+
+#: Printed p.79, the desiccation worked example -- the ONLY tabulated
+#: moisture-content values in the book, and they are read off Figure 6, whose
+#: own curves carry no printed values. (relative humidity %, moisture %).
+_ACETATE_MOISTURE_1957: tuple[tuple[float, float], ...] = ((80.0, 4.9),
+                                                           (40.0, 2.2))
+
+#: Printed p.79. Grams per foot of complete acetate film.
+_FILM_WEIGHT_G_PER_FT_1957: dict[str, float] = {"16mm": 1.0, "35mm": 2.2}
+
+#: Printed p.45, as a FOOTNOTE keyed to a sentence about taping cans:
+#: "It has been recommended in the past that acetate films be sealed in cans
+#: to retard shrinkage. However, Eastman motion-picture negative and original
+#: camera films have been made on lower-shrink base since June 1954 so that
+#: this is no longer necessary."
+#: ⚠ THE SCOPE IS NARROW AND IS THE WHOLE VALUE OF THE FOOTNOTE: NEGATIVE AND
+#: ORIGINAL CAMERA FILMS. Not print stocks, not Kodachrome, not the line. And
+#: the book gives NO NUMBER for how much lower the shrink is -- there is no
+#: other mention of 1954 anywhere in it.
+_LOWER_SHRINK_BASE_SINCE_1957 = "June 1954"
+_LOWER_SHRINK_BASE_SCOPE_1957 = ("Eastman motion-picture negative and "
+                                 "original camera films")
+
+#: Printed p.6: "Kodachrome and Eastman Color Films were NEVER made on nitrate
+#: base, but imbibition color print and various two-color print stocks were
+#: made on nitrate film for a number of years prior to 1951." Corroborated by
+#: Table I p.8, whose "Formerly Made on Nitrate Base" column reads *no* for
+#: Eastman Color Negative, Internegative, Intermediate and Print Films.
+#:
+#: ⚠⚠ THIS SENTENCE FOUND A DEFECT IN THIS DATABASE. `KODACHROME_1938` and
+#: `KODACHROME_TYPE_A_1938` both carried `Feature.NITRATE_BASE` until
+#: 2026-09-23. The flag is descriptive and no renderer reads it, so nothing
+#: moves -- but it asserted, in the C++ the owner ships, that a film Kodak
+#: says was never nitrate was nitrate.
+_NEVER_NITRATE_1957 = ("Kodachrome", "Eastman Color")
+
+#: Printed p.8, Table I, the products that WERE formerly nitrate -- kept so
+#: that the refusal above is bounded rather than blanket: 35 mm negative film
+#: (black-and-white and fine-grain sound recording), fine-grain release
+#: positive, duplitized positive, and 65/70 mm.
+_FORMERLY_NITRATE_1957 = (
+    "35 mm negative (black-and-white and F.G. sound recording)",
+    "fine-grain release positive",
+    "duplitized positive (colour prints)",
+    "65 mm / 70 mm",
+)
+
+#: Printed p.5: "Eastman black-and-white negative films and some sound
+#: recording films are provided with antihalation protection by the
+#: incorporation of a small amount of a neutral gray dye in the base WHICH IS
+#: NOT REMOVED IN PROCESSING. In the case of Eastman Color Films and
+#: Kodachrome Films, there are several emulsion layers coated one on top of
+#: the other, and on the reverse side there is an antihalation jet backing
+#: which is removed in processing."
+#: ⚠ TWO MECHANISMS, AND THE DIFFERENCE IS PERMANENT VERSUS REMOVED. It is
+#: corroborated twice: Table I footnote (6) explains the negative films'
+#: dimmer ultraviolet edge-fluorescence "because of antihalation dye in base",
+#: and p.9 calls them "Black-and-white negative films on GRAY triacetate base".
+_ANTIHALATION_1957_BW_NEG = ("neutral grey dye incorporated in the base, NOT "
+                             "removed in processing")
+_ANTIHALATION_1957_COLOUR = ("jet backing on the reverse of the base, removed "
+                             "in processing")
+
+
+#: «AGFA stocks» F-PF-E3 09/1998 page 9, the SCALA 200x characteristic-curves
+#: panel: all five processing steps, each as the tied six-parameter fit to its
+#: own bezier, with the fit residual and the maximum density the panel BELOW
+#: it plots for the same step.
+#:
+#: ⚠⚠ TWO PANELS ON ONE PAGE, READ INDEPENDENTLY, AGREE ON D-MAX TO 0.068 AND
+#: THAT IS WHAT FIXES THE LABEL ORDER. The traces carry no labels of their own
+#: -- the five names sit in a legend block inside the plot -- so the ordering
+#: is established by the marker panel and by the physics (pulling a reversal
+#: film raises D-max, pushing lowers it), not by reading the legend top to
+#: bottom and hoping.
+#:
+#: ⚠ ONLY THE STANDARD TRACE IS ADOPTED as `AGFA_SCALA_200X.curves`. Push 1, 2
+#: and 3 fit cleanly at rms 0.009 and are kept here because `ProcessVariant`
+#: cannot yet carry them: this is a REVERSAL stock whose D-max FALLS as
+#: contrast rises, and a bare `gamma_scale` would raise the model's asymptote
+#: instead -- the gap `PushSpec.source` on this stock already records as
+#: deliberately open. PULL 1 IS REFUSED: its tied fit converges to gamma 29.6
+#: at rms 0.0742, a degenerate corner rather than a film.
+_AGFA_SCALA_PUSH_CURVES: dict[str, dict] = {
+    #  step:      (dmin, gamma, toe_x, toe_k, shoulder_x, shoulder_k),
+    #             fit rms, D-max from the marker panel, D-max drawn on the
+    #             curve panel, Agfa's own printed contrast figure
+    "Pull 1":   dict(curve=None, rms=0.0742, dmax_markers=3.067,
+                     dmax_drawn=3.108, contrast=0.766, iso=100,
+                     refused="tied fit converges to gamma 29.6 -- degenerate"),
+    "Standard": dict(curve=(0.0822, 2.4117, -0.5764, 0.1653, 0.6535, 0.1653),
+                     rms=0.0263, dmax_markers=2.966, dmax_drawn=3.027,
+                     contrast=1.366, iso=200, refused=""),
+    "Push 1":   dict(curve=(0.0698, 3.5539, -0.1392, 0.1863, 0.6250, 0.1863),
+                     rms=0.0091, dmax_markers=2.716, dmax_drawn=2.784,
+                     contrast=1.665, iso=400, refused=""),
+    "Push 2":   dict(curve=(0.0639, 2.5815, -0.1429, 0.1183, 0.8014, 0.1183),
+                     rms=0.0093, dmax_markers=2.466, dmax_drawn=2.501,
+                     contrast=1.765, iso=800, refused=""),
+    "Push 3":   dict(curve=(0.0662, 2.5183, -0.0022, 0.1104, 0.8525, 0.1104),
+                     rms=0.0093, dmax_markers=2.216, dmax_drawn=2.217,
+                     contrast=1.816, iso=1600, refused=""),
+}
+
 
 PRINT_STOCKS: tuple[PrintStock, ...] = (
     PrintStock(
@@ -62005,38 +66300,218 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
             "grain number this project took from that document is anchored on "
             "this stock, so storing it makes the ladder checkable instead of "
             "implicit. Note that as a PrintStock it does NOT appear in "
-            "film_names.txt and does not move any ListBox index."
+            "film_names.txt and does not move any ListBox index. "
+            "⚠⚠ [T2] -> [T1] ON 2026-09-22d: KODAK PUBLICATION H-1-5302, "
+            "«EASTMAN Fine Grain Release Positive Film 5302 / 7302», Minor "
+            "Revision 2/99, CAT 831 2100, was read and the stock's OWN "
+            "manufacturer sheet now supplies the curve, the MTF, the "
+            "granularity, the resolving power, the spectral sensitivity, the "
+            "process and the base. Four of those six numbers were estimates "
+            "and ONE OF THEM WAS WRONG BY A FACTOR OF 2.2 -- see mtf_f50 "
+            "below. The BBC reading is not discarded; it is kept beside each "
+            "Kodak figure with the condition that separates them."
         ),
-        # gamma 2.4 IS PRINTED (T-101 Tables 2 and 4, process control gamma) and
-        # is exactly what a release positive is for -- the print stage supplies
-        # most of the system contrast. All three channels carry the same curve:
-        # this is a blue-sensitive B&W emulsion, so there is no layer stack.
-        # ⚠ dmin, toe and shoulder are ESTIMATES [T3]. T-101 prints no
+        # ⚠⚠ THE CURVE IS NOW TRACED [T1], FROM H-1-5302's PANEL F010_0023AC.
+        # The old (0.06, 2.40, -0.80, 0.26, 0.78, 0.38) was gamma 2.4 from
+        # T-101's process-control table with an INVENTED shape around it: dmin,
+        # toe and shoulder were estimates, because T-101 prints no
         # characteristic curve for any of its six emulsions.
+        #
+        # WHICH OF THE FIVE DRAWN TRACES, AND WHY THERE IS NO JUDGEMENT IN IT.
+        # The panel draws five development times -- 2, 3 1/2, 5, 7 and 9
+        # minutes in KODAK Developer D-97 at 21 C (70 F) -- with the times
+        # lettered BESIDE the curves, not on them. Three independent things
+        # pick the same one:
+        #   1. The sheet's PROCESSING table prints no time at all. Its footnote
+        #      says "Develop to the recommended control gamma of 2.4 to 2.6
+        #      Status M Densitometry (Blue)", so the aim is a CONTRAST, not a
+        #      clock.
+        #   2. The sheet's own TIME-GAMMA inset, traced from the same page,
+        #      puts gamma 2.40 at 3.18 min, 2.50 at 3.55 min and 2.60 at
+        #      3.99 min. The 3 1/2-minute trace is the only drawn one inside
+        #      Kodak's own control band, and 3.55 min -- the band's centre --
+        #      lands on it to within three seconds.
+        #   3. Ordering the five traces by steepness and reading the inset at
+        #      each printed time agrees trace-by-trace: drawn 0.3-decade
+        #      slopes 3.150 / 3.079 / 2.941 / 2.553 / 2.141 against inset
+        #      gammas 3.267 / 3.070 / 2.778 / 2.487 / 1.892. Worst 0.23, mean
+        #      0.12, and BOTH alternative assignments (shift by one, reverse)
+        #      are four to ten times worse -- so the label-to-trace mapping is
+        #      measured rather than assumed.
+        # The adopted fit reaches rms 0.0123 D over 81 traced points, its
+        # realised 0.3-decade slope is 2.548 against the drawn 2.553, and it
+        # reaches D 3.354 at the trace's last point where the artist drew
+        # 3.390.
+        #
+        # ⚠ shoulder_k IS TIED TO toe_k, which is the only setting under which
+        # `ToneCurve` is monotone everywhere (see its docstring). A free
+        # six-parameter fit to this same trace scored a marginally better rms
+        # of 0.0105 with shoulder_k 0.4292 against toe_k 0.3105 -- i.e. it
+        # bought 0.002 D by leaving the monotone set, which is not a trade this
+        # project makes.
+        #
+        # ⚠ THE CURVE MOVED 1.2 DECADES TO THE RIGHT AND NO RENDER SHIFTS.
+        # `solve_stage_offsets` times the print by bisecting a per-channel
+        # offset until mid-grey lands on target, so the absolute placement of
+        # a print curve on the log-exposure axis is absorbed. What changes is
+        # the SHAPE and the realised contrast, which is the point.
+        #
+        # All three channels carry the same curve: blue-sensitive B&W, no
+        # layer stack. Densitometry is DIFFUSE VISUAL as the panel states,
+        # hence density_metric below -- the 2.4-2.6 control band is Status M
+        # Blue and is a process-control aim, not the axis this curve is on.
         curves=RGBCurves(
-            r=ToneCurve(0.06, 2.40, -0.80, 0.26, 0.78, 0.38),
-            g=ToneCurve(0.06, 2.40, -0.80, 0.26, 0.78, 0.38),
-            b=ToneCurve(0.06, 2.40, -0.80, 0.26, 0.78, 0.38),
+            r=ToneCurve(0.0416, 3.4474, 0.6562, 0.2900, 1.7758, 0.2900),
+            g=ToneCurve(0.0416, 3.4474, 0.6562, 0.2900, 1.7758, 0.2900),
+            b=ToneCurve(0.0416, 3.4474, 0.6562, 0.2900, 1.7758, 0.2900),
         ),
-        # ⚠ mtf_f50 IS AN ESTIMATE [T3]: a fine-grain 16 mm positive, nothing
-        # more. T-101 prints no MTF and no resolving power.
-        mtf_f50=85.0,
-        # THE MEASURED PART. T-101 Table 4 makes this stock unity on its
-        # granularity ladder and HPS 3.9; Monograph 54 prints HPS's absolute
-        # Wiener spectrum as 0.62 square microns at D 0.48 above base, so
-        #     W(0) = 0.62 / 3.9^2 = 0.0408 um^2
-        #     sigma*1000 = 1000 * sqrt(0.0408 / 1809.6) = 4.7
-        # ⚠ CROSS-CHECKED: the Fig. 18 trace reads W(0) = 0.0398 directly for
-        # this curve, 2 % from the printed-ratio value -- the tightest of the
-        # six, which is expected because 5302 is the solid-line curve and the
-        # only one a dash classifier cannot mis-assign.
-        grain_rms=4.7,
+        density_metric="visual_iso",
+        # ⚠⚠ 85.0 -> 38.2, AND THIS IS THE LARGEST SINGLE CORRECTION THE
+        # KODAK HISTORICAL BATCH FOUND. 85.0 was an estimate with a one-line
+        # justification -- "a fine-grain 16 mm positive, nothing more" -- and
+        # H-1-5302's panel F010_0025AC prints the measurement: the modulation
+        # transfer curve crosses 50 % response at 38.2 cycle/mm. The stored
+        # estimate was 2.2x too sharp.
+        #
+        # THE TRACE, on a log-log grid whose two axes reproduce their own
+        # printed decades to 0.007 and 0.012 log: 93.4 % at 5 cycle/mm,
+        # 86.8 at 10, 74.2 at 20, 38.5 at 50, 16.0 at 100, with the drawn
+        # curve spanning 2.4 to 151 cycle/mm. 80 % falls at 14.8, 30 % at
+        # 62.4, 10 % at 134.8.
+        #
+        # ⚠ AND IT IS CONSISTENT WITH THE RESOLVING POWER ON THE SAME PAGE
+        # rather than redundant with it: 125 lp/mm at TOC 1000:1 sits where
+        # this curve is down to about 11 % response, which is the right
+        # neighbourhood for a threshold-detection limit and is why both are
+        # stored.
+        mtf_f50=38.2,
+        resolving_power_lp_mm_lowc=63.0,
+        resolving_power_lp_mm_highc=125.0,
+        # ⚠⚠ 4.7 -> 8.0, AND THE TWO NUMBERS ARE NOT IN CONFLICT -- THEY ARE
+        # AT DIFFERENT DENSITIES, AND ONLY ONE IS AT THIS FIELD'S OWN.
+        # `GrainSpec.rms_granularity` is defined in this file as sigma(D)*1000
+        # through a 48 um aperture AT D = 1.0, and H-1-5302 states exactly
+        # that: "Diffuse RMS Granularity 8 -- read at a net diffuse visual
+        # density of 1.0, using a 48-micrometre aperture".
+        #
+        # WHERE 4.7 CAME FROM AND WHY IT IS KEPT IN THE RECORD. T-101 Table 4
+        # makes this stock unity on its granularity ladder with HPS at 3.9;
+        # Monograph 54 prints HPS's absolute Wiener spectrum as 0.62 square
+        # microns AT D 0.48 ABOVE BASE, so W(0) = 0.62/3.9^2 = 0.0408 um^2 and
+        # sigma*1000 = 1000*sqrt(0.0408/1809.6) = 4.7. The Fig. 18 trace reads
+        # W(0) = 0.0398 directly, 2 % away -- the tightest of the six.
+        #
+        # ⚠ THIS IS THE SAME DECISION THE HPS RECORD MAKES, TAKEN THE OTHER
+        # WAY, AND FOR THE SAME REASON. ILFORD_HPS keeps its 19.0 rather than
+        # adopt Monograph 54's 18.5 because "the BBC measurement sits at
+        # D = 0.48 above base; this field is defined at NET density 1.0.
+        # Swapping in 18.5 would trade a confirmed estimate at the right
+        # density for a measurement at the wrong one." Here the manufacturer
+        # figure is the one at the RIGHT density, so it wins.
+        #
+        # ⚠⚠ AND THE RATIO IS NOT PROPAGATED TO THE OTHER FIVE T-101 STOCKS.
+        # 8.0/4.7 = 1.70 is the first measurement in this corpus of what the
+        # D 0.48 -> net 1.0 step costs, but it was measured on a GAMMA-2.5
+        # POSITIVE, where D 0.48 is still in the toe and D 1.0 is on the
+        # straight line. The other five are gamma-0.6 negatives, on which both
+        # densities are on the straight line and the three checkable ones
+        # (Pan F, Plus-X, Tri-X) come out within 12 % of their published
+        # net-1.0 values. Applying 1.70 to them would invent an effect.
+        # Nothing else in the corpus is anchored on 5302's absolute: the
+        # ladder's absolute anchor is HPS, and 8374's 6.2 is
+        # 0.62*(1.3/3.9)^2 through the same arithmetic, so this change moves
+        # exactly one number.
+        grain_rms=8.0,
         # T-101 Table 2's printed equivalent grain diameter is 1.03 um; through
         # D_eq = 1.7473 * clump_um that is 0.589 um. ⚠ UPPER BOUND (p38:
         # diameters "expected to be greater than the true values"). The Fig. 18
         # trace independently fits 0.543, 8 % below -- on the correct side of an
-        # upper bound.
+        # upper bound. ⚠ UNCHANGED BY H-1-5302, which prints no grain diameter.
         grain_clump_um=0.589,
+        # -- schema v50: the emulsion's own spectral response ------------------
+        # ⚠ THE PLOT BEGINS AT 400 nm AND THE EMULSION DOES NOT. Kodak's panel
+        # F010_0024AC is ruled from 250 to 750 nm and the draughtsman starts
+        # the curve at 400, so the stored record starts there too: the true
+        # peak is at or below 400 nm and this file does not know where. The
+        # normalisation therefore makes 400 nm the reference, NOT the peak,
+        # which is a departure from the struct's usual convention and is why
+        # it is said here in as many words.
+        # ⚠ IT IS ALSO WHY THE CUT-OFF IS THE USEFUL PART: a blue-sensitive
+        # release positive is defined by where it STOPS, and this one is down
+        # 1.83 log by 500 nm and off the drawn curve by 510.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            log_s_pan=(0.000, -0.078, -0.178, -0.292, -0.422, -0.574,
+                       -0.751, -0.959, -1.209, -1.498, -1.831),
+            criterion="log_reciprocal_erg_cm2_D0.3_above_gross_fog",
+            source=(
+                "KODAK Publication H-1-5302, «EASTMAN Fine Grain Release "
+                "Positive Film 5302 / 7302», Minor Revision 2/99, page 3, "
+                "panel F010_0024AC, the D = 0.3 ABOVE GROSS FOG criterion. "
+                "Process D-97 at 21 C (70 F) to the recommended control "
+                "gamma, effective exposure 1.4 seconds, diffuse visual "
+                "densitometry. Vector artwork, traced from the path data; "
+                "the wavelength axis reproduces its own printed 50 nm ticks "
+                "to 0.7 nm worst and the log-sensitivity axis its own decades "
+                "to 0.008 log. ⚠ THE SHEET DRAWS A SECOND CRITERION, D = 1.0 "
+                "above gross fog, and it is a CROSS-CHECK rather than a "
+                "duplicate: the two curves are separated by 0.22 to 0.45 log "
+                "with a mean of 0.29 over 440-500 nm, against the 0.7/gamma = "
+                "0.28 that the stock's own adopted gamma of 2.5 predicts for "
+                "the exposure step from D 0.3 to D 1.0. Its samples are held "
+                "in `_H1_5302_SPECTRAL_D10` and asserted by verify.py")),
+        # -- schema v50: the base ---------------------------------------------
+        base=BaseSpec(
+            base_type="cellulose acetate",
+            base_um=142.24,             # "a base thickness of 5.6 mils"
+            raw_storage_max_f=55.0,     # "Store unexposed film at 13 C (55 F)"
+            source=(
+                "KODAK Publication H-1-5302, page 1, BASE and STORAGE: "
+                "\"This film has a clear acetate safety base with anti-static "
+                "protection, and a base thickness of 5.6 mils. In addition, "
+                "7302 Film has an anti-curl layer applied to the base.\" and "
+                "\"Store unexposed film at 13 C (55 F) or lower.\" ⚠ THE "
+                "ANTI-CURL LAYER IS ON THE 16 mm COATING ONLY and is not a "
+                "base property, so it is recorded here in words rather than "
+                "in a field. ⚠ NO SPECIFIC GRAVITY AND NO SHRINKAGE FIGURE: "
+                "the sheet states neither")),
+        # -- the process the stored curve was developed in --------------------
+        processing=ProcessingSpec(
+            developer="KODAK Developer D-97",
+            minutes=3.5, celsius=21.0,
+            agitation="recirculation through submerged spray jets",
+            # ⚠ 3.5 MINUTES IS THE DRAWN TRACE'S OWN LABEL, NOT A TIME KODAK
+            # PRINTS IN THE PROCESSING TABLE. That table gives temperature and
+            # replenishment and leaves the developer time blank behind a
+            # footnote: "Develop to the recommended control gamma of 2.4 to
+            # 2.6 Status M Densitometry (Blue)". The time is the label on the
+            # curve this profile stores.
+        ),
+        # -- schema v50: the whole published development axis ------------------
+        # ⚠ THE FIVE TIMES ARE PRINTED AND THE FIVE GAMMAS ARE READ OFF THE
+        # SHEET'S OWN TIME-GAMMA INSET AT THOSE TIMES, which is Kodak stating
+        # the relation rather than this project inferring it from the traces.
+        # The traces' own measured slopes are in the curve comment above and
+        # agree to a mean of 0.12 -- deliberately NOT averaged in, because two
+        # readings of one sheet are one measurement with an error bar, not two.
+        # ⚠ THE 2-MINUTE POINT IS EXTRAPOLATED BY 0.05 min: the inset's drawn
+        # curve begins at 2.048 min, so 1.892 is a linear extension of its
+        # first eight samples over three seconds. Everything else is inside
+        # the drawn span.
+        # ⚠ NO TEMPERATURE COEFFICIENT: one temperature, so there is no slope
+        # to fit and `temperature_coeff_per_c` stays 0.0.
+        processing_family=ProcessingFamily(points=(
+            DevelopmentPoint(developer="KODAK Developer D-97", minutes=2.0,
+                             celsius=21.0, gamma=1.892, vessel="continuous"),
+            DevelopmentPoint(developer="KODAK Developer D-97", minutes=3.5,
+                             celsius=21.0, gamma=2.487, vessel="continuous"),
+            DevelopmentPoint(developer="KODAK Developer D-97", minutes=5.0,
+                             celsius=21.0, gamma=2.778, vessel="continuous"),
+            DevelopmentPoint(developer="KODAK Developer D-97", minutes=7.0,
+                             celsius=21.0, gamma=3.070, vessel="continuous"),
+            DevelopmentPoint(developer="KODAK Developer D-97", minutes=9.0,
+                             celsius=21.0, gamma=3.267, vessel="continuous"),
+        )),
     ),
     PrintStock(
         name="TASMA_POSITIVE_28",
@@ -64615,7 +69090,16 @@ def get_print_stock(name: str) -> PrintStock:
     return _PRINT_INDEX[key]
 
 
-_DENSITY_METRICS = {"status_m", "status_a", "visual_iso"}
+#: ⚠ "printing" ADDED 2026-09-23, AND IT IS NOT A FOURTH ISO STATUS. The
+#: three above are ISO 5-3 status responses; «копировальная плотность» is the
+#: spectral response of the PRINT STOCK the negative was made to be printed
+#: onto, which is what the four Soviet cine negatives' own ТУ specify their
+#: densitometer to have (cl. 3.5.1 in each). It is a real and distinct basis,
+#: it is what their stored curves are in, and calling it status M asserted a
+#: geometry the source contradicts. Consumers that key on status A/M
+#: (`dye_matrix_from_spectra`) already refuse an unrecognised metric by name
+#: and return a reason rather than guessing, which is the behaviour wanted.
+_DENSITY_METRICS = {"status_m", "status_a", "visual_iso", "printing"}
 _MASK_ENCODINGS = {"dmin_ladder", "neutral_dmin", "none"}
 
 

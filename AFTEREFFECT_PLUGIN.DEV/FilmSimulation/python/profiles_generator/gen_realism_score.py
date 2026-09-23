@@ -21,7 +21,7 @@ than silently re-weighting the score.
 own `ParamSource` records -- 1.0 traced or measured from a manufacturer document,
 down to 0.1 for an assumed value.
 
-⚠ TWO HONEST LIMITS, STATED HERE AND REPEATED IN THE REPORT:
+⚠ THREE HONEST LIMITS, STATED HERE AND REPEATED IN THE REPORT:
 
   1. An axis is weighted by what the measurement is worth ON THE STOCKS THAT
      HAVE IT. Applying that weight to a stock that does not have it assumes the
@@ -30,6 +30,25 @@ down to 0.1 for an assumed value.
   2. An axis whose influence is ZERO is not scored at all, and those axes are
      listed separately. A carrier nothing on the render path reads cannot make
      a picture more realistic, however well evidenced it is.
+  3. An axis on which NO STOCK ANYWHERE carries an independent record is
+     DORMANT and leaves every stock's denominator. See `realism_axes.py`,
+     which owns that rule; the summary is below.
+
+⚠⚠ THE DENOMINATOR IS DATA-DRIVEN, NOT A HAND LIST (owner decision,
+2026-09-22 -- "Option A"). The owner has no scanned film to compare against, so
+realism here is assessed from technical documents only. The five axes no
+document in this corpus evidences -- `interimage`, `callier`, `dye_matrix`,
+`halation`, `grain_shape` -- carry 39 % of the measured influence weight
+between them, and leaving them in the denominator caps the corpus mean near
+57 % for reasons no amount of tracing can fix.
+
+They are therefore excluded WHILE AND ONLY WHILE they hold zero tier-1/tier-2
+`traced`/`measured`/`stated` records across all 191 stocks. The exclusion is
+recomputed from the database on every run, so the first real record on a
+dormant axis -- from a datasheet, a patent, or a journal paper, the rule does
+not care which -- promotes that axis back into the denominator by itself. THE
+HEADLINE DROPS WHEN THAT HAPPENS. That is the intended behaviour and the report
+prints the size of each drop in advance.
 
 Usage:
     python3 gen_realism_score.py [--out PATH] [--assert]
@@ -49,6 +68,7 @@ import importlib.util             # noqa: E402
 
 import film_profiles as FP          # noqa: E402
 import realism_ablation as AB       # noqa: E402
+import realism_axes as RAX          # noqa: E402
 
 _spec = importlib.util.spec_from_file_location(
     "_gen_film_control_matrix", HERE / "gen_film_control_matrix.py")
@@ -163,13 +183,13 @@ def load_influence(strict: bool) -> dict:
     return data
 
 
-def score_all(inf: dict):
-    axes = inf["axes"]
-    live = {k: v["delta_e_median"] for k, v in axes.items()
-            if v["delta_e_median"] > 0.0}
-    dead = {k: v for k, v in axes.items() if v["delta_e_median"] <= 0.0}
-    total = sum(live.values())
+def _rows_over(live: dict):
+    """Score every stock against exactly the axis set handed in.
 
+    Split out of `score_all` so the SAME code produces the scored-axis number
+    and the all-axes number: the difference between the two must come from the
+    axis set alone, never from a second scoring path that drifted.
+    """
     rows = []
     for p in FP.FILM_PROFILES:
         num = 0.0
@@ -184,11 +204,85 @@ def score_all(inf: dict):
             num += w * e
             den += w
         rows.append((p.name, num / den if den else 0.0, per))
-    return live, dead, total, rows
+    return rows
+
+
+def score_all(inf: dict):
+    """-> (scored, dormant, dead, total, rows, rows_all, mean_all)
+
+    `scored`  axes in the denominator: influence > 0 AND independently
+              evidenced somewhere in the corpus.
+    `dormant` axes with influence > 0 that NO stock evidences independently.
+              Excluded today, promoted automatically the day one record lands.
+    `dead`    axes with zero measured influence -- no stage reads the carrier.
+    `total`   the weight normaliser, over the SCORED axes only, so the per-axis
+              percentages in the report sum to 100 % of what is being scored.
+    """
+    axes = inf["axes"]
+    live = {k: v["delta_e_median"] for k, v in axes.items()
+            if v["delta_e_median"] > 0.0}
+    dead = {k: v for k, v in axes.items() if v["delta_e_median"] <= 0.0}
+
+    # ⚠ COMPUTED FROM THE DATABASE ON EVERY RUN. There is no list of excluded
+    # axis names in this file and there must never be one -- see the module
+    # docstring and `realism_axes.py`. An axis the corpus starts evidencing
+    # tomorrow re-enters here with no edit to any source file.
+    dorm_names = RAX.dormant_axes(FP.FILM_PROFILES)
+    scored = {k: v for k, v in live.items() if k not in dorm_names}
+    dormant = {k: v for k, v in live.items() if k in dorm_names}
+
+    total = sum(scored.values())
+    rows = _rows_over(scored)
+
+    # The Option-B figure, kept as a published reference rather than discarded:
+    # it is what the corpus would score if the undocumentable axes stayed in,
+    # and it is the number the headline returns to as they are promoted.
+    rows_all = _rows_over(live)
+    mean_all = sum(r[1] for r in rows_all) / len(rows_all) if rows_all else 0.0
+    return scored, dormant, dead, total, rows, rows_all, mean_all
+
+
+def promotion_forecast(inf: dict):
+    """What the headline becomes when each dormant axis is promoted.
+
+    Two numbers per axis, and the first one is the point of the exercise:
+
+      `at_today`  promote the axis with the evidence it has RIGHT NOW (mostly
+                  derived and assumed). The headline FALLS. This is what
+                  actually happens the morning a single real record is found.
+      `at_full`   promote it and evidence it on every stock it applies to.
+                  The headline rises past where it started.
+
+    Printing both in advance is the guard against the score being read as
+    broken when it drops.
+    """
+    scored, dormant, _dead, _total, _rows, _rall, _ma = score_all(inf)
+    out = []
+    for a, w in sorted(dormant.items(), key=lambda kv: -kv[1]):
+        live_now = dict(scored)
+        live_now[a] = w
+        at_today = sum(r[1] for r in _rows_over(live_now)) / len(FP.FILM_PROFILES)
+
+        # "Fully evidenced" = every applicable stock at 1.0 on that axis; the
+        # other axes keep exactly the evidence they have.
+        appl = sum(1 for p in FP.FILM_PROFILES if _applies(p, a))
+        num_den = []
+        for p in FP.FILM_PROFILES:
+            num = den = 0.0
+            for b, wb in live_now.items():
+                if not _applies(p, b):
+                    continue
+                e = 1.0 if b == a else evidence(p, b)[0]
+                num += wb * e
+                den += wb
+            num_den.append(num / den if den else 0.0)
+        at_full = sum(num_den) / len(num_den)
+        out.append((a, w, appl, at_today, at_full))
+    return out
 
 
 def render(inf: dict) -> str:
-    live, dead, total, rows = score_all(inf)
+    live, dormant, dead, total, rows, rows_all, mean_all = score_all(inf)
     n = len(rows)
     scores = sorted(r[1] for r in rows)
     mean = sum(scores) / n
@@ -216,6 +310,12 @@ def render(inf: dict) -> str:
       "to turn it into a realism number is the ground-truth loop that queue "
       "rows **D1**, **D2a** and **D2b** are waiting on.")
     w("")
+    w("**Second thing to know: the denominator has five axes missing from it "
+      "today, and it will grow back.** The axes no document in this corpus "
+      "evidences are excluded until one does — see *Dormant axes* below. When "
+      "the first record on one of them lands, that axis re-enters and **this "
+      "number falls**. That is the metric working, not breaking.")
+    w("")
     w("## The number")
     w("")
     w("| | |")
@@ -229,6 +329,15 @@ def render(inf: dict) -> str:
     w(f"| at or above 95 % | **{sum(1 for s in scores if s >= 0.95)}** of {n} |")
     w(f"| at or above 80 % | **{sum(1 for s in scores if s >= 0.80)}** of {n} |")
     w(f"| below 50 % | **{sum(1 for s in scores if s < 0.50)}** of {n} |")
+    w(f"| scored axes | **{len(live)}** of {len(live) + len(dormant)} with "
+      f"measured influence |")
+    w(f"| same corpus, dormant axes forced back in | {mean_all * 100:.1f} % |")
+    w("")
+    w("The last row is the figure this report would print if the five dormant "
+      "axes were scored on the placeholders they currently carry. It is not "
+      "the headline because those axes cannot be researched from the documents "
+      "available — but it is printed, every run, so the headline can never be "
+      "mistaken for the whole corpus.")
     w("")
 
     w("## How it is computed")
@@ -293,6 +402,61 @@ def render(inf: dict) -> str:
       + ", ".join(f"`{a}` (+{g * 100:.1f})" for g, a, _i, _e in top) + ".**")
     w("")
 
+    if dormant:
+        cen = RAX.axis_census(FP.FILM_PROFILES)
+        dorm_w = sum(dormant.values())
+        all_w = dorm_w + total
+        w("## ⚠⚠ Dormant axes — real influence, no independent evidence "
+          "anywhere")
+        w("")
+        w("These axes move pixels. `realism_ablation.py` measured them moving "
+          f"pixels. Between them they carry **{dorm_w / all_w * 100:.1f} %** of "
+          "the total measured influence. They are **excluded from every "
+          "stock's denominator** for one reason:")
+        w("")
+        w("> **No stock in this corpus carries an independent record on them.** "
+          "Independent means a tier-1 or tier-2 `ParamSource` whose status is "
+          "`traced`, `measured` or `stated` — a number somebody outside this "
+          "project wrote down. `derived`, `estimated` and `assumed` are this "
+          "project's own inference and cannot count as evidence of themselves.")
+        w("")
+        w("| axis | weight if scored | what it has instead | applies to |")
+        w("|---|---|---|---|")
+        for a, iw in sorted(dormant.items(), key=lambda kv: -kv[1]):
+            appl = sum(1 for p in FP.FILM_PROFILES if _applies(p, a))
+            hist = cen.get(a, {}).get("histogram", {})
+            desc = (", ".join(f"{v}× T{t} {s}" for (t, s), v in hist.items())
+                    or "**no records of any kind**")
+            w(f"| `{a}` | {iw / all_w * 100:4.1f} % | {desc} | {appl} stocks |")
+        w("")
+        w("### The rule is data-driven, and it un-excludes by itself")
+        w("")
+        w("There is **no list of excluded axis names** in `gen_realism_score.py` "
+          "and there must never be one. The set above is recomputed from the "
+          "database on every run by `realism_axes.py`. The moment any stock "
+          "gains one real record on one of these axes — from a datasheet, a "
+          "patent, or a journal paper; the rule does not care which — that axis "
+          "re-enters the denominator for all "
+          f"{len(FP.FILM_PROFILES)} stocks automatically.")
+        w("")
+        w("⚠ **The headline falls when that happens.** A newly promoted axis "
+          "arrives mostly unevidenced, so it drags the mean down. This is "
+          "correct: a question that could not be asked has become a question "
+          "that can be asked and is mostly unanswered. A number that only ever "
+          "rose on the arrival of new evidence would be measuring effort "
+          "instead of knowledge. The size of each fall, computed in advance:")
+        w("")
+        w("| axis promoted | corpus mean the next morning | …if then fully "
+          "evidenced |")
+        w("|---|---|---|")
+        for a, _iw, _ap, at_today, at_full in promotion_forecast(inf):
+            w(f"| `{a}` | {at_today * 100:.1f} % "
+              f"({(at_today - mean) * 100:+.1f}) | {at_full * 100:.1f} % "
+              f"({(at_full - mean) * 100:+.1f}) |")
+        w("")
+        w(f"Today's headline for comparison: **{mean * 100:.1f} %**.")
+        w("")
+
     if dead:
         w("## ⚠ Axes measured and NOT scored — the carrier moves no pixel")
         w("")
@@ -352,6 +516,13 @@ def render(inf: dict) -> str:
       "apply to that film — a dye image has no Callier scatter, a single silver "
       "record has no interimage effect — and those axes are left out of that "
       "stock's denominator rather than scored as gaps.")
+    w("")
+    if dormant:
+        w("The dormant axes have **no column here at all**, which is the "
+          "difference between *n/a* and *dormant*: *n/a* is a closed question "
+          "for that one film, dormant is an open question for the whole corpus "
+          "that no available document can close. They are "
+          + ", ".join(f"`{a}`" for a in sorted(dormant)) + ".")
     return "\n".join(L) + "\n"
 
 
@@ -366,10 +537,13 @@ def main() -> int:
     text = render(inf)
     out = Path(ns.out)
     out.write_text(text, encoding="utf-8")
-    live, _dead, _t, rows = score_all(inf)
+    live, dormant, _dead, _t, rows, _ra, mean_all = score_all(inf)
     mean = sum(r[1] for r in rows) / len(rows)
     print(f"[OK] wrote {out} -- corpus mean {mean * 100:.1f} %, "
           f"{len(live)} scored axes, {len(rows)} stocks")
+    print(f"     dormant (no independent record anywhere): "
+          f"{', '.join(sorted(dormant)) or 'none'} -- "
+          f"all-axes reference {mean_all * 100:.1f} %")
     return 0
 
 

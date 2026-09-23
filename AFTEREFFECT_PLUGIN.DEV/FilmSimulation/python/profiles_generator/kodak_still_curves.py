@@ -317,7 +317,7 @@ def _fit_line(pos, val):
 
 
 def _sign_ticks(pos, mag, log_axis=False, want_slope=0,
-                with_residual=False):
+                with_residual=False, allow_all_negative=False):
     """Recover signs Kodak's overbar minus dropped, then demand collinearity.
 
     ``pos`` are tick centres along the axis in points, ``mag`` the unsigned
@@ -371,6 +371,26 @@ def _sign_ticks(pos, mag, log_axis=False, want_slope=0,
     if zeros:
         z = zeros[0]
         cand.append([-v if i < z else v for i, v in enumerate(m)])
+    else:
+        # ⚠⚠ THIRD READING, ADDED 2026-09-22 FOR F-4016: THE MACRON-MINUS CASE
+        # WITH THE ZERO TICK OFF THE PANEL. T-MAX 100's characteristic panels
+        # rule their exposure axis -4.0 -3.0 -2.0 -1.0 and stop -- there is no
+        # 0.0 label, so the branch above, which pivots the signs ABOUT a zero,
+        # never fires, and the as-printed reading 4,3,2,1 is a LEFT-HANDED
+        # axis that `want_slope` correctly rejects. Both editions of F-4016
+        # were therefore skipped outright while their curves sat in the file
+        # as vector paths. Negating EVERY label is the only reading consistent
+        # with the physics `want_slope` encodes -- log exposure increases left
+        # to right -- and it must still come out collinear and right-handed
+        # before it is accepted.
+        #
+        # ⚠ TRIED LAST, AND THAT IS WHAT MAKES IT SAFE. A panel that fits on
+        # either reading above never reaches this line, so no adopted number
+        # can move: the only panels this can change are ones that were being
+        # skipped. Same discipline as `_snap_collinear`, and confirmed by
+        # `--assert` reproducing every previously adopted value unchanged.
+        if allow_all_negative and all(v > 0.0 for v in m):
+            cand.append([-v for v in m])
     for vals in cand:
         # a monotonic run is a necessary condition for a real axis
         if not (all(vals[i] < vals[i + 1] for i in range(len(vals) - 1))
@@ -680,6 +700,21 @@ def _best_axis(pos, mag, cands, grid, log_axis, want_slope):
     if got:
         fit, cand = got
         return fit[0], fit[1], cand
+    # ⚠⚠ AFTER THE LAST RESORT, AND THE ORDERING IS A BUG FIX, NOT TASTE.
+    # The wholly-negative axis reading (see `_sign_ticks`) was first placed
+    # inside `_sign_ticks` unconditionally, which put it AHEAD of
+    # `_snap_collinear` for the snapped positions -- and it immediately broke
+    # a panel that had been reading correctly for weeks: e2468-Portra_100T.pdf
+    # p5 came back dmin 4.1717 / 4.0447 / 3.7919 against its adopted 0.8121 /
+    # 0.6087 / 0.2045, because a negated snapped run happened to be collinear
+    # and right-handed before the collinear search got its turn. Reaching it
+    # only when every existing path has refused restores the guarantee this
+    # module is built on: a panel that reads today reads identically tomorrow.
+    for p in (_snap_all(pos, cands), list(pos)):
+        fit = _sign_ticks(p, mag, log_axis=log_axis, want_slope=want_slope,
+                          with_residual=True, allow_all_negative=True)
+        if fit:
+            return fit[0], fit[1], p
     return None
 
 
@@ -1370,7 +1405,36 @@ CAPTIONS = {
     "spectral sensitivity curve": ("sens", False, False, (), 3),
     "spectral-dye-density curves": ("dye", False, False, (), 2),
     "modulation transfer function": ("mtf", True, True, ("R", "G", "B"), 3),
+    # ⚠ ADDED 2026-09-22. Kodak's MOTION-PICTURE sheets caption the same panel
+    # "Sensitometric Curves" where the still-film sheets say "Characteristic
+    # Curves" -- H-1-5239 p3 draws R, G and B against LOG EXPOSURE
+    # (lux-seconds) under that heading, figure F002_0149AC, "Exposure:
+    # Daylight, 1/100 second / Process: VNF-1 / Densitometry: Status A". It is
+    # the same figure by every property this module reads; only the word
+    # differs. Adding the key, rather than an override box, because the panel
+    # geometry is the corpus-standard one and it is the CAPTION alone that was
+    # unmatched.
+    "sensitometric curves": ("char", False, False, ("R", "G", "B"), 3),
+    "sensitometric curve": ("char", False, False, ("R", "G", "B"), 3),
 }
+
+#: Caption keys that must match the WHOLE line, not appear anywhere in it.
+#:
+#: ⚠⚠ THIS SET EXISTS BECAUSE ADDING "sensitometric curves" AS A SUBSTRING KEY
+#: BROKE A PANEL THAT HAD BEEN READING CORRECTLY. Every Kodak sheet ends its
+#: figure pages with the boilerplate "NOTICE: The sensitometric curves and data
+#: in this publication represent product tested under the conditions of
+#: exposure and processing specified." The substring rule turned that sentence
+#: into a caption, and the damage was not the phantom panel -- which merely
+#: skipped -- but the fact that a caption also CLIPS the box of the panel above
+#: it in the same column. e2468-Portra_100T.pdf p5 came back dmin 4.1717 /
+#: 4.0447 / 3.7919 against its adopted 0.8121 / 0.6087 / 0.2045.
+#:
+#: The substring rule stays for every other key, because it is load-bearing:
+#: E-7022 captions its panels "KODAK GOLD 100 Film Characteristic Curves" with
+#: the kind at the END of the line. Only the keys that also occur inside
+#: Kodak's own boilerplate are narrowed.
+CAPTIONS_EXACT_ONLY = frozenset({"sensitometric curves", "sensitometric curve"})
 
 #: Caption-relative box, in points: (dx0, dy0, dx1, dy1) from the caption's
 #: top-left. Kodak's still-film grid puts the caption above and slightly right
@@ -1444,6 +1508,23 @@ PANEL_OVERRIDES = {
         ("mtf", "400UC Modulation Transfer Function",
          (44.0, 93.0, 300.0, 281.0), True, True, ("R", "G", "B"), 3),
     ],
+    # ⚠ THIRD ENTRY GROUP, 2026-09-22, FOR A THIRD DEFECT. F-4001 (T-MAX
+    # P3200, 2018) prints THREE characteristic panels on page 8 under a SINGLE
+    # caption: "Characteristic Curves" sits over the D-76 panel at the top
+    # left, and the T-MAX RS panel below it and the T-MAX Developer panel to
+    # its right carry no caption of their own. The caption scan therefore
+    # finds one panel out of three, and the two it misses include the one this
+    # corpus needs -- P3200 is stored at EI 1000, where the sheet's own table
+    # puts T-MAX Developer small-tank at about 9.7 minutes and the panel draws
+    # a 10-minute trace, against roughly 11.8 minutes in D-76 where the
+    # nearest drawn trace is 10. The box below is read off that panel's own
+    # axis labels: y ticks at x 339.0 (3.0 down to 0.0, y 46.8..238.9), x
+    # ticks at y 241.9 (-4.0 through 1.0), axis title "LOG EXPOSURE
+    # (lux-seconds)" at y 252.5.
+    ("F4001-P3200TMZ-2018.pdf", 8): [
+        ("char", "T-MAX Developer; Small Tank; 20C [uncaptioned in source]",
+         (335.0, 40.0, 550.0, 250.0), False, False, (), 4),
+    ],
 }
 
 #: (pdf basename, page) whose caption-derived panels are DISCARDED in favour of
@@ -1480,7 +1561,9 @@ def find_panels(page, pdf_name=None):
             # dye panels while two complete three-channel characteristic
             # figures sat there unread. The longest key is preferred so that a
             # line containing two kind names cannot be claimed by the shorter.
-            hit = max((k for k in CAPTIONS if k in low), key=len, default=None)
+            hit = max((k for k in CAPTIONS
+                       if (low == k if k in CAPTIONS_EXACT_ONLY else k in low)),
+                      key=len, default=None)
             if hit is None:
                 continue
             caps.append((ln["bbox"][0], ln["bbox"][1], txt, hit))
@@ -1544,6 +1627,18 @@ DOCS = [
     # quantities here (dye pair on p6, MTF on p6); the characteristic panel on
     # p5 is the one that had never been looked at.
     ("f4036-BW400CN.pdf", "F-4036", "2004-01", "BW400CN"),
+    # ⚠⚠ ADDED 2026-09-22, THE NINE-FILM PASS. Every sheet below was ALREADY
+    # IN THE CORPUS while the film it documents rendered an ANALOGY curve --
+    # nothing had to be found, the tracing had simply never been done. Five of
+    # the most-used black-and-white stocks in the database are in this group.
+    ("f4017-400TX-2007.pdf", "F-4017", "2007", "TRI-X 400TX + 320TXP"),
+    ("f4016-TMAX-2007b.pdf", "F-4016", "2007", "T-MAX 100"),
+    ("f4043-TMAX_400-2007.pdf", "F-4043", "2007", "T-MAX 400"),
+    ("F4001-P3200TMZ-2018.pdf", "F-4001", "2018", "T-MAX P3200"),
+    ("f4016_TMax_100.pdf", "F-4016", "?", "T-MAX 100 (second edition)"),
+    ("5247.pdf", "TI0835", "1974", "EASTMAN Color Negative 5247"),
+    ("Kodak Eastman EKTACHROME Film (Daylight) 7239.pdf", "H-1-5239", "?",
+     "EASTMAN EKTACHROME 5239 / 7239"),
 ]
 
 

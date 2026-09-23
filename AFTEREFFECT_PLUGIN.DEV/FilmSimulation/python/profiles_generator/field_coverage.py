@@ -304,6 +304,24 @@ def populated(cls_name: str, field: str) -> tuple[int, int]:
     return (n, seen)
 
 
+
+#: Fields whose unread state is a DECISION, with the decision. Everything else
+#: in the unread list is a research gap; these are not, and a reader who cannot
+#: tell the two apart will eventually "fix" one of them.
+#:
+#: ⚠ THIS TABLE DOES NOT SUPPRESS A ROW. The field still appears in the census
+#: with its counts and its "not emitted" flag -- hiding it would be the same
+#: mistake in the other direction. What it adds is the reason, so the next
+#: person to read the list knows which rows are work and which are settled.
+_DELIBERATE = {
+    "ReciprocitySpec.short_onset_s":
+        "DELIBERATE. The short end is carried by ReciprocityTable and IS "
+        "rendered (verify G-RECIP-SHORT); this scalar is superseded on the 64 "
+        "table stocks, and its 4e-5 s class bound is FALSIFIED by F-4017, "
+        "which prints +1 stop at 1e-5 s on TRI-X. Wiring it would install a "
+        "contradictory rule. See G-RECIP-SCALAR-INERT.",
+}
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--root", default=str(DEFAULT_CPP_ROOT),
@@ -422,7 +440,9 @@ def main() -> int:
         if ns.gaps_only and have == 0:
             continue
         flag = "" if emit else "  ⚠ not emitted"
-        print(f"  {have:4d}/{seen:<4d} {cls_name}.{field}{flag}")
+        note = _DELIBERATE.get(f"{cls_name}.{field}", "")
+        print(f"  {have:4d}/{seen:<4d} {cls_name}.{field}{flag}"
+              + (f"\n        ⓘ {note}" if note else ""))
     dormant = sum(1 for r in unread if r[6] == 0)
     print()
     print(f"[i] of those {len(unread)}, {dormant} are DORMANT (zero stocks "

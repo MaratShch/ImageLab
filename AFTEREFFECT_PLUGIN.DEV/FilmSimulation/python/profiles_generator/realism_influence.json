@@ -1,6 +1,6 @@
 {
-  "schema_version": 48,
-  "model_hash": "478d15a70c5d5913",
+  "schema_version": 49,
+  "model_hash": "92d62a08b1856654",
   "scene_px": [
     1536,
     864
@@ -36,14 +36,14 @@
       "what": "traced characteristic curve",
       "stocks_measured": 16,
       "delta_e_median": 15.546070420730402,
-      "delta_e_max": 31.645480573489568,
-      "worst_stock": "KODAK_VISION2_500T_5218",
+      "delta_e_max": 31.6746128812338,
+      "worst_stock": "KODAK_VISION2_50D_5201",
       "render_settings": {}
     },
     "grain_amplitude": {
       "what": "published rms granularity",
       "stocks_measured": 18,
-      "delta_e_median": 0.4549509561482773,
+      "delta_e_median": 0.5303704413889214,
       "delta_e_max": 2.958496845273928,
       "worst_stock": "EASTMAN_EXR_50D_5245",
       "render_settings": {}
@@ -51,8 +51,8 @@
     "grain_shape": {
       "what": "measured sigma(D) shape",
       "stocks_measured": 6,
-      "delta_e_median": 0.45031321763048876,
-      "delta_e_max": 0.778892781275266,
+      "delta_e_median": 0.4723666669872144,
+      "delta_e_max": 0.8757275438001626,
       "worst_stock": "KODAK_VISION_500T_5279",
       "render_settings": {}
     },
@@ -60,7 +60,7 @@
       "what": "measured MTF",
       "stocks_measured": 17,
       "delta_e_median": 0.20592615099947614,
-      "delta_e_max": 1.5728077392914894,
+      "delta_e_max": 1.9525560622666343,
       "worst_stock": "AGFA_RSX_II_200",
       "render_settings": {}
     },
@@ -68,7 +68,7 @@
       "what": "measured adjacency overshoot",
       "stocks_measured": 18,
       "delta_e_median": 0.3027353173738897,
-      "delta_e_max": 1.2961063304912988,
+      "delta_e_max": 1.4158640377826535,
       "worst_stock": "KODAK_VISION_500T_5279",
       "render_settings": {}
     },
@@ -76,7 +76,7 @@
       "what": "traced spectral sensitivity",
       "stocks_measured": 18,
       "delta_e_median": 2.2145406067723066,
-      "delta_e_max": 5.804332462974983,
+      "delta_e_max": 6.974125688816402,
       "worst_stock": "AGFA_RSX_II_200",
       "render_settings": {
         "spectral_balance": true,
@@ -88,17 +88,17 @@
     "dye_density": {
       "what": "traced spectral dye density",
       "stocks_measured": 12,
-      "delta_e_median": 2.060684110310307,
-      "delta_e_max": 9.796040314196135,
+      "delta_e_median": 1.3759517376051338,
+      "delta_e_max": 4.727553953788457,
       "worst_stock": "AGFA_RSX_II_100",
       "render_settings": {}
     },
     "dye_matrix": {
       "what": "measured reader/status matrix",
       "stocks_measured": 11,
-      "delta_e_median": 2.9183199164672375,
-      "delta_e_max": 6.88003958607335,
-      "worst_stock": "AGFA_RSX_II_100",
+      "delta_e_median": 1.558225378756601,
+      "delta_e_max": 2.183056616159493,
+      "worst_stock": "AGFA_RSX_II_200",
       "render_settings": {}
     },
     "interimage": {
@@ -112,9 +112,9 @@
     "halation": {
       "what": "halation gain",
       "stocks_measured": 6,
-      "delta_e_median": 0.7406172287685275,
-      "delta_e_max": 0.774453646710841,
-      "worst_stock": "KODAK_VISION2_500T_5218",
+      "delta_e_median": 0.7645318470547338,
+      "delta_e_max": 0.8757448308064202,
+      "worst_stock": "KODAK_VISION_500T_5279",
       "render_settings": {}
     },
     "callier": {
@@ -128,7 +128,7 @@
     "reciprocity": {
       "what": "published reciprocity table",
       "stocks_measured": 18,
-      "delta_e_median": 3.4721473483383893,
+      "delta_e_median": 4.27086554890754,
       "delta_e_max": 15.290777531452173,
       "worst_stock": "AGFA_APX_100",
       "render_settings": {

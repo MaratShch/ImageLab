@@ -367,13 +367,18 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\iso_5_3_status.py" />
     <None Include="python\profiles_generator\jp_jps_1965_269.py" />
     <None Include="python\profiles_generator\kodak_1938.py" />
+    <None Include="python\profiles_generator\kodak_1942_eastman.py" />
     <None Include="python\profiles_generator\kodak_1952_curves.py" />
     <None Include="python\profiles_generator\kodak_1956.py" />
     <None Include="python\profiles_generator\kodak_1956_curves.py" />
     <None Include="python\profiles_generator\kodak_1956_spectro.py" />
     <None Include="python\profiles_generator\kodak_1956_trace.py" />
+    <None Include="python\profiles_generator\kodak_1957_storage.py" />
     <None Include="python\profiles_generator\kodak_5293_1982.py" />
     <None Include="python\profiles_generator\kodak_aim_density.py" />
+    <None Include="python\profiles_generator\kodak_databook_fm.py" />
+    <None Include="python\profiles_generator\kodak_h1_5302.py" />
+    <None Include="python\profiles_generator\kodak_papers_g1.py" />
     <None Include="python\profiles_generator\kodak_sensitometry.py" />
     <None Include="python\profiles_generator\kodak_still_curves.py" />
     <None Include="python\profiles_generator\kodak_time_gamma.py" />
@@ -392,6 +397,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\pse_jones_1958.py" />
     <None Include="python\profiles_generator\README.md" />
     <None Include="python\profiles_generator\realism_ablation.py" />
+    <None Include="python\profiles_generator\realism_axes.py" />
     <None Include="python\profiles_generator\realism_influence.json" />
     <None Include="python\profiles_generator\render.cmd" />
     <None Include="python\profiles_generator\run.cmd" />
@@ -402,6 +408,8 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\smpte_1953_hanson_kisner.py" />
     <None Include="python\profiles_generator\smpte_1954_5382.py" />
     <None Include="python\profiles_generator\sort_profiles.py" />
+    <None Include="python\profiles_generator\soviet_tu_1986_90.py" />
+    <None Include="python\profiles_generator\soviet_tu_corpus.py" />
     <None Include="python\profiles_generator\sovremennye_2004.py" />
     <None Include="python\profiles_generator\sovremennye_dev_tables.py" />
     <None Include="python\profiles_generator\spectral_mono_parity.py" />
