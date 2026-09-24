@@ -12,7 +12,7 @@ AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int
     CACHE_ALIGN AlgoControls algoParams = getAlgoControlsDefault();
 
     algoParams.filmProfile = get_list_box_value<film::eFILM_PROFILE>(params, FilmSimulationCtrl::FILM_STOCK);
-    algoParams.frameRate   = ((fps < 1) ? 24.0 : fps);
+    algoParams.frameRate   = ((fps < 1.0) ? 24.0 : fps);
     algoParams.frameIndex = idx;
 
     const uint64_t filmMask = film::kFilmControlAvailability[UnderlyingType(algoParams.filmProfile)];
