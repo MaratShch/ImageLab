@@ -40,7 +40,11 @@ AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int
     if (is_control_available(film::eCTRL_BIT_PRINT_STOCK, filmMask))
         algoParams.printStock = get_list_box_value<PrintStockCtrl>(params, FilmSimulationCtrl::PRINT_STOCK);
     if (is_control_available(film::eCTRL_BIT_GENERATIONS, filmMask))
-        algoParams.dupeStock = get_list_box_value<DupeStockCtrl>(params, FilmSimulationCtrl::DUPLICATION_GENERATION);
+        algoParams.generations = get_slider_value(params, FilmSimulationCtrl::DUPLICATION_GENERATION);
+    if (is_control_available(film::eCTRL_BIT_DUPE_STOCK, filmMask))
+        algoParams.dupeStock = get_list_box_value<DupeStockCtrl>(params, FilmSimulationCtrl::INTERMEDIATE_STOCK);
+    if (is_control_available(film::eCTRL_BIT_PRINT_GRAIN, filmMask))
+        algoParams.printGrain = get_check_box_value(params, FilmSimulationCtrl::PRINT_GRAIN);
 
     return algoParams;
 }

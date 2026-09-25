@@ -23,6 +23,12 @@ inline const double get_float_slider_value(PF_ParamDef* params[], const FilmSimu
     return params[UnderlyingType(idx)]->u.fs_d.value;
 }
 
+inline constexpr bool get_check_box_value(PF_ParamDef* params[], const FilmSimulationCtrl idx) noexcept
+{
+    return (0 != params[UnderlyingType(idx)]->u.bd.value);
+}
+
+
 inline constexpr bool is_control_available(const film::eFILM_CONTROL_BIT bit, const uint64_t mask) noexcept
 {
     // The entire calculation is done inside a single return statement
