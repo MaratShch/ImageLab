@@ -230,11 +230,11 @@ SHEETS = {
     # drawing and not two, which the provenance note now says.
     "ektar100_10": ("KODAK/e4046-EKTAR-2010.pdf", 5, "KODAK_EKTAR_100",
                     (347.6, 550.1, 327.2, 480.2)),
-    # ⚠ P3200's OWN CURVE, AND THE REASON THIS ENTRY EXISTS IS A MISTAKE OF MINE.
+    # ⚠ P3200's OWN CURVE, AND THIS ENTRY EXISTS BECAUSE A REFUSAL WAS WRONG.
     # On 2026-09-06 the F-4001 (2018) panel was found to be T-MAX 100's artwork
     # and P3200 was written off as having no published MTF -- on the strength of
-    # ONE edition. The owner asked the obvious question, and F-4001 (2019) p7
-    # carries a DIFFERENT drawing: 40 bezier control points against 2018's 44,
+    # ONE edition. Re-examined against the other editions on file, F-4001 (2019)
+    # p7 carries a DIFFERENT drawing: 40 bezier control points against 2018's 44,
     # bbox 106.79 x 104.85 against 112.97 x 113.22, peaking at 5.4 cycles/mm
     # instead of 18.8. Kodak put the wrong figure in the 2018 edition and
     # corrected it the following year; the 2018 page's resolving-power text was
@@ -244,6 +244,22 @@ SHEETS = {
     # Checked against every registered sheet -- this curve matches nothing else.
     "p3200_19": ("KODAK/f4001-P3200TMZ-2019.pdf", 7, "KODAK_TMAX_P3200",
                  (361.2, 563.7, 77.0, 230.0)),
+    # ✅ THE INDEPENDENT CONFIRMATION THE 2018 MISPLACEMENT ASKED FOR, ADDED
+    # 2026-09-26 (queue 529). The note above ends with the rule that episode
+    # cost -- "never write a refusal from a single file when the corpus holds
+    # another edition of the same publication" -- and the corpus holds one:
+    # F-32 (September 2001) p24 prints TMZ's own Modulation-Transfer Curve,
+    # eighteen years before F-4001 (2019) and on a different drawing. It was
+    # not registered because the 2001 sheet was mined for T-MAX 100 and 400
+    # and the P3200 page was never opened.
+    # ⚠ THIS IS A TEST OF THE ADOPTED NUMBER, NOT A REPLACEMENT FOR IT. The
+    # adopted 84.3 stays: F-4001 is the publication `_PROVENANCE_SOURCES`
+    # names for this profile, and an edition choice is not a quality
+    # judgement. What this entry buys is that the 2018 defect could not
+    # happen again unnoticed -- two independent drawings now have to move
+    # together.
+    "p3200_01": ("KODAK/f32-TMAX-200109.pdf", 24, "KODAK_TMAX_P3200",
+                 (75.0, 280.0, 325.0, 486.0)),
 }
 
 #: Measured 2026-08-18/20. --assert fails if a sheet stops reproducing these.
@@ -392,6 +408,23 @@ EXPECTED = {
     # sheet's misplaced figure would have implied 1.97, at the edge of the band
     # verify.py allows -- which is the physical reading of the same error.
     "p3200_19": {"-": dict(f50=84.3, peak=1.110, peak_at=5.4)},
+    # ✅ TWO INDEPENDENT DRAWINGS EIGHTEEN YEARS APART, AGREEING TO 1.9 %:
+    # F-4001 (2019) reads 84.3 and F-32 (2001) reads 82.7. That is the
+    # confirmation the 2018 misplacement asked for and could not have, and it
+    # is now structural -- both have to move together or this file fails.
+    # ⚠ THE TWO DO NOT AGREE ABOUT THE CARRIER, AND THE DISAGREEMENT IS
+    # RECORDED RATHER THAN RESOLVED. The 2019 drawing fits the power law at
+    # q = 2.03, rms 0.0534 against the Gaussian's 0.0681 -- 1.3x better, which
+    # is inside the 1.2-1.3x band the PORTRA NC/VC batch set as NOT licensing
+    # a carrier switch. This 2001 drawing fits q = 1.90 at rms 0.0424 against
+    # 0.0662, which is 1.6x better and WOULD license it.
+    # ⚠ mtf_measured STAYS FALSE, and the reason is consistency rather than
+    # caution: F-4001 is the publication `_PROVENANCE_SOURCES` names for this
+    # profile, so its f50 is the adopted one, and switching the CARRIER on the
+    # strength of the edition whose f50 was NOT adopted would take the two
+    # halves of one measurement from two different documents. Rule 4 applies
+    # -- the spread is recorded, not averaged, and not cherry-picked either.
+    "p3200_01": {"-": dict(f50=82.7, peak=1.087, peak_at=5.2)},
     # Adopts nothing; pins the artwork identity with the 2016 edition.
     "ektar100_10": {
         "R": dict(f50=35.5, peak=1.124, peak_at=9.0),

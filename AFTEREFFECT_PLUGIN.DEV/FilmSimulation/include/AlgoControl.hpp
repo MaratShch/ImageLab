@@ -1500,6 +1500,78 @@ struct AlgoControls
     ProcessVariantCtrl processVariant;
 
     /**
+     *  1  NAME           batchPosition
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
+     *                    that carries no `tolerance` record -- the same rule
+     *                    processVariant follows for an empty variant list.
+     *                    \warning THAT IS 190 OF 200 STOCKS -- the ten that
+     *                    DO carry a band are the nine Soviet TU films and the
+     *                    one GOST film, and the count is asserted on every
+     *                    build by cross_component.py rather than restated
+     *                    here by hand. Suggested label
+     *                    "Batch position", with -1 read out as "lower limit",
+     *                    0 as "as specified" and +1 as "upper limit".
+     *  4  UNIT           a FRACTION of the distance from the stored value to
+     *                    the edge of that film's own published acceptance
+     *                    band. Not stops, not density, not a percentage of
+     *                    contrast: the distance differs per layer and per
+     *                    stock because the bands do.
+     *  5  MIN            -1.0, the lower acceptance edge
+     *  6  MAX            +1.0, the upper acceptance edge
+     *  7  DEFAULT        0.0 -- the curve as the database stores it
+     *  8  STEP           0.05
+     *  9  PURPOSE        Renders the roll the SPECIFICATION allows rather than
+     *                    only the roll the database stores. Ten stocks in this
+     *                    database are specified by a manufacturing acceptance
+     *                    band instead of by typical data -- the nine Soviet ТУ
+     *                    films and the one ГОСТ film -- and a «Технические
+     *                    условия» prints limits, not measurements: «не менее
+     *                    100» means a roll testing at 99 is rejected and says
+     *                    nothing about what a good roll did. The profile can
+     *                    hold one number per layer, so it holds the mid-point
+     *                    of a two-sided band or the WORST LEGAL EXAMPLE where
+     *                    the norm is one-sided. This control reaches the rest
+     *                    of the band.
+     *                    \warning IT IS NOT A CONTRAST CONTROL. It moves each
+     *                    layer by a different amount, only as far as that
+     *                    film's own document allows, and not at all on a stock
+     *                    whose manufacturer published typical values.
+     * 10  OUTPUT EFFECT  Moves the per-layer characteristic-curve gamma, and
+     *                    the per-layer D_min where the source prints both
+     *                    edges of a band for it. 0.0 reproduces pre-field
+     *                    renders BIT FOR BIT: the base profile is returned by
+     *                    reference and nothing is copied.
+     *                    \warning WHAT IT DOES NOT MOVE IS A LIST OF REFUSALS,
+     *                    not a backlog. Speed: the bands state an acceptance
+     *                    window but no stage reads `exposure_index` as an
+     *                    exposure, so moving it would change a reported number
+     *                    and not a pixel -- `exposureStops` is the honest
+     *                    control for that. Granularity, MTF and reversal
+     *                    D_max: their bands are one-sided and the stored value
+     *                    already sits at the limit, so there is nothing to
+     *                    interpolate toward. Ageing: that is a cupboard, not a
+     *                    coating, and it belongs to `storageYears`.
+     * 11  STAGES         resolved in frame setup, after the variant, the
+     *                    development time and the storage age, before the
+     *                    anchor solve. Read downstream by every stage that
+     *                    takes the profile, so they all see one film.
+     * 12  INTERACTIONS   Compounds with `developmentMinutes`, and the two are
+     *                    different axes: development time moves the whole
+     *                    emulsion along its own time-gamma family, batch
+     *                    position moves it within the spread the factory was
+     *                    allowed to ship. A stock can have both.
+     * 13  SCALAR/AVX2    External semantics identical, and there is no vector
+     *                    code at all: resolution is a frame-setup step with no
+     *                    pixel loop in either path, so the two engines run the
+     *                    same header.
+     * 14  FULL/LITE      Both, at full quality: one profile copy per frame,
+     *                    and only when the control is off its default on a
+     *                    stock that carries a band.
+     */
+    double batchPosition;
+
+    /**
      *  1  NAME           developmentMinutes
      *  2  TYPE           double
      *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock

@@ -854,8 +854,22 @@ def _at_x(trace, xq, clamp=False):
 
 
 def extract_panel(page, box, letters=("R", "G", "B"), min_verts=MIN_TRACE_VERTS,
-                  log_x=False, log_y=False, expect=0):
+                  log_x=False, log_y=False, expect=0,
+                  min_span=TRACE_MIN_SPAN):
     """Locate and read one panel inside ``box``.
+
+    ⚠ `min_span` ADDED 2026-09-24, AS A PARAMETER RATHER THAN A NEW CONSTANT,
+    AND THE DEFAULT IS UNCHANGED SO NO ADOPTED PANEL MOVES. `TRACE_MIN_SPAN`
+    = 0.30 was measured on characteristic and dye panels, where every real
+    trace crosses most of the frame. It is WRONG for a SPECTRAL SENSITIVITY
+    panel by construction: a layer's sensitivity band covers only the
+    wavelengths that layer responds to, so on E-116 page 7 the
+    yellow-forming, magenta-forming and cyan-forming curves span roughly
+    120 nm each of a 500 nm axis -- 0.24 of it -- and the filter discarded
+    two of the three, leaving a single 449.6-599.4 nm chain that looked like
+    a plausible answer and was not. Callers reading a spectral panel pass a
+    lower value explicitly; every other call site keeps 0.30 and is
+    bit-identical, so `--assert` over the eleven adopted sheets is unaffected.
 
     Returns a ``Panel`` or None. Returning None is a real outcome, not a
     failure to try: a panel whose axis will not fit a straight line is skipped
@@ -900,7 +914,7 @@ def extract_panel(page, box, letters=("R", "G", "B"), min_verts=MIN_TRACE_VERTS,
             if len(c) < FRAG_MIN_VERTS * 2:
                 continue
             if (max(p[0] for p in c)
-                    - min(p[0] for p in c)) < TRACE_MIN_SPAN * span_x:
+                    - min(p[0] for p in c)) < min_span * span_x:
                 continue
             if _is_stroke_row(c):
                 continue
@@ -1092,7 +1106,7 @@ def assign_layers(traces):
 DYE_NM_LO, DYE_NM_HI, DYE_NM_TOL = 400.0, 700.0, 2.5
 
 
-def assign_dye_pair(traces):
+def assign_dye_pair(traces, y_ceiling=None):
     """Name two spectral-dye-density traces neutral/dmin.
 
     The caption is "Typical densities for a midscale neutral subject and
@@ -1118,6 +1132,28 @@ def assign_dye_pair(traces):
     enough to be accepted, and the panel reads 395.4-697.6 nm -- a 4.6 nm error
     that nothing else in the pipeline would have questioned. The 100UC panel on
     p6 of the same document reads 399.8-700.2 and passes.
+
+    ⚠⚠ ONE EXEMPTION, ADDED 2026-09-24 FOR E-116 p8 (EKTAPRESS PJ800), AND IT
+    IS NARROW ON PURPOSE. A midscale neutral on a heavily masked high-speed
+    press negative can be DENSER IN THE BLUE THAN THE PANEL IS TALL: PJ800's
+    neutral curve leaves the frame through the TOP at 403.9 nm, still rising,
+    so its traced extent starts 3.9 nm right of 400 and the check above -- read
+    literally -- calls a correctly calibrated axis a mis-calibrated one. The
+    exemption fires only when ALL FOUR of these hold, which no shifted axis can
+    satisfy: the caller supplies the panel's own top ordinate as `y_ceiling`;
+    the short trace's FIRST vertex sits ON that ceiling to within 0.01 D (i.e.
+    it exits the frame, rather than simply starting late); its high end is
+    inside `DYE_NM_TOL` of 700; and the OTHER trace spans the full 400-700 nm
+    within tolerance, which is what actually proves the axis. A 4.6 nm axis
+    error shifts BOTH curves, so the full-span partner is the discriminator,
+    not a courtesy. PJ100's panel on p5 clips the same way at 400.6 nm, inside
+    tolerance, and needs no exemption -- it is the reason the clipping is known
+    to be draughtsmanship rather than a reader defect.
+
+    ⚠ WHAT THE CALLER MUST THEN DO, because this function cannot: the grid cell
+    at 400 nm is NOT a measurement on an exempted trace. It is a LOWER BOUND
+    equal to the ceiling, and storing anything interpolated there invents a
+    density the sheet declined to print.
     """
     if len(traces) != 2:
         return None
@@ -1127,9 +1163,23 @@ def assign_dye_pair(traces):
         yh = _at_x(hi, x)
         if yh is not None and yh < y - 0.02:
             return None
+    clipped = []
     for t in (hi, lo):
-        if (abs(min(p[0] for p in t) - DYE_NM_LO) > DYE_NM_TOL
-                or abs(max(p[0] for p in t) - DYE_NM_HI) > DYE_NM_TOL):
+        if abs(max(p[0] for p in t) - DYE_NM_HI) > DYE_NM_TOL:
+            return None
+        if abs(min(p[0] for p in t) - DYE_NM_LO) > DYE_NM_TOL:
+            if y_ceiling is None:
+                return None
+            first = min(t)
+            if abs(first[1] - y_ceiling) > 0.01:
+                return None
+            clipped.append(t)
+    if clipped:
+        if len(clipped) != 1:
+            return None
+        full = hi if clipped[0] is lo else lo
+        if (abs(min(p[0] for p in full) - DYE_NM_LO) > DYE_NM_TOL
+                or abs(max(p[0] for p in full) - DYE_NM_HI) > DYE_NM_TOL):
             return None
     return {"neutral": hi, "dmin": lo}
 
@@ -1405,6 +1455,18 @@ CAPTIONS = {
     "spectral sensitivity curve": ("sens", False, False, (), 3),
     "spectral-dye-density curves": ("dye", False, False, (), 2),
     "modulation transfer function": ("mtf", True, True, ("R", "G", "B"), 3),
+    # ⚠ ADDED 2026-09-24b FOR THE BLACK-AND-WHITE SHEETS, and the difference is
+    # not only the caption wording. F-32 (T-MAX, March 2002) captions the panel
+    # "Modulation Transfer Curve" on page 14 and "Modulation-Transfer Curve" on
+    # page 24 -- singular, hyphenated inconsistently WITHIN ONE PUBLICATION --
+    # and a silver monochrome emulsion draws ONE curve, not three, so the
+    # expected trace count is 1 and there are no R/G/B legend letters to match.
+    # Without these three keys the panel is invisible to the caption scan, and
+    # T-MAX 100/400/P3200 carried class-estimate f50 values while their own
+    # measured MTF sat on pages already in the corpus.
+    "modulation transfer curve": ("mtf", True, True, (), 1),
+    "modulation-transfer curve": ("mtf", True, True, (), 1),
+    "modulation-transfer curves": ("mtf", True, True, (), 1),
     # ⚠ ADDED 2026-09-22. Kodak's MOTION-PICTURE sheets caption the same panel
     # "Sensitometric Curves" where the still-film sheets say "Characteristic
     # Curves" -- H-1-5239 p3 draws R, G and B against LOG EXPOSURE
@@ -1910,6 +1972,24 @@ EXPECTED_MTF = {
     ("e4035-100UC_400UC.pdf", 8): (37.5, 62.3, None),
 }
 
+#: ⚠ THE BLACK-AND-WHITE MTF PANELS, ADDED 2026-09-24b, AND THEY NEED THEIR OWN
+#: TABLE FOR TWO REASONS THE COLOUR ONE CANNOT COVER. A silver monochrome sheet
+#: draws ONE curve with no legend letter, so the reading lands in
+#: `Panel.unlabelled` rather than in `traces["G"]`; and F-32 prints TWO of them
+#: side by side on page 14 (T-MAX 100 left, T-MAX 400 right), so the panel must
+#: be selected by its INDEX in caption order, which the colour loop -- one panel
+#: per page, `break` after the first -- has no way to express.
+#:
+#: Key is (pdf, page, panel index in caption order); value is
+#: (f50 c/mm, overshoot peak, peak frequency c/mm). The last two are what the
+#: A4 adjacency solve in verify.py is pinned to, so a drift here and a drift in
+#: the rendered overshoot cannot cancel each other out.
+EXPECTED_MTF_MONO = {
+    ("kodak-t-max-100-400-and-p3200.pdf", 14, 0): (120.1, 1.110, 18.25),
+    ("kodak-t-max-100-400-and-p3200.pdf", 14, 1): (95.7, 1.168, 7.53),
+    ("kodak-t-max-100-400-and-p3200.pdf", 24, 0): (82.4, 1.087, 5.22),
+}
+
 #: The two dye panels RECOVERED on 2026-09-03 by `_is_stroke_row`, pinned as
 #: readings rather than adoptions. Both had been recorded as refusals because a
 #: welded row of caption-underline strokes made the panel report three traces;
@@ -2034,6 +2114,40 @@ def run_assert():
                     bad.append("%s p%d mtf %s: f50 %.1f vs %.1f"
                                % (pdf, pno, ch, f, wf))
             break
+        doc.close()
+
+    for (pdf, pno, idx), (wf, wpv, wpf) in sorted(EXPECTED_MTF_MONO.items()):
+        doc = pymupdf.open(os.path.join(PDF_DIR, pdf))
+        page = doc[pno - 1]
+        seen = -1
+        got = None
+        for k, _t, box, lx, ly, letters, exp in find_panels(page, pdf):
+            if k != "mtf":
+                continue
+            seen += 1
+            if seen != idx:
+                continue
+            got = extract_panel(page, box, letters=letters, log_x=lx,
+                                log_y=ly, expect=exp)
+            break
+        if got is None or not got.unlabelled:
+            bad.append("%s p%d mtf#%d: panel not located" % (pdf, pno, idx))
+            doc.close()
+            continue
+        tr = got.unlabelled[0]
+        f = f_at_response(tr, 50.0)
+        checked += 1
+        if f is None or abs(f - wf) > F_TOL:
+            bad.append("%s p%d mtf#%d: f50 %s vs %.1f"
+                       % (pdf, pno, idx, "none" if f is None else "%.1f" % f,
+                          wf))
+        pts = sorted(tr)
+        j = max(range(len(pts)), key=lambda i: pts[i][1])
+        pv, pf = 10.0 ** pts[j][1] / 100.0, 10.0 ** pts[j][0]
+        checked += 1
+        if abs(pv - wpv) > 0.002 or abs(pf - wpf) > 0.2:
+            bad.append("%s p%d mtf#%d: overshoot %.3f@%.2f vs %.3f@%.2f"
+                       % (pdf, pno, idx, pv, pf, wpv, wpf))
         doc.close()
 
     for (pdf, pno), (wn, wd) in sorted(EXPECTED_DYE.items()):

@@ -113,6 +113,7 @@
 #include "AlgoProcessVariant.hpp"
 #include "AlgoDevelopmentTime.hpp"
 #include "AlgoStorageAge.hpp"        // frame setup, curve selection
+#include "AlgoBatchPosition.hpp"     // frame setup, curve selection
 #include "AlgoInterimage.hpp"            // stage 8b
 #include "AlgoDirCoupler.hpp"            // stage 9
 #include "AlgoNegativeDefects.hpp"       // stage 9b   IMPLEMENTED
@@ -532,10 +533,42 @@ void Algorithm_Main
     // -----------------------------------------------------------------------
     film::FilmProfile agedStore;
 
-    const film::FilmProfile& profile =
+    const film::FilmProfile& profileAged =
         AlgoResolveStorageAge(profileDeveloped,
                               algoCtrl.storageYears,
                               agedStore);
+
+    // -----------------------------------------------------------------------
+    //  BATCH POSITION, fourth and last of the profile resolvers (schema v52).
+    //
+    //  Ten stocks in this database are specified by a MANUFACTURING ACCEPTANCE
+    //  BAND rather than by typical data -- the nine Soviet ТУ films and the one
+    //  ГОСТ film -- and until this call the band was carried, validated and
+    //  read by nothing. It moves the per-layer gamma and D_min only as far as
+    //  that film's own published specification allows. See
+    //  AlgoBatchPosition.hpp.
+    //
+    //  LAST, AND THE ORDER IS THE ARGUMENT. The three resolvers above answer
+    //  "which development, how long, how old" -- all things done to a roll
+    //  AFTER it left the factory. This one answers "which roll", which is
+    //  decided at the coating machine, before any of them. Applying it last
+    //  means the development and the ageing land on the roll the user chose
+    //  rather than on the nominal one and then being overwritten by it.
+    //
+    //  \warning IT IS NOT A CONTRAST CONTROL, and it is inert on 184 of 194
+    //  stocks for a reason that is not a backlog: their manufacturers publish
+    //  TYPICAL values and explicitly disclaim being a specification, so there
+    //  is no band to move along.
+    //
+    //  INERT AT THE DEFAULT: batchPosition is 0.0 unless the caller moves it,
+    //  `batchStore` is never written, and the reference binds straight through.
+    // -----------------------------------------------------------------------
+    film::FilmProfile batchStore;
+
+    const film::FilmProfile& profile =
+        AlgoResolveBatchPosition(profileAged,
+                                 algoCtrl.batchPosition,
+                                 batchStore);
 
     // -----------------------------------------------------------------------
     //  Resolve the gauge, and from it every physical frame dimension.

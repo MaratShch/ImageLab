@@ -34,7 +34,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CPP = Path("/root/work/tst")           # the live, editable engine tree
-OUT = Path("/root/work/deliver12")
+OUT = Path("/root/work/deliver22")
 #: ⚠ SUFFIXED. A second delivery was cut on the same day at schema v30,
 #: and two archives named for one date cannot be told apart on disk. 2026-09-17
 #: is the same case again: the 'a' set went out at schema v37 with 186 stocks,
@@ -147,9 +147,20 @@ column, because the pattern belongs to the scanner and not to the film.
 scanner's fixed-pattern noise exists in this corpus (queue M1b/P88). Mechanism
 built, guarded, inert.
 
-⚠ OWNER ACTION IN VISUAL STUDIO: film_profiles_data_27.cpp and _28.cpp are new
-since the 26-slot era and must be added to the .vcxproj. CMake globs src/*.cpp
-and picks them up by itself.
+⚠⚠ OWNER ACTION IN VISUAL STUDIO, 2026-09-25: film_profiles_data_29.cpp and
+_30.cpp are new in THIS delivery and must be added to the .vcxproj. CMake globs
+src/*.cpp and picks them up by itself; Visual Studio lists files once and will
+not. (_27 and _28 were the previous such pair and are already listed.)
+
+WHY THE COUNT MOVED, SINCE IT IS AN INTERRUPTION AND NOT A TIDY-UP: the slot
+packer is provably optimal -- binary search for the smallest feasible maximum,
+then a DP over the partitions that achieve it -- so when it reports a slot over
+the 112 kB ceiling, no rearrangement exists that would fit. The FERRANIA P30
+harvest put TWO slots over by 3 989 bytes at 28, and the second of them holds
+none of that harvest: the partition boundaries move, so a large addition
+anywhere can push an untouched neighbour over. 30 was chosen over the minimum
+29 so that one Visual Studio edit buys two harvests of room rather than one
+(high-water 105 325 of 112 000, 6 675 free).
 
 ONE SYNCHRONISED STATE, SIX DESTINATIONS
 ========================================
@@ -521,7 +532,7 @@ def main() -> int:
     # rendered output and the mockup it describes.
     ui = Path("/root/work/ui")
     ui_files = [ui / n for n in
-                ("FilmSimulator_Mockup_v5.html",
+                ("FilmSimulator_Mockup_v6.html",
                  "FilmSimulation_EffectControls_EN.pdf",
                  "FilmSimulation_EffectControls_RU.pdf",
                  "README.txt")]

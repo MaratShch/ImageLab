@@ -133,6 +133,7 @@
 #include "AlgoTypes.hpp"
 #include "AlgoHalation.hpp"      // ALGO_SOFTPLUS_LINEAR_LIMIT
 #include "film_profiles.hpp"     // film::ToneCurve
+#include "AlgoCharacteristicCurve.hpp"  // AlgoMakeMeasured, AlgoMeasuredDensity (schema v55)
 
 #include <cstdint>
 #include <cmath>
@@ -220,14 +221,37 @@ inline void AlgoBuildCurveLut
         ALGO_CURVE_LUT_PAD_KNEES * MAX_VALUE(MAX_VALUE(toeK, shK),
                                              static_cast<HighPrecType>(0.05));
 
-    const HighPrecType lo = MIN_VALUE(toeX, shX) - pad;
-    const HighPrecType hi = MAX_VALUE(toeX, shX) + pad;
+    HighPrecType lo = MIN_VALUE(toeX, shX) - pad;
+    HighPrecType hi = MAX_VALUE(toeX, shX) + pad;
+
+    // ⚠⚠ THE DOMAIN MUST COVER THE MEASURED SAMPLES, OR THE TABLE WOULD
+    // FLATTEN THEM (schema v55). Outside [lo, hi] the lookup CLAMPS, which is
+    // exact for a softplus pair because the function really is flat there --
+    // that is the argument at the top of this file. It is NOT exact once the
+    // curve carries instrument samples: FERRANIA_P30's run from -3.03 to
+    // -0.04 while its knees put the unextended domain at roughly -1.9 to
+    // +1.8, so every sample below -1.9 would be clamped to one value and the
+    // whole measured toe -- the part that motivated storing the table at all
+    // -- would vanish. Widening here is what lets the vector path render the
+    // same curve the scalar path does.
+    if (curve.hasMeasured())
+    {
+        lo = MIN_VALUE(lo, static_cast<HighPrecType>(curve.meas_x[0]) - pad);
+        hi = MAX_VALUE(hi, static_cast<HighPrecType>(
+                               curve.meas_x[curve.meas_n - 1]) + pad);
+    }
 
     const HighPrecType span = MAX_VALUE(hi - lo,
                                         static_cast<HighPrecType>(1.0e-6));
 
     const HighPrecType step = span / static_cast<HighPrecType>(
                                          ALGO_CURVE_LUT_SIZE - 1);
+
+    // ⚠ THE MEASURED CONTEXT IS BUILT ONCE, OUTSIDE THE FILL LOOP. Inactive
+    // on every curve that carries no table, in which case the branch inside
+    // AlgoMeasuredDensity returns the closed form untouched and this table is
+    // bit-for-bit what it was before schema v55.
+    const AlgoMeasuredCtx meas = AlgoMakeMeasured(curve);
 
     for (int32_t i = 0; i <= ALGO_CURVE_LUT_SIZE; i++)
     {
@@ -236,7 +260,17 @@ inline void AlgoBuildCurveLut
         const HighPrecType rise = AlgoCurveSoftplusExact(a - toeX, toeK);
         const HighPrecType fall = AlgoCurveSoftplusExact(a - shX,  shK);
 
-        lut.d[i] = static_cast<AlgoType>(dmin + gamma * (rise - fall));
+        // ⚠ THE VECTOR PATH GETS THE MEASUREMENT THROUGH THE TABLE RATHER
+        // THAN THROUGH A PER-LANE BRANCH, and that is the whole reason this
+        // file exists. Baking it in here means stage 08, the 08b interimage
+        // re-evaluation and stage 13 all read one interpolant, no gather has
+        // to chase a per-lane bisection, and the only cost is the table's own
+        // linear-interpolation error -- which this file already measures at
+        // 4.24e-06 D and which a smooth monotone cubic sampled every
+        // 0.0012 decade does not worsen.
+        lut.d[i] = AlgoMeasuredDensity(
+            meas, static_cast<AlgoType>(a),
+            static_cast<AlgoType>(dmin + gamma * (rise - fall)));
     }
 
     lut.lo      = static_cast<AlgoType>(lo);

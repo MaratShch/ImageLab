@@ -60,14 +60,39 @@ import film_sim as fs
 #: The one stock in the database carrying a 5 nm trace. FUJIFILM AF3-608E.
 FIVE_NM_STOCK = "FUJI_NEOPAN_1600"
 
-#: What the direct test found on 2026-09-05b, so a rerun that disagrees fails.
-#: Max absolute change in any one weight, 5 nm against its own 10 nm decimation.
-EXPECTED_DIRECT_MAX = 0.005649
+#: ⚠⚠ RE-PINNED TWICE IN TWO DAYS, AND THE SECOND MOVE UNDOES THE FIRST.
+#: Queue M2 narrowed the stand-in primaries from 55 nm to 15 nm on 2026-09-26,
+#: and on 2026-09-27 that change was WITHDRAWN in favour of 34.0 nm derived
+#: from the primary centres -- see `mono_primary_width.py` for why the 15 nm
+#: fit was not an instrument. This file's whole question ("how much does the
+#: SAMPLING INTERVAL of the stored curve matter?") has a different answer at
+#: each width, because a narrower lobe reads fewer stored samples.
+#:
+#:                                        55 nm     15 nm     34 nm
+#:   direct, 5 nm vs its own 10 nm      0.005649  0.002168  0.006701
+#:   sweep, 10 nm vs 20 nm, all mono    0.016885  0.020215  0.016227
+#:
+#: ⚠ AT 34 nm THE SWEEP IS THE BEST OF THE THREE, and that is the number that
+#: matters here: a lobe wide enough to span several stored samples is the one
+#: least disturbed by halving the sampling interval. 1.6 % of a weight against
+#: 2.0 % at 15 nm. The 15 nm column is kept above because it is the measured
+#: cost of a change this project made and withdrew, and a withdrawn
+#: measurement that leaves no trace is how the same mistake gets made twice.
+#:
+#: ⚠ THE DIRECT TEST GOING THE OTHER WAY IS NOT A CONTRADICTION. It compares
+#: 5 nm against 10 nm on the ONE stock traced at 5 nm, and a wider lobe
+#: integrates more of the curve's tail -- which is exactly where two
+#: decimations of the same trace differ most. A 0.67 % change on one weight of
+#: a triple summing to 1.0 is still inside the 0.4-1.1 % band queue F3 quoted
+#: and never owned, which is the finding this file exists to own.
+#:
+#: Re-pinned 2026-09-27. A rerun that disagrees still fails.
+EXPECTED_DIRECT_MAX = 0.006701
 EXPECTED_DIRECT_TOL = 0.0005
 
 #: What the 10 -> 20 nm sweep found: the worst single-weight change over every
 #: monochrome stock whose weights are derivable.
-EXPECTED_SWEEP_MAX = 0.016885
+EXPECTED_SWEEP_MAX = 0.016227
 EXPECTED_SWEEP_TOL = 0.0005
 
 

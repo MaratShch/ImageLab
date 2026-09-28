@@ -34,6 +34,7 @@
 #include <immintrin.h>
 
 #include "AlgoHalation.hpp"   // AlgoSoftplus, shared by every curve evaluation
+#include "AlgoCallier.hpp"    // AlgoCallierApplyScalar, the print chain's mid-grey reference
 
 
 static_assert(sizeof(AlgoType) == 4,
@@ -486,6 +487,25 @@ void AlgoStage13_Duplication
                           static_cast<HighPrecType>(params.couplerScale),
                           dMid);
 
+    // ⚠⚠ FIXED 2026-09-27: THE READER'S OPTICS ON THE PRINT CHAIN'S MID-GREY
+    // REFERENCE. Stage 12b applies Callier (Silberstein & Tuttle) to every
+    // pixel, and AlgoSolveAnchors applies it to its own dMid; this third
+    // reference was left bare, so on every SILVER stock (callier_q > 1) the
+    // print re-timed against a mid grey the scanner never saw. Measured on
+    // FERRANIA_P30 at the default scannerSpecular 0.853: mid grey 0.817
+    // display-linear against film_sim's 0.205. Colour stocks (Q = 1) were
+    // untouched, which is why only black-and-white renders went white.
+    // film_sim.py applies the same correction after neutral_mid_density();
+    // chain_parity.py now compares the whole chain against it on every build.
+    for (int32_t c = 0; c < 3; c++)
+    {
+        dMid[c] = AlgoCallierApplyScalar(
+            dMid[c],
+            static_cast<HighPrecType>(curveAt(profile.curves, c).dmin),
+            static_cast<HighPrecType>(profile.callier_q),
+            static_cast<HighPrecType>(params.scannerSpecular));
+    }
+
     // ----------------------------------------------------------------------
     //  The duplication chain.
     //
@@ -619,7 +639,24 @@ void AlgoStage13_Duplication
     //  positive. That double inversion is what gives correct rolloff at both ends
     //  for free.
     // ----------------------------------------------------------------------
-    const film::RGBCurves& pcurves = pPrintStock->curves;
+
+    // ⚠⚠ FIXED 2026-09-27: A BLACK-AND-WHITE NEGATIVE GOES ONTO A NEUTRAL
+    // PRINT. film_sim.simulate() replaces the print stock's three curves by
+    // its green one and its dye matrix by identity for every monochrome
+    // negative; the engine printed through the stock's three slightly
+    // different colour curves and left a cast on a greyscale image (up to
+    // 0.0155 display-linear per channel on a ColorChecker, measured over all
+    // 78 monochrome stocks against film_sim).
+    const bool neutralPrint = profile.is_monochrome && !profile.isReversal();
+    film::RGBCurves neutralCurves = pPrintStock->curves;
+    film::Matrix3   printDyeM     = pPrintStock->dye_matrix;
+    if (neutralPrint)
+    {
+        neutralCurves.r = neutralCurves.g;
+        neutralCurves.b = neutralCurves.g;
+        printDyeM = {{ {{ 1.0f, 0.0f, 0.0f }}, {{ 0.0f, 1.0f, 0.0f }}, {{ 0.0f, 0.0f, 1.0f }} }};
+    }
+    const film::RGBCurves& pcurves = neutralCurves;
 
     // Where a neutral has to land, per channel, carrying its share of the base tint
     // so an orange mask neither prints to a dead neutral nor prints full orange.
@@ -691,7 +728,7 @@ void AlgoStage13_Duplication
     const HighPrecType blackPointStretch =
         static_cast<HighPrecType>(params.blackPointStretch);
 
-    AlgoSolveStageOffsets(dMid, pcurves, pPrintStock->dye_matrix, target,
+    AlgoSolveStageOffsets(dMid, pcurves, printDyeM, target,
                           blackPointStretch, offsets);
 
     // Print each record through the print stock's own curve. Written into the
@@ -708,7 +745,7 @@ void AlgoStage13_Duplication
     //  Same mechanism as stage 12, on a different set of dyes: print dyes are not
     //  spectrally pure either, and their impurity is what sets the print's gamut.
     // ----------------------------------------------------------------------
-    if (AlgoIsIdentityMatrix(pPrintStock->dye_matrix))
+    if (AlgoIsIdentityMatrix(printDyeM))
     {
         AlgoCopyImage(tmp[0], tmp[1], tmp[2],
                       pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
@@ -718,7 +755,7 @@ void AlgoStage13_Duplication
         AlgoApplyDensityMatrix(tmp[0], tmp[1], tmp[2],
                                pDstR, pDstG, pDstB,
                                sizeX, sizeY, pitch,
-                               pPrintStock->dye_matrix);
+                               printDyeM);
     }
 
     floorImage(pDstR, pDstG, pDstB, sizeX, sizeY, pitch);

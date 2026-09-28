@@ -159,6 +159,27 @@ inline const film::FilmProfile& AlgoResolveProcessVariant
             c[k]->gamma = c[k]->gamma * v.gamma_scale;
             c[k]->dmin  = c[k]->dmin  + v.dmin_shift;
         }
+
+        // ⚠⚠ AND THE MEASURED TABLE IS DROPPED (schema v55). A
+        // `MeasuredCurve` is 21 densities read at ONE development; scaling
+        // the gamma beside it does not scale the table, and because the table
+        // WINS inside its own range it would override the very adjustment
+        // made above. An adjusted curve is a MODEL, and the measurement it
+        // came from no longer describes it, so it falls back to the softplus
+        // -- which is exactly what the Python reference's `film_sim._retune`
+        // does at the same four sites, guarded by G-V55-MEAS-DROP. Leaving it
+        // attached would make this control a no-op on any stock carrying a
+        // table, silently.
+        // \note A variant that supplies its OWN curves never reaches here,
+        //       and must not: its table is its own measurement of its own
+        //       development, which is precisely what should be rendered.
+        for (int32_t k = 0; k < 3; k++)
+        {
+            c[k]->meas_x = nullptr;
+            c[k]->meas_d = nullptr;
+            c[k]->meas_m = nullptr;
+            c[k]->meas_n = 0;
+        }
     }
 
     if (0 != v.exposure_index)

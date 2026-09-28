@@ -260,6 +260,46 @@ struct ToneCurve {
     float shoulder_x;  ///< shoulder position
     float shoulder_k;  ///< shoulder softness
 
+    // -- schema v55: THE MEASURED CURVE ------------------------------------
+    //
+    // ⚠⚠ THE SIX PARAMETERS ABOVE ARE A FIT. For almost every stock in this
+    // database that is the honest representation, because the source is a
+    // PRINTED PLOT: the plot was traced, the trace was fitted, and the
+    // individual samples are an artefact of the tracing rather than a
+    // measurement. For a stock whose source printed a TABLE OF NUMBERS the
+    // samples ARE the measurement, and throwing them away to keep a
+    // five-parameter model of them costs 0.0065-0.0116 D rms -- concentrated
+    // in the toe, where a black-and-white negative's shadow rendering is
+    // decided.
+    //
+    // ⚠ THE TABLE DOES NOT REPLACE THE FIT. It spans only the exposures the
+    // test used. Inside that span the engine reads the measurement; outside
+    // it the engine evaluates the six parameters above, OFFSET so the two
+    // meet exactly at the boundary. The fitted toe still governs below the
+    // darkest step and the fitted shoulder above the lightest.
+    //
+    // ⚠ meas_m IS SHIPPED, NOT DERIVED HERE. Fritsch-Carlson monotone slopes,
+    // computed once by film_profiles._hermite_slopes and emitted alongside the
+    // samples. Three engines that each estimated their own derivative would be
+    // three chances to disagree; with the slopes in the table all three do the
+    // same six multiply-adds and agreement is structural. The monotone
+    // estimator is not optional: AlgoCharacteristicCurve.hpp has warned since
+    // it was written that a spline through measured points can turn back on
+    // itself and solarise every highlight, and Fritsch-Carlson is the answer
+    // to that warning rather than a way around it -- it zeroes the slope where
+    // the data turn and clamps it to three times the local secant elsewhere,
+    // so every interval is monotone by construction.
+    //
+    // nullptr / 0 on every curve whose source is a drawing, which today is
+    // every curve but FERRANIA_P30's six.
+    const float* meas_x;   ///< ascending abscissae, curve x units
+    const float* meas_d;   ///< density at each abscissa, non-decreasing
+    const float* meas_m;   ///< Fritsch-Carlson slope at each abscissa
+    int          meas_n;   ///< sample count, 0 when there is no table
+
+    /// True when this curve carries instrument samples.
+    bool hasMeasured() const { return meas_n >= 2 && meas_x && meas_d && meas_m; }
+
     /// Asymptotic maximum density.
     float dmax() const { return dmin + gamma * (shoulder_x - toe_x); }
     /// Exposure range between toe and shoulder, in stops.
@@ -274,6 +314,16 @@ struct RGBCurves {
     ToneCurve g;
     ToneCurve b;
 };
+
+// ---------------------------------------------------------------------------
+//  Measured-curve sample tables (schema v55).
+//
+//  Declared here and DEFINED ONCE in film_profiles.cpp -- external linkage
+//  rather than a constexpr array in the header, so that the twenty-odd
+//  translation units that include this file share one copy and none of them
+//  carries an unused-variable warning for a table it does not reference.
+// ---------------------------------------------------------------------------
+@MEASURED_DECLS@
 
 /// Silver-halide grain description. Grain variance scales as sqrt(density)
 /// because developed crystal counts are Poisson distributed; the renderer
@@ -897,6 +947,13 @@ struct ProcessingSpec
     /// equal to the curve's gamma: contrast index is an average gradient over a
     /// stated log-exposure interval, gamma is a straight-line slope.
     float       contrast_index;
+    // -- schema v52 (2026-09-24), INERT --------------------------------------
+    /// A SECOND, equally official schedule for the same film, verbatim.
+    /// \warning NOT a ProcessVariant: that carrier would have added
+    /// enumerators to ProcessVariantCtrl -- a control the user selects -- for
+    /// developments whose stored curves are the same curves. Empty on every
+    /// stock but the two Soviet reversal films whose ТУ print two cycles.
+    std::string alternative_regime;
     // -- schema v18 (2026-08-27), INERT --------------------------------------
     /// Which progress type this developer shows. See DevelopmentProgress.
     DevelopmentProgress progress;
@@ -964,6 +1021,51 @@ struct ParamSource
 /// NOT a separate profile either: a second profile would duplicate the grain,
 /// MTF, spectral and layer data -- the same coating -- need its own enum slot,
 /// and lose the statement that the two ARE one emulsion.
+/// One development leg of a SENSITOMETRIC TEST REPORT (schema v54, INERT).
+///
+/// \warning EVERY FIELD IS AS THE REPORT PRINTS IT, NOT AS THIS PROJECT WOULD
+/// DEFINE IT, and two of them deliberately disagree with the model values
+/// beside them. `avg_gradient` is the report's average gradient over its own
+/// subject brightness range, NOT ToneCurve::gamma, which is an asymptotic
+/// slope -- on the FERRANIA P30 legs the two differ by up to 2.2x.
+/// `base_fog` is the operator's measured B+F, NOT the fitted ToneCurve::dmin,
+/// which comes out of a six-parameter fit to the whole step tablet and
+/// disagrees with it by up to 0.06 D. Both are kept BECAUSE they disagree.
+///
+/// \warning NOTHING READS THIS YET. Carrier before consumer, as at v30, v31
+/// and v41. When a consumer is written: effective_film_speed is the speed a
+/// given development actually delivers, which is what an exposure-placement
+/// stage wants once a push or pull is selected, and subject_brightness_range
+/// with zone_n_number is the contrast-matching pair a tone stage wants.
+struct SensitometryReport
+{
+    float       avg_gradient;              ///< Avg. G. NOT gamma.
+    float       subject_brightness_range;  ///< SBR, in STOPS
+    /// EFS as an ISO-arithmetic number. \warning THE MEASURED VALUE, not the
+    /// nearest ladder step: the P30 report prints "32+", "50-" and "64--" and
+    /// its own log-scaled speed axis resolves those to 33.63, 48.71 and 58.58.
+    float       effective_film_speed;
+    std::string effective_film_speed_label;  ///< as printed, e.g. "64--"
+    /// Zone-System development number as a signed offset from normal: +1.0 is
+    /// N+1. \warning 0.0 means normal OR not printed; the source says which.
+    float       zone_n_number;
+    float       base_fog;              ///< the operator's MEASURED B+F
+    float       log_exposure_range;    ///< LogE -- latitude, this development
+    float       exposure_min;          ///< the endpoints that interval spans,
+    float       exposure_max;          ///<   on the report's step-tablet axis
+    float       density_min;           ///< IDmin
+    float       density_max;           ///< IDmax
+    float       density_range;         ///< DR
+    float       paper_exposure_scale;  ///< Paper ES
+    /// PSP -- the paper speed the EFS is quoted against. \warning An EFS
+    /// without it is not comparable with another laboratory's.
+    float       paper_speed_point;
+    float       flare_density;
+    std::string speed_method;          ///< e.g. "0.1 over FB+F"
+    std::string source;
+};
+
+
 struct ProcessVariant
 {
     std::string name;
@@ -988,6 +1090,28 @@ struct ProcessVariant
     /// stops, and an int could hold one of the four. Rounding is not the
     /// alternative -- 0 already means "different chemistry".
     float       push_stops;
+    /// This leg states a SPEED and the maker published no sensitometry for it
+    /// (schema v56).
+    ///
+    /// \warning IT EXISTS BECAUSE A VALIDATOR WAS DISCARDING PRINTED
+    /// EVIDENCE. Agfa's «Technical Data PF» p11 gives a working exposure
+    /// index per developer -- APX 100 meters ISO 125 in Refinal against a
+    /// nominal 100 -- and plots ONE characteristic curve per film, not one
+    /// per developer. The schema refused `push_stops` on any leg without
+    /// curves, so six legs that STATE a speed change stored 0.0, which reads
+    /// as "same speed as the box" and is the opposite of what the sheet says.
+    ///
+    /// \warning WHERE THIS IS TRUE, push_stops IS DERIVED AND NOT AUTHORED:
+    /// exactly log2(exposure_index / the profile's box speed), i.e. the ratio
+    /// of two numbers already stored beside it. A curveless leg asserting any
+    /// other figure is refused, because that would claim a contrast change
+    /// nothing measured.
+    ///
+    /// \warning NEITHER FIELD IS ON THE RENDER PATH. `push_stops` is read by
+    /// no stage in either engine; what meters a variant is `exposure_index`,
+    /// which AlgoResolveProcessVariant writes onto the resolved profile. A
+    /// recorded push therefore cannot double-count.
+    bool        speed_only;
     ProcessingSpec processing;
     /// The development's STABLE IDENTITY: the enumerator name, without its `e`
     /// prefix, of this development in ProcessVariantCtrl (schema v37).
@@ -999,6 +1123,9 @@ struct ProcessVariant
     /// AlgoResolveProcessVariant now matches ProcessVariantCtrlKeyOf() against
     /// this string, which is why the vector's own order no longer matters.
     std::string variant_id;
+    /// Everything a SENSITOMETRIC TEST REPORT prints that is not the curve
+    /// (schema v54, 2026-09-25, INERT).
+    SensitometryReport report;
     std::string source;
 };
 
@@ -1103,6 +1230,27 @@ struct ToleranceSpec
     /// ACROSS THE WIDTH of one roll. No Western sheet in this corpus has one.
     float uniformity_pct_max;
     float coating_uniformity_d_max;  ///< «равномерность полива», density units
+    // -- durability and shelf life (schema v52) ------------------------------
+    /// «Гарантийный срок хранения», months; the period the bounds apply over.
+    int32_t guarantee_months;
+    /// \warning THE FLAT PERIOD BEFORE DRIFT ACCRUES, a separate clause and
+    /// not an inference: four ТУ state that speed and D_min stay INSIDE the
+    /// release norms «в течение двух месяцев». The envelope is flat and then
+    /// runs to the bound; it is not a line from day one.
+    int32_t drift_free_months;
+    /// Permitted loss of overall speed over the guarantee, as a FRACTION.
+    float   ageing_speed_loss_frac;
+    /// Permitted density drift, density units, \warning SIGNED: positive =
+    /// D_min rises, negative = D_max falls. The sign flips with stock kind --
+    /// a negative ages by fogging, a reversal by losing its blacks.
+    float   ageing_density_drift;
+    std::string ageing_drift_quantity;   ///< "dmin" | "dmax" | ""
+    /// «Термостатная усадка при выпуске … не более», per cent. NOT
+    /// AgingSpec::shrinkage_pct, which is post-PROCESSING shrinkage.
+    float   thermostat_shrinkage_pct_max;
+    /// «Предел сенсибилизации красночувствительного слоя … не более», nm.
+    /// The only spectral number in 176 sheets of Soviet specifications.
+    float   red_sensitisation_limit_nm;
     // -- bookkeeping --------------------------------------------------------
     std::string category;   ///< quality grade, where the source files one
     /// True on the record the profile's own scalars and curves represent.
@@ -1668,6 +1816,17 @@ struct DevelopmentPoint {
     /// the second block's label for a developer name, which is how 705 of the
     /// book's values sat unattributed until queue P54.
     std::string film_format;
+    // -- schema v53 (2026-09-24c), INERT -------------------------------------
+    /// Which PRINTING GEOMETRY the time was chosen for: "" (not stated),
+    /// "condenser" or "diffusion".
+    ///
+    /// Ilford print every development table twice, for condenser and for
+    /// diffusion enlargers, and the two differ by 30-75 % of time -- ID-11
+    /// undiluted at 20 C is HP5 35 mm 7.5 min against 10. A condenser prints
+    /// a specular density and a diffusion head a diffuse one, so the same
+    /// print contrast wants a lower negative gamma under a condenser, by the
+    /// Callier factor `callier_q` already carries per stock.
+    std::string print_geometry;
 };
 
 /// The whole published processing axis, not the single condition recorded in
@@ -2450,7 +2609,8 @@ def _processing_family(pf) -> str:
         + f"{_d(q.minutes)}, {_d(q.celsius)}, "
         + f"{_d(q.contrast_index)}, {_d(q.gamma)}, {q.exposure_index}, "
         + f'{_d(q.base_fog)}, "{_escape(q.vessel)}", '
-        + f'"{_escape(q.edition)}", "{_escape(q.film_format)}"'
+        + f'"{_escape(q.edition)}", "{_escape(q.film_format)}", '
+        + f'"{_escape(q.print_geometry)}"'
         + " }"
         for q in pf.points)
     laws = ", ".join(
@@ -2498,19 +2658,85 @@ def _spectral_comment(p: FilmProfile) -> str:
     )
 
 
-def _curve(c: ToneCurve) -> str:
-    return (
-        "{ "
-        + ", ".join(
-            _f(v)
-            for v in (c.dmin, c.gamma, c.toe_x, c.toe_k, c.shoulder_x, c.shoulder_k)
-        )
-        + " }"
+#: Measured tables seen during this emission, keyed by their samples so that
+#: two curves carrying the SAME table (FERRANIA_P30's profile curve and its
+#: 11-minute variant are the same measurement) share one emitted array.
+#: (name, log_h, density, slopes, owners)
+_MEASURED_TABLES: "dict" = {}
+
+
+def _measured_key(m):
+    return (m.log_h, m.density)
+
+
+def _register_measured(m, owner: str) -> str:
+    """Intern one measured table and return its emitted array base name."""
+    k = _measured_key(m)
+    hit = _MEASURED_TABLES.get(k)
+    if hit is not None:
+        if owner not in hit[4]:
+            hit[4].append(owner)
+        return hit[0]
+    name = "kMeasuredCurve%02d" % (len(_MEASURED_TABLES) + 1)
+    _MEASURED_TABLES[k] = (name, m.log_h, m.density, m.slopes, [owner],
+                           m.source, m.condition)
+    return name
+
+
+def _measured_decls() -> str:
+    if not _MEASURED_TABLES:
+        return ("// (no stock in this database carries instrument samples.)\n")
+    out = []
+    for name, x, _d, _m, owners, _src, cond in _MEASURED_TABLES.values():
+        out.append("// %s -- %s, %d samples.\n"
+                   % (", ".join(owners), cond, len(x)))
+        for suf in ("X", "D", "M"):
+            out.append("extern const float %s%s[%d];\n" % (name, suf, len(x)))
+    return "".join(out)
+
+
+def _measured_defs() -> str:
+    if not _MEASURED_TABLES:
+        return ""
+    out = ["\n// ---------------------------------------------------------"
+           "------------------\n"
+           "//  Measured characteristic-curve samples (schema v55).\n"
+           "//\n"
+           "//  ⚠ THE SLOPES ARE DATA, NOT A CACHE. They are the\n"
+           "//  Fritsch-Carlson derivative of the samples beside them,\n"
+           "//  computed by film_profiles._hermite_slopes and emitted so that\n"
+           "//  Python, Scalar and AVX2 interpolate identically instead of\n"
+           "//  each estimating a derivative. Editing a sample without\n"
+           "//  regenerating breaks the monotonicity the interpolant relies\n"
+           "//  on; regenerate, never hand-edit.\n"
+           "// ---------------------------------------------------------"
+           "------------------\n"]
+    for name, x, d, m, owners, src, cond in _MEASURED_TABLES.values():
+        out.append("\n// %s\n// %s\n// %s\n"
+                   % (", ".join(owners), cond, src))
+        for suf, vals in (("X", x), ("D", d), ("M", m)):
+            body = ", ".join(_f(v) for v in vals)
+            out.append("const float %s%s[%d] = { %s };\n"
+                       % (name, suf, len(vals), body))
+    return "".join(out)
+
+
+def _curve(c: ToneCurve, owner: str = "") -> str:
+    head = ", ".join(
+        _f(v)
+        for v in (c.dmin, c.gamma, c.toe_x, c.toe_k, c.shoulder_x, c.shoulder_k)
     )
+    m = getattr(c, "measured", None)
+    if m is None or not m.has_data:
+        return "{ " + head + ", nullptr, nullptr, nullptr, 0 }"
+    base = _register_measured(m, owner or "unnamed curve")
+    return ("{ " + head
+            + ", %sX, %sD, %sM, %d }" % (base, base, base, len(m.log_h)))
 
 
-def _curves(c) -> str:
-    return f"{{ {_curve(c.r)}, {_curve(c.g)}, {_curve(c.b)} }}"
+def _curves(c, owner: str = "") -> str:
+    return (f"{{ {_curve(c.r, owner + ' r')}, {_curve(c.g, owner + ' g')}, "
+            f"{_curve(c.b, owner + ' b')} }}")
 
 
 def _vec3(vals) -> str:
@@ -2657,7 +2883,31 @@ def _param_sources(seq) -> str:
     return "{ " + items + " }"
 
 
-def _process_variants(seq) -> str:
+def _sens_report(r) -> str:
+    """SensitometryReport aggregate initialiser (schema v54).
+
+    ⚠ ALWAYS EMITTED, even when empty, because it is a member of the
+    ProcessVariant aggregate and C++ aggregate initialisation is positional.
+    An empty record is all zeros and two empty strings, which `has_data` on
+    the Python side and a zero `paper_speed_point` on the C++ side both read
+    as "this variant came from something other than a test report".
+    """
+    return "{ " + ", ".join([
+        _f(r.avg_gradient), _f(r.subject_brightness_range),
+        _f(r.effective_film_speed),
+        f'"{_escape(r.effective_film_speed_label)}"',
+        _f(r.zone_n_number), _f(r.base_fog),
+        _f(r.log_exposure_range),
+        _f(r.exposure_min), _f(r.exposure_max),
+        _f(r.density_min), _f(r.density_max), _f(r.density_range),
+        _f(r.paper_exposure_scale), _f(r.paper_speed_point),
+        _f(r.flare_density),
+        f'"{_escape(r.speed_method)}"',
+        f'"{_escape(r.source)}"',
+    ]) + " }"
+
+
+def _process_variants(seq, owner: str = "") -> str:
     """std::vector<ProcessVariant> initialiser (schema v18)."""
     if not seq:
         return "{}"
@@ -2671,7 +2921,8 @@ def _process_variants(seq) -> str:
         # copy of the parent's, which is the safer failure.
         _zero = ToneCurve(0.0, 1.0, -1.0, 0.5, 1.0, 0.5)
         curves_txt = _curves(cur if cur is not None
-                             else RGBCurves(_zero, _zero, _zero))
+                             else RGBCurves(_zero, _zero, _zero),
+                             "%s / %s" % (owner, v.name))
         items.append(
             "{ "
             + ", ".join([
@@ -2684,8 +2935,10 @@ def _process_variants(seq) -> str:
                 _f(v.gamma_scale),
                 _f(v.dmin_shift),
                 _f(v.push_stops),
+                "true" if v.speed_only else "false",
                 _processing(v.processing),
                 f'"{_escape(v.variant_id)}"',
+                _sens_report(v.report),
                 f'"{_escape(v.source)}"',
             ])
             + " }"
@@ -2749,6 +3002,11 @@ def _tolerance(seq) -> str:
                 + [_f(t.mtf_freq_mm),
                    "true" if t.structure_is_overall else "false",
                    _f(t.uniformity_pct_max), _f(t.coating_uniformity_d_max),
+                   str(t.guarantee_months), str(t.drift_free_months),
+                   _f(t.ageing_speed_loss_frac), _f(t.ageing_density_drift),
+                   f'"{_escape(t.ageing_drift_quantity)}"',
+                   _f(t.thermostat_shrinkage_pct_max),
+                   _f(t.red_sensitisation_limit_nm),
                    f'"{_escape(t.category)}"',
                    "true" if t.is_default else "false",
                    f'"{_escape(t.source)}"'])
@@ -2836,7 +3094,8 @@ def _processing(x) -> str:
     # both. An absent process emits a default-constructed ProcessingSpec, which
     # is what "not stated" has always looked like on the C++ side.
     if x is None:
-        return ('{ "", "", 0.0f, 0.0f, "", 0.0f, DevelopmentProgress::Unknown,'
+        return ('{ "", "", 0.0f, 0.0f, "", 0.0f, "",'
+                ' DevelopmentProgress::Unknown,'
                 ' 0.0f, 0.0f, { 0.0f, 0.0f, 0, 1, "" } }')
     """ProcessingSpec initialiser. Strings are quoted; absent = empty/zero."""
     return (
@@ -2849,6 +3108,7 @@ def _processing(x) -> str:
                 _f(x.celsius),
                 f'"{_escape(x.agitation)}"',
                 _f(x.contrast_index),
+                f'"{_escape(x.alternative_regime)}"',
                 _PROGRESS_CPP[x.progress.value],
                 _f(x.partial_fill_fraction),
                 _f(x.rate_size_coeff_um_min),
@@ -3041,7 +3301,7 @@ def _profile_block(p: FilmProfile) -> str:
             {"true" if p.is_monochrome else "false"},
             {p.exposure_index},
             {p.balance_kelvin},
-            {_curves(p.curves)},
+            {_curves(p.curves, p.name)},
             {{ {_f(g.rms_granularity)}, {_f(g.clump_um_r)}, {_f(g.clump_um_g)}, {_f(g.clump_um_b)}, {_f(g.clump_gain)}, {_f(g.fog_grain)}, {_f(g.anisotropy)}, {_f(g.rms_r)}, {_f(g.rms_g)}, {_f(g.rms_b)}, {_f(g.sigma_shape_toe)}, {_f(g.sigma_shape_mid)}, {_f(g.sigma_shape_dmax)}, {_f(g.sigma_shape_peak)}, {_f(g.sigma_shape_peak_at)}, {_f(g.sigma_shape_toe_at)}, {_f(g.sigma_shape_dmax_at)}, {"true" if g.sigma_shape_measured else "false"}, {_f(g.size_sigma_log)}, {_f(g.cluster_um)}, {_f(g.dye_cloud_um)}, {_f(g.grain_um_rgb()[0])}, {_f(g.grain_um_rgb()[1])}, {_f(g.grain_um_rgb()[2])}, {_f(g.development_gamma_ref)}, {_f(g.sigma_sat_droll)}, {_f(g.sigma_sat_q)}, {_f(g.rho_layers)}, {1 if g.grain_temporal_class == "scanner_fixed_pattern" else 0} }},
             {{ {_f(m.f50_r)}, {_f(m.f50_g)}, {_f(m.f50_b)}, {_f(m.adjacency)}, {_f(m.adjacency_um)}, {_f(m.resolving_power_lp_mm_lowc)}, {_f(m.resolving_power_lp_mm_highc)}, {_f(m.mtf_rolloff_q)}, {"true" if m.mtf_measured else "false"}, {_f(m.mtf_tail_a)}, {_f(m.mtf_tail_f_exp)}, {_f(m.resolving_power_lp_mm_fuess)}, {_f(m.resolving_power_lp_mm_apo)}, "{_escape(m.resolving_optic)}", "{_escape(m.resolving_target_contrast)}", {_f(m.resolving_density)} }},
             {{ {_vec3(hal.radii_um)}, {_vec3(hal.weights)}, {_f(hal.gain_r)}, {_f(hal.gain_g)}, {_f(hal.gain_b)}, {_f(hal.threshold_stops)}, {_f(hal.radius_scale_r)}, {_f(hal.radius_scale_g)}, {_f(hal.radius_scale_b)} }},
@@ -3090,7 +3350,7 @@ def _profile_block(p: FilmProfile) -> str:
             {_emulsion(p.emulsion)},
             {_third_party(p.third_party)},
             {_param_sources(p.param_sources)},
-            {_process_variants(p.process_variants)},
+            {_process_variants(p.process_variants, p.name)},
             {_aim_density(p.aim_density)},
             {_base(p.base)},
             {_tolerance(p.tolerance)}
@@ -3102,7 +3362,7 @@ def _print_block(s: PrintStock) -> str:
     return _print_stock_comment(s) + f"""        {{
             "{_escape(s.name)}",
             "{_escape(s.description)}",
-            {_curves(s.curves)},
+            {_curves(s.curves, s.name)},
             {_f(s.mtf_f50)}, {_f(s.grain_rms)}, {_f(s.grain_clump_um)},
             {_matrix(s.dye_matrix)},
             {_f(s.printer_light_r)}, {_f(s.printer_light_g)}, {_f(s.printer_light_b)},
@@ -3342,11 +3602,32 @@ def _print_block(s: PrintStock) -> str:
 # names-file line, and NO FILM ID MOVED. Only the number of files the same
 # storage order is sliced into has changed.
 #
-# ⚠⚠ OWNER ACTION REQUIRED IN VISUAL STUDIO: `film_profiles_data_27.cpp` and
-# `film_profiles_data_28.cpp` must be ADDED TO THE .vcxproj. The CMake build
+# ⚠⚠ OWNER ACTION REQUIRED IN VISUAL STUDIO, 2026-09-25: `film_profiles_data_29.cpp`
+# and `film_profiles_data_30.cpp` must be ADDED TO THE .vcxproj. The CMake build
 # globs `src/*.cpp` and picks them up by itself; Visual Studio lists files
-# once and will not.
-N_DATA_SLOTS = 28          #: fixed; the .vcxproj lists these files once
+# once and will not. (The earlier 27 / 28 pair is already listed.)
+#
+# ⚠⚠ 28 -> 30 AND THE 28 WAS NOT A ROUND NUMBER TO GROW OUT OF -- IT WAS FULL.
+# `_distribute` below is PROVABLY OPTIMAL: binary search for the smallest
+# feasible maximum, then a DP over the many partitions achieving it. So when
+# it reports a slot over `SLOT_SOURCE_LIMIT`, no rearrangement exists that
+# would fit -- the only choices are more slots or less emitted text. At 28
+# slots the FERRANIA P30 harvest of 2026-09-25 left TWO slots over by 3 989
+# bytes in total, and the second of them (VISION2 / VISION3) holds no part of
+# that harvest: the partition boundaries move, so a large addition anywhere
+# can push an untouched neighbour over. Trimming to stay at 28 would have
+# meant deleting other harvests' provenance to make room for this one.
+#
+#     slots   high-water   headroom
+#        28     114 267     -2 267   two slots over
+#        29     109 667      +2 333   fits, one harvest from failing again
+#        30     105 325      +6 675   chosen
+#
+# 30 was chosen over 29 on the owner's decision so that ONE Visual Studio edit
+# buys two harvests of room instead of one. ⚠ THE AVERAGE SLOT IS 97 698 BYTES
+# AT 30, so the limit is not close on any slot; the binding constraint is the
+# largest INDIVISIBLE profile block, not the total.
+N_DATA_SLOTS = 30          #: fixed; the .vcxproj lists these files once
 SLOT_SOURCE_LIMIT = 112_000  #: bytes of emitted source per slot, hard error
 
 
@@ -3774,7 +4055,8 @@ def _cpp_source(stamp: str) -> str:
     )
     out.append("    };\n    return table;\n}\n\n")
 
-    out.append("}  // namespace film\n")
+    out.append(_measured_defs())
+    out.append("\n}  // namespace film\n")
     return "".join(out)
 
 
@@ -4155,9 +4437,12 @@ def generate(outdir: Path | str = ".",
     hpp = d / "film_profiles.hpp"
     cpp = d / "film_profiles.cpp"
     stamp = _timestamp()
-    hpp_text = HPP_TEMPLATE.replace("@GENERATED@", stamp).replace(
-        "@SCHEMA_VERSION@", str(SCHEMA_VERSION))
-    hpp.write_text(hpp_text, encoding="utf-8", newline="\n")
+    # ⚠ THE SLOTS ARE EMITTED BEFORE THE HEADER, AND THAT ORDER IS LOAD
+    # BEARING. `_curve` interns every measured table it meets into
+    # `_MEASURED_TABLES` as a side effect of emitting the profile literals, so
+    # the header's extern declarations and film_profiles.cpp's definitions can
+    # only be written once all the literals have been produced.
+    _MEASURED_TABLES.clear()
     schema_h = d / "film_schema_version.h"
     schema_h.write_text(
         SCHEMA_VERSION_H_TEMPLATE.replace("@GENERATED@", stamp).replace(
@@ -4190,6 +4475,18 @@ def generate(outdir: Path | str = ".",
     loader_cpp.write_text(_loader_cpp_source(stamp), encoding="utf-8",
                           newline="\n")
     cpp.write_text(_cpp_source(stamp), encoding="utf-8", newline="\n")
+
+    # ⚠ THE HEADER IS WRITTEN LAST. Its @MEASURED_DECLS@ block lists the
+    # sample tables that the profile literals, the process-variant literals
+    # and the print-stock literals actually reference, and those literals were
+    # produced by the four write_text calls above. Writing the header first
+    # would emit an empty declaration block and every data slot would then
+    # fail to compile with an undeclared identifier -- loudly, which is the
+    # right failure, but avoidable by ordering.
+    hpp_text = (HPP_TEMPLATE.replace("@GENERATED@", stamp)
+                .replace("@SCHEMA_VERSION@", str(SCHEMA_VERSION))
+                .replace("@MEASURED_DECLS@", _measured_decls()))
+    hpp.write_text(hpp_text, encoding="utf-8", newline="\n")
 
     # names file last: it reads the emitted slots back to lock
     # listbox index == vector index == enum value

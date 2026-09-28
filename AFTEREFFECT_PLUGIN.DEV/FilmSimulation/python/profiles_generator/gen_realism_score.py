@@ -143,7 +143,54 @@ AXIS_APPLIES = {
 }
 
 
+def _has_dye_image(p) -> bool:
+    """Does this stock form its image in DYE at all?
+
+    ⚠⚠ ADDED 2026-09-24 TO CLOSE A SCORING DEFECT THIS FILE HAD SINCE
+    `dye_density` BECAME A SCORED AXIS, and it is the same O-versus-?
+    confusion the `AXIS_APPLIES` docstring above exists to prevent -- caught
+    on its sibling axis and missed on this one.
+
+    `dye_matrix` was correctly gated to colour stocks. `dye_density` was not,
+    so every SILVER black-and-white film in the corpus was scored 0.15 on
+    "traced spectral dye density" -- a measurement of dyes it does not
+    contain. A developed silver image is metallic silver; its spectral
+    transmission is a property of grain scattering, and ISO 5-2 diffuse
+    visual density is how it is read. There is no cyan, magenta or yellow
+    layer to trace, and no document will ever supply one.
+
+    The cost was not academic: at 6.4 % axis weight and 0.85 of unearned
+    deficit, it removed about 5.4 points from each of thirteen modern
+    monochrome stocks -- APX 25/100/400, SCALA 200X, P30, FOMAPAN 400,
+    NEOPAN 1600 and SS, DELTA 3200, KENTMERE PAN 100 and 400, ROLLEI R3,
+    RETRO 400 and INFRARED 400 -- and from every historical silver stock
+    besides. Those points were not recoverable by any amount of research,
+    which is exactly the signature of a mis-gated axis rather than a real gap.
+
+    ⚠ THE EXCEPTION IS REAL AND MUST NOT BE FOLDED AWAY. Chromogenic
+    monochrome films -- T400CN, BW400CN, XP2 Super -- are `is_monochrome`
+    and DO have a dye image: the silver is bleached out in C-41 and what
+    remains is a neutral dye cloud. A rule keyed on `is_monochrome` alone
+    would wrongly exempt them, and they are precisely the two mono stocks in
+    this corpus that already CARRY traced dye-density data. The
+    discriminator is therefore the PROCESS, not the colour flag.
+    """
+    if not p.is_monochrome:
+        return True
+    return "C-41" in (p.processing.developer or "")
+
+
+#: Axis -> predicate, for applicability tests that the control matrix does not
+#: already answer. Checked before `AXIS_APPLIES`.
+AXIS_APPLIES_FN = {
+    "dye_density": _has_dye_image,
+}
+
+
 def _applies(profile, axis: str) -> bool:
+    fn = AXIS_APPLIES_FN.get(axis)
+    if fn is not None and not fn(profile):
+        return False
     name = AXIS_APPLIES.get(axis)
     if not name:
         return True

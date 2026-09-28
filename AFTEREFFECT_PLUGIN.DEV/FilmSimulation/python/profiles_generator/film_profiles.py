@@ -96,6 +96,8 @@ import math
 import re
 import warnings
 from dataclasses import MISSING as _DC_MISSING
+from functools import lru_cache
+import math as _math
 from dataclasses import dataclass, field, fields as _dc_fields, replace
 from enum import Enum, Flag, auto
 from typing import NamedTuple
@@ -2573,7 +2575,7 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 # ---------------------------------------------------------------------------
 # v31 (2026-09-11) -- the sixteen-patent + ГОСТ 9160-91 batch. Two fields.
 # ---------------------------------------------------------------------------
-# ⚠ THIS BUMP CORRECTS A CONCLUSION THIS LOG REACHED YESTERDAY, and the
+# ⚠ THIS BUMP CORRECTS A CONCLUSION RECORDED IN THE PREVIOUS ENTRY, and the
 # correction matters more than the fields. The v30 entry above states that
 # "per-stock interimage coefficients are STRUCTURALLY UNOBTAINABLE from
 # manufacturer data ... No further datasheet harvesting will produce them."
@@ -3037,7 +3039,24 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 #     prints «Фото ЦНЛ-65» twice, and the two grades differ by 27 lin/mm).
 # A v51 render at defaults is BIT-IDENTICAL to a v50 one: the new field is
 # read by nothing in either engine.
-SCHEMA_VERSION = 51
+#
+# -- v52 (2026-09-24): SEVEN FIELDS, AND THEY EMPTY FOUR PARKED TABLES -------
+#   * `ToleranceSpec` gains a DURABILITY block -- `guarantee_months`,
+#     `drift_free_months`, `ageing_speed_loss_frac`, `ageing_density_drift`,
+#     `ageing_drift_quantity`, `thermostat_shrinkage_pct_max` and
+#     `red_sensitisation_limit_nm`. These come from four module-level tables
+#     that reached no profile: the ageing envelope, the drift-free period, the
+#     oven shrinkage and the one spectral number in 176 Soviet sheets. They
+#     were parked on 2026-09-23 because the only carrier that looked right was
+#     `AgingSpec`, which holds a STATE where a ТУ prints a BOUND -- and v51's
+#     `ToleranceSpec` is a struct of bounds, so the objection lapsed.
+#   * `ProcessingSpec.alternative_regime`, a second official schedule as
+#     printed. Two Soviet reversal ТУ print a whole second cycle; a
+#     `ProcessVariant` was tried and reverted because it would have put four
+#     dead enumerators into a control the user selects.
+# A v52 render at defaults is BIT-IDENTICAL to a v51 one: both additions are
+# read by nothing in either engine.
+SCHEMA_VERSION = 56
 
 
 # -- v43 (2026-09-18c, queues P12 / P39 / P13 / P40 / P41 / M1a): SIX ROWS
@@ -3106,6 +3125,368 @@ class Feature(Flag):
 # ---------------------------------------------------------------------------
 # Characteristic curve (D-logE / Hurter-Driffield)
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# The measured curve (schema v55, 2026-09-25c)
+# ---------------------------------------------------------------------------
+def _hermite_slopes(x: tuple, y: tuple) -> tuple:
+    """Fritsch-Carlson monotone slopes -- the PCHIP derivative, exactly.
+
+    ⚠⚠ THIS IS COMPUTED ONCE, HERE, AND SHIPPED. It is not re-derived in the
+    renderer and it is not re-derived in C++. Three implementations of a
+    derivative estimator would be three chances to disagree, and the whole
+    value of a measured curve is that the number the engine renders is the
+    number the instrument read; the slopes are emitted into the generated
+    tables alongside the samples and every engine does the same six
+    multiply-adds with them. That makes agreement structural rather than
+    measured -- which is the property `AlgoCurveLut.hpp`'s own header note
+    says the softplus/table pair does NOT have.
+
+    ⚠ WHY MONOTONE INTERPOLATION AND NOT A NATURAL SPLINE.
+    `AlgoCharacteristicCurve.hpp` has warned since it was written that "a
+    piecewise fit or a spline through measured points can and does [turn back
+    on itself], and a non-monotonic patch in the shoulder produces a visible
+    solarised ring around every highlight". That warning is correct and it is
+    the reason this project renders a softplus. Fritsch-Carlson answers it
+    rather than ignoring it: the slope is set to zero wherever the data turn,
+    and clamped to three times the local secant elsewhere, so the interpolant
+    is monotone on every interval BY CONSTRUCTION, exactly like the softplus.
+    An earlier pass in this same file was bitten by the opposite choice -- a
+    cubic inverse of a neutral ramp returned +1.62 decade where the answer was
+    -0.49, wrong in sign -- so this is a lesson already paid for.
+
+    The estimator is scipy's `PchipInterpolator`, reimplemented so that the
+    database has no scipy import; `MeasuredCurve.validate` checks the two
+    agree to 1e-9 whenever scipy is present.
+    """
+    n = len(x)
+    if n < 2:
+        return tuple(0.0 for _ in x)
+    h = [x[i + 1] - x[i] for i in range(n - 1)]
+    d = [(y[i + 1] - y[i]) / h[i] for i in range(n - 1)]
+    m = [0.0] * n
+    for i in range(1, n - 1):
+        if d[i - 1] * d[i] <= 0.0:
+            m[i] = 0.0
+        else:
+            w1 = 2.0 * h[i] + h[i - 1]
+            w2 = h[i] + 2.0 * h[i - 1]
+            m[i] = (w1 + w2) / (w1 / d[i - 1] + w2 / d[i])
+
+    def _end(h0, h1, d0, d1):
+        v = ((2.0 * h0 + h1) * d0 - h0 * d1) / (h0 + h1)
+        if v * d0 <= 0.0:
+            return 0.0
+        if d0 * d1 <= 0.0 and abs(v) > abs(3.0 * d0):
+            return 3.0 * d0
+        return v
+
+    if n == 2:
+        m[0] = m[1] = d[0]
+    else:
+        m[0] = _end(h[0], h[1], d[0], d[1])
+        m[-1] = _end(h[-1], h[-2], d[-1], d[-2])
+    return tuple(m)
+
+
+@lru_cache(maxsize=None)
+def _hermite_slopes_cached(x: tuple, y: tuple) -> tuple:
+    return _hermite_slopes(x, y)
+
+
+@dataclass(frozen=True, slots=True)
+class MeasuredCurve:
+    """The instrument's own (log H, density) samples (schema v55).
+
+    ⚠⚠ WHY A DATABASE THAT ALREADY STORES A FITTED CURVE NEEDS THE POINTS.
+    Every characteristic curve in this file is five softplus parameters, and
+    for the 500-odd curves whose only source is a PRINTED PLOT that is the
+    honest representation -- the plot was traced, the trace was fitted, and
+    the samples are an artefact of the tracing, not a measurement. FERRANIA
+    P30 is the first stock in the corpus where that is NOT so: its source is a
+    TABLE OF NUMBERS, 21 step-tablet steps x 5 development times, printed to
+    two decimal places on page 2 of the alfa test report. Fitting it and
+    storing only the fit throws away the measurement and keeps the model of
+    it, and the residual is not nothing: 0.0065 to 0.0116 D rms across the
+    five legs, with the largest errors concentrated in the toe, which is
+    exactly where a black-and-white negative's shadow rendering is decided.
+
+    ⚠ IT DOES NOT REPLACE THE SOFTPLUS, IT SITS BESIDE IT. The samples span
+    only the exposures the test used -- here 2.99 decades, step 1 to step 21 --
+    and a render routinely asks for densities outside that. Inside the sampled
+    range the engine reads the measurement; outside it the engine evaluates
+    the fitted softplus, OFFSET so the two agree exactly at the boundary. So
+    the fit remains load-bearing, is still validated, and still governs the
+    toe below the darkest step and the shoulder above the lightest.
+
+    ⚠ THE FIT IS ALSO THE CHECK ON THE TABLE. `validate` refuses a measured
+    curve that disagrees with its own softplus parameters by more than
+    `FIT_RMS_MAX_D`, which is what stops a table being pasted beside the wrong
+    curve -- the single most likely way this field could be got wrong, and the
+    exact class of error (a spectrogram on the wrong emulsion) that produced
+    the Ferrania split in the first place.
+
+    Attributes:
+        log_h: sample abscissae, STRICTLY ASCENDING, in the curve's own x
+            units -- the same log-H axis as `ToneCurve.toe_x`.
+        density: the density read at each abscissa. Must be non-decreasing:
+            a measured reversal is stored against negated log H exactly as
+            its `ToneCurve` is, so the stored samples always ascend.
+        (`slopes` is a derived PROPERTY, not a stored field: the
+            Fritsch-Carlson derivative at each sample, cached, and emitted
+            into the generated C++ tables so that Python, Scalar and AVX2
+            evaluate identical arithmetic rather than three derivative
+            estimators.)
+        source: full citation, including the page the table is printed on.
+        density_metric: the densitometry the numbers are in, when the source
+            states it -- "" when it does not. NOT defaulted from the class:
+            the point of this record is that it is read rather than inferred.
+        condition: the one development this table was measured at, in words.
+    """
+
+    log_h: tuple[float, ...] = ()
+    density: tuple[float, ...] = ()
+    source: str = ""
+    density_metric: str = ""
+    condition: str = ""
+
+    #: Largest rms disagreement tolerated between the samples and the softplus
+    #: parameters they sit beside.
+    #: ⚠ MEASURED, NOT PICKED, AND THE MARGIN IS THE REASON IT IS WORTH
+    #: HAVING. The five P30 legs fit their own curves at 0.0065 / 0.0097 /
+    #: 0.0107 / 0.0116 / 0.0103 D rms, so 0.05 sits 4.3x above the worst
+    #: correct pairing this database holds. Pairing any of the five tables
+    #: with the NEAREST WRONG leg of the SAME film -- the most confusable
+    #: error there is -- gives 0.2556 / 0.2020 / 0.2021 / 0.3323 / 0.3326,
+    #: i.e. 4x over the limit at the closest. The guard therefore separates
+    #: every real pairing from every wrong one with a factor of four in each
+    #: direction, which is what a threshold has to do to be worth writing.
+    FIT_RMS_MAX_D = 0.05
+
+    @property
+    def has_data(self) -> bool:
+        return len(self.log_h) >= 2
+
+    @property
+    def slopes(self) -> tuple:
+        """Fritsch-Carlson derivatives, cached on the sample tuples."""
+        return _hermite_slopes_cached(self.log_h, self.density)
+
+    def density_at(self, x: float, fit) -> float:
+        """Density at one abscissa: the measurement inside, the fit outside.
+
+        `fit` is the `ToneCurve` this table belongs to. Kept here rather than
+        in the renderer so that Python's reference answer and the generated
+        C++ come from one written-down rule.
+        """
+        import math as _m
+        n = len(self.log_h)
+        if n < 2:
+            return _tone_softplus_density(x, fit)
+        if x <= self.log_h[0]:
+            return (_tone_softplus_density(x, fit)
+                    + self.density[0]
+                    - _tone_softplus_density(self.log_h[0], fit))
+        if x >= self.log_h[-1]:
+            return (_tone_softplus_density(x, fit)
+                    + self.density[-1]
+                    - _tone_softplus_density(self.log_h[-1], fit))
+        lo, hi = 0, n - 1
+        while hi - lo > 1:
+            mid = (lo + hi) // 2
+            if self.log_h[mid] <= x:
+                lo = mid
+            else:
+                hi = mid
+        h = self.log_h[lo + 1] - self.log_h[lo]
+        t = (x - self.log_h[lo]) / h
+        t2 = t * t
+        t3 = t2 * t
+        return (( 2.0 * t3 - 3.0 * t2 + 1.0) * self.density[lo]
+                + (       t3 - 2.0 * t2 + t) * h * self.slopes[lo]
+                + (-2.0 * t3 + 3.0 * t2)     * self.density[lo + 1]
+                + (       t3 -       t2)     * h * self.slopes[lo + 1])
+
+    def validate(self, label: str = "", fit=None) -> None:
+        if not self.log_h and not self.density:
+            if self.slopes or self.source or self.condition:
+                raise ValueError(
+                    f"{label}: a MeasuredCurve with no samples cannot carry a "
+                    f"source or a condition")
+            return  # inert default
+        if len(self.log_h) != len(self.density):
+            raise ValueError(
+                f"{label}: {len(self.log_h)} abscissae against "
+                f"{len(self.density)} densities")
+        if len(self.log_h) < 5:
+            raise ValueError(
+                f"{label}: {len(self.log_h)} samples is not a measured curve "
+                f"-- below five points the softplus fit carries more "
+                f"information than the table does")
+        for i in range(len(self.log_h) - 1):
+            if self.log_h[i + 1] <= self.log_h[i]:
+                raise ValueError(
+                    f"{label}: log_h must ascend strictly; sample {i + 1} "
+                    f"({self.log_h[i + 1]}) does not exceed sample {i} "
+                    f"({self.log_h[i]})")
+            if self.density[i + 1] < self.density[i] - 1e-12:
+                raise ValueError(
+                    f"{label}: density falls from {self.density[i]} to "
+                    f"{self.density[i + 1]} between samples {i} and {i + 1}. "
+                    f"A measured curve is stored ASCENDING -- a reversal "
+                    f"stock's table is negated in log H exactly as its "
+                    f"ToneCurve is. A real reversal in the data would make "
+                    f"the interpolant non-monotone and solarise the render")
+        if not self.source:
+            raise ValueError(f"{label}: a measured curve requires a source")
+        if not self.condition:
+            raise ValueError(
+                f"{label}: a measured curve is ONE development and must say "
+                f"which -- a table with no condition cannot be compared with "
+                f"any other")
+        if len(self.slopes) != len(self.log_h):
+            raise ValueError(f"{label}: slope derivation returned the wrong "
+                             f"length")
+        # ⚠ MONOTONE BY CONSTRUCTION IS A CLAIM AND IT IS CHECKED HERE. The
+        # Fritsch-Carlson condition is that the slope at each end of an
+        # interval lies inside [0, 3*secant]; if it does, the cubic cannot
+        # turn. A failure would mean the estimator above has been edited into
+        # something that is not Fritsch-Carlson, so this guards the code, not
+        # the data.
+        for i in range(len(self.log_h) - 1):
+            sec = ((self.density[i + 1] - self.density[i])
+                   / (self.log_h[i + 1] - self.log_h[i]))
+            for m_ in (self.slopes[i], self.slopes[i + 1]):
+                if m_ < -1e-12 or m_ > 3.0 * sec + 1e-9:
+                    raise ValueError(
+                        f"{label}: interval {i} has secant {sec:.6f} and an "
+                        f"end slope {m_:.6f} outside [0, 3*secant] -- the "
+                        f"interpolant is not monotone there")
+        if fit is None:
+            return
+        # ⚠ THE CHECK THAT STOPS A TABLE BEING PAIRED WITH THE WRONG CURVE.
+        m = len(self.log_h)
+        acc = 0.0
+        for xx, dd in zip(self.log_h, self.density):
+            e = _tone_softplus_density(xx, fit) - dd
+            acc += e * e
+        rms = (acc / m) ** 0.5
+        if rms > self.FIT_RMS_MAX_D:
+            raise ValueError(
+                f"{label}: the samples disagree with the softplus parameters "
+                f"beside them by {rms:.4f} D rms, over the "
+                f"{self.FIT_RMS_MAX_D} D limit. Either the table belongs to a "
+                f"different development, a different emulsion or a different "
+                f"abscissa convention, or the fit was never refreshed after "
+                f"the table changed")
+
+
+def _tone_softplus_density(x: float, c) -> float:
+    """The analytic curve, scalar. One spelling, used by curve and table."""
+    import math as _m
+
+    def sp(z, k):
+        if k <= 0.0:
+            return max(z, 0.0)
+        q = z / k
+        return z if q > 60.0 else k * _m.log1p(_m.exp(q))
+
+    return c.dmin + c.gamma * (sp(x - c.toe_x, c.toe_k)
+                               - sp(x - c.shoulder_x, c.shoulder_k))
+
+
+# ---------------------------------------------------------------------------
+# FERRANIA P30 alfa -- the corpus's first MEASURED characteristic curves
+# ---------------------------------------------------------------------------
+# ⚠⚠ THIS IS A TABLE OF NUMBERS, NOT A TRACED PLOT, AND THAT IS WHY IT IS
+# HERE. Page 2 of «Ferrania P30 alfa», sensitometric test report, test date
+# 05/13/17, prints a 21-step tablet against five development times -- 105
+# densities, each to two decimal places, as TEXT in the PDF. No axis was
+# calibrated, no pixel was measured and no tracer was run to obtain them:
+# they are read out of the document. Every other characteristic curve in
+# this database is a fit to a drawing.
+#
+# ⚠ THE ABSCISSA IS THE STEP TABLET'S OWN DENSITY, NEGATED, WITH NO OFFSET.
+# The report's first column is the step tablet density, 0.04 to 3.03, and a
+# denser step passes less light, so relative log H = -density. That this is
+# the exact convention the stored softplus parameters were fitted in was
+# CHECKED rather than assumed: sweeping an offset over [-1, +3] in 0.0005
+# steps against each of the five stored curves puts the optimum at
+# -0.0000 / -0.0005 / -0.0000 / +0.0005 / -0.0000 -- zero to within half a
+# thousandth of a decade on all five independently.
+#
+# ⚠ AND THAT SWEEP IS ALSO THE RESIDUAL THE FIT COSTS: 0.0065 / 0.0097 /
+# 0.0107 / 0.0116 / 0.0103 D rms for 5 / 8 / 11 / 16 / 23 minutes. Small,
+# but not zero, and concentrated in the toe -- which is where this film's
+# behaviour is most talked about and least modelled.
+#
+# ⚠ THE STEP SPACING IS NOT UNIFORM. 0.04, 0.20, 0.35 ... 3.03 is a nominal
+# 0.15 ladder that the physical tablet does not hold exactly; the numbers are
+# stored as printed rather than idealised, which is the whole point.
+#
+# ⚠ THE D-76 STOCK 8-MINUTE VARIANT HAS NO TABLE and must not be given one.
+# It comes from Ferrania's own «Curve caratteristiche» sheet -- a DRAWING, of
+# a DIFFERENT dilution -- and pasting this report's 8-minute column onto it
+# would silently assert that 1+1 and stock develop identically.
+_P30_ALFA_STEP_TABLET = (
+        0.04, 0.20, 0.35, 0.50, 0.66, 0.80, 0.95,
+        1.09, 1.23, 1.37, 1.54, 1.68, 1.81, 1.97,
+        2.13, 2.26, 2.41, 2.58, 2.73, 2.87, 3.03,
+)
+
+
+#: minutes -> the 21 densities as printed, step 1 (thinnest) to step 21.
+_P30_ALFA_DENSITY = {
+     5: (
+        1.18, 1.06, 0.95, 0.84, 0.74, 0.65, 0.56,
+        0.50, 0.44, 0.38, 0.33, 0.29, 0.27, 0.26,
+        0.25, 0.25, 0.25, 0.25, 0.25, 0.25, 0.25,
+    ),
+     8: (
+        1.76, 1.58, 1.40, 1.24, 1.08, 0.94, 0.82,
+        0.71, 0.62, 0.54, 0.45, 0.39, 0.34, 0.30,
+        0.27, 0.26, 0.25, 0.25, 0.25, 0.25, 0.25,
+    ),
+    11: (
+        2.18, 1.96, 1.76, 1.56, 1.37, 1.20, 1.05,
+        0.91, 0.78, 0.66, 0.54, 0.46, 0.40, 0.34,
+        0.30, 0.27, 0.26, 0.26, 0.26, 0.26, 0.26,
+    ),
+    16: (
+        2.86, 2.62, 2.37, 2.11, 1.86, 1.63, 1.41,
+        1.22, 1.03, 0.86, 0.69, 0.56, 0.45, 0.37,
+        0.31, 0.28, 0.27, 0.26, 0.26, 0.26, 0.26,
+    ),
+    23: (
+        3.60, 3.26, 2.95, 2.65, 2.34, 2.03, 1.75,
+        1.51, 1.28, 1.05, 0.83, 0.66, 0.54, 0.43,
+        0.35, 0.31, 0.28, 0.27, 0.26, 0.26, 0.26,
+    ),
+}
+
+
+_P30_ALFA_SRC = (
+    "«Ferrania P30 alfa», sensitometric test report, test date 05/13/17, "
+    "page 2 -- «Step Tablet» column against the five development columns "
+    "«5m 8m 11m 16m 23m», 21 steps, printed as text to two decimals. Header "
+    "of the same page: «Film ISO: ISO 80; Development: D-76, 1+1, 20 C, "
+    "300 ml; Agitation: continua primo 30s poi 6 ribaltamenti ogni 30s; "
+    "Flare Density: 0,0200; Notes: Pellicola di pre-produzione, stage alfa, "
+    "difettata». ⚠ THE FLARE DENSITY IS THE TEST'S, NOT THE FILM'S, and the "
+    "densities are stored RAW -- as printed -- so a later ingest of a "
+    "flare-adjusted plot of the same film must not be added on top.")
+
+
+def _p30_measured(minutes: int) -> MeasuredCurve:
+    """One leg of the alfa report as a MeasuredCurve, log H ascending."""
+    d = _P30_ALFA_DENSITY[minutes]
+    return MeasuredCurve(
+        log_h=tuple(-v for v in reversed(_P30_ALFA_STEP_TABLET)),
+        density=tuple(reversed(d)),
+        source=_P30_ALFA_SRC,
+        density_metric="",
+        condition="Kodak D-76 1+1, %d min at 20 C, 300 ml" % minutes)
+
+
 @dataclass(frozen=True, slots=True)
 class ToneCurve:
     """One channel of a characteristic curve.
@@ -3198,6 +3579,11 @@ class ToneCurve:
     toe_k: float
     shoulder_x: float
     shoulder_k: float
+    # -- schema v55 (2026-09-25c) --------------------------------------------
+    #: The instrument's own samples, when the source printed numbers rather
+    #: than only a plot. Empty on every curve whose source is a drawing. See
+    #: `MeasuredCurve` for why both are stored and which governs where.
+    measured: "MeasuredCurve" = field(default_factory=lambda: MeasuredCurve())
 
     @property
     def dmax(self) -> float:
@@ -3380,6 +3766,12 @@ class ToneCurve:
             )
         if self.gamma <= 0:
             raise ValueError(f"{label}: gamma must be > 0")
+        # ⚠ AND THE TABLE IS CHECKED AGAINST THESE VERY PARAMETERS. Passing
+        # `self` is the whole point: a MeasuredCurve validated on its own can
+        # only be checked for shape, while a MeasuredCurve validated against
+        # the curve it is stored on is checked for BELONGING to it. See
+        # `MeasuredCurve.FIT_RMS_MAX_D`.
+        self.measured.validate(f"{label}.measured", fit=self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -6991,6 +7383,23 @@ class ProcessingSpec:
     agitation: str = ""
     contrast_index: float = 0.0
     # -- schema v18 (2026-08-27) ---------------------------------------------
+    # -- schema v52 (2026-09-24) ---------------------------------------------
+    #: A SECOND, EQUALLY OFFICIAL SCHEDULE for the same film, verbatim.
+    #:
+    #: ⚠⚠ THIS EXISTS BECAUSE THE ALTERNATIVE WAS FOUR C++ ENUMERATORS FOR
+    #: DEVELOPMENTS THAT RENDER IDENTICALLY. Two Soviet reversal ТУ print a
+    #: whole second cycle -- ЦО-Т-90ЛМ's табл. 6 at 25 °C beside its табл. 5
+    #: at 30 °C, and ЦО-90Л's табл. 6, which is ЦО-32Д's single regime. A
+    #: `ProcessVariant` was tried on 2026-09-23 and reverted: it would have
+    #: added enumerators to the shipped ABI for processes whose stored curves
+    #: are the same curves, and `ProcessVariantCtrl` is a control the user
+    #: selects, so four dead entries would have appeared in the interface.
+    #: ⚠ THE SECOND REGIME IS EVIDENCE EVEN THOUGH IT CHANGES NO PIXEL: the
+    #: fact that ЦО-90Л's alternative IS ЦО-32Д's only regime is the
+    #: strongest thing in the corpus about those two cycles being
+    #: interchangeable -- one manufacturer shipped a product specified at the
+    #: slow one alone. Empty on every stock but those two.
+    alternative_regime: str = ""
     #: Which development progress type this developer shows. See
     #: `DevelopmentProgress`. UNKNOWN on every stock until set, and nothing in
     #: either renderer reads it yet.
@@ -7492,6 +7901,52 @@ class ToleranceSpec:
     #: «Равномерность полива эмульсионных слоёв … не более», density units.
     coating_uniformity_d_max: float = 0.0
 
+    # -- durability and shelf life (schema v52, 2026-09-24) -----------------
+    # ⚠⚠ THESE FIVE CAME OUT OF FOUR MODULE-LEVEL TABLES THAT REACHED NO
+    # PROFILE. `_SOVIET_TU_SHELF_DRIFT`, `_SOVIET_TU_DRIFT_FREE_MONTHS`,
+    # `_SOVIET_TU_THERMOSTAT_SHRINKAGE` and `_SOVIET_SENSITISATION_LIMIT_NM`
+    # were read on 2026-09-23 and parked, because the only carrier that looked
+    # right was `AgingSpec` and `AgingSpec` holds the WRONG QUANTITY: its
+    # fields are the damage a particular roll has actually suffered, and a ТУ
+    # prints the worst drift the manufacturer will still accept at the end of
+    # the guarantee period. Writing a ceiling into a state field is the error
+    # that table's own header refused at length.
+    # ⚠ `ToleranceSpec` IS THE CARRIER THAT ARGUMENT WAS WAITING FOR. Every
+    # field on this struct is a permitted bound rather than a measurement, so
+    # the objection that blocked them disappears -- they are not states
+    # wearing a bound's clothing here, they are bounds among bounds.
+    #: «Гарантийный срок хранения», months. The period the bounds below apply
+    #: over; 0 = not stated.
+    guarantee_months: int = 0
+    #: ⚠ THE FLAT PERIOD BEFORE DRIFT ACCRUES, and it is a separate clause
+    #: rather than an inference: four ТУ state that speed and D_min stay
+    #: INSIDE the release norms «в течение двух месяцев», and ЦО-Т-90ЛМ says
+    #: the same thing from the other end, its allowance applying «по истечении
+    #: НЕ МЕНЕЕ 3 месяцев». So the envelope is flat and then runs to the
+    #: bound; it is not a straight line from day one.
+    drift_free_months: int = 0
+    #: Permitted loss of overall speed over the guarantee period, as a
+    #: FRACTION (0.40 = «не более чем на 40 %»).
+    ageing_speed_loss_frac: float = 0.0
+    #: Permitted density drift over the same period, in density units and
+    #: ⚠ SIGNED: POSITIVE = D_min rises, NEGATIVE = D_max falls. The sign
+    #: flips with the stock kind -- a negative ages by fogging, a reversal by
+    #: losing its blacks -- which is physically right and is a free
+    #: correctness check on any ageing model built from these bounds.
+    ageing_density_drift: float = 0.0
+    #: Which quantity `ageing_density_drift` moves: "dmin" | "dmax" | "".
+    ageing_drift_quantity: str = ""
+    #: «Термостатная усадка при выпуске … не более», per cent. ⚠ NOT
+    #: `AgingSpec.shrinkage_pct`, which is post-PROCESSING shrinkage -- a
+    #: permanent dimension of the developed film. This is an oven test on the
+    #: raw stock at the factory gate.
+    thermostat_shrinkage_pct_max: float = 0.0
+    #: «Предел сенсибилизации красночувствительного слоя … не более», nm.
+    #: ⚠ THE ONLY SPECTRAL NUMBER IN 176 SHEETS OF SOVIET SPECIFICATIONS, and
+    #: it is a CEILING on where the red record may still respond, measured
+    #: visually from spectrograms on a ДФС-8 or ИСП-73 per МИ 6-17-02-141-84.
+    red_sensitisation_limit_nm: float = 0.0
+
     # -- bookkeeping --------------------------------------------------------
     #: Quality grade, where the source files the numbers under one.
     category: str = ""
@@ -7514,6 +7969,10 @@ class ToleranceSpec:
             self.latitude_min, self.resolving_power_min,
             any(self.granularity_max_rgb), any(self.mtf_min_rgb),
             self.uniformity_pct_max, self.coating_uniformity_d_max,
+            self.guarantee_months, self.drift_free_months,
+            self.ageing_speed_loss_frac, self.ageing_density_drift,
+            self.thermostat_shrinkage_pct_max,
+            self.red_sensitisation_limit_nm,
         ))
 
     def validate(self, label: str) -> None:
@@ -7572,6 +8031,38 @@ class ToleranceSpec:
             raise ValueError(
                 f"{label}: ToleranceSpec says the contrast specification is "
                 "for the film as a whole, but the three layers differ")
+        # -- schema v52 -------------------------------------------------
+        if self.ageing_drift_quantity not in ("", "dmin", "dmax"):
+            raise ValueError(
+                f"{label}: ToleranceSpec ageing_drift_quantity "
+                f"{self.ageing_drift_quantity!r} is not '', 'dmin' or 'dmax'")
+        if bool(self.ageing_density_drift) != bool(self.ageing_drift_quantity):
+            raise ValueError(
+                f"{label}: ToleranceSpec ageing drift {self.ageing_density_drift} "
+                f"and quantity {self.ageing_drift_quantity!r} must be set "
+                "together -- a drift with no named quantity says nothing")
+        # ⚠ THE SIGN RULE, ASSERTED RATHER THAN TRUSTED. A negative ages by
+        # GAINING D_min and a reversal by LOSING D_max; a row with the wrong
+        # sign is a plausible-looking number that inverts the physics.
+        if self.ageing_drift_quantity == "dmin" and self.ageing_density_drift < 0:
+            raise ValueError(
+                f"{label}: ToleranceSpec says D_min DROPS with age "
+                f"({self.ageing_density_drift}); a negative ages by fogging")
+        if self.ageing_drift_quantity == "dmax" and self.ageing_density_drift > 0:
+            raise ValueError(
+                f"{label}: ToleranceSpec says D_max RISES with age "
+                f"({self.ageing_density_drift}); a reversal ages by losing "
+                "its blacks")
+        if not 0.0 <= self.ageing_speed_loss_frac <= 1.0:
+            raise ValueError(
+                f"{label}: ToleranceSpec ageing_speed_loss_frac "
+                f"{self.ageing_speed_loss_frac} is not a fraction")
+        if (self.drift_free_months and self.guarantee_months
+                and self.drift_free_months >= self.guarantee_months):
+            raise ValueError(
+                f"{label}: ToleranceSpec drift-free period "
+                f"{self.drift_free_months} months is not shorter than the "
+                f"{self.guarantee_months}-month guarantee it sits inside")
         if self.structure_is_overall:
             for _trip, _what in ((self.granularity_max_rgb, "granularity"),
                                  (self.mtf_min_rgb, "MTF")):
@@ -8473,6 +8964,41 @@ class LayerStack:
             raise ValueError(f"{label}: layer stack requires a source")
 
 
+#: What a `DevelopmentPoint`'s contrast number actually MEASURES (schema v55).
+#:
+#: ⚠⚠ THIS FIELD EXISTS BECAUSE THE CORPUS NOW HOLDS THREE INCOMPATIBLE
+#: QUANTITIES IN TWO FIELDS CALLED `gamma` AND `contrast_index`, AND NOTHING
+#: SAID WHICH WAS WHICH. The 2026-09-25 Ferrania audit (item S5) found all
+#: three live at once:
+#:   * KODAK CONTRAST INDEX -- the Kodak F-series definition, the slope of a
+#:     chord between two points 2.0 log-E apart on a fixed arc. Most of the
+#:     Kodak and Ilford points in this file.
+#:   * ASYMPTOTIC (STRAIGHT-LINE) GAMMA -- the slope of the straight portion,
+#:     which is what `ToneCurve.gamma` holds and what a curve fit returns.
+#:   * BTZS AVERAGE GRADIENT (G-bar) -- total density range divided by the
+#:     log-E range that produced it, over the subject brightness range the
+#:     test used. ALWAYS LOWER than the asymptotic gamma of the same curve,
+#:     because it averages the toe in.
+#: FERRANIA_P30 is the proof that this is not academic: its five alfa legs are
+#: the SAME five developments, and the report's Avg G runs 0.55-0.93 while a
+#: fit to the same five curves returns 0.73-2.07. Two numbers, one process,
+#: both true, and before this field a consumer had no way to tell them apart.
+#:
+#: ⚠ THE FIELD IS INERT AND DEFAULTS TO "". An empty string means "the source
+#: did not say", which is the honest state of most of the 279 points already
+#: in this file; it is NOT a claim that they are Kodak CI. Nothing on the
+#: render path reads it. What it buys is that a point carrying a contrast now
+#: has to declare what kind, so the three cannot be averaged together by
+#: accident.
+_CONTRAST_CRITERIA = (
+    "",                      # the source does not say
+    "kodak_ci",              # Kodak contrast index, 2.0 log-E chord
+    "gamma_asymptotic",      # slope of the straight-line portion
+    "btzs_avg_gradient",     # BTZS G-bar: density range / log-E range
+    "gost_gamma",            # ГОСТ коэффициент контрастности
+)
+
+
 @dataclass(frozen=True, slots=True)
 class DevelopmentPoint:
     """One (developer, dilution, time, temperature) -> contrast measurement."""
@@ -8484,6 +9010,10 @@ class DevelopmentPoint:
     contrast_index: float = 0.0
     gamma: float = 0.0
     exposure_index: int = 0
+    # -- schema v55 (2026-09-25c, audit item S5), INERT ----------------------
+    #: One of `_CONTRAST_CRITERIA`: what the number in `contrast_index` or
+    #: `gamma` above is a measurement OF. "" = the source does not say.
+    contrast_criterion: str = ""
     # -- schema v13 (2026-08-26), INERT --------------------------------------
     #: Base+fog at this development condition. 0.0 = not stated by the source.
     #:
@@ -8554,6 +9084,33 @@ class DevelopmentPoint:
     #: COLUMN direction and 135 against 120 in the ROW direction on the same
     #: page, so a record can need both.
     film_format: str = ""
+    #: -- schema v53 (2026-09-24c, the ILFORD harvest) ----------------------
+    #: Which PRINTING GEOMETRY the development time was chosen for: "" (not
+    #: stated), "condenser" or "diffusion".
+    #:
+    #: ⚠⚠ THE FIELD EXISTS BECAUSE ILFORD PRINT EVERY DEVELOPMENT TABLE TWICE
+    #: AND THE TWO COLUMNS DIFFER BY 30-75 % OF TIME. «Ilford Monochrome
+    #: Darkroom Practice» Tables 6-9 head their columns «Negatives to be used
+    #: in condenser enlargers» and «Negatives to be used in diffusion
+    #: enlargers»: ID-11 undiluted at 20 C gives HP5 35 mm 7.5 min against 10,
+    #: Pan F 6 against 8.5, FP4 6.5 against 10. That is not two answers to one
+    #: question -- a condenser enlarger prints a SPECULAR density and a
+    #: diffusion enlarger a DIFFUSE one, so the same print contrast needs a
+    #: lower negative gamma under a condenser, by exactly the Callier factor
+    #: this database already models per stock in `callier_q`.
+    #:
+    #: ⚠ IT IS A FOURTH AXIS BESIDE `vessel`, `film_format` AND `edition`, and
+    #: the Ilford tables need three of the four at once: Table 9 prints
+    #: Microphen times for HP5 35 mm and HP5 rollfilm, in both geometries,
+    #: each with its own effective ISO.
+    #:
+    #: ⚠ WITHOUT IT THE SECOND COLUMN CANNOT BE STORED AT ALL. Written into
+    #: one flat tuple the diffusion times would sit beside the condenser ones
+    #: as near-duplicates told apart only by "the longer one", which is the
+    #: failure `vessel` and `film_format` were each added to prevent.
+    #:
+    #: ⚠ INERT. Nothing on the render path reads a DevelopmentPoint.
+    print_geometry: str = ""
     # -- schema v35 (2026-09-16), INERT --------------------------------------
     #: Which GENERATION of the stock this point measures. "" = the generation
     #: the profile itself describes, which is the common case and the default.
@@ -8641,6 +9198,15 @@ class DevelopmentPoint:
             raise ValueError(
                 f"{label}: base_fog {self.base_fog} is above 2.0 -- that is a "
                 f"density, not a fog level, so the units are probably wrong")
+        if self.contrast_criterion not in _CONTRAST_CRITERIA:
+            raise ValueError(
+                f"{label}: contrast_criterion {self.contrast_criterion!r} is "
+                f"not one of {list(_CONTRAST_CRITERIA)}")
+        if self.contrast_criterion and not (self.contrast_index or self.gamma):
+            raise ValueError(
+                f"{label}: contrast_criterion "
+                f"{self.contrast_criterion!r} names the kind of a contrast "
+                f"this point does not state")
 
 
 @dataclass(frozen=True, slots=True)
@@ -9391,6 +9957,51 @@ _PROCESS_VARIANT_IDS: tuple[tuple[str, str], ...] = (
     ("ANSCOCHROME_B_16MIN_EI100",  "B -- 16 min first developer, EI 100"),
     ("ANSCOCHROME_C_19MIN_EI150",  "C -- 19 min first developer, EI 150"),
     ("ANSCOCHROME_D_22MIN_EI200",  "D -- 22 min first developer, EI 200"),
+    # -- KODAK EKTAPRESS PJ400, E-116 (April 2003) ---------------------------
+    # ⚠⚠ APPENDED, NOT INSERTED, AND THAT IS A COMPATIBILITY DECISION RATHER
+    # THAN A TIDINESS ONE. Index k in this tuple IS `ProcessVariantCtrl` value
+    # k, so slotting EKTAPRESS between GEVACHROME and PORTRA -- where it
+    # belongs alphabetically -- would renumber every enumerator after it, and
+    # a project saved yesterday against "11 = PORTRA800_EI800" would silently
+    # render a different development today. The list is therefore append-only
+    # and reads out of order on purpose. TOTAL_PROCESSES moves 21 -> 24.
+    ("PJ400_EI400",                "EI 400 (box speed)"),
+    ("PJ400_EI800_PUSH1",          "EI 800 (Push 1)"),
+    ("PJ400_EI1600_PUSH2",         "EI 1600 (Push 2)"),
+    # -- KODAK T-MAX P3200 (TMZ), F-32 (March 2002) --------------------------
+    # ⚠ THESE FOUR ARE DEVELOPMENT TIMES, NOT EXPOSURE INDEXES, and the
+    # enumerator names say so. F-32 plots the family against time at a fixed
+    # 75 F in T-MAX Developer; the EI each time corresponds to is a SECOND
+    # statement, made by the small-tank table on page 19, and the two are
+    # kept separate here because a user choosing "10 minutes" is choosing a
+    # development, not declaring what they metered at.
+    ("TMZ_TMAX_DEV_6MIN",          "T-MAX Developer, 6 min at 75 F"),
+    ("TMZ_TMAX_DEV_8MIN",          "T-MAX Developer, 8 min at 75 F"),
+    ("TMZ_TMAX_DEV_10MIN",         "T-MAX Developer, 10 min at 75 F"),
+    ("TMZ_TMAX_DEV_12MIN",         "T-MAX Developer, 12 min at 75 F"),
+    # -- FERRANIA P30 alfa, D-76 1+1 sensitometric test 05/13/17 -----------
+    # ⚠ FIVE DEVELOPMENTS FROM ONE TEST REPORT, and the legs are named by
+    # TIME because that is what the report varied. The report marks none of
+    # them normal; Ferrania's own FP3011 chart puts the D-76-equivalent at
+    # this dilution and speed at 13.5 minutes, which is why 11 min carries
+    # the default and the others are offered around it.
+    ("P30_D76_1_1_5MIN",           "D-76 1+1, 5 min at 20 C"),
+    ("P30_D76_1_1_8MIN",           "D-76 1+1, 8 min at 20 C"),
+    ("P30_D76_1_1_11MIN",          "D-76 1+1, 11 min at 20 C"),
+    ("P30_D76_1_1_16MIN",          "D-76 1+1, 16 min at 20 C"),
+    ("P30_D76_1_1_23MIN",          "D-76 1+1, 23 min at 20 C"),
+    # -- KODAK EKTAPRESS PJ800, E-116 (April 2003) ---------------------------
+    # Appended for the same compatibility reason as PJ400's three above: index
+    # k IS the enumerator value, so the list grows at the end and nowhere else.
+    # TOTAL_PROCESSES moves 33 -> 36.
+    ("PJ800_EI800",                "EI 800 (box speed)"),
+    ("PJ800_EI1600_PUSH1",         "EI 1600 (Push 1)"),
+    ("PJ800_EI3200_PUSH2",         "EI 3200 (Push 2)"),
+    # -- FERRANIA P30 (original / cinema), the maker's own D-76 STOCK curve --
+    # Appended 2026-09-25 with the P30 Cinema / Mk2 split. Index k IS the
+    # enumerator value, so this goes at the end and nowhere else.
+    # TOTAL_PROCESSES moves 36 -> 37.
+    ("P30_D76_STOCK_8MIN",         "D-76 stock, 8 min at 20 C"),
 )
 
 _PROCESS_VARIANT_IDS_SET = frozenset(k for k, _d in _PROCESS_VARIANT_IDS)
@@ -9406,6 +10017,165 @@ PROCESS_VARIANT_VALUE: dict[str, int] = {
 #: The total number of selectable developments. Mirrors TOTAL_PROCESSES.
 PROCESS_VARIANT_TOTAL = len(_PROCESS_VARIANT_IDS)
 
+
+
+@dataclass(frozen=True, slots=True)
+class SensitometryReport:
+    """One development leg of a SENSITOMETRIC TEST REPORT (schema v54, INERT).
+
+    ⚠⚠ WHY THIS EXISTS. A test report of the kind a lab or a careful tester
+    produces prints, per development time, a dozen numbers that this schema
+    had nowhere to put. `ProcessVariant` carried the CURVE and the exposure
+    index and threw the rest away -- the effective speed that development
+    actually meters at, the subject brightness range it fits, the Zone-System
+    N number, the base+fog the operator measured, the log-exposure range, the
+    paper target the speed point was referred to. The FERRANIA P30 alfa report
+    of 05/13/17 is the worked case: five legs, and of about sixty printed
+    numbers the database kept five curves and two summary figures in prose.
+    The owner's instruction on 2026-09-25 was to discard none of it.
+
+    ⚠ EVERY FIELD IS AS THE REPORT PRINTS IT, NOT AS THIS PROJECT WOULD
+    DEFINE IT. `avg_gradient` is the report's average gradient over its own
+    subject brightness range and is NOT `ToneCurve.gamma`, which is an
+    asymptotic slope; on the P30 legs the two differ by up to 2.2x. `base_fog`
+    is the operator's measured B+F and is NOT the fitted `ToneCurve.dmin`,
+    which comes out of a six-parameter fit to the whole step tablet and
+    disagrees with it by up to 0.06 D. Both members of each pair are stored
+    BECAUSE they disagree: a reader who needs the report's number must get the
+    report's number, and a reader who needs the model's must not be handed the
+    report's by accident.
+
+    ⚠ NOTHING HERE IS READ BY EITHER RENDERER. The carrier lands before the
+    consumer, which is this project's standing order of work (schema v30, v31,
+    v41). What it enables, when a consumer is written: `effective_film_speed`
+    is the speed a given development actually delivers, which is the number an
+    exposure-placement stage would want when a push or pull is selected, and
+    `subject_brightness_range` with `zone_n_number` is the contrast-matching
+    pair a tone-mapping stage would want.
+
+    Attributes:
+        avg_gradient: The report's own average gradient, Avg. G. 0.0 = not
+            printed. ⚠ NOT gamma.
+        subject_brightness_range: SBR in STOPS -- the scene luminance range
+            this development places between the paper's endpoints.
+        effective_film_speed: EFS as an ISO-arithmetic number. ⚠ STORE THE
+            MEASURED VALUE, not the nearest step: the P30 report prints
+            "32+", "50-" and "64--", and the same figures read off its own
+            log-scaled EFS axis are 33.63, 48.71 and 58.58. The qualifier goes
+            in `effective_film_speed_label`.
+        effective_film_speed_label: The speed exactly as printed, qualifier
+            and all -- "12", "32+", "64--". Empty when the report prints a
+            bare number that `effective_film_speed` already carries.
+        zone_n_number: Zone-System development number as a signed offset from
+            normal: +1.0 is N+1, -0.5 is N-1/2. 0.0 = normal OR not printed,
+            which `SensitometryReport.has_data` cannot distinguish and the
+            source string must.
+        base_fog: The operator's MEASURED base-plus-fog density.
+        log_exposure_range: LogE -- the log-exposure interval the film needs
+            to cover `density_range`. Latitude, for this development.
+        exposure_min, exposure_max: The two endpoints of that interval ON THE
+            REPORT'S OWN AXIS AND UNDER THE REPORT'S OWN LABELS.
+            ⚠⚠ `exposure_max` CAN BE THE SMALLER NUMBER AND USUALLY IS. The
+            axis is step-tablet attenuation, so LESS attenuation means MORE
+            light and a HIGHER image density: the P30 report's 5-minute leg
+            prints «Emax = -0,25 / IDmax = 1,37» against «Emin = 1,57 /
+            IDmin = 0,37». Each E is stored beside the ID it is printed
+            beside. Sorting them numerically -- which the first draft of this
+            record did -- silently pairs every exposure with the wrong
+            density. `validate` compares |max - min| against
+            `log_exposure_range` and is deliberately indifferent to the sign.
+        density_min, density_max: The negative densities those endpoints
+            produce (IDmin / IDmax in the P30 report's notation).
+        density_range: DR -- the printed density range the two bracket.
+        paper_exposure_scale: Paper ES, the paper's exposure scale the speed
+            point was referred to.
+        paper_speed_point: PSP, the paper speed the effective film speed is
+            quoted against. Meaningless alone; an EFS without it is not
+            comparable with another lab's.
+        flare_density: The flare density the analysis subtracted.
+        speed_method: The speed criterion in words, e.g. "0.1 over FB+F".
+        source: Citation. Required as soon as any number here is non-zero.
+    """
+
+    avg_gradient: float = 0.0
+    subject_brightness_range: float = 0.0
+    effective_film_speed: float = 0.0
+    effective_film_speed_label: str = ""
+    zone_n_number: float = 0.0
+    base_fog: float = 0.0
+    log_exposure_range: float = 0.0
+    exposure_min: float = 0.0
+    exposure_max: float = 0.0
+    density_min: float = 0.0
+    density_max: float = 0.0
+    density_range: float = 0.0
+    paper_exposure_scale: float = 0.0
+    paper_speed_point: float = 0.0
+    flare_density: float = 0.0
+    speed_method: str = ""
+    source: str = ""
+
+    @property
+    def has_data(self) -> bool:
+        return bool(self.avg_gradient or self.subject_brightness_range
+                    or self.effective_film_speed or self.base_fog
+                    or self.log_exposure_range or self.density_range
+                    or self.zone_n_number or self.speed_method)
+
+    def validate(self, label: str = "") -> None:
+        if not self.has_data:
+            return
+        if not self.source:
+            raise ValueError(
+                f"{label}: SensitometryReport carries numbers and no source. "
+                "A measured figure without a citation is indistinguishable "
+                "from an invented one.")
+        for _n, _v, _hi in (("avg_gradient", self.avg_gradient, 8.0),
+                            ("subject_brightness_range",
+                             self.subject_brightness_range, 20.0),
+                            ("effective_film_speed",
+                             self.effective_film_speed, 25000.0),
+                            ("base_fog", self.base_fog, 1.5),
+                            ("log_exposure_range", self.log_exposure_range,
+                             6.0),
+                            ("density_range", self.density_range, 6.0),
+                            ("paper_exposure_scale",
+                             self.paper_exposure_scale, 4.0),
+                            ("paper_speed_point", self.paper_speed_point,
+                             6.0),
+                            ("flare_density", self.flare_density, 1.0)):
+            if _v < 0.0 or _v > _hi:
+                raise ValueError(f"{label}: SensitometryReport {_n} {_v} "
+                                 f"out of range [0, {_hi}]")
+        if abs(self.zone_n_number) > 6.0:
+            raise ValueError(f"{label}: SensitometryReport zone_n_number "
+                             f"{self.zone_n_number} out of range")
+        # ⚠ THE ONE INTERNAL CONSISTENCY TEST THE REPORT ITSELF PERMITS.
+        # DR is printed AND its two endpoints are printed, so a transcription
+        # error in any of the three shows up here. Tolerance 0.02 D, which is
+        # one unit in the last printed place plus the rounding of two others.
+        if self.density_range and self.density_max and self.density_min:
+            _d = self.density_max - self.density_min
+            if abs(_d - self.density_range) > 0.02:
+                raise ValueError(
+                    f"{label}: SensitometryReport density_max - density_min "
+                    f"= {_d:.3f} but density_range is printed as "
+                    f"{self.density_range:.3f}")
+        # ⚠ AND THE SAME FOR THE EXPOSURE INTERVAL. LogE is printed and so are
+        # Emin and Emax. ⚠ TOLERANCE 0.03 because the P30 report rounds all
+        # three to two decimals independently.
+        if self.log_exposure_range and (self.exposure_max or self.exposure_min):
+            _e = self.exposure_max - self.exposure_min
+            if abs(abs(_e) - self.log_exposure_range) > 0.03:
+                raise ValueError(
+                    f"{label}: SensitometryReport |exposure_max - "
+                    f"exposure_min| = {abs(_e):.3f} but log_exposure_range is "
+                    f"printed as {self.log_exposure_range:.3f}")
+        if self.effective_film_speed and not self.paper_speed_point:
+            raise ValueError(
+                f"{label}: SensitometryReport gives an effective film speed "
+                "with no paper_speed_point. An EFS is quoted AGAINST a paper "
+                "speed and is not comparable without it.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -9496,6 +10266,30 @@ class ProcessVariant:
     dmin_shift: float = 0.0
     #: -- schema v26 (2026-09-05): int32 -> float, see the class docstring.
     push_stops: float = 0.0
+    # -- schema v56 (2026-09-26, queue 560) ---------------------------------
+    #: This leg states a SPEED and the maker published no sensitometry for it.
+    #:
+    #: ⚠⚠ IT EXISTS BECAUSE A VALIDATOR WAS DISCARDING PRINTED EVIDENCE. Agfa's
+    #: P-16-C section 3.6 prints a working exposure index per developer -- APX
+    #: 100 meters 125 in Refinal, APX 400 meters 320 in Rodinal 1+25 -- and
+    #: prints no characteristic curve for any of them. `ProcessVariant.validate`
+    #: refused `push_stops` on any leg without curves, so seven legs that
+    #: STATE a speed change carried push_stops 0.0, which reads as "no speed
+    #: change" and is the opposite of what the sheet says.
+    #:
+    #: ⚠ THE RULE IT RELAXES WAS PROTECTING A RENDER PATH THAT DOES NOT EXIST.
+    #: `push_stops` is read by NO stage in film_sim.py and by NO Algo_*.cpp --
+    #: checked, not assumed. What meters a variant is `exposure_index`, which
+    #: `resolve_process_variant` writes onto the resolved profile, so a
+    #: recorded push cannot double-count and cannot move a pixel.
+    #:
+    #: ⚠ SETTING IT BINDS push_stops TO ARITHMETIC. A speed-only leg's
+    #: push_stops must be exactly log2(exposure_index / box speed): it is
+    #: DERIVED from two numbers already stored beside it and adds no claim of
+    #: its own. A curveless leg asserting any other figure would be claiming a
+    #: contrast change nothing measured, which is what the original rule
+    #: existed to stop and what is still refused.
+    speed_only: bool = False
     processing: ProcessingSpec = field(default_factory=lambda: ProcessingSpec())
     #: -- schema v37 (2026-09-17): the variant's STABLE IDENTITY.
     #: The enumerator name, without its `e` prefix, of this development in
@@ -9518,11 +10312,48 @@ class ProcessVariant:
     #: the set of ids used here is exactly the set the header declares, so the
     #: two cannot drift in either direction.
     variant_id: str = ""
+    #: -- schema v54 (2026-09-25): the test report's own per-leg numbers.
+    #: ⚠ EVERYTHING A SENSITOMETRIC REPORT PRINTS THAT IS NOT THE CURVE.
+    #: Effective film speed, subject brightness range, Zone N number, the
+    #: operator's measured B+F, the log-exposure interval and the paper
+    #: target the speed point was referred to. Inert; see the class docstring
+    #: for why each is kept beside, rather than instead of, the fitted value
+    #: it disagrees with.
+    report: "SensitometryReport" = field(
+        default_factory=lambda: SensitometryReport())
     source: str = ""
 
     def validate(self, label: str = "") -> None:
         if not self.name:
             raise ValueError(f"{label}: ProcessVariant needs a name")
+        self.report.validate(f"{label}: ProcessVariant {self.name!r}")
+        if self.speed_only and self.curves is not None:
+            raise ValueError(
+                f"{label}: ProcessVariant {self.name!r} sets speed_only AND "
+                "carries curves; speed_only exists precisely to say that the "
+                "maker published a rating and no sensitometry")
+        # ⚠ A REPORT'S EFFECTIVE SPEED AND THE VARIANT'S EXPOSURE INDEX MUST
+        # AGREE WHERE BOTH EXIST, or the record says two things. The variant's
+        # `exposure_index` is an integer on the standard ISO ladder and the
+        # report's EFS is the measured real number, so the test is that the
+        # integer is the ladder step the measurement rounds to.
+        # ⚠⚠ THE BOUND IS THE LADDER'S OWN QUANTISATION, NOT A GUESS, AND THE
+        # FIRST DRAFT GOT IT WRONG. Written at +-8 % it refused the P30's
+        # 23-minute leg, which measures EFS 58.58 and is printed «64--»: the
+        # arithmetic ISO ladder steps in THIRDS OF A STOP, so the furthest a
+        # measurement can sit from the step it rounds to is half a third,
+        # 2**(1/6) = 1.1225. 58.58 -> 64 is a ratio of 1.0925 and is correct
+        # rounding; the log-midpoint between 50 and 64 is 56.6. The bound is
+        # therefore 1/1.1225 to 1.1225, which still refuses 33.63 -> 80.
+        if self.report.effective_film_speed and self.exposure_index:
+            _r = self.exposure_index / self.report.effective_film_speed
+            if not 0.8909 <= _r <= 1.1225:
+                raise ValueError(
+                    f"{label}: ProcessVariant {self.name!r} carries "
+                    f"exposure_index {self.exposure_index} against a measured "
+                    f"effective film speed of "
+                    f"{self.report.effective_film_speed:.2f}. One of the two "
+                    "is wrong; they cannot both describe this development.")
         if not self.variant_id:
             raise ValueError(
                 f"{label}: ProcessVariant {self.name!r} has no variant_id. "
@@ -9558,10 +10389,48 @@ class ProcessVariant:
             # single scale factor would claim all three layers move together,
             # which the panels show they do not -- PORTRA 800 at EI 3200 gains
             # 0.25 of gamma in red and 0.14 in blue.
+            #
+            # ⚠⚠ RELAXED 2026-09-26 (queue 560) TO ADMIT ONE EXACT CASE, AND
+            # THE RELAXATION IS NARROWER THAN THE RULE IT REPLACES. The rule
+            # above was written when `push_stops` was believed to be on the
+            # render path. IT IS NOT, AND THAT WAS CHECKED RATHER THAN
+            # ASSUMED: the string `push_stops` appears in no stage of
+            # film_sim.py and in no Algo_*.cpp; what actually meters a variant
+            # is `exposure_index`, which `resolve_process_variant` writes onto
+            # the resolved profile. So `push_stops` is a RECORD, and refusing
+            # to record a speed the manufacturer printed -- because this
+            # project has not traced a curve for it -- discards evidence to
+            # protect a render path that never reads the field.
+            #
+            # ⚠ WHAT IS STILL REFUSED IS AN AUTHORED PUSH. A curveless variant
+            # may carry push_stops ONLY when the number is exactly log2 of its
+            # own stated EI against the profile's box speed, i.e. when it is
+            # DERIVED from the two numbers already stored beside it and adds
+            # no claim of its own. A curveless variant asserting some other
+            # figure would be claiming a contrast change nothing measured, and
+            # that is the failure the original rule was written to stop.
+            #
+            # The seven AGFAPAN legs are the case: Agfa's P-16-C section 3.6
+            # prints a working EI per developer -- APX 100 meters 125 in
+            # Refinal, APX 400 meters 320 in Rodinal 1+25 -- and prints no
+            # curve for any of them.
             if self.curves is None:
-                raise ValueError(
-                    f"{label}: ProcessVariant {self.name!r} is a push "
-                    f"({self.push_stops:+.3f} stops) but carries no curves")
+                _box = getattr(self, "_owner_box_speed", 0)
+                if self.exposure_index <= 0:
+                    raise ValueError(
+                        f"{label}: ProcessVariant {self.name!r} is a push "
+                        f"({self.push_stops:+.3f} stops), carries no curves "
+                        f"and states no exposure index either -- there is "
+                        f"nothing the number could have been derived from")
+                if not self.speed_only:
+                    raise ValueError(
+                        f"{label}: ProcessVariant {self.name!r} is a push "
+                        f"({self.push_stops:+.3f} stops) but carries no "
+                        f"curves. A curveless variant may record a speed "
+                        f"change only by setting speed_only=True, which "
+                        f"declares that the maker published a rating and no "
+                        f"sensitometry, and binds push_stops to log2 of the "
+                        f"stated EI over the box speed")
             if self.exposure_index <= 0:
                 raise ValueError(
                     f"{label}: ProcessVariant {self.name!r} is a push but "
@@ -10247,8 +11116,18 @@ class Provenance:
             Films, Kodak publication E-55, Eastman Kodak Company, 2009".
             When no official manufacturer document is on file, carries the
             explicit ``_NO_DATASHEET`` placeholder instead of being empty.
-        fitted_from: One of "datasheet_curve", "secondary_sources",
-            "analogy".
+        fitted_from: One of "datasheet_curve" (traced from a curve the
+            MAKER published), "laboratory_report" (traced from a curve in a
+            third-party sensitometric test report -- a measurement of real
+            film, but not the maker's own and not of production stock),
+            "secondary_sources", "analogy".
+            ⚠ "laboratory_report" WAS ADDED 2026-09-25c BECAUSE THE THREE
+            EXISTING VALUES ALL MISDESCRIBED FERRANIA_P30. Its curves are
+            traced from a BTZS test report on pre-production alpha stock:
+            "datasheet_curve" would claim a manufacturer document that does
+            not exist, "secondary_sources" would suggest a compilation rather
+            than an instrument reading, and "analogy" would deny the
+            measurement outright.
         last_reviewed: ISO date of the last data review.
     """
 
@@ -10909,7 +11788,17 @@ class FilmProfile:
             convention baked into the renderer).
         speed_criterion: How exposure_index was assigned: "iso6" (B&W),
             "iso5800" (colour negative), "iso2240" (colour reversal),
-            "manufacturer_ei" (historic stocks predating the standards).
+            "manufacturer_ei" (a speed the maker printed, whether because the
+            stock predates the standards or because the maker states a box
+            speed without naming a method), "btzs_efs" (a BTZS effective film
+            speed, read off a plotted family at the exposure that puts the
+            shadow on the paper's own speed point -- NOT an ISO 6 speed and
+            not comparable with one).
+            ⚠ THE DEFAULT COMES FROM THE CLASS BRANCH IN `_apply_schema_v2`,
+            which assigns "iso6" to every monochrome stock. That is right for
+            a stock rated by its maker under ISO 6 and WRONG for one whose
+            number came from anywhere else, so `_SPEED_CRITERION_OVERRIDES`
+            exists to say which is which.
         mask_encoding: How the orange coupler mask is encoded in the curve
             data: "dmin_ladder" when the per-channel dmin values ARE the mask
             (r << g << b, e.g. 0.20/0.62/1.02), "neutral_dmin" when dmin is
@@ -15127,7 +16016,7 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         name="CINESTILL_800T",
         aliases=("cinestill", "800t", "cinestill 800t"),
         description=(
-            "[T2] VISION3 500T with the remjet anti-halation layer stripped "
+            "[T1] VISION3 500T with the remjet anti-halation layer stripped "
             "off so it can run through C-41. The result is the most extreme "
             "halation in production: every streetlight grows a red corona. "
             "Useful here as a stress test of the halation model. \u26a0 THE "
@@ -16542,8 +17431,45 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # EASTMAN_TRI_X_5223.
         # clump_um 0.687: T-101 Table 2's printed equivalent grain diameter
         # 1.2 um / 1.7473. Upper bound, per p38.
-        grain=GrainSpec(6.2, 0.687, 0.687, 0.687, clump_gain=0.0,
-                        fog_grain=0.14),
+        #
+        # ⚠⚠ rms 6.2 -> 6.44 ON 2026-09-24c, AND IT IS A DIRECT MEASUREMENT
+        # REPLACING A RATIO. The owner supplied BBC ENGINEERING MONOGRAPH
+        # No. 54 itself that day, and its Fig. 3(a) is THIS EMULSION'S OWN
+        # ABSOLUTE GRAIN WIENER SPECTRUM -- captioned «Kodak 8374 (uniform
+        # exposure), D = 0.48, gamma = 1.0», plotted 0 to 150 cycles/mm on a
+        # labelled 0 to 0.08 square-micron ordinate. Traced off the page image
+        # at 300 dpi: W(0) = 0.0751 um^2, so
+        #     sigma*1000 = 1000 * sqrt(0.0751 / 1809.6) = 6.44
+        # against the 6.2 that came from T-101 Table 4's relative granularity
+        # 1.3 scaled through HPS's absolute spectrum. A film's own measured
+        # spectrum outranks a ratio to another film, so the direct value is
+        # stored.
+        # ⚠ THREE ROUTES NOW EXIST AND TWO OF THEM AGREE TO 1 %: Monograph 54
+        # Fig. 3(a) direct 0.0751, the T-101 Fig. 18 trace 0.0744, and the
+        # printed-ratio route 0.0689. The two that agree are the two that
+        # measure 8374 directly; the outlier is the one that borrows another
+        # emulsion's absolute level, which is the expected failure direction
+        # and is why the ratio is no longer stored.
+        # ⚠⚠ AND THE SPECTRUM IS ESSENTIALLY WHITE ACROSS THE WHOLE PLOT,
+        # WHICH IS THE PHYSICALLY INTERESTING FINDING: 0.0751 at 0 c/mm and
+        # 0.0716 at 100, a 5 % fall over a range where HPS falls 10 % by
+        # 60 c/mm. Fitting this file's own carrier W = W0 exp(-2 (f/f_hi)^2)
+        # to the traced curve gives f_hi 620 c/mm at an rms of 0.00027 um^2 --
+        # i.e. clump_um 0.806.
+        # ⚠ THAT IS 17 % ABOVE THE STORED 0.687 AND THE STORED VALUE IS KEPT.
+        # 0.687 is T-101's PRINTED equivalent grain diameter converted; 0.806
+        # is a trace of a drawn line. The project's precedence rule puts the
+        # printed number first, and the disagreement is recorded here rather
+        # than averaged away. Note the direction: the drawn spectrum falls
+        # FASTER than the printed diameter implies, while p38 states the
+        # printed diameters are already upper bounds -- so the two documents
+        # disagree about this emulsion's correlation length by more than
+        # either one's stated uncertainty.
+        # ⚠ AND THE MEASUREMENT CONDITION IS NOW RECORDED IN A FIELD rather
+        # than only in this comment: `development_gamma_ref` 1.0, which both
+        # documents print for the measured sample.
+        grain=GrainSpec(6.44, 0.687, 0.687, 0.687, clump_gain=0.0,
+                        fog_grain=0.14, development_gamma_ref=1.0),
         # ⚠ f50 IS AN ESTIMATE [T3]. Nothing in either document constrains it;
         # 78.0 reflects a fine-grain 16 mm recording stock and no more.
         mtf=MTFSpec(78.0, 78.0, 78.0, adjacency=0.03, adjacency_um=16.0),
@@ -16585,7 +17511,8 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         is_monochrome=True,
         # ⚠ RE-VERIFIED AGAINST THE BOOK ITSELF 2026-09-02e (queue E4), AND ONE
         # CITATION WAS WRONG. The 2026-08-11 harvest was made without the file
-        # in this checkout; the owner supplied it this session and every value
+        # in this checkout when the profile was written; it was supplied on
+        # 2026-09-24 and every value
         # below was checked page by page against a 200 dpi render with OCR.
         # Everything reproduces EXCEPT the PDF page number, which was recorded
         # as 49 and is 50 -- printed page 45 of the book, PDF page 50, confirmed
@@ -16912,7 +17839,18 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # densitometry Status A, and a numeric reciprocity/CC-filter table.
         # Kodak publishes no resolving-power figure for this stock.
         grain=GrainSpec(11.0, 1.935, 2.097, 2.419, clump_gain=0.34, fog_grain=0.13),
-        mtf=MTFSpec(72.0, 80.0, 88.0, adjacency=0.12, adjacency_um=14.0),
+        # ⚠ RESOLVING POWER ADOPTED 2026-09-25c, and it arrives as HALF
+        # OF A PAIR: Mitchell prints Ektachrome 64 and Kodachrome 64 side
+        # by side, identical at low contrast and separated at high, so
+        # the two profiles take their numbers from one sentence and
+        # `retro_ru_1988.py` asserts that they still bracket each other
+        # the way the book prints them. Both fields were 0.0 before.
+        # ⚠ The figures are for the PROFESSIONAL Ektachrome 64 (EPR),
+        # which is what this profile holds.
+        mtf=MTFSpec(72.0, 80.0, 88.0, adjacency=0.12, adjacency_um=14.0,
+                    resolving_power_lp_mm_lowc=80.0,
+                    resolving_power_lp_mm_highc=125.0,
+                    resolving_optic="E. Mitchell, «Photographic Science», Russian translation «Фотография», Mir, Moscow 1988, p. 179: «обе плёнки дают идентичное воспроизведение (80 линия/мм) при низкой контрастности, а при высокой контрастности профессиональная плёнка Ektachrome лучше (125 линия/мм против 100)». ⚠ THE BOOK EQUATES линия/мм WITH линейные пары/мм (p. 127), so these are line pairs per millimetre. ⚠ The contrasts are NAMED and not numbered -- «низкая» and «высокая» -- so they go to the schema's lowc and highc fields, which is what those fields are for, and no target contrast ratio is claimed"),
         halation=HalationSpec(gain_r=0.045, gain_g=0.015, gain_b=0.004,
                              threshold_stops=2.1),
         couplers=CouplerSpec(0.08, 48.0, 0.05, 10.0),
@@ -16958,8 +17896,12 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
             "about South America: no country there manufactured raw film at "
             "scale in 1940-1980. Its studios shot on imports, and Ferrania was "
             "one of the most common. So this is an Italian stock, honestly "
-            "labelled, that gets you closest to that cinema. High gamma and "
-            "deep Dmax are the signature -- P30 blacks are genuinely black."
+            "labelled, that gets you closest to that cinema. Ferrania P30 is "
+            "a unique film with very limited sensitivity to red: Ferrania's "
+            "own 2026 range sheet calls it panchromatic «con bassa "
+            "sensibilità al rosso, proprio come le pellicole pancromatiche "
+            "degli anni '50», and it is not the P30 Mk2, which Ferrania sell "
+            "as a fully modern panchromatic film."
         ),
         era="2017 revival",    # CORRECTED 2026-08-14: was "1960s / revived
                                # 2017". Every value in this profile comes from
@@ -16987,31 +17929,893 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # hard shoulder (k 0.044) reproduces the printed curve clipping
         # flat at the D 2.0 axis edge at steps 19-20 -- axis saturation,
         # not necessarily the true film shoulder [T3 there].
-        curves=_mono(ToneCurve(0.107, 1.251, -0.971, 0.240, 0.615, 0.044)),
+        # ⚠⚠ REPLACED 2026-09-24 BY A REAL SENSITOMETRIC TEST, AND THE
+        # DOCUMENT IS BETTER THAN A DATASHEET BECAUSE IT PRINTS THE NUMBERS
+        # RATHER THAN A PLOT OF THEM. «Ferrania P30 alfa», test report dated
+        # 05/13/17, 14 pages, produced by a sensitometry program and printed
+        # to PDF; page 2 is a TABLE -- 21 step-tablet densities against
+        # measured density for each of five developments (5, 8, 11, 16 and
+        # 23 minutes), 105 readings in all. Nothing was traced and nothing
+        # was digitised: the fit below is a least-squares fit to printed
+        # numbers, which is why its residual is the smallest in the database
+        # for any B&W stock -- rms 0.0107 D, worst 0.0205 D.
+        #
+        # Conditions, all stated on every page: D-76 1+1, 20 C, 300 ml,
+        # ISO 80, agitation «continua primo 30s poi 6 ribaltamenti ogni 30s»,
+        # flare density 0.0200, speed method «0.1 over FB+F».
+        #
+        # ⚠ WHY THE 11-MINUTE LEG IS THE DEFAULT, AND IT IS FERRANIA'S CHOICE
+        # RATHER THAN THIS PROJECT'S. The report marks no development as
+        # normal. Ferrania's own processing chart (FP3011) gives, for the
+        # D-76-equivalent formula at the same dilution and the same speed --
+        # Ilford ID-11 1:1, 20 C, EI 80 -- a time of 13.5 minutes. That falls
+        # between the 11 and 16 minute legs, so 11 is the nearest MEASURED
+        # development to the manufacturer's own recommendation. Interpolating
+        # to 13.5 would produce a curve nobody measured; the other four legs
+        # are stored as ProcessVariants instead.
+        #
+        # ⚠⚠ WHAT THIS CORRECTS IS THE SHADOWS, AND THE ERROR WAS LARGE.
+        # The estimate that stood here carried dmin 0.107 against a measured
+        # base+fog of 0.2368 -- less than half. Every P30 frame this database
+        # has ever rendered has had its shadows more than 0.13 D too clean.
+        # Gamma 1.251 -> 1.3342 is a smaller move and lands where it should:
+        # between the 8-minute leg (1.1872) and the 16-minute one (1.6323).
+        #
+        # ⚠ AND CONTRAST IS NOT ONE NUMBER FOR THIS FILM, which is the real
+        # lesson of the five-leg series. The report's own average gradients
+        # run 0.55 / 0.66 / 0.73 / 0.83 / 0.93 and its subject brightness
+        # ranges 6.1 / 5.0 / 4.6 / 4.0 / 3.6. Any single «P30 is contrasty»
+        # claim is a statement about a development time, not about the film.
+        #
+        # ⚠ PROVENANCE LIMIT, IN THE TESTER'S OWN WORDS. The report's Notes
+        # field reads «Pellicola di pre-produzione, stage alfa, difettata» --
+        # pre-production, alpha stage, DEFECTIVE. So this documents P30 ALPHA
+        # and not current production, and it is tier 2: a named third party
+        # with a fully documented method, not the manufacturer. Ferrania has
+        # since split the product into P30 Cinema and P30 MkII and publishes
+        # no sensitometry for either; see DIGITIZATION_QUEUE P92.
+        #
+        # ⚠⚠ SUPERSEDED AS THE DEFAULT 2026-09-27, OWNER DECISION. The block
+        # above is kept as the record of why the alfa leg was chosen; it is
+        # no longer what this field holds. The default is now FILM FERRANIA'S
+        # OWN CURVE for this emulsion -- the DASHED «P30» member of the
+        # three-film comparison plot, printed on «Curve caratteristiche e
+        # sensibilita spettrali» p2 and reprinted on the 2026 P.F.G. range
+        # sheet (1579.pdf) p3, captioned «sviluppo in Kodak D-76 stock a 20 C
+        # - 8' a sensibilita nominali». Three reasons, all measured:
+        #   1. It is the manufacturer's curve; the alfa report is a third
+        #      party's test of pre-production stock its own tester calls
+        #      «difettata».
+        #   2. It is drawn AT NOMINAL SPEED, which is the EI 80 this profile
+        #      meters at. The 11-minute alfa leg's own measured effective
+        #      speed is 33.63, so the old default rendered a curve 1.25 stops
+        #      slower than the speed it was metered at.
+        #   3. It reproduces from TWO rasters: 0.0123 D rms from the «Curve
+        #      caratteristiche» image and 0.0140 D rms from the 1579 p3
+        #      page image (173 columns, steps 7.4-19.0), both re-traced on
+        #      every build by ferrania_vendor_sheets.py.
+        # ⚠ IT CARRIES NO MeasuredCurve, BY DESIGN: it is a trace of a
+        # drawing, not a printed table (G-V55-MEAS-STOCK). The alfa legs keep
+        # their tables on their ProcessVariants, the 11-minute one included.
+        # ⚠ dmin 0.26 is the alfa report's measured base+fog; the sheet
+        # plots «Su DMIN» and prints none. The shoulder 1.610 / 0.020 is the
+        # family convention -- the drawing ends at its own frame.
+        curves=_mono(ToneCurve(0.2600, 1.1257, -1.4114, 0.2265, 1.610, 0.020)),
         grain=GrainSpec(7.4, 3.226, 3.226, 3.226, clump_gain=1.15, fog_grain=0.18),
         mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.09, adjacency_um=15.0),
-        spectral_weights=(0.27, 0.55, 0.18),
+        # ⚠⚠ NOT A CLASS DEFAULT ANY MORE, AND THE OLD VALUE WAS ONE.
+        # (0.27, 0.55, 0.18) was byte-identical to FUJI_NEOPAN_ACROS_100's --
+        # a generic panchromatic triple that said nothing about this film.
+        # The value below is the integral of the log_s_pan curve now stored
+        # against the sRGB primaries, i.e. the same number the engine derives
+        # at run time, written down so that a reader of the file sees what
+        # the renderer actually uses. The field itself stays INERT while a
+        # pan curve is present: film_sim.spectral_monochrome_weights() and
+        # AlgoSpectralMonoWeights() both integrate the curve.
+        # ⚠⚠ AUTHORED ESTIMATE, 2026-09-27, AND THE ARITHMETIC IS HERE SO IT
+        # CAN BE ARGUED WITH. The previous triple (0.092, 0.242, 0.667) was
+        # this profile's withdrawn spectral curve integrated at the old 55 nm
+        # lobe width -- the same bad curve, baked. It is replaced by the only
+        # construction the surviving evidence supports:
+        #
+        #   1. the MEDIAN of the twelve panchromatic monochrome stocks in
+        #      this database whose spectral curve is MEASURED, integrated at
+        #      the shipping 34 nm basis: (0.3128, 0.3526, 0.3142);
+        #   2. times a red deficit of 10^-0.60 on the red weight alone.
+        #
+        # ⚠ 0.60 DECADE IS A MEASUREMENT AND IT IS THE ONLY ONE THAT
+        # SURVIVES. analogica.it user «ometto», 10/10/2020, metering one
+        # scene through an orange/red filter, needed +5 stops where the
+        # filter's own factor calls for +3 -- two stops, 0.60 decade, of red
+        # deficit against a normal panchromatic film. That is a PHOTOGRAPHIC
+        # measurement with a known filter, not an inversion of a printed and
+        # scanned comparison, which is why it outlives the twelve patch
+        # probes that produced the withdrawn curve.
+        #
+        # Renormalised: (0.105, 0.473, 0.422). ⚠ THE RED WEIGHT LANDS
+        # BETWEEN the measured orthochromatic stocks (0.074-0.120) and the
+        # weakest measured panchromatic one (0.221), which is exactly what
+        # «panchromatic with notably low red sensitivity» has to mean
+        # numerically, and it is the first time this profile's triple has
+        # said that instead of saying «blue-sensitive emulsion».
+        #
+        # TIER 3, and the tier is the honest part: one measured scalar and a
+        # class median. `sensitisation_class.py` gates it.
+        spectral_weights=(0.105, 0.473, 0.422),
         misregistration_um=0.0,
-        features=Feature.NONE,        # Spectral curve [T2-digitised 2026-08-02, batch 6]: envelope of
-        # the P30 wedge-spectrogram PHOTO on the same Ferrania sheet
-        # (uncalibrated photograph; band height read as log sensitivity,
-        # +/-0.15 log; blue falloff below 420 nm partly the tungsten lamp
-        # of the wedge exposure). Peak 610-630 nm, red cut ~660 nm.
+        features=Feature.NONE,
+        # ⚠⚠⚠ THE CURVE BELOW REPLACED, 2026-09-25, A CURVE THAT BELONGED TO
+        # A DIFFERENT FILM. THIS IS THE LARGEST SINGLE CORRECTION THIS
+        # PROFILE HAS EVER TAKEN.
+        #
+        # What stood here was the envelope of the wedge spectrogram printed
+        # beside the plot captioned **«P 30 New»** on Ferrania's
+        # «Curve caratteristiche e sensibilita spettrali» sheet -- a broad
+        # panchromatic plateau 440-650 nm flat to about 0.05 decade with a
+        # sharp cut at 660 nm. That reading was CORRECT. The error was the
+        # attribution: on the 2026 P.F.G. range sheet (1579.pdf) the same
+        # vendor plots **«P30 new» and «P30» as two different curves** and
+        # its prose separates them by name --
+        #     «Ferrania P30 (cinema): Questa e la formula originale della
+        #      P30 ... e una pellicola a piu alto contrasto CON BASSA
+        #      SENSIBILITA AL ROSSO, proprio come le pellicole pancromatiche
+        #      degli anni '50.»
+        #     «FERRANIA P30 Mk2 ... e una vera pellicola pancromatica
+        #      moderna.»
+        # -- so «P 30 New» is the Mk2 and the flat-to-650 spectrogram is the
+        # Mk2's. Everything ELSE in this profile (the alfa D-76 1+1 report,
+        # EI 80, the five ProcessVariants, the BEST PRACTICES family) is the
+        # ORIGINAL cinema emulsion. The profile was rendering the modern
+        # coating's red response on the historical coating's tone curve.
+        # The Mk2 spectrogram now lives on FERRANIA_P30_MK2, where it belongs.
+        #
+        # ⚠ NO WEDGE SPECTROGRAM OF THE ORIGINAL P30 EXISTS IN THIS CORPUS
+        # OR, AS FAR AS THIS PROJECT CAN ESTABLISH, ANYWHERE. Ferrania have
+        # never published one. So the curve below is DERIVED, by a method
+        # stated in full in the source string and re-run on every build by
+        # `ferrania_p30_colour_target.py`:
+        #
+        #   log_s_pan(P30) = log_s_pan(KODAK_TRI_X_400TX) + delta(lambda)
+        #
+        # where the Tri-X curve is Kodak's own F-4017 vector artwork already
+        # in this database and delta is a four-parameter logistic fitted to
+        # THIRTEEN MEASURED PROBES -- twelve ColorChecker patches photographed
+        # on both films side by side, plus one filter-factor observation.
+        # Fitted delta: +0.463 decade below 500 nm, -0.589 above 600 nm,
+        # half-way at 533.6 nm over a 27.5 nm logistic width; unweighted
+        # residual 0.050 decade over the thirteen probes.
+        #
+        # ⚠ WHY A DIFFERENTIAL IS SOUND WHERE AN ABSOLUTE WOULD NOT BE. The
+        # two frames are two photographs of ONE colour target, each printed
+        # through its own unknown paper grade and its own unknown exposure.
+        # Each panel is therefore calibrated on ITS OWN six-patch neutral row
+        # before anything else is read, which removes the whole tone-
+        # reproduction chain and leaves only what differs BETWEEN the films
+        # at a given wavelength. An absolute sensitivity cannot be recovered
+        # this way and none is claimed.
+        #
+        # ⚠ THE INDEPENDENT CHECK IS A FILTER FACTOR, FROM A DIFFERENT YEAR
+        # AND A DIFFERENT PHOTOGRAPHER. analogica.it user «ometto»,
+        # 10/10/2020, metering the same scene with and without an orange/red
+        # filter, found the filter's nominal +3 stops «assolutamente
+        # insufficienti» and needed TWO MORE -- +5 stops in all. Two stops is
+        # 0.60 decade of extra red deficit against an average panchromatic
+        # film, against the -0.49 decade the colour target gives for the same
+        # region. Two unrelated measurements, one plate of evidence.
+        #
+        # ⚠ WHAT THE CURVE SAYS IN WORDS: P30 original is panchromatic but
+        # only just -- 1.2 decades down at 610 nm against its 380-400 nm
+        # peak, where Tri-X is 0.3 down. Forum user «pollospiedo» calls it
+        # near-orthochromatic and the maker's own prose calls it a 1950s
+        # panchromatic. Both are now in the numbers.
+        #
+        # ⚠ TIER 3 AND SAID SO. A derived curve is not a measured one. What
+        # is measured is the DIFFERENCE, at thirteen wavelengths, with a
+        # stated residual; the wavelength-by-wavelength shape between those
+        # probes is the logistic's, and the shape below 450 nm and above
+        # 630 nm is Tri-X's carried across unchanged.
         spectral=SpectralSensitivity(
-            lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-2.40, -1.65, -1.05, -0.75, -0.50, -0.35, -0.20,
-                       -0.15, -0.15, -0.15, -0.20, -0.20, -0.20, -0.20,
-                       -0.20, -0.20, -0.20, -0.20, -0.15, -0.10, -0.05,
-                       -0.05, -0.05, 0.00, 0.00, 0.00, -0.05, -0.20,
-                       -1.40),
-            criterion="wedge_spectrogram_photo_envelope_estimate",
-            source=("Film Ferrania S.r.l., 'Curve caratteristiche e "
-                    "sensibilita spettrali' [Characteristic curves and "
-                    "spectral sensitivities], undated (P30 New / P33 / "
-                    "Orto comparison sheet); processing Kodak D-76 stock "
-                    "20 C 8 min"),
+            # ⚠⚠⚠ THE DERIVED CURVE IS WITHDRAWN, 2026-09-27, AND NOTHING
+            # REPLACES IT. This field held a 29-sample log_s_pan built as
+            # «TRI-X's measured curve plus a logistic delta fitted to the
+            # analogica.it colour-target comparison». It was tier 3 and it
+            # was declared as tier 3, and it was still wrong in a way the
+            # tier did not cover: it was not a panchromatic emulsion's
+            # curve at all.
+            #
+            # WHAT IT SAID, sampled at the three primary centres:
+            #     460 nm -0.25   540 nm -0.93   600 nm -1.33
+            # a MONOTONE DECAY from 380 nm with no green/red hump. Every
+            # panchromatic emulsion in this database has that hump -- it is
+            # where the green and red sensitising dyes sit -- and TRI-X, the
+            # very curve this was built from, has it plainly (500 -0.51
+            # rising to 560 -0.28). Subtracting a LOGISTIC, which is
+            # monotone by construction, from a curve with a hump can only
+            # erase the hump. The result has the shape of an UNSENSITISED
+            # emulsion with a long tail.
+            #
+            # ⚠⚠ AND IT CONTRADICTED A TIER-1 MEASUREMENT FROM THE SAME
+            # MANUFACTURER'S SAME DOCUMENT. The derived weights came out
+            # (0.076, 0.166, 0.758): a green weight of 0.166 against
+            # FERRANIA_ORTO_50's 0.448, read off Ferrania's own wedge
+            # spectrogram. ORTO 50 is ORTHOCHROMATIC -- red-blind, and
+            # sensitised to green by definition. A panchromatic film cannot
+            # be a third as green-sensitive as an orthochromatic one. The
+            # owner found it by rendering a ColorChecker and seeing the blue
+            # patch come out white.
+            #
+            # ⚠⚠ WHY REFUSAL AND NOT A REFIT. The delta was fitted in
+            # WAVELENGTH SPACE: each ColorChecker patch was assigned an
+            # «effective nm» and the logistic was fitted to those points.
+            # That treats a broadband reflectance patch as a monochromatic
+            # probe, so the whole integrated difference is attributed to one
+            # wavelength and the spectral tilt is overstated -- which is how
+            # a 1.05-decade swing came out of probes spanning 0.93 decade.
+            # Refitting THROUGH THE FORWARD MODEL -- vary the logistic,
+            # derive the weights the renderer would use, predict each
+            # patch's difference, compare -- was tried on 2026-09-27 and
+            # FAILS: the optimiser drives the width to its lower bound and
+            # the weighted residual is 0.138 decade against the wavelength-
+            # space fit's 0.050. No smooth spectral tilt applied to TRI-X
+            # reproduces those twelve patch differences. The measurement
+            # does not support a curve, and the 0.050 residual the old fit
+            # reported was the freedom of the wrong objective, not agreement.
+            #
+            # What remains is `spectral_weights` above, an authored estimate
+            # that says so. See its own comment for the one measured number
+            # behind it.
+            criterion="",
+            source=("NO SPECTRAL CURVE. Film Ferrania has published none "
+                    "for the ORIGINAL P30 emulsion: the wedge spectrogram "
+                    "in «Curve caratteristiche e sensibilita spettrali» is "
+                    "captioned «P 30 New» and is the Mk2 coating, which is "
+                    "why it now sits on FERRANIA_P30_MK2. A curve DERIVED "
+                    "on 2026-09-25 from the analogica.it colour-target "
+                    "comparison stood here until 2026-09-27 and was "
+                    "withdrawn: it contradicted FERRANIA_ORTO_50's tier-1 "
+                    "wedge spectrogram, giving this panchromatic film a "
+                    "green weight of 0.166 against that orthochromatic "
+                    "film's 0.448, and a forward-model refit of the same "
+                    "probes does not converge (residual 0.138 decade "
+                    "against a fitted-in-wavelength-space 0.050). The "
+                    "colour-target frame remains in the corpus and "
+                    "ferrania_p30_colour_target.py still re-measures its "
+                    "twelve patch differences every build -- they are a "
+                    "real measurement of a real difference. What they do "
+                    "not support is a spectral sensitivity curve."),
         ),
 
+        # ⚠⚠ THE MANUFACTURER'S OWN PROCESSING CHART, ADDED 2026-09-25.
+        # «FERRANIA P30 BEST PRACTICES», v 2.5, Film Ferrania S.r.l., 3 pages.
+        # Until today this profile had FIVE ProcessVariants off a third
+        # party's D-76 1+1 test report and NO ProcessingFamily at all -- no
+        # manufacturer time for any developer, on a film still in production
+        # whose maker publishes a chart. The chart is page 2.
+        #
+        # ⚠ ELEVEN POINTS AND NOT ONE GAMMA. Ferrania print developer,
+        # dilution, temperature, exposure index and minutes, and no contrast
+        # of any kind, so every point here is time-only. That is what the
+        # schema's time-only path is for and it is not a defect in the
+        # harvest: the sheet is a processing guide, not a sensitometric one.
+        #
+        # ⚠ `vessel` IS DELIBERATELY EMPTY ON ALL ELEVEN. The table's own
+        # caption is «RECOMMENDED TECHNIQUES for Handheld and Rotary Tanks»
+        # and each row gives ONE time for BOTH, differing only in the
+        # agitation column. Writing "small tank" would claim a distinction
+        # Ferrania do not make, and the corpus rule is that this field
+        # records the process a sheet tabulates under its own caption.
+        #
+        # ⚠⚠ THE SHEET CONTRADICTS ITSELF ON ONE TEMPERATURE AND THE CELSIUS
+        # IS KEPT. Two rows print «24ºC/72.5ºF» -- Kodak TMAX here and Fuji
+        # Negastar in the community table -- and 24 ºC is 75.2 ºF, not 72.5;
+        # 72.5 ºF is 22.5 ºC. A third row, Ilford DD, prints «24ºC/75ºF»
+        # correctly, which is what identifies the other two as the error
+        # rather than a third temperature. 24.0 is stored because T-MAX
+        # developer's own normal working temperature is 24 ºC / 75 ºF and
+        # because the Celsius column is self-consistent everywhere else.
+        # THE CONFLICT IS RECORDED, NOT SILENTLY RESOLVED.
+        #
+        # ⚠ THE 60-MINUTE R09 ROW IS A SEMI-STAND DEVELOPMENT and is stored
+        # as printed. Its agitation column reads «3 minute pre-soak, 60 second
+        # initial agitation with gentle agitation at 15, 30 and 45 minutes» --
+        # a schedule the schema cannot carry, so the time is stored and the
+        # schedule lives in the family source. A consumer that treats 60 min
+        # as an ordinary inversion development will be badly wrong.
+        #
+        # ⚠⚠ PAGE 3 IS NOT HERE AND THAT IS THE DECISION. It holds THIRTEEN
+        # more times under the heading «Additional Community-Submitted
+        # Processing Techniques» -- Adox Adonal, Fuji Negastar, Ilford DD,
+        # DD-X, ID-11, Microphen, XTOL, Perceptol, Promicrol and R09 1:50.
+        # `DevelopmentPoint` HAS NO EVIDENCE TIER, so eleven manufacturer
+        # recommendations and thirteen user submissions dropped into one
+        # tuple would be indistinguishable to every consumer of this family
+        # -- including `resolve_development_time`. They are transcribed in
+        # full in `_FERRANIA_P30_COMMUNITY_TIMES` instead, which no engine
+        # reads, and in EMULSION_KNOWLEDGE_BASE.md.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="Kodak D-76", dilution="stock", minutes=8.0, celsius=20.0, exposure_index=50),
+                DevelopmentPoint(developer="Kodak D-76", dilution="stock", minutes=7.0, celsius=20.0, exposure_index=80),
+                DevelopmentPoint(developer="Kodak D-96", dilution="stock", minutes=8.0, celsius=21.0, exposure_index=50),
+                DevelopmentPoint(developer="Kodak D-96", dilution="stock", minutes=8.0, celsius=21.0, exposure_index=80),
+                DevelopmentPoint(developer="Ilford Ilfosol 3", dilution="1:9", minutes=6.0, celsius=20.0, exposure_index=80),
+                DevelopmentPoint(developer="Kodak HC-110", dilution="1:63 (dil. H)", minutes=12.0, celsius=20.0, exposure_index=80),
+                DevelopmentPoint(developer="Kodak HC-110", dilution="1:31 (dil. B)", minutes=5.0, celsius=20.0, exposure_index=80),
+                DevelopmentPoint(developer="Kodak TMAX", dilution="1:6", minutes=7.0, celsius=24.0, exposure_index=80),
+                DevelopmentPoint(developer="R09 (Rodinal)", dilution="1:100", minutes=60.0, celsius=20.0, exposure_index=80),
+                DevelopmentPoint(developer="Tetenal Paranol S", dilution="1:50", minutes=14.0, celsius=20.0, exposure_index=80),
+                DevelopmentPoint(developer="FF No.1 Monobath", dilution="stock", minutes=6.0, celsius=21.0, exposure_index=80),
+                # ⚠⚠ THE ONLY CONTRAST-CARRYING POINTS THIS FAMILY HAS, ADDED
+                # 2026-09-25c (audit §6.2). The eleven rows above are
+                # Ferrania's own chart and it prints NO contrast anywhere, so
+                # until today this stock's whole processing axis was
+                # time-only: `resolve_development_time` could answer "how
+                # long in HC-110" but nothing could answer "what does more
+                # development DO to this film", although the project has held
+                # the measurement since the alfa report was traced.
+                #
+                # ⚠ THEY ARE A DIFFERENT PROCESS FROM THE ELEVEN ABOVE and do
+                # not displace them: D-76 at 1+1, from a third party's BTZS
+                # test of PRE-PRODUCTION alpha stock, against Ferrania's own
+                # D-76 at STOCK dilution on production film. Both are true of
+                # different things, which is why the dilution string is what
+                # separates them and why `ferrania_p30_best_practices.py`
+                # selects by dilution rather than by count.
+                #
+                # ⚠ THE NUMBER IS BTZS AVERAGE GRADIENT AND NOT GAMMA, and
+                # this is exactly the confusion `contrast_criterion` was added
+                # to stop. Report pages 4-8 print «Avg. G» 0.55 / 0.66 / 0.73
+                # / 0.83 / 0.93 for these five; refitting the same five curves
+                # returns asymptotic gammas 0.73-2.07. The Avg G is lower
+                # BECAUSE IT AVERAGES THE TOE IN over the subject brightness
+                # range each leg was read at (SBR 6.1 / 5.0 / 4.6 / 4.0 / 3.6,
+                # also printed). Storing the fitted gamma here instead would
+                # put a number in this tuple that the cited pages do not
+                # contain.
+                #
+                # ⚠ `exposure_index` IS THE REPORT'S BTZS EFFECTIVE FILM
+                # SPEED, ROUNDED TO THE LADDER, NOT THE BOX SPEED. 12.01 /
+                # 25.07 / 33.63 / 48.71 / 58.58 land on 12 / 25 / 32 / 50 / 64
+                # of the report's own nine-rung ladder, which is what the five
+                # `ProcessVariant`s already state. These are NOT ISO 6 speeds:
+                # see `_SPEED_CRITERION_OVERRIDES`.
+                #
+                # ⚠ `base_fog` IS THE REPORT'S OWN B+F COLUMN, and it moves --
+                # 0.27 at 5 min to 0.29 from 11 min on -- which is the same
+                # quantity `ToneCurve.dmin` freezes at one condition.
+                DevelopmentPoint(developer="Kodak D-76", dilution="1+1", minutes=5.0, celsius=20.0,
+                                 gamma=0.55, contrast_criterion="btzs_avg_gradient",
+                                 exposure_index=12, base_fog=0.27),
+                DevelopmentPoint(developer="Kodak D-76", dilution="1+1", minutes=8.0, celsius=20.0,
+                                 gamma=0.66, contrast_criterion="btzs_avg_gradient",
+                                 exposure_index=25, base_fog=0.28),
+                DevelopmentPoint(developer="Kodak D-76", dilution="1+1", minutes=11.0, celsius=20.0,
+                                 gamma=0.73, contrast_criterion="btzs_avg_gradient",
+                                 exposure_index=32, base_fog=0.29),
+                DevelopmentPoint(developer="Kodak D-76", dilution="1+1", minutes=16.0, celsius=20.0,
+                                 gamma=0.83, contrast_criterion="btzs_avg_gradient",
+                                 exposure_index=50, base_fog=0.29),
+                DevelopmentPoint(developer="Kodak D-76", dilution="1+1", minutes=23.0, celsius=20.0,
+                                 gamma=0.93, contrast_criterion="btzs_avg_gradient",
+                                 exposure_index=64, base_fog=0.29),
+            ),
+            # ⚠ THE AGITATION COLUMN IS IN THIS COMMENT AND NOT IN THE
+            # EMITTED SOURCE STRING, on the project's own rule: a ParamSource
+            # or family source ships into the generated C++ and is paid for
+            # 197 times, while a `#` comment here never leaves Python. The
+            # chart's procedures, row by row --
+            #   D-76 EI 50, D-96          continuous inversions, or roll the
+            #                             tank back and forth
+            #   D-76 EI 80, HC-110 dil.H  inversions for 10 s each minute
+            #   Ilfosol 3, HC-110 dil.B   inversions first 30 s, then one
+            #                             inversion per minute
+            #   TMAX                      «TMAX style», rapid twisting, 5-7
+            #                             inversions in the first 10 s and
+            #                             each 30 s
+            #   Paranol S                 continuous inversions for 30 s,
+            #                             then 10 inversions every minute
+            #   FF No.1 Monobath          6-10 inversions the first minute,
+            #                             then one each 30 s
+            #   R09 1:100                 SEMI-STAND: 3 min pre-soak, 60 s
+            #                             initial agitation, gentle agitation
+            #                             at 15, 30 and 45 min
+            # -- and every row adds «Rotary Tank: continuous rotation».
+            # ⚠ HC-110 dil. H carries a volume floor in its own cell: «must
+            # use at least 450ml water to maintain the 6ml required for a
+            # 36 exp 135 roll».
+            source=(
+                "Film Ferrania S.r.l., «FERRANIA P30 BEST PRACTICES» v 2.5, "
+                "page 2, «RECOMMENDED TECHNIQUES for Handheld and Rotary "
+                "Tanks». Eleven rows: developer, dilution, temperature, "
+                "exposure index, minutes -- and NO contrast anywhere on the "
+                "sheet, so every point here is time-only. ONE time per row "
+                "serves both vessels, varying only agitation, which is why "
+                "`vessel` is empty. ⚠ R09 1:100 is a SEMI-STAND development "
+                "and its 60 minutes must not be read as an inversion time. "
+                "⚠ THE SHEET CONTRADICTS ITSELF: the TMAX row prints "
+                "«24ºC/72.5ºF» where 24 C is 75.2 F; page 3's Ilford DD row "
+                "prints «24ºC/75ºF» correctly, which identifies the error. "
+                "24.0 C stored, conflict recorded. ⚠ Page 3's thirteen "
+                "COMMUNITY-SUBMITTED times are not in this tuple -- see "
+                "`_FERRANIA_P30_COMMUNITY_TIMES`. ⚠ D-96 is described by "
+                "Ferrania as «a cinema film developer that is most similar to "
+                "the original P30 developer made by Ferrania in the 1960s», "
+                "which bears on the pending P30 Cinema / MkII split. "
+                "⚠⚠ FIVE FURTHER POINTS WERE ADDED 2026-09-25c FROM A SECOND "
+                "DOCUMENT and they are the only contrast this family holds: "
+                "«Ferrania P30 alfa», sensitometric test report, test date "
+                "05/13/17, pages 4-8 -- D-76 at 1+1, 20 C, five times, each "
+                "with a printed «Avg. G» (BTZS AVERAGE GRADIENT, not gamma "
+                "and not Kodak contrast index -- see `contrast_criterion`), "
+                "a B+F and a BTZS effective film speed. That test is a THIRD "
+                "PARTY's, on PRE-PRODUCTION alpha stock and at a DIFFERENT "
+                "DILUTION from the eleven rows above, so the two sets "
+                "describe different things and neither displaces the other; "
+                "the `dilution` string is what tells them apart."),
+        ),
+    ),
+    FilmProfile(
+        name="FERRANIA_P30_MK2",
+        aliases=("p30 mk2", "p30 mkii", "ferrania p30 mk2", "p30 new"),
+        description=(
+            "[T2] Ferrania P30 Mk2, Italy, EI 80. The 2020s re-formulation of "
+            "the revived P30: same nominal speed, same 5 g/m2 silver, but a "
+            "modern panchromatic sensitisation. The maker's own prose is the "
+            "clearest statement of what separates it from the original -- "
+            "«una vera pellicola pancromatica moderna ... transizioni tonali "
+            "piu fluide, dettagli nelle ombre piu ricchi» against the "
+            "original's «piu alto contrasto CON BASSA SENSIBILITA AL ROSSO, "
+            "proprio come le pellicole pancromatiche degli anni '50». Both "
+            "halves of that sentence are now separate profiles, and the "
+            "difference is in the spectral records, not in prose."
+        ),
+        era="2024-present",
+        is_monochrome=True,
+        exposure_index=80,
+        balance_kelvin=5500,
+        # ⚠⚠ THIS PROFILE EXISTS BECAUSE FERRANIA_P30 WAS CARRYING TWO FILMS.
+        # Added 2026-09-25, closing DIGITIZATION_QUEUE task 534. Until today
+        # the database held ONE «FERRANIA_P30» whose tone curve came from a
+        # 2017 test of pre-production ORIGINAL stock and whose spectral
+        # sensitivity came from the wedge spectrogram captioned «P 30 New» --
+        # i.e. this film. Neither value was wrong; the pairing was.
+        #
+        # [T2] CURVE MACHINE-TRACED 2026-09-25 from Film Ferrania's
+        # «Curve caratteristiche e sensibilita spettrali» sheet, page 1, the
+        # plot titled «P 30 New» (red trace, 472x292 px raster). Processing as
+        # the sheet's own caption states it: «sviluppo in Kodak D-76 stock a
+        # 20°C - 8' a sensibilita nominali».
+        #
+        # ⚠ THE TRACE IS CHECKED AGAINST A SECOND DRAWING OF THE SAME CURVE,
+        # NOT AGAINST ITSELF. Page 2 of the same sheet repeats this curve as
+        # the solid black member of a three-film comparison plot (P33 red,
+        # «P30 new» solid, «P30» dashed). Traced independently -- different
+        # raster, different gridlines, different colour classification -- the
+        # two readings agree to 0.007 D worst-case over steps 1-18 and to
+        # 0.000 D over steps 1-4. That is what licenses the dashed member of
+        # the same plot to be read as the ORIGINAL P30's curve (it is stored
+        # as a ProcessVariant on FERRANIA_P30).
+        #
+        # ⚠ AXIS CONVENTION, STATED RATHER THAN ASSUMED. The abscissa is a
+        # sensitometer STEP NUMBER 0-20, not log exposure, and the ordinate is
+        # captioned «Su DMIN» -- density ABOVE base+fog. 0.15 log H per step
+        # is used, which is the standard 21-step tablet increment and is
+        # CONFIRMED for this manufacturer's own testing by the «Ferrania P30
+        # alfa» report, whose page-2 table prints its tablet's calibrated
+        # densities: 0.04 0.20 0.35 ... 3.03, mean increment 0.1495. dmin
+        # 0.26 is the alfa report's measured base+fog rounded, and is an
+        # ESTIMATE for this coating [T3] -- the sheet prints none.
+        #
+        # ⚠ THE FOUR CURVES ON THIS SHEET SHARE ONE STEP-TO-LOG-H OFFSET,
+        # because they were exposed on one wedge in one session «a
+        # sensibilita nominali». The offset is fixed by putting THIS film's
+        # speed point (0.10 over base) at the same relative exposure as the
+        # existing FERRANIA_P30 entry, both being EI 80; Orto and P33 then
+        # inherit their own measured speed separations from the drawing
+        # rather than being re-anchored, so the family's relative speeds are
+        # the sheet's and not this project's.
+        #
+        # ⚠⚠ THE SHOULDER IS NOT FITTED, AND THAT IS THE IMPORTANT PART.
+        # The drawing's ordinate frame stops at D 2.0 and this curve reaches
+        # 1.956 at step 19 and 1.977 at step 20 -- it is running along the
+        # TOP OF THE FRAME, not along the film's shoulder. A least-squares
+        # fit allowed to place a shoulder reads that flattening as real and
+        # puts it at log H -0.05, i.e. just above mid grey, which makes the
+        # rendered negative saturate on everything brighter than a grey card:
+        # a ColorChecker rendered through that fit came back with eighteen of
+        # its twenty-four patches at an identical value. Steps 19 and 20 are
+        # therefore DROPPED and the shoulder is pinned at the P30 family's own
+        # placement (shoulder_x 1.610, shoulder_k 0.020, as the alfa report's
+        # 8 / 16 / 23-minute legs use), which is beyond anything this drawing
+        # shows. THE SHOULDER IS A CONVENTION HERE, NOT A MEASUREMENT.
+        #
+        # Fit residual rms 0.0074 D over steps 1-18. Straight-line gamma
+        # 1.243 -- the highest of the four films on the sheet, which is the
+        # numeric form of «conserva ... il contrasto intenso della P30».
+        curves=_mono(ToneCurve(0.2600, 1.2428, -1.7989, 0.2383, 1.610, 0.020)),
+        # [T3] grain and MTF carried from FERRANIA_P30: same maker, same
+        # nominal speed, same stated silver loading, no measurement of either
+        # quantity published for this coating. Not a measurement, and the
+        # realism score must keep counting them as estimates.
+        grain=GrainSpec(7.4, 3.226, 3.226, 3.226, clump_gain=1.15, fog_grain=0.18),
+        mtf=MTFSpec(66.0, 66.0, 66.0, adjacency=0.09, adjacency_um=15.0),
+        # Integral of the log_s_pan curve below against the sRGB primaries;
+        # INERT while that curve is present (both engines integrate it).
+        spectral_weights=(0.338, 0.352, 0.309),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+        # [T2] WEDGE SPECTROGRAM, page 1 of the same sheet, the strip printed
+        # beside the «P 30 New» plot (472x129 px photograph of the developed
+        # wedge spectrogram, its own wavelength rulers photographed above and
+        # below the strip).
+        #
+        # ⚠ WAVELENGTH AXIS FROM THE STRIP'S OWN PRINTED TICKS, NOT FROM THE
+        # PAGE. Six major ticks are detected at 80.5 / 131.5 / 182.5 / 233.0 /
+        # 284.5 / 335.5 px and read .40 .45 .50 .55 .60 .65, i.e. 400-650 nm;
+        # the linear fit lands every one of them within 0.4 nm. This matters:
+        # the SAME photograph appears cropped on the 2026 P.F.G. range sheet
+        # (1579.pdf) with a yellow overlay covering everything past 584 nm,
+        # and reading the cropped copy as if it ran to 650 is exactly how a
+        # spectral curve gets stretched.
+        #
+        # ⚠ ORDINATE CROSS-CALIBRATED FROM THE ORTO STRIP, WHICH IS THE ONLY
+        # ONE THAT CARRIES A PRINTED SCALE. Page 2 prints «1 / 0,5 / 0» beside
+        # the Orto spectrogram, 74.6 px per decade against that strip's 104.5
+        # px per 50 nm ruler interval. The rulers are physical objects of
+        # fixed size photographed by one instrument, so the ratio 0.714 decade
+        # per ruler-interval transfers; this strip's 50.99 px per 50 nm then
+        # gives 0.02747 decade per pixel. THE ASSUMPTION IS ONE INSTRUMENT AND
+        # ONE WEDGE FOR ALL THREE STRIPS. It is stated because it is not
+        # provable from the sheet.
+        #
+        # ⚠⚠ THE WEDGE IS ABOUT 0.8 DECADE DEEP AND THAT BOUNDS WHAT THIS
+        # RECORD CAN SAY. Where the trace disappears the film is not
+        # insensitive, it is below the wedge's floor. The -0.48 printed at
+        # 660 nm is therefore a LOWER BOUND on the falloff, not the cutoff;
+        # the visible trace is gone by about 665-670 nm.
+        #
+        # WHAT IT SHOWS: a broad panchromatic plateau, 440-650 nm flat to
+        # about 0.1 decade, slightly HIGHER in the 580-650 nm red than in the
+        # green. This film has no red deficiency of any kind, which is the
+        # whole point of separating it from FERRANIA_P30.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-0.74, -0.53, -0.38, -0.23, -0.20, -0.17, -0.08,
+                       -0.06, -0.06, -0.08, -0.12, -0.15, -0.15, -0.15,
+                       -0.15, -0.16, -0.16, -0.16, -0.12, -0.08, -0.01,
+                       0.00, 0.00, 0.00, -0.01, 0.00, -0.03, -0.16,
+                       -0.45),
+            criterion="wedge_spectrogram_envelope_ruler_calibrated",
+            source=("Film Ferrania S.r.l., «Curve caratteristiche e "
+                    "sensibilita spettrali», 2 pages, undated (P 30 New / "
+                    "P 33 / Orto), page 1, the wedge spectrogram beside the "
+                    "«P 30 New» characteristic curve. Digitised 2026-09-25: "
+                    "wavelength from the strip's own six printed major ticks "
+                    "(400-650 nm, linear fit within 0.4 nm), ordinate "
+                    "cross-calibrated at 0.02747 decade/px from the printed "
+                    "«1 / 0,5 / 0» ladder on the Orto strip of page 2 via the "
+                    "two strips' ruler scales. Envelope taken at 10 % below "
+                    "the clear-area level, per column, and averaged over "
+                    "+/-6 nm. ⚠ The wedge is about 0.8 decade deep, so values "
+                    "near -0.5 are floor-limited lower bounds rather than "
+                    "measured falloff"),
+        ),
+        # [T3] THE DISTRIBUTOR'S TABLE, NOT THE MANUFACTURER'S. Fourteen rows
+        # at 20 C from «Tabella dei tempi di sviluppo - INDICATIVA, BASE DI
+        # PARTENZA a 20°C», page 4 of the 2026 P.F.G. / Karl Bielser s.a.s.
+        # Ferrania range sheet (1579.pdf). The caption calls the whole table
+        # INDICATIVE and A STARTING POINT, and P.F.G. are the Italian
+        # distributor, not Film Ferrania, so this is tier 3 and must not be
+        # confused with the maker's own «BEST PRACTICES» chart -- which
+        # covers the ORIGINAL P30 and is on FERRANIA_P30.
+        #
+        # ⚠ NO CONTRAST IS CARRIED even though the table has a contrast
+        # column, because that column prints WORDS -- «medio», «medio/alto»,
+        # «alto», «basso» -- and not gammas. Every point here is time-only.
+        # The words are transcribed in the source string so nothing is lost.
+        #
+        # ⚠ TWO TYPOGRAPHICAL DEFECTS, BOTH READ AS PRINTED AND CORRECTED
+        # WITH THE REASON STATED. The Rodinal 1+50 cell prints «14"» -- a
+        # seconds mark where every neighbouring cell uses the minutes mark,
+        # and a 14-second Rodinal development is not a process; 14 minutes is
+        # stored. The Bellini Hydrofen 1+50 row prints «ma a 24°C» under all
+        # three films, so those three points are stored at 24 C and not 20.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint("Kodak D-76 / Ilford ID-11", "stock", 8.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Kodak D-76 / Ilford ID-11", "1+1", 12.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Rodinal / R09 One Shot", "1+100", 60.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Rodinal / R09 One Shot", "1+25", 7.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Rodinal / R09 One Shot", "1+50", 14.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Rollei Low Contrast", "1+4", 9.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Rollei Supergrain", "1+12", 7.5, 20.0, exposure_index=80),
+                DevelopmentPoint("Kodak T-Max Developer", "1+4", 7.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Bellini Ecofilm / X-Tol", "1+1", 12.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Bellini Hydrofen", "1+15", 6.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Bellini Hydrofen", "1+31", 10.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Bellini Hydrofen", "1+50", 13.0, 24.0, exposure_index=80),
+                DevelopmentPoint("Ornano Gradual ST 20", "1+9", 8.0, 20.0, exposure_index=80),
+                DevelopmentPoint("Ornano Nucleol BF200", "20+15+965ml", 9.0, 20.0, exposure_index=80),
+            ),
+            source=(
+                "P.F.G. by KARL BIELSER s.a.s. (Rollei Film Point, Milan), "
+                "«Ferrania 2026» range sheet, page 4, «Tabella dei tempi di "
+                "sviluppo - INDICATIVA, BASE DI PARTENZA a 20°C», column "
+                "«P30Mk2». TIER 3: the DISTRIBUTOR's indicative table, not "
+                "Film Ferrania's own chart. Pre-soak in water at process "
+                "temperature is prescribed beside the table: «P30 Mk2 e P33: "
+                "prebagno: 1-2 minuti» (3-5 minutes for the other films). "
+                "The sheet's contrast column is qualitative and is NOT stored "
+                "as a gamma; as printed it reads medio (D-76 stock, D-76 1+1, "
+                "R09 1+100 «no, stand», R09 1+50, T-Max 1+4, Ornano Gradual, "
+                "Ornano Nucleol, Rollei Supergrain), medio/alto (R09 1+25, "
+                "Hydrofen 1+15 / 1+31 / 1+50) and medio/basso (Rollei Low "
+                "Contrast, Bellini Ecofilm). Agitation column reads «si» "
+                "(30 s) on every row except R09 1+100, which reads «no, "
+                "stand». ⚠ Two printing defects read as printed and corrected "
+                "with cause: R09 1+50 prints «14\"» for 14 minutes, and the "
+                "Hydrofen 1+50 row prints «ma a 24°C», so that point alone is "
+                "stored at 24 C"),
+        ),
+    ),
+    FilmProfile(
+        name="FERRANIA_P33_160",
+        aliases=("p33", "ferrania p33", "ferrania p33 160"),
+        description=(
+            "[T2] Ferrania P33, Italy, EI 160/23. The newest of the revived "
+            "Ferrania black-and-white films and the only medium-speed one: a "
+            "general-purpose panchromatic with an even spectral response, an "
+            "extended tonal range and a wide exposure latitude. Its measured "
+            "gamma at the maker's own reference development is 0.70 -- half "
+            "the P30 family's -- so where P30 is a character film P33 is the "
+            "normal one."
+        ),
+        era="2024-present",
+        is_monochrome=True,
+        exposure_index=160,
+        balance_kelvin=5500,
+        # ⚠ NEW PROFILE 2026-09-25. Both of its measured records come from
+        # Film Ferrania's «Curve caratteristiche e sensibilita spettrali»
+        # sheet, page 1 (lower half): the «P 33» characteristic curve and the
+        # wedge spectrogram beside it.
+        #
+        # [T2] CURVE MACHINE-TRACED, and traced TWICE from two different
+        # drawings -- page 1's dedicated «P 33» plot and the red member of
+        # page 2's three-film comparison. The two readings agree to 0.003 D
+        # at every one of the twenty steps, which is the tightest
+        # cross-drawing agreement in this corpus and is what establishes that
+        # the tracer and the axis calibration are right for all four curves
+        # on this sheet.
+        #
+        # Processing, per the sheet's caption: Kodak D-76 stock, 20 C, 8 min,
+        # at nominal speed. Axis convention as on FERRANIA_P30_MK2: 0.15 log H
+        # per sensitometer step, ordinate «Su DMIN», one shared step-to-log-H
+        # offset for all four curves. Fit residual rms 0.0097 D; straight-line
+        # gamma 0.700.
+        #
+        # ⚠ dmin 0.20 IS AN ESTIMATE [T3]. The sheet plots density above base
+        # and prints no base+fog for any of its films. 0.20 is the modern
+        # triacetate B&W class value; the P30 family's own measured 0.26 is
+        # not transferred, because P33 is a different emulsion on a base the
+        # sheet describes differently («supporto in triacetato da 130 mu con
+        # leggera maschera»).
+        curves=_mono(ToneCurve(0.2000, 0.7002, -2.5129, 0.1440, 0.9060, 0.7904)),
+        # ⚠ THE ONLY PUBLISHED PHYSICAL DIMENSION IN THE WHOLE FERRANIA
+        # RANGE. P33's identikit on the 2026 P.F.G. range sheet prints
+        # «Supporto in triacetato da 130 mu con leggera maschera» -- 130 um
+        # of triacetate. The other three Ferrania stocks print nothing of the
+        # kind and keep the 127 um class default. ⚠ Nothing else in the
+        # block is filled: no crystal size, no habit, no aspect ratio, no
+        # iodide, no coated thickness, because the sheet prints none of them
+        # and a base figure does not imply an emulsion one.
+        emulsion=EmulsionSpec(
+            base_um=130.0,
+            base_material="triacetate",
+            source=("P.F.G. by KARL BIELSER s.a.s. (Rollei Film Point, "
+                    "Milan), «Ferrania 2026» range sheet, page 2, the P33 "
+                    "identikit: «Supporto in triacetato da 130 mu con "
+                    "leggera maschera». ⚠ «mu» is the sheet's own spelling "
+                    "of micrometres -- 130 um is an ordinary 135 base "
+                    "thickness and 130 millimicrons would be 0.13 um, which "
+                    "is not a film support"),
+        ),
+        # [T3] ESTIMATES. The maker states «ottima acutanza e una grana fine»
+        # and prints no granularity and no MTF. rms 9.0 and f50 70 are class
+        # values for a fine-grained ISO 160 panchromatic, placed between
+        # FERRANIA_P30 (7.4 / 66 at EI 80) and the ISO 400 class.
+        grain=GrainSpec(9.0, 3.4, 3.4, 3.4, clump_gain=1.10, fog_grain=0.16),
+        mtf=MTFSpec(70.0, 70.0, 70.0, adjacency=0.08, adjacency_um=15.0),
+        spectral_weights=(0.295, 0.367, 0.338),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+        # [T2] WEDGE SPECTROGRAM, page 1, the strip beside the «P 33» plot
+        # (472x156 px). Calibrated exactly as the Mk2 strip: wavelength on the
+        # strip's own printed .40-.65 ticks, ordinate at 0.02805 decade/px
+        # cross-calibrated from the Orto strip's printed ladder.
+        #
+        # ⚠ THE READING AGREES WITH THE MAKER'S OWN PRINTED SUMMARY, WHICH IS
+        # AN INDEPENDENT CHECK RATHER THAN A RESTATEMENT. The 2026 P.F.G.
+        # range sheet's P33 identikit prints «Sensibilita spettrale 380 a 640
+        # nm (lg sens. <2,0/>-0,5)». The trace peaks at 450 nm, holds within
+        # 0.17 decade from 400 to 620, and has fallen 0.47 decade by 640 and
+        # 1.19 by 660 -- i.e. the usable band ends where Ferrania say it does,
+        # and the printed «>-0,5» bound is met at 640 to 0.03 decade.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-0.85, -0.61, -0.41, -0.25, -0.13, -0.08, -0.05,
+                       -0.02, -0.03, -0.04, -0.06, -0.08, -0.11, -0.15,
+                       -0.14, -0.10, -0.07, -0.06, -0.03, 0.00, -0.01,
+                       -0.04, -0.06, -0.07, -0.13, -0.25, -0.44, -0.79,
+                       -1.17),
+            criterion="wedge_spectrogram_envelope_ruler_calibrated",
+            source=("Film Ferrania S.r.l., «Curve caratteristiche e "
+                    "sensibilita spettrali», page 1, the wedge spectrogram "
+                    "beside the «P 33» characteristic curve. Digitised "
+                    "2026-09-25 by the same method as the P 30 New strip: "
+                    "wavelength on the strip's own printed 400-650 nm major "
+                    "ticks, ordinate 0.02805 decade/px cross-calibrated from "
+                    "the printed «1 / 0,5 / 0» ladder on the page-2 Orto "
+                    "strip. CROSS-CHECK, from a different document: the 2026 "
+                    "P.F.G. range sheet states «Sensibilita spettrale 380 a "
+                    "640 nm (lg sens. <2,0/>-0,5)», and this trace is within "
+                    "0.03 decade of that -0.5 bound at 640 nm"),
+        ),
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint("Kodak D-76 / Ilford ID-11", "stock", 10.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Kodak D-76 / Ilford ID-11", "1+1", 14.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Rodinal / R09 One Shot", "1+100", 75.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Rodinal / R09 One Shot", "1+25", 7.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Rodinal / R09 One Shot", "1+50", 14.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Rollei Supergrain", "1+12", 7.5, 20.0, exposure_index=160),
+                DevelopmentPoint("Kodak T-Max Developer", "1+4", 8.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Bellini Ecofilm / X-Tol", "1+1", 10.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Bellini Hydrofen", "1+15", 6.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Bellini Hydrofen", "1+31", 11.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Bellini Hydrofen", "1+50", 14.0, 24.0, exposure_index=160),
+                DevelopmentPoint("Ornano Gradual ST 20", "1+9", 8.0, 20.0, exposure_index=160),
+                DevelopmentPoint("Ornano Nucleol BF200", "20+15+965ml", 10.0, 20.0, exposure_index=160),
+            ),
+            source=(
+                "P.F.G. by KARL BIELSER s.a.s. (Rollei Film Point, Milan), "
+                "«Ferrania 2026» range sheet, page 4, column «P33». TIER 3: "
+                "the distributor's INDICATIVE table, «BASE DI PARTENZA», at "
+                "20 C. ⚠ THIRTEEN ROWS AND NOT FOURTEEN: the Rollei Low "
+                "Contrast 1+4 row has NO P33 cell -- the column is blank on "
+                "the sheet -- so no point is stored for it, rather than one "
+                "borrowed from the neighbouring films. Contrast column is "
+                "qualitative (medio / medio-alto / medio-basso / basso) and "
+                "is not stored as a gamma. Pre-soak 1-2 minutes. Hydrofen "
+                "1+50 is printed «ma a 24°C» and is stored at 24 C"),
+        ),
+    ),
+    FilmProfile(
+        name="FERRANIA_ORTO_50",
+        aliases=("orto", "ferrania orto", "ferrania orto 50"),
+        description=(
+            "[T2] Ferrania Orto, Italy, EI 50/18. An ORTHOCHROMATIC "
+            "black-and-white film -- sensitive to ultraviolet, blue and "
+            "green and blind beyond about 590 nm. Reds, warm skin and red "
+            "rock go dark; foliage and grass go light. The maker recommends "
+            "it for portraits where freckles and lips are wanted and for "
+            "landscape where green foliage should read as it looks to the "
+            "eye, and quotes Ansel Adams to that effect on the range sheet."
+        ),
+        era="2023-present",
+        is_monochrome=True,
+        exposure_index=50,
+        balance_kelvin=5500,
+        # ⚠ NEW PROFILE 2026-09-25, and the FIRST ORTHOCHROMATIC STOCK IN
+        # THIS DATABASE TO CARRY A MEASURED CUTOFF from its own maker's wedge
+        # spectrogram rather than from a class assumption.
+        #
+        # [T2] CURVE MACHINE-TRACED from «Curve caratteristiche e sensibilita
+        # spettrali» page 2, the magenta «Orto» plot (1082x669 px raster, the
+        # largest drawing on the sheet; legend «249»). Processing per the
+        # sheet's caption: Kodak D-76 stock, 20 C, 8 min, at nominal speed.
+        # Same axis convention and same shared step-to-log-H offset as the
+        # other three curves. ⚠ STEPS 19 AND 20 ARE DROPPED and the shoulder
+        # is pinned at 1.610 / 0.020 rather than fitted, for the reason given
+        # on FERRANIA_P30_MK2: this curve reaches 2.491 against an ordinate
+        # frame that stops at 2.5, so its flattening is the FRAME. Fit
+        # residual rms 0.0110 D over steps 1-18; straight-line gamma 1.123,
+        # and this film has the longest density scale of the four -- D 2.49
+        # above base at step 20.
+        #
+        # ⚠ dmin 0.20 IS AN ESTIMATE [T3], as on P33: the sheet plots «Su
+        # DMIN» and prints no base+fog.
+        curves=_mono(ToneCurve(0.2000, 1.1228, -2.3907, 0.1443, 1.610, 0.020)),
+        # [T3] ESTIMATES. No granularity and no MTF is published. rms 6.5 and
+        # f50 75 are class values for a slow ISO 50 film, extrapolated below
+        # FERRANIA_P30's measured-nothing 7.4 / 66 at EI 80 on the same
+        # maker's coating line.
+        grain=GrainSpec(6.5, 3.0, 3.0, 3.0, clump_gain=1.15, fog_grain=0.16),
+        mtf=MTFSpec(75.0, 75.0, 75.0, adjacency=0.09, adjacency_um=15.0),
+        spectral_weights=(0.178, 0.391, 0.432),
+        misregistration_um=0.0,
+        features=Feature.NONE,
+        # ⚠⚠ THIS IS THE STRIP THE 2026 P.F.G. RANGE SHEET REPRINTS UNDER THE
+        # HEADING «Sensibilita spettrale», AND IT IS THIS FILM'S, NOT P30'S.
+        # Recorded because the confusion is easy to make and was made: on
+        # 1579.pdf page 3 the strip sits in the right-hand column with a
+        # yellow overlay whose nm labels stop at 550, and the overlay covers
+        # the photograph from 584 nm on, so nothing past 584 nm can be read
+        # from that copy at all. The same photograph appears UNCROPPED here on
+        # page 2 of the parent sheet, directly beside the plot titled «Orto»
+        # and carrying that page's «Scale: 1 / 0,5 / 0 -- sensibilita»
+        # ladder, while page 1 of the parent sheet carries two OTHER strips
+        # whose rulers run 400-650 nm, one beside «P 30 New» and one beside
+        # «P 33». Three strips, three films, and the range sheet reprints
+        # only this one.
+        #
+        # [T2] Digitised 2026-09-25: wavelength on the strip's own four
+        # printed major ticks (400 / 450 / 500 / 550 nm at 87.0 / 191.5 /
+        # 294.5 / 401.0 px, linear fit within 0.6 nm), ordinate directly on
+        # the printed ladder -- 74.6 px per decade, which is this sheet's ONLY
+        # printed sensitivity scale and the reference from which the P 30 New
+        # and P 33 strips are cross-calibrated.
+        #
+        # WHAT IT SHOWS, and it is a textbook orthochromatic record: an
+        # intrinsic blue-violet lobe, a shallow trough at 480-490 nm where
+        # the silver halide's own sensitivity has fallen and the sensitising
+        # dye has not yet risen, a dye maximum at 550 nm, and then a CUT --
+        # 0.17 decade down by 570 nm, 0.77 by 580, 1.13 by 590, and no trace
+        # at all beyond, i.e. below the wedge floor. There is no red record.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_pan=(-0.94, -0.74, -0.55, -0.41, -0.36, -0.32, -0.26,
+                       -0.21, -0.20, -0.21, -0.31, -0.36, -0.32, -0.27,
+                       -0.23, -0.18, -0.12, 0.00, -0.13, -0.72, -1.09,
+                       -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+                       -4.00),
+            criterion="wedge_spectrogram_envelope_printed_scale",
+            source=("Film Ferrania S.r.l., «Curve caratteristiche e "
+                    "sensibilita spettrali», page 2, the wedge spectrogram "
+                    "beside the «Orto» characteristic curve, with that page's "
+                    "printed «Scale: 1 / 0,5 / 0 -- sensibilita» ladder. "
+                    "Digitised 2026-09-25: wavelength on the strip's own "
+                    "printed 400 / 450 / 500 / 550 nm major ticks (linear fit "
+                    "within 0.6 nm), ordinate directly on the printed ladder "
+                    "at 74.6 px per decade. Envelope taken at 10 % below the "
+                    "clear-area level per column, averaged over +/-6 nm. "
+                    "-4.00 from 590 nm marks NO TRACE, i.e. below the wedge "
+                    "floor, and is a bound rather than a reading. ⚠ THE SAME "
+                    "PHOTOGRAPH is reprinted, cropped at 584 nm under a "
+                    "yellow overlay, on page 3 of the 2026 P.F.G. «Ferrania "
+                    "2026» range sheet under the heading «Sensibilita "
+                    "spettrale»; it is Orto's there too"),
+        ),
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint("Kodak D-76 / Ilford ID-11", "stock", 8.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Kodak D-76 / Ilford ID-11", "1+1", 12.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Rodinal / R09 One Shot", "1+100", 60.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Rodinal / R09 One Shot", "1+25", 7.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Rodinal / R09 One Shot", "1+50", 14.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Rollei Low Contrast", "1+4", 9.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Rollei Supergrain", "1+12", 7.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Kodak T-Max Developer", "1+4", 8.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Bellini Ecofilm / X-Tol", "1+1", 10.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Bellini Hydrofen", "1+15", 6.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Bellini Hydrofen", "1+31", 10.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Bellini Hydrofen", "1+50", 14.0, 24.0, exposure_index=50),
+                DevelopmentPoint("Ornano Gradual ST 20", "1+9", 8.0, 20.0, exposure_index=50),
+                DevelopmentPoint("Ornano Nucleol BF200", "20+15+965ml", 9.0, 20.0, exposure_index=50),
+            ),
+            source=(
+                "P.F.G. by KARL BIELSER s.a.s. (Rollei Film Point, Milan), "
+                "«Ferrania 2026» range sheet, page 4, column «orto». TIER 3: "
+                "the distributor's INDICATIVE table, «BASE DI PARTENZA», at "
+                "20 C. Pre-soak in water at process temperature 3-5 minutes "
+                "(the 1-2 minute pre-soak is prescribed only for P30 Mk2 and "
+                "P33). Contrast column qualitative and not stored: medio, "
+                "medio/alto or alto on most rows. R09 1+100 is «no, stand». "
+                "Hydrofen 1+50 is printed «ma a 24°C» and is stored at 24 C. "
+                "⚠ The same page states that «Le FERRANIA P30 e ORTO danno "
+                "ottimi risultati anche in dia» -- both can be reversal-"
+                "processed -- which this database does NOT model for either "
+                "film: no reversal curve is published"),
+        ),
     ),
     FilmProfile(
         name="FOMAPAN_400_ACTION",
@@ -17587,6 +19391,56 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # 0.548 / 0.769 / 0.916 against the printed 0.58 / 0.77 / 0.90.
         processing_family=ProcessingFamily(
             points=(
+                # ⚠⚠ NINE MORE PRINTED PAIRS, 2026-09-24c, AND THEY ARE
+                # TRANSCRIPTIONS RATHER THAN TRACES. AF3-608E(N) page 4
+                # section 10 draws FOUR characteristic panels, one per
+                # developer, and letters EVERY curve with both its development
+                # time and its average gradient. Only the SPD trio had been
+                # taken, because the panels were classed as raster curves
+                # "needing digitisation" (queue P91). They do not need
+                # digitising: the numbers are printed beside the lines.
+                # ⚠ Gbar IS FUJI'S AVERAGE GRADIENT and goes in
+                # `contrast_index`, not `gamma`, exactly as the SPD trio does.
+                # ⚠ SECTION 11's TIME-Gbar CURVES ARE THE SAME RELATIONSHIP
+                # drawn as four lines, and are deliberately NOT traced: these
+                # twelve labelled pairs ARE that graph's data, so a trace could
+                # only interpolate between numbers the sheet already prints.
+                DevelopmentPoint(developer="D-76", dilution="stock",
+                                 minutes=4.0, celsius=20.0,
+                                 contrast_index=0.48, vessel="small tank",
+                                 exposure_index=1600),
+                DevelopmentPoint(developer="D-76", dilution="stock",
+                                 minutes=5.25, celsius=20.0,
+                                 contrast_index=0.59, vessel="small tank",
+                                 exposure_index=1600),
+                DevelopmentPoint(developer="D-76", dilution="stock",
+                                 minutes=7.5, celsius=20.0,
+                                 contrast_index=0.81, vessel="small tank",
+                                 exposure_index=1600),
+                DevelopmentPoint(developer="Fujidol E", dilution="stock",
+                                 minutes=4.5, celsius=20.0,
+                                 contrast_index=0.54, vessel="small tank",
+                                 exposure_index=1600),
+                DevelopmentPoint(developer="Fujidol E", dilution="stock",
+                                 minutes=5.0, celsius=20.0,
+                                 contrast_index=0.62, vessel="small tank",
+                                 exposure_index=1600),
+                DevelopmentPoint(developer="Fujidol E", dilution="stock",
+                                 minutes=6.5, celsius=20.0,
+                                 contrast_index=0.76, vessel="small tank",
+                                 exposure_index=1600),
+                DevelopmentPoint(developer="Microfine", dilution="stock",
+                                 minutes=5.5, celsius=20.0,
+                                 contrast_index=0.52, vessel="small tank",
+                                 exposure_index=1600),
+                DevelopmentPoint(developer="Microfine", dilution="stock",
+                                 minutes=6.5, celsius=20.0,
+                                 contrast_index=0.60, vessel="small tank",
+                                 exposure_index=1600),
+                DevelopmentPoint(developer="Microfine", dilution="stock",
+                                 minutes=8.0, celsius=20.0,
+                                 contrast_index=0.70, vessel="small tank",
+                                 exposure_index=1600),
                 DevelopmentPoint(developer="SPD [Super Prodol]", dilution="stock",
                                  minutes=2.75, celsius=20.0,
                                  contrast_index=0.58, exposure_index=1600),  # printed Gbar 0.58
@@ -19849,6 +21703,76 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         couplers=CouplerSpec(0.12, 50.0, 0.065, 11.0),
         dye_matrix=_dye(-0.11),
         misregistration_um=4.0,
+        # ⚠⚠ TRACED 2026-09-24c, AND THE READER THAT DID IT WAS ALREADY IN
+        # THE PROJECT. DIGITIZATION_QUEUE P91 called this panel "the single
+        # largest remaining gap on an already-held document" and said it needed
+        # "either a Fuji reader or an extension of the existing one".
+        # `fuji_spectral4_2026.py`, written three weeks earlier for the
+        # four-layer Fuji panels, reads exactly this layout -- PRO 400H was
+        # simply not in its SHEETS table. Adding the entry, and widening the
+        # frame by five points because this sheet draws its three solid records
+        # as ONE path whose bounding box starts two points left of the ordinate
+        # rule, was the whole job.
+        #
+        # ⚠ FOUR LAYERS ARE DRAWN AND THREE ARE STORED, by the owner decision
+        # of 2026-09-06f that governs the other four sheets in that module: the
+        # CYAN fourth record has no carrier in `SpectralSensitivity` and is
+        # written out wavelength by wavelength to doc/FUJI_FOURTH_LAYER.md
+        # rather than dropped. This film's own page 7 section 14-1 is headed
+        # «4th Color Layer Technology», so the fourth record is the feature the
+        # sheet sells.
+        #
+        # THE CALIBRATION IS THE TIGHTEST OF THE FIVE: 52.547 pt per 100 nm at
+        # a 0.06 pt residual over the four printed wavelength rules, 51.130 pt
+        # per log decade off the 1.0 bracket, the two agreeing to 2.8 % on a
+        # panel Fuji draws square.
+        # ⚠ THE CYAN PEAK LANDS AT 519 nm, inside the 516-519 nm the other four
+        # sheets give -- the cross-sheet check that the dash-based separation
+        # picked the same physical record here. Blue 469 and green 554 are also
+        # in family. RED PEAKS AT 609 nm AGAINST 628-630 ON THE OTHER FOUR, and
+        # that is recorded rather than smoothed: either a real difference in
+        # this emulsion's red sensitisation or the first thing to distrust in
+        # this trace.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -1.6500, -1.2700, -0.7800, -0.3600, -0.0700, 0.0000,
+                     -0.0100, -0.0000, -0.1000, -0.5900, -1.2800, -4.0000,
+                     -4.0000, -4.0000, -4.0000),
+            log_s_g=(-4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -1.9900, -1.8400, -1.5100, -1.0500,
+                     -0.6500, -0.4400, -0.2700, -0.1300, -0.0500, 0.0000,
+                     -0.0300, -0.2800, -0.8800, -1.7100, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000),
+            log_s_b=(-4.0000, -1.7800, -0.7300, -0.2400, -0.1700, -0.1800,
+                     -0.2000, -0.2100, -0.1400, 0.0000, -0.3800, -1.1100,
+                     -1.5900, -1.9800, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000),
+            criterion="log_reciprocal_j_cm2_specified_density",
+            source=("FUJIFILM, «FUJICOLOR PRO 400H PROFESSIONAL», Product "
+                    "Information Bulletin AF3-176E, page 8, section 19 "
+                    "«SPECTRAL SENSITIVITY CURVES». Vector-path extraction "
+                    "2026-09-24c by fuji_spectral4_2026.py. The sheet's own "
+                    "footnote states the criterion -- «Sensitivity equals the "
+                    "reciprocal of exposure (J/cm2) required to produce a "
+                    "specified density» -- and does NOT say which density, "
+                    "which is why the stored criterion name ends "
+                    "'specified_density' and carries no number. ⚠⚠ THIS IS A "
+                    "THREE OF FOUR SET AND THE PANEL DRAWS FOUR RECORDS. The "
+                    "sheet plots Blue, Cyan, Green and Red; "
+                    "`SpectralSensitivity` carries r/g/b and a pan record, so "
+                    "the CYAN -- the layer this film is sold on, peaking at "
+                    "519 nm between the blue 469 and the green 554 -- has "
+                    "nowhere to live and is NOT stored here. It is written "
+                    "out in full in doc/FUJI_FOURTH_LAYER.md, and anyone "
+                    "integrating this set against an illuminant is "
+                    "integrating three quarters of a film."),
+        ),
         default_format="ff35",
         features=Feature.TABULAR_GRAIN,
         dye_density=SpectralDyeDensity(
@@ -20490,6 +22414,65 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
     # Black and white negative
     # -----------------------------------------------------------------------
     FilmProfile(
+        name="ILFORD_XP1_400",
+        aliases=("xp1", "xp1-400", "ilford xp1", "ilford xp1-400"),
+        description=(
+            "[T2] Ilford XP1-400, the 1980 CHROMOGENIC monochrome film -- a "
+            "colour-negative emulsion whose three couplers make a neutral "
+            "yellow+magenta+cyan image and whose silver is bleached away, so "
+            "the developed negative is DYE and not silver. Ilford's own manual "
+            "is the source for every documented number here: ISO 400/27 with "
+            "an exposure range usable from ISO 50/18 to 1600/33 ON ONE "
+            "DEVELOPMENT TIME, C-41 or Ilford's own XP1 chemistry at 38 C, a "
+            "DIR coupler added for edge-effect sharpening (Ilford call the "
+            "result 'sparkle'), a LONG SHOULDER the manual attributes to that "
+            "coupler, and granularity that FALLS as exposure rises -- the "
+            "opposite of a silver negative. ⚠ THE CURVES, GRAIN FIGURE AND MTF "
+            "BELOW ARE ESTIMATES: the manual prints a characteristic curve and "
+            "two granularity charts as small line drawings with no numbered "
+            "ordinate, so nothing sensitometric could be traced from them."
+        ),
+        era="1980-1990s",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        # ⚠ ESTIMATES, SHAPED BY THE MANUAL'S QUALITATIVE STATEMENTS AND NOT
+        # TRACED FROM IT. The shoulder is pulled in to 1.55 -- shorter than the
+        # 2.0 a conventional chromogenic carries -- because the manual says
+        # twice that the DIR couplers "prevent the build-up of excessive
+        # density as exposure increases" and calls the curve's shoulder "long".
+        # That is a SHAPE statement without numbers; the dmin, gamma and toe
+        # are the chromogenic class values this file gives KODAK_BW400CN.
+        curves=_mono(ToneCurve(0.700, 0.520, -2.641, 0.170, 1.55, 0.38)),
+        # ⚠ THE GRAIN FIGURE IS AN ESTIMATE AND THE MODEL CANNOT YET EXPRESS
+        # WHAT THE MANUAL MEASURES. Ilford chart "the effective granularity of
+        # XP1-400 film decreases as exposure is increased beyond the rated
+        # speed", six stops either side of correct exposure, against HP5 and
+        # FP4 rising over the same range. `GrainSpec` has clump_gain, which
+        # scales grain WITH density, and no carrier for a NEGATIVE slope: the
+        # value below is the class figure for a 400-speed chromogenic and the
+        # measured behaviour is recorded here and in the queue rather than
+        # faked with a coefficient that means something else.
+        grain=GrainSpec(9.5, 2.387, 2.387, 2.387, clump_gain=0.20, fog_grain=0.16),
+        mtf=MTFSpec(64.0, 64.0, 64.0, adjacency=0.22, adjacency_um=16.0),
+        # ⚠ ADJACENCY IS RAISED ABOVE THE CLASS VALUE ON THE MANUFACTURER'S
+        # OWN STATEMENT, and the direction is documented even though the
+        # magnitude is not: XP1 carries a DIR coupler added specifically "to
+        # produce the enhanced edge effect", and the processing section warns
+        # that excessive agitation REDUCES those edge effects. 0.22 is this
+        # file's strong-DIR estimate, not a measurement.
+        # ⚠ `processing` IS SET FROM `_C41_STOCKS` AND NOT HERE. The film's
+        # own manual gives both routes -- Ilford XP1 chemistry, develop 5 min
+        # at 38 C, bleach-fix 5 min, wash 3 min; or C-41, 3 min 15 s at
+        # 37.8 +/- 0.15 C -- and `_refuse_dead_literals` blocks a literal the
+        # schema sweep would overwrite. XP1 joins the C-41 sweep beside
+        # KODAK_BW400CN and KODAK_T400CN, the other two chromogenic
+        # monochromes, and the XP1-chemistry alternative is recorded in the
+        # ParamSource row.
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
         name="ILFORD_HP5_PLUS_400",
         aliases=("hp5", "hp5 plus", "hp5+", "ilford hp5"),
         description=(
@@ -20642,6 +22625,96 @@ mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.08),
                     "information sheet, wedge spectrogram to tungsten "
                     "2850 K, November 2018"),
         ),
+        # ⚠⚠ ILFORD'S OWN DEVELOPMENT TABLES, 2026-09-24c. ⚠ EVERY POINT IS TAGGED `edition` "HP5, the pre-Plus coating the book describes". This profile models HP5 PLUS (1989-), the book predates it, and Ilford re-coated the film between them -- so these are manufacturer times for the PREVIOUS generation and must not be read as HP5 Plus data. The last ten points are Table 10's PUSH LADDER, where the meter setting IS the exposure index: 800 / 1600 / 3200 in Microphen, 800 / 1600 in ID-11, separately for 35 mm and rollfilm.
+        # ⚠⚠ THE PUSH LADDER IS STATED BY THE MAKER, 2026-09-24c, AND IT IS
+        # THE FIRST PushSpec ON ANY ILFORD STOCK. «Ilford Monochrome Darkroom
+        # Practice» Table 10 prints meter settings 800 / 1600 / 3200 for
+        # Microphen and 800 / 1600 for ID-11, with a development time against
+        # each -- three stops over box speed in Microphen, two in ID-11, which
+        # is why `max_push_stops` is 3.0 and the text beside the table says
+        # ID-11 pushes "but not to the same extent".
+        # ⚠ WHAT IS NOT STORED, because the book does not print it: the fog
+        # penalty, the contrast gain and the true speed gain per stop. The
+        # book is explicit that the extra development does NOT raise ISO speed
+        # -- "not in terms of the accepted ISO method" -- and that it works by
+        # emphasising what was recorded on the FOOT of the curve while
+        # highlights overdevelop. Writing a speed_gain_per_stop here would
+        # contradict the source that supplies the ladder.
+        # ⚠ AND THE LADDER IS THE PRE-PLUS COATING's, like the family below.
+        push=PushSpec(max_push_stops=3.0, max_pull_stops=0.0,
+                      source=("«Ilford Monochrome Darkroom Practice», Table 10, "
+                              "«Recommended meter settings for HP5 films when "
+                              "developed for extended times in Microphen or "
+                              "ID-11»: 800/30 at 8.5 min (35 mm) and 9 min "
+                              "(rollfilm), 1600/33 at 11 / 12 min, 3200/36 at "
+                              "16 / 18 min in Microphen; 800 at 12 / 14 min and "
+                              "1600 at 18 / 20 min in ID-11. Read 2026-09-24c. "
+                              "⚠ MEASURED ON HP5, NOT HP5 PLUS.")),
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=7.5, celsius=20.0, exposure_index=400, vessel="small tank", film_format="135", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=10.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="135", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=8.5, celsius=20.0, exposure_index=400, vessel="small tank", film_format="120", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=12.5, celsius=20.0, exposure_index=400, vessel="small tank", film_format="120", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=7.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="sheet", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=10.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="sheet", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="1+1", minutes=12.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="135", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="1+1", minutes=18.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="135", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="1+3", minutes=21.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="135", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="1+3", minutes=28.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="135", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="1+1", minutes=14.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="120", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="1+1", minutes=20.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="120", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="1+3", minutes=22.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="120", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="1+3", minutes=30.0, celsius=20.0, exposure_index=400, vessel="small tank", film_format="120", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Perceptol", dilution="stock", minutes=11.0, celsius=20.0, exposure_index=200, vessel="small tank", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Perceptol", dilution="stock", minutes=16.0, celsius=20.0, exposure_index=320, vessel="small tank", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=6.0, celsius=20.0, exposure_index=500, vessel="small tank", film_format="135", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=8.5, celsius=20.0, exposure_index=640, vessel="small tank", film_format="135", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=6.5, celsius=20.0, exposure_index=500, vessel="small tank", film_format="120", print_geometry="condenser", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=9.0, celsius=20.0, exposure_index=640, vessel="small tank", film_format="120", print_geometry="diffusion", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Ilfosol S", dilution="1+9", minutes=5.0, celsius=20.0, contrast_index=0.62, exposure_index=400, vessel="small tank", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Ilfosol S", dilution="1+14", minutes=9.0, celsius=20.0, contrast_index=0.62, exposure_index=400, vessel="small tank", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Ilfotec RT Rapid", dilution="stock", minutes=1.5, celsius=27.0, contrast_index=0.62, exposure_index=400, vessel="small tank", film_format="135", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Ilfotec RT Rapid", dilution="stock", minutes=1.5833, celsius=27.0, contrast_index=0.62, exposure_index=400, vessel="small tank", film_format="120", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Ilfotec RT Rapid", dilution="stock", minutes=2.0, celsius=27.0, contrast_index=0.62, exposure_index=400, vessel="small tank", film_format="sheet", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=8.5, celsius=20.0, exposure_index=800, vessel="small tank", film_format="135", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=9.0, celsius=20.0, exposure_index=800, vessel="small tank", film_format="120", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=11.0, celsius=20.0, exposure_index=1600, vessel="small tank", film_format="135", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=12.0, celsius=20.0, exposure_index=1600, vessel="small tank", film_format="120", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=16.0, celsius=20.0, exposure_index=3200, vessel="small tank", film_format="135", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=18.0, celsius=20.0, exposure_index=3200, vessel="small tank", film_format="120", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=12.0, celsius=20.0, exposure_index=800, vessel="small tank", film_format="135", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=14.0, celsius=20.0, exposure_index=800, vessel="small tank", film_format="120", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=18.0, celsius=20.0, exposure_index=1600, vessel="small tank", film_format="135", edition="HP5, the pre-Plus coating the book describes"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=20.0, celsius=20.0, exposure_index=1600, vessel="small tank", film_format="120", edition="HP5, the pre-Plus coating the book describes"),
+            ),
+            source=("«Ilford Monochrome Darkroom Practice», Ilford Ltd, read "
+                    "2026-09-24c from the owner's copy. Tables 6 and 7 (ID-11 "
+                    "undiluted, 1+1 and 1+3 at 20 C), Table 8 (Perceptol at 20 C "
+                    "with effective ISO), Table 9 (Microphen at 20 C with "
+                    "effective ISO), Table 10 (the HP5 push ladder, meter "
+                    "settings 800 / 1600 / 3200 in Microphen and ID-11), "
+                    "Table 11 (Ilfotec RT Rapid at 27 C, printed in SECONDS and "
+                    "stored here as minutes) and Table 2 (Ilfosol S at 20 C). "
+                    "⚠⚠ EVERY ILFORD TIME TABLE IS PRINTED TWICE -- «Negatives "
+                    "to be used in condenser enlargers» and «... in diffusion "
+                    "enlargers» -- and the two columns differ by 30-75 % of "
+                    "time. BOTH are stored, separated by the schema v53 "
+                    "`print_geometry` field added for this harvest: storing one "
+                    "would have meant choosing which of the manufacturer's two "
+                    "recommendations to believe, and storing both without the "
+                    "field would have left them in one flat tuple as "
+                    "near-duplicates told apart only by which time is longer. "
+                    "⚠ THE BOOK STATES ITS TARGET CONTRAST for the single-time "
+                    "developers -- «a contrast of about G = 0.62» for Ilfosol S "
+                    "and for Ilfotec RT -- so `contrast_index` carries 0.62 on "
+                    "those points and ZERO on every other point here, because "
+                    "Ilford print no contrast beside the ID-11, Perceptol or "
+                    "Microphen times. ⚠ THE EFFECTIVE SPEEDS ARE THE BOOK'S OWN "
+                    "and are stored per point rather than on the profile: "
+                    "Perceptol costs about a stop, Microphen buys one to one "
+                    "and a half."),
+        ),
     ),
     FilmProfile(
         name="ILFORD_HPS",
@@ -20749,7 +22822,7 @@ mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.08),
         # state that aperture, so the correction cannot be applied. Every
         # clump_um adopted from Table 2 in this pass inherits the same status.
         #
-        # ⚠ WHY THE PRINTED NUMBER BEAT MY OWN TRACE OF FIG. 18. Fig. 18 was
+        # ⚠ WHY THE PRINTED NUMBER BEAT THE TRACE OF FIG. 18. Fig. 18 was
         # digitised in this pass (six dashed curves separated by dash period;
         # see the Fig. 18 citation below) and HPS fits clump_um 1.638 there,
         # +14 % on 1.431. The trace is not wrong -- it reproduces the printed
@@ -20883,7 +22956,18 @@ mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.08),
         # ⚠ mtf_measured stays False. This is not an MTF trace, and the same
         # source prints Velvia 50's RESOLVING POWER (160 lp/mm) in its mtf50
         # field, so its grasp of that distinction is demonstrably unreliable.
-mtf=MTFSpec(89.6, 100.0, 108.3, adjacency=0.14, adjacency_um=13.0),
+        # ⚠ RESOLVING POWER ADOPTED 2026-09-25c -- the other half of
+        # the Ektachrome 64 comparison; see that profile for the quote.
+        # Both fields were 0.0 before. ⚠ Kodachrome is EQUAL at low
+        # contrast and the LOWER of the two at high contrast, which is
+        # the direction the sentence reports and the opposite of what
+        # the same book's MTF figure 12.12 leads a reader to expect --
+        # it calls Kodachrome the sharper film. Both statements are the
+        # book's; the tension is recorded, not resolved.
+        mtf=MTFSpec(89.6, 100.0, 108.3, adjacency=0.14, adjacency_um=13.0,
+                    resolving_power_lp_mm_lowc=80.0,
+                    resolving_power_lp_mm_highc=100.0,
+                    resolving_optic="E. Mitchell, «Photographic Science», Russian translation «Фотография», Mir, Moscow 1988, p. 179: «обе плёнки дают идентичное воспроизведение (80 линия/мм) при низкой контрастности, а при высокой контрастности профессиональная плёнка Ektachrome лучше (125 линия/мм против 100)». ⚠ THE BOOK EQUATES линия/мм WITH линейные пары/мм (p. 127), so these are line pairs per millimetre. ⚠ The contrasts are NAMED and not numbered -- «низкая» and «высокая» -- so they go to the schema's lowc and highc fields, which is what those fields are for, and no target contrast ratio is claimed"),
         halation=HalationSpec(
             radii_um=(8.0, 40.0, 180.0),
             gain_r=0.06, gain_g=0.02, gain_b=0.006,
@@ -22302,16 +24386,23 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         name="LUMIERE_LUMICHROME",
         aliases=("lumiere", "lumichrome", "lumiere lumichrome"),
         description=(
-            "[T3] Lumiere B&W negative, Lyon, around EI 40. The most speculative "
-            "profile in this database and flagged accordingly -- no datasheet "
-            "is known for it, and the figures follow the general behaviour of "
-            "French B&W negative of the period. Lumiere manufactured independently until Ilford "
-            "absorbed the company in 1961, and their emulsions had a reputation "
-            "for a soft, long-scale rendering quite unlike the contrastier "
-            "German and British stocks. Treat the numbers as a plausible French "
-            "period look, not as a measurement of a specific product."
+            "[T2] Lumiere «Lumichrome», Lyon -- the ultra-rapid orthochromatic "
+            "anti-halo plate and roll film introduced in 1932, and the fastest "
+            "material Societe Lumiere listed. ⚠ THE CURVES, GRAIN AND MTF ARE "
+            "STILL ESTIMATES: what the 2026-09-24b source adds is the maker's "
+            "own description of the product -- H&D 950, orthochromatic without "
+            "a filter, a red anti-halo backing that dissolves in the "
+            "developer, fine grain at extreme speed, and a gradation the "
+            "development time moves a long way. ⚠ AND ITS SPEED NUMBER CANNOT "
+            "BE CONVERTED TO AN EXPOSURE INDEX: see the ParamSource row on "
+            "exposure_index. The stored EI 40 is unchanged and remains this "
+            "project's estimate. Until 2026-09-24b this profile carried the "
+            "line 'the most speculative profile in this database ... not a "
+            "measurement of a specific product' and an era of 1940s-1961; it "
+            "now names a real, dated product with the manufacturer's own "
+            "prose behind it."
         ),
-        era="1940s-1961",
+        era="1932-1961",
         is_monochrome=True,
         exposure_index=40,
         balance_kelvin=5500,
@@ -22321,6 +24412,40 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.03, adjacency_um=24.0),
         spectral_weights=(0.24, 0.52, 0.24),
         misregistration_um=0.0,
+        # ⚠⚠ STRUCTURAL, AND STATED BY THE MAKER RATHER THAN INFERRED FROM THE
+        # LOOK. «Agenda Lumiere» p.213: «Les plaques "Lumichrome" sont
+        # rigoureusement anti-halo. La protection contre le halo est ici
+        # realisee par un enduit dorsal rouge dont l'efficacite est
+        # remarquable, et qui se dissout automatiquement dans le revelateur
+        # sans qu'il soit besoin d'un traitement special.» -- a RED DORSAL
+        # coating that dissolves in the developer, i.e. a removable backing and
+        # not an incorporated dye. p.292 says the roll film carries the same
+        # backing «comme les plaques speciales».
+        # ⚠ NO OPTICAL DENSITY IS PRINTED, so `optical_density` stays 0.0 and
+        # `measured` stays False: the position, the colour and the removability
+        # are documented, the strength is not. That is also why `halation`
+        # above keeps its gains at zero -- the sheet says the halo is
+        # suppressed, and this records WHY rather than adding a number.
+        # ⚠ AND THE CONSTRUCTION IS NAMED IN `emulsion` AS WELL, because
+        # G-V39-AH-POS requires the two to agree: a stock that carries an
+        # antihalation POSITION must also say which construction that position
+        # belongs to. «Enduit dorsal rouge ... se dissout automatiquement dans
+        # le revelateur» is a dyed backing that washes out, i.e. the
+        # "dyed_backing" vocabulary item, and NOT rem-jet (which is carbon and
+        # needs a scrub) and not a dyed base.
+        emulsion=EmulsionSpec(
+            antihalation="dyed_backing",
+            source=("Societe Lumiere, «Agenda Lumiere», p.213 (plate) and "
+                    "p.292 (roll film), read 2026-09-24b."),
+        ),
+        anti_halation=AntiHalationSpec(
+            position="backing", dye="red", removable=True, neutral=False,
+            measured=False,
+            source=("Societe Lumiere, «Agenda Lumiere», Lyon/Paris, the "
+                    "almanac's own calendar and text are 1933 (CNAM Cnum "
+                    "M12484, catalogued as «Agenda Lumiere 1938»), p.213 for "
+                    "the plate and p.292 for the roll film, read 2026-09-24b."),
+        ),
         default_flare=0.024,
         default_format="ff35",
         features=Feature.UNEVEN_EMULSION | Feature.ORTHO_RESPONSE,
@@ -24293,20 +26418,65 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         name="EASTMAN_5254_1968",
         aliases=("5254", "ecn 5254", "eastman 5254"),
         description=(
-            "[T3] Eastman Color Negative 5254 -- the 100T that shot the New "
+            "[T2] Eastman Color Negative 5254 -- the 100T that shot the New "
             "Hollywood (and possibly odd rolls of A New Hope; unverified). "
-            "Official record: Kodak chronology -- EI 100T, 1968, replaced "
+            "⚠ THE 'no online datasheet exists' LINE THIS DESCRIPTION CARRIED "
+            "UNTIL 2026-09-24b WAS TRUE AND IS NO LONGER THE WHOLE STORY: the "
+            "owner supplied Kodak's OWN INTRODUCTION PAPER for the film, "
+            "Beeler, Morris & Simonds, «A New, Higher Speed Color Negative "
+            "Film», Journal of the SMPTE 77(9), September 1968, pp 988-990 -- "
+            "three Kodak authors presenting their own product, with three "
+            "figures. Spectral sensitivity is now TRACED from its Fig. 1. "
+            "Still estimates: the tone curves, grain, MTF, halation and "
+            "couplers. Kodak chronology confirms EI 100T, 1968, replaced "
             "5251, image structure equal to 5251, discontinued March 1977, "
-            "Academy Award. Everything else is era estimate; no online "
-            "datasheet exists."
+            "Academy Award; the paper states EI 100 tungsten and 64 daylight "
+            "with a Wratten 85, 3200 K balance, and that the emulsion is "
+            "structurally the same as 5251 with the same jet antihalation "
+            "backing and the same spectral sensitivities."
         ),
         era="1968-1977",
+        # ⚠ THE DAYLIGHT PAIR IS DELIBERATELY NOT IN A LITERAL HERE. The paper
+        # states EI 100 tungsten and EI 64 daylight WITH A WRATTEN 85 over the
+        # lens, and `_EXPOSURE_INDEX_TUNGSTEN`'s header admits unfiltered pairs
+        # only -- a filtered pair is a statement about a piece of glass, not
+        # about the sensitisation. `_refuse_dead_literals` catches the attempt,
+        # which is the guard doing its job. The figure lives in the description
+        # and in this profile's ParamSource row instead.
         exposure_index=100,
         balance_kelvin=3200,
+        # ⚠⚠ THE BASE-DENSITY LADDER IS MEASURED AS OF 2026-09-24b; THE SLOPES
+        # AND THE TOE ARE STILL ESTIMATES, and mixing the two in one RGBCurves
+        # call is worth spelling out. Fig. 3 of the introduction paper draws
+        # this film's three records with a FULLY LABELLED ORDINATE (0 to 3.4 in
+        # steps of 0.2) and an abscissa that carries the words "LOG EXPOSURE"
+        # and no numbers at all. Density is therefore readable and exposure is
+        # not: the ladder below is traced, gamma / toe_x / shoulder_x are
+        # untouched estimates, and no gamma can be read off this plate however
+        # long one stares at it.
+        #
+        # THE TRACE: ordinate fitted on ten tick rows against their printed
+        # values, worst residual 0.0057 D. At the left edge, where all three
+        # curves run flat, they read 0.854 / 0.591 / 0.106 for the top, middle
+        # and bottom bands. Assignment is by the mask: on a masked colour
+        # negative the blue record's base is the densest and the red's the
+        # least dense, which is the ordering every masked stock in this file
+        # carries. Against the estimates being replaced -- 1.08 / 0.67 / 0.23 --
+        # the mask was overstated by 0.08 to 0.23 D on every record.
+        #
+        # ⚠ THESE ARE PRINTING DENSITIES, NOT STATUS M, and the plate lets that
+        # be quantified rather than waved at. Fig. 3 draws BOTH: solid curves
+        # are "printing densities on to Eastman Color Print Film" and dashed
+        # are "Status M densities". The dashed curves are only drawn over the
+        # upper half of the scale, so the base region has printing densities
+        # ONLY -- but where both are drawn, at the right-hand end, they differ
+        # by 0.045 D on the top band and 0.041 D on the bottom. A 0.04 D
+        # systematic is smaller than the 0.08-0.23 D error it replaces, so the
+        # ladder is adopted with that offset recorded rather than withheld.
         curves=RGBCurves(
-            r=_neg(0.23, 0.56, toe_x=-1.58, shoulder_x=1.84),
-            g=_neg(0.67, 0.575, toe_x=-1.52, shoulder_x=1.78),
-            b=_neg(1.08, 0.59, toe_x=-1.42, shoulder_x=1.66),
+            r=_neg(0.106, 0.56, toe_x=-1.58, shoulder_x=1.84),
+            g=_neg(0.591, 0.575, toe_x=-1.52, shoulder_x=1.78),
+            b=_neg(0.854, 0.59, toe_x=-1.42, shoulder_x=1.66),
         ),
         grain=GrainSpec(12.5, 5.161, 5.484, 6.452, clump_gain=0.55, fog_grain=0.18),
         mtf=MTFSpec(32.0, 36.0, 40.0, adjacency=0.09, adjacency_um=18.0),
@@ -24320,6 +26490,82 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         dye_matrix=_dye(-0.045),
         base_tint=(1.000, 0.985, 0.955),
         misregistration_um=5.0,
+        # ⚠⚠ TRACED 2026-09-24b FROM THE FILM'S OWN INTRODUCTION PAPER, Fig. 1
+        # («Spectral sensitivity of the three emulsion layers of Type 5254
+        # film»), and this is the first measured optical datum this profile has
+        # ever carried.
+        #
+        # THE SOURCE IS A 1-BIT 300 dpi SCAN OF A 1968 JOURNAL PAGE, which is
+        # the worst class of plate this corpus reads, and the extraction is
+        # recorded accordingly. The ordinate is four decades, 0.001 to 10, with
+        # decade ticks at rows 219/340/463/584/703 of the cropped page; a
+        # least-squares fit of those five gives 0.0083 decade per pixel with a
+        # 0.010-decade worst residual, which is the tracing floor here. The
+        # abscissa is fitted on the 400 / 500 / 600 nm labels and predicts the
+        # 700 label 7 px (3.8 nm) right of its printed centroid -- the label is
+        # at the plate edge and the three-point fit is used, not the four.
+        #
+        # ⚠ THE CURVES CROSS TWICE AND A NEAREST-NEIGHBOUR TRACKER FOLLOWS THE
+        # WRONG BRANCH THROUGH BOTH. Three separate attempts are recorded in
+        # the scratch work: nearest-run tracking returned a "green" record
+        # peaking at 495 nm (it had walked onto the blue record's descent), and
+        # a slope-predicting tracker stopped dead at the crossings. What works
+        # on this plate is that there are never more than two curves in a
+        # column, so each record is taken as the UPPER or LOWER run over
+        # wavelength windows chosen around the two crossings (500 nm blue/green,
+        # 580 nm green/red) and stitched. The stitch is CHECKED rather than
+        # assumed: green reads -0.10 at 496 nm and +0.09 at 504 nm across the
+        # first crossing, and green and red both read -0.39 at 586 nm across the
+        # second, which is where the plate draws them crossing.
+        #
+        # WHAT THE TRACE SAYS, against the figure as drawn: blue peaks +1.17 at
+        # 410 nm, green +0.82 at 544 nm with its printed 430 nm dip at -1.42,
+        # red +0.82 at 642 nm, red still on scale at 690 nm. Each record is
+        # peak-normalised to 0.0; -4.0 is this file's off-band floor and not a
+        # measurement.
+        #
+        # ⚠ THE CRITERION IS NOT PRINTED, so it is not invented. The ordinate is
+        # captioned «SPECTRAL SENSITIVITY S(λ)» with no density criterion
+        # anywhere on the plate, so this stores `relative_log` -- the shape,
+        # which is what the renderer consumes -- and NOT a "0.2 above D-min"
+        # borrowed from a different Kodak product line. The same call was made
+        # in the opposite direction for Fuji F-125's 1990 Fig. 6, which was
+        # refused; the difference is that this file already holds 25 other
+        # stocks on a relative-log criterion, and refusing a shape because an
+        # absolute anchor is missing would discard the only measurement here.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -3.0568, -2.7330,
+                     -2.3844, -1.9801, -1.3407, -1.0086, -0.6559, -0.4208,
+                     -0.2269, -0.0784, 0.0000, -0.0268, -0.1898, -0.5817,
+                     -1.0561, -1.6996, -4.0000),
+            log_s_g=(-4.0000, -4.0000, -1.8523, -2.0008, -2.1493, -2.2256,
+                     -2.0956, -1.8894, -1.6831, -1.4500, -1.1963, -1.0148,
+                     -0.8189, -0.5528, -0.2846, -0.0866, 0.0000, 0.0000,
+                     -0.0660, -0.2248, -0.8684, -1.6357, -2.4050, -3.0981,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000),
+            log_s_b=(-0.1031, -0.0413, -0.0083, 0.0000, -0.0206, -0.0495,
+                     -0.0949, -0.1588, -0.2475, -0.3837, -0.5775, -0.8374,
+                     -1.1819, -1.5965, -2.0544, -2.5824, -3.4157, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000),
+            criterion="relative_log",
+            source=("Raymond L. Beeler, Robert A. Morris and C. Weston "
+                    "Simonds, «A New, Higher Speed Color Negative Film», "
+                    "Journal of the SMPTE, Vol. 77, No. 9, September 1968, "
+                    "pp 988-990, Fig. 1 «Spectral sensitivity of the three "
+                    "emulsion layers of Type 5254 film». Read 2026-09-24b off "
+                    "the page image at native 300 dpi (the page is a 1-bit "
+                    "scan). ⚠ THE PAPER STATES THE SENSITIVITIES ARE 5251's: "
+                    "«Spectral sensitivities of the three emulsion layers are "
+                    "identical to those of Type 5251 (Fig. 1)» -- so this "
+                    "trace is evidence for BOTH films and Fig. 1 is not "
+                    "exclusively 5254's own measurement."),
+        ),
         features=Feature.HALATION,
     ),
     FilmProfile(
@@ -24337,9 +26583,48 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         era="1983-1986",
         exposure_index=400,
         balance_kelvin=3200,
+        # ⚠⚠ THE GREEN RECORD'S SHAPE IS TRACED AS OF 2026-09-26 (queue 463),
+        # FROM A PAPER THIS PROJECT HAD ALREADY OPENED FOR SOMETHING ELSE.
+        # Sehlin, Kennel et al., «Choosing between EASTMAN Color Negative
+        # Films 5247 and 5294», SMPTE Journal 94(7) 724-731, July 1985, page
+        # 730, Fig. 14: «Color saturation -- green sensitometric layer curves
+        # for 5294 film», the SOLID trace labelled G_N (neutral exposure).
+        # `sehlin_kennel_1985.py` has been in the build since 2026-09-02 for
+        # this paper's Fig. 8, examined Figs. 9, 11 and 12, and never looked
+        # at Fig. 14 -- the same "read all of it" failure the AGFA SCALA 200x
+        # row in CURVE_MISSING records a month earlier.
+        #
+        # ⚠ SHAPE ONLY: gamma, toe_k and the toe-to-shoulder SEPARATION.
+        # 1194 columns traced, softplus rms 0.0093 D. The dashed G_G trace is
+        # the response to a monochromatic green wedge -- a saturation
+        # diagnostic, not a tone curve -- and is deliberately not read.
+        #
+        # ⚠⚠ D-MIN IS NOT ADOPTED, AND THE REASON IS A MEASUREMENT ON THE
+        # FACING FIGURE. Fig. 13 on the same page plots 5247 in the same
+        # ordinate, «Green Density (Status M)», and EASTMAN_5247_1983's green
+        # record is tier 1 from Kodak's own TI0835. The paper's 5247 trace
+        # reads D 0.409 at its left-hand edge -- 0.122 D BELOW that film's
+        # datasheet D-min of 0.531. A characteristic curve cannot go under its
+        # own base plus fog, so the paper's zero is not this database's zero;
+        # what it is instead cannot be settled from the paper. The SCALE is
+        # sound, which is the other half of the test: the traced 5294 slope
+        # over the coincident region D 0.5-1.1 is 0.604 against the analogy's
+        # own mid-slope 0.559, 8 % apart. A constant offset changes no slope,
+        # so the shape transfers and the level does not.
+        #
+        # ⚠ toe_x IS ALSO NOT ADOPTED. The abscissa is labelled «Relative Log
+        # Exposure» and its only metric mark is a 0.30 scale bar, so the
+        # figure fixes no origin and this database reads toe_x as a speed. It
+        # keeps the analogy placement and the shoulder moves with it to
+        # preserve the measured 2.281-decade separation.
+        #
+        # ⚠ RED AND BLUE STAY ANALOGY. The figure prints ONE layer; giving
+        # three records one measured gamma would assert a crossover nobody
+        # drew. Guarded in `sehlin_kennel_5294_curve.py`.
         curves=RGBCurves(
             r=_neg(0.24, 0.555, toe_x=-1.58, shoulder_x=1.84),
-            g=_neg(0.68, 0.57, toe_x=-1.52, shoulder_x=1.78),
+            g=_neg(0.68, 0.8008, toe_x=-1.52, toe_k=0.3018,
+                   shoulder_x=0.7608),
             b=_neg(1.09, 0.585, toe_x=-1.42, shoulder_x=1.66),
         ),
         # ⚠ A MEASURED sigma(D) SHAPE WAS TRACED FOR THIS STOCK ON 2026-09-02c
@@ -28904,12 +31189,30 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # it is a fact about the rule and is recorded, not smoothed.
         # Confirmed independently by F-32 (2001) at 120.3 -- a different drawing
         # (112 points against 143), 2.3 % apart.
-        # ⚠ adjacency / adjacency_um LEFT AT THEIR ESTIMATES. The sheet's
-        # overshoot measures +0.145 at 18.8 cycles/mm, but the stored-field
-        # convention is not the raw peak (5231 stores 0.069 for a measured
-        # +0.034, 5222 stores 0.300 for +0.250) and that mapping is undocumented.
-        # Measured and NOT adopted, pending its own decision -- rule 23.
-        mtf=MTFSpec(123.0, 123.0, 123.0, adjacency=0.10, adjacency_um=14.0,
+        # ⚠⚠ adjacency / adjacency_um ADOPTED 2026-09-24b, AND THE NOTE THEY
+        # REPLACE SAID EXACTLY WHY THEY COULD NOT BE. It read: "the stored-field
+        # convention is not the raw peak ... and that mapping is undocumented.
+        # Measured and NOT adopted, pending its own decision -- rule 23." The
+        # mapping stopped being undocumented on 2026-09-02 (queue A4): the
+        # stored pair is the DoG lift BEFORE the rolloff attenuates it, and a
+        # sheet that resolves its overshoot peak gives a value and a frequency
+        # against exactly two free parameters, so the pair is SOLVED. Thirteen
+        # stocks were solved that day and this one was not, because its trace
+        # lived in a different reader.
+        # WHAT IS SOLVED HERE: F-32 (March 2002) page 14, the left-hand
+        # "Modulation Transfer Curve" panel, traced 2026-09-24b by
+        # kodak_still_curves once it learned the singular B&W caption -- 57
+        # points, 2.4-148 cycles/mm, peak +11.0 % at 18.25 cycles/mm, INSIDE
+        # the drawn range and not on the first sample. Solving against
+        # `mtf_kernel_response` (the kernel the engine convolves, per P51)
+        # gives adjacency 0.1111 at 13.05 um, which reproduces 1.1100 at
+        # 18.25 c/mm exactly.
+        # ⚠ f50 IS UNCHANGED AT 123.0 and stays F-4016's. This sheet's own f50
+        # reads 120.1 -- 2.4 % apart, a 2002 drawing against a 2007 one -- and
+        # the newer sheet describes the current product. The overshoot is taken
+        # from F-32 because F-4016's panel was traced for f50 only and this one
+        # resolves the peak.
+        mtf=MTFSpec(123.0, 123.0, 123.0, adjacency=0.1111, adjacency_um=13.05,
                     mtf_rolloff_q=3.63, mtf_measured=True),
         # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
         # 111 points, 7 developers, 18/20/21/22/24 degC, from
@@ -29245,7 +31548,24 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # nobody measured. The book is tier T2 and a manufacturer sheet
         # outranks it -- what licenses adopting its panel here is that a T1
         # sheet CORROBORATES it to 2.9 % rather than competing with it.
-        mtf=MTFSpec(98.7, 98.7, 98.7, adjacency=0.1929, adjacency_um=15.0,
+        # ⚠⚠ adjacency / adjacency_um RE-SOLVED 2026-09-24b AGAINST F-32's OWN
+        # PANEL, which is the T1 drawing this profile already cites as the
+        # corroboration for its f50. F-32 (March 2002) page 14, right-hand
+        # "Modulation Transfer Curve": 57 points, 2.4-144 cycles/mm, peak
+        # +16.8 % at 7.53 cycles/mm -- the largest resolved overshoot on any
+        # black-and-white still film in this corpus, and the reason T-MAX 400
+        # looks etched at moderate enlargement. Solved against the convolution
+        # kernel (queue A4 method): adjacency 0.2069 at 26.45 um reproduces
+        # 1.1680 at 7.53 c/mm exactly, against the previous 0.1929 at 15.0 um
+        # which rendered its peak at the wrong frequency entirely.
+        # ⚠ f50 STAYS 98.7, the book p341 panel's, for the reason the note
+        # above gives: f50 and rolloff are taken together from one drawing.
+        # F-32's own f50 is 95.7, which is 3.1 % away and is what "corroborates
+        # it to 2.9 %" in that note refers to -- now measured rather than
+        # quoted. ⚠ THE OVERSHOOT IS THE ONE THING THE BOOK PANEL CANNOT GIVE:
+        # it is a raster reproduction and its low-frequency end is where its
+        # scan noise lives, so the lift is taken from the vector sheet.
+        mtf=MTFSpec(98.7, 98.7, 98.7, adjacency=0.2069, adjacency_um=26.45,
                     mtf_measured=True, mtf_rolloff_q=2.163),
         # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
         # 126 points, 9 developers, 18/20/21/22/24 degC, from
@@ -29569,7 +31889,45 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         is_monochrome=True,
         exposure_index=1000,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.22, 0.66, -1.70, 0.30, 1.85, 0.40)),
+        # ⚠⚠ TRACED 2026-09-24 FROM F-32 PAGE 24, WHICH THE OWNER SUPPLIED
+        # THAT DAY. What stood here was an estimate (tier 2, no trace).
+        # F-32 draws TMZ as a DEVELOPMENT-TIME FAMILY, not as one curve:
+        # four panels-in-one at 6, 8, 10 and 12 minutes, Exposure Daylight,
+        # Process Small Tank, KODAK T-MAX Developer at 75 F (24 C),
+        # Densitometry Diffuse Visual. All four are traced and all four are
+        # kept -- see `_PROCESS_VARIANTS` -- because a multi-speed film whose
+        # whole purpose is push processing should not be reduced to one leg.
+        #
+        # ⚠ WHICH LEG IS THE DEFAULT IS A CHOICE, AND HERE IS THE REASONING.
+        # This profile stores `exposure_index = 1000`, which is the film's
+        # native speed and NOT the 3200 its name advertises -- the name is a
+        # push designation, as the description says. F-32 page 19's own
+        # small-tank table gives, at 75 F in T-MAX Developer: EI 800 -> 6 1/2
+        # min, EI 1600 -> 7 min, EI 3200 -> 9 1/2 min. EI 1000 interpolates
+        # to about 6.7 minutes, so the 6-minute leg is the documented
+        # development nearest this profile's own stated speed, and it is what
+        # the default curve below carries. Rendering the 10-minute leg by
+        # default would render a two-stop push and call it box speed.
+        #
+        # THE FAMILY AS TRACED (dmin / gamma / toe_x / toe_k, fit rms):
+        #    6 min  0.301 / 0.575 / -3.007 / 0.160   rms 0.0133   <- default
+        #    8 min  0.321 / 0.739 / -3.082 / 0.110   rms 0.0318
+        #   10 min  0.361 / 0.828 / -3.195 / 0.050   rms 0.0291
+        #   12 min  0.391 / 1.139 / -2.895 / 0.510   rms 0.1319
+        # Base fog climbs monotonically with development, 0.301 -> 0.391,
+        # which is the physical check on the trace: a longer development that
+        # did NOT raise base fog would mean the reader had merged two curves.
+        # ⚠ THE 12-MINUTE LEG FITS BADLY (rms 0.132) and is stored anyway,
+        # flagged: at that development the curve shoulders inside the plotted
+        # range and the toe-only fitter cannot follow it. It is the least
+        # trustworthy of the four and the first to re-fit if anyone needs it.
+        #
+        # ⚠ DENSITOMETRY IS DIFFUSE VISUAL, NOT STATUS M -- F-32 is a
+        # black-and-white publication and says so in every panel caption.
+        # The stored `density_metric` is unchanged by this edit; the note is
+        # here so the next reader does not assume the Kodak colour-sheet
+        # convention applies to these numbers.
+        curves=_mono(ToneCurve(0.301, 0.575, -3.007, 0.160, 1.85, 0.40)),
         grain=GrainSpec(18.0, 7.097, 7.097, 7.097, clump_gain=0.55, fog_grain=0.24,
                         anisotropy=1.0),
         # ✅ MTF TRACED 2026-09-06 from F-4001 (2019) p7 -- f50 84.3, replacing
@@ -29610,7 +31968,21 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # reading is recorded in `sovremennye_2004.py`'s REVIEWED_NOT_ADOPTED
         # set as the corroboration it is. `mtf_measured` stays False for the
         # reason G-MTFBW3 states -- q 2.03 beats the Gaussian by only 1.3x.
-        mtf=MTFSpec(84.3, 84.3, 84.3, adjacency=0.08, adjacency_um=16.0),
+        # ⚠⚠ adjacency / adjacency_um SOLVED 2026-09-24b FROM F-32 (March 2002)
+        # page 24, "Modulation-Transfer Curve" -- 41 points, 3.0-145
+        # cycles/mm, peak +8.7 % at 5.22 cycles/mm, resolved inside the drawn
+        # range. Solved against the convolution kernel (queue A4 method):
+        # adjacency 0.1072 at 38.10 um reproduces 1.0870 at 5.22 c/mm exactly,
+        # replacing the estimates 0.08 at 16.0 um.
+        # ⚠ 38.10 um IS THE LONGEST ADJACENCY LENGTH ADOPTED IN THIS FILE and
+        # that is what a low-frequency peak means: the lift band-passes at
+        # 206.07 / adjacency_um, so a peak at 5.2 c/mm requires a long kernel.
+        # It is nowhere near the 74-84 um band that signals an UNRESOLVED peak,
+        # which is the failure this solve is checked against.
+        # ⚠ f50 UNCHANGED AT 84.3, F-4001 (2019)'s own curve, for the
+        # precedence reason recorded above; F-32's own f50 reads 82.4, 2.3 %
+        # away -- a third independent drawing agreeing with the other two.
+        mtf=MTFSpec(84.3, 84.3, 84.3, adjacency=0.1072, adjacency_um=38.10),
         # ⚠ THE FIRST DEVELOPMENT FAMILY IN THIS CORPUS TRACED OFF A
         # CHARACTERISTIC-CURVE PANEL RATHER THAN A GAMMA-TIME ONE, and the
         # reason it exists is that the obvious source could not be used.
@@ -30933,6 +33305,51 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # films wrongly, which shows as one temperature twice in a row.
         processing_family=ProcessingFamily(
             points=(
+                # ⚠⚠ FIVE POINTS ADDED 2026-09-25c, AND THEY ARE THE ONLY
+                # CONTRAST-CARRYING POINTS THIS STOCK HAS. Every one of the
+                # 274 points below is TIME-ONLY -- they come from Kodak's own
+                # developer x temperature tables, which print no gamma
+                # anywhere. E. Mitchell, «Photographic Science» (Russian
+                # translation «Фотография», Mir 1988), Табл. 8.4 prints a
+                # development time, a CONTRAST INDEX and an EXPOSURE INDEX
+                # together for Plus-X Pan in D-76 1:1, which is exactly the
+                # triple the schema wants and which no Kodak table in this
+                # corpus supplies for this film.
+                #
+                # ⚠⚠ AND THEY DISAGREE WITH KODAK'S OWN TIMES, WHICH IS WHY
+                # BOTH SETS ARE KEPT. Kodak's small-tank table puts D-76 1:1
+                # at 20 C between 6.25 and 7.00 minutes; Mitchell's table
+                # needs 8 minutes to reach CI 0.56, the normal aim. That is
+                # roughly 20 % more development for the contrast Kodak's own
+                # recommendation is supposed to deliver. Neither is averaged
+                # into the other and neither is dropped: the Kodak points are
+                # a manufacturer recommendation with no contrast attached, and
+                # these five are a textbook's measured ladder. A consumer
+                # asking for "the time" gets Kodak's; a consumer asking for
+                # "the time for CI 0.70" can only be answered by these.
+                #
+                # ⚠ THE EXPOSURE INDEX IS THE BOOK'S, NOT THE BOX SPEED. The
+                # film is 125 ASA and the table runs 53 to 200 across the
+                # ladder -- development changes the usable speed, which is
+                # the whole point of printing the three columns together.
+                # ⚠ 4.5 min / CI 0.40 / EI 53 is the odd rung: the other four
+                # move EI by about a sixth of a stop per CI step and this one
+                # drops by more than a stop. Transcribed as printed.
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=22.0, celsius=20.0,
+                                 contrast_index=1.00, exposure_index=200),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=18.0, celsius=20.0,
+                                 contrast_index=0.85, exposure_index=178),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=12.0, celsius=20.0,
+                                 contrast_index=0.70, exposure_index=145),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=8.0, celsius=20.0,
+                                 contrast_index=0.56, exposure_index=122),
+                DevelopmentPoint(developer='D-76', dilution='1:1',
+                                 minutes=4.5, celsius=20.0,
+                                 contrast_index=0.40, exposure_index=53),
                 DevelopmentPoint(developer='D-76', dilution='stock',
                                  minutes=6.50, celsius=18.0, vessel='small tank'),
                 DevelopmentPoint(developer='D-76', dilution='stock',
@@ -33010,28 +35427,63 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         name="KODAK_EKTAPRESS_PJ400",
         aliases=("ektapress", "pj400", "ektapress 400"),
         description=(
-            "[T3] Kodak Professional EKTAPRESS PJ400: the photojournalists' "
-            "C-41, built for push latitude to EI 1600 (E-116 covers the "
-            "PJ100/PJ400/PJ800 family; siblings queued). PGI only; rms "
-            "[C4]."
+            "[T1] Kodak Professional EKTAPRESS PJ400: the photojournalists' "
+            "C-41, built for push latitude to EI 1600. Curves, spectral "
+            "sensitivity, spectral dye density, Print Grain Index, aim "
+            "densities and the C-41 push ladder all traced from E-116 "
+            "(April 2003) on 2026-09-24, the day the sheet entered the "
+            "corpus; PJ100 and PJ800 are documented to the same depth on the "
+            "same ten pages and remain queued. PGI only; rms [C4]."
         ),
         era="1994-2001",
         exposure_index=400,
         balance_kelvin=5500,
         curves=RGBCurves(
-            # ⚠ SAME FLAT-PLACEHOLDER DEFECT AS VERICOLOR III ABOVE, AND THE
-            # SAME SOURCE CLOSES IT. E-116 prints no base densities, so this
-            # profile carried 0.22 / 0.21 / 0.21 -- no mask on a C-41 stock.
-            # «Современные фотоматериалы и их обработка» p.140 prints the PJ400
-            # characteristic curves; the traced toe plateaus are
-            # 1.020 / 0.803 / 0.382 B/G/R. That is a HEAVIER mask than
-            # Vericolor III's, which is what a 400-speed press negative built
-            # for a four-stop push should have, and it lands beside PORTRA 800
-            # (1.007 / 0.655 / 0.220) rather than beside the 160-speed stocks.
-            # Re-derived on every build by sovremennye_2004.py.
-            r=_neg(0.382, 0.586, toe_x=-1.78, toe_k=0.32, shoulder_x=2.14),
-            g=_neg(0.803, 0.604, toe_x=-1.72, toe_k=0.31, shoulder_x=2.08),
-            b=_neg(1.020, 0.622, toe_x=-1.64, toe_k=0.29, shoulder_x=2.00),
+            # ⚠⚠ RE-TRACED 2026-09-24 FROM E-116 ITSELF, WHICH THE OWNER
+            # SUPPLIED THAT DAY. THE SHEET WAS NEVER IN THE CORPUS UNTIL THEN,
+            # AND ITS ABSENCE IS THE WHOLE HISTORY OF THIS PROFILE'S CURVE.
+            # What stood here was an ANALOGY (provenance.fitted_from
+            # 'analogy', tier 3), later half-corrected by the dmin ladder
+            # «Современные фотоматериалы и их обработка» p.140 prints. E-116
+            # page 6 draws PJ400's OWN characteristic panel -- Exposure
+            # Daylight, Process C-41, Densitometry Status M -- in VECTOR art
+            # with no embedded raster anywhere in the document, so it traces
+            # at full path precision rather than at pixel precision.
+            #
+            # HOW CLOSE THE ANALOGY WAS, AND WHERE IT WAS NOT. The plot atlas
+            # had the base densities almost exactly right -- 0.382 / 0.803 /
+            # 1.020 against the sheet's own 0.3696 / 0.7914 / 1.0068, inside
+            # 0.013 D on all three -- and red and green gamma within 0.015.
+            # It was wrong about two things that matter more:
+            #   * BLUE GAMMA by 0.097, sixteen percent low (0.622 -> 0.7189).
+            #   * THE TOE BY NEARLY A FULL LOG UNIT, and far too soft:
+            #     toe_x -1.78/-1.72/-1.64 -> -2.540/-2.540/-2.540, toe_k
+            #     0.32/0.31/0.29 -> 0.180/0.180/0.170.
+            # A toe placed 0.8 log to the right and 1.8x too soft renders
+            # shadows that enter the curve late and roll in gently; combined
+            # with a flat blue that is a warm, low-contrast shadow on every
+            # frame of this stock. Neither error is visible in a dmin check,
+            # which is why the half-correction of 2026-09-15b did not catch it.
+            #
+            # ⚠ THE SHOULDER IS NOT FROM THIS SHEET AND IS NOT CLAIMED TO BE.
+            # E-116's panel is STILL STRAIGHT where it stops at logE +0.55 --
+            # a colour negative's shoulder lies above the plotted range -- so
+            # `kodak_still_curves.measure_char` fits dmin, gamma, toe_x and
+            # toe_k with the shoulder held six decades out, and shoulder_x /
+            # shoulder_k below are CARRIED OVER unchanged from the analogy.
+            # That is the rule the module's own docstring records at the cost
+            # of a real defect: a free six-parameter fit of PORTRA 160NC's red
+            # channel on an identical panel invented 0.37 D of dmax and
+            # corrupted gamma by 14 % while doing it.
+            #
+            # Fit quality, three channels: rms 0.0115 / 0.0117 / 0.0063 D,
+            # worst 0.0142 / 0.0146 / 0.0105 D. Cross-checked against an
+            # INDEPENDENT 600 dpi raster trace of the same panel (pdftoppm +
+            # digitize_plot): the two methods agree to 0.005 D, which is the
+            # tracing floor for a vector sheet and well inside the line width.
+            r=_neg(0.3696, 0.5942, toe_x=-2.540, toe_k=0.180, shoulder_x=2.14),
+            g=_neg(0.7914, 0.6194, toe_x=-2.540, toe_k=0.180, shoulder_x=2.08),
+            b=_neg(1.0068, 0.7189, toe_x=-2.540, toe_k=0.170, shoulder_x=2.00),
         ),
         grain=GrainSpec(6.0, 2.387, 2.581, 3.032, clump_gain=0.30, fog_grain=0.18),
         mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.11, adjacency_um=17.0),
@@ -33081,6 +35533,315 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             dmin=(0.3824, 0.8035, 1.0195), dmax=(2.1722, 2.6690, 3.1684),
             gamma=(0.6158, 0.6336, 0.7407),
             log_e_span=3.97, page=140),
+        # ⚠⚠ TRACED 2026-09-24 FROM E-116 PAGE 7, AND THE CRITERION IS
+        # PRINTED ON THE PANEL RATHER THAN INFERRED FROM A SIBLING SHEET.
+        # The caption block reads, in full: "Effective Exposure: 1/100
+        # second / Process: C-41 / Densitometry: Status M / Density: 0.2
+        # above D-min", with the footnote "Sensitivity = reciprocal of
+        # exposure (ergs/cm2) required to produce specified density".
+        # That matters beyond this profile: NINE Kodak still films in this
+        # database store the 0.2 criterion on the strength of two VISION2
+        # cine sheets that print it, with nothing in the still line
+        # supporting the carry-over. E-116 is a still-film publication that
+        # prints it outright, so the convention is no longer borrowed from
+        # another product line for at least one of the nine.
+        #
+        # ⚠ THE READER NEEDED A CHANGE TO SEE THIS PANEL AT ALL, and the
+        # change is recorded in `extract_panel`'s new `min_span`. At the
+        # default 0.30 the span filter -- written for characteristic panels,
+        # where every trace crosses most of the frame -- discarded two of
+        # the three layers and returned ONE 449.6-599.4 nm chain that looked
+        # like a believable answer. A sensitisation band is short by nature:
+        # these three cover about 120 nm each of a 500 nm axis. At 0.20 all
+        # three appear, and the count is STABLE at 0.15 and 0.10 as well, so
+        # 0.20 sits inside a plateau rather than on a threshold chosen to
+        # produce the wanted result.
+        #
+        # Layer identity is by band, and the sheet's own left-to-right
+        # labelling agrees: Yellow-Forming 389.7-509.5 nm peaking 470,
+        # Magenta-Forming 449.6-599.4 peaking 540, Cyan-Forming 549.5-679.2
+        # peaking 650. Resampled onto the corpus 380 nm / 10 nm grid;
+        # -4.0 is the file's off-band floor, not a measurement.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, 
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, 
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -1.9072, 
+                     -1.6770, -1.3945, -0.9335, -0.6783, -0.5661, -0.4280, 
+                     -0.3419, -0.2146, -0.0828, 0.0000, -0.1867, -1.0679, 
+                     -4.0000, -4.0000, -4.0000),
+            log_s_g=(-4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, 
+                     -4.0000, -1.8744, -1.7780, -1.7318, -1.2433, -0.7716, 
+                     -0.5409, -0.3800, -0.2408, -0.0944, 0.0000, -0.0228, 
+                     -0.0669, -0.1266, -0.5581, -1.5499, -4.0000, -4.0000, 
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, 
+                     -4.0000, -4.0000, -4.0000),
+            log_s_b=(-4.0000, -1.6826, -1.1943, -0.6459, -0.5121, -0.4594, 
+                     -0.4446, -0.3721, -0.2037, 0.0000, -0.5580, -1.5853, 
+                     -2.0117, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, 
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, 
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, 
+                     -4.0000, -4.0000, -4.0000),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=("Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS "
+                    "Films», KODAK Publication No. E-116, April 2003, page 7, "
+                    "panel 'Spectral-Sensitivity Curves' (PJ400). Vector-path "
+                    "extraction 2026-09-24 with min_span=0.20."),
+        ),
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    # ⚠⚠ PJ100 AND PJ800 CREATED 2026-09-24b, AND THE REASON THEY ARE HERE IS
+    # THAT QUEUEING THEM WAS THE WRONG CALL. The E-116 harvest of 2026-09-24
+    # took PJ400 -- one of the three films the sheet documents -- and opened
+    # queue row P91 for the other two, on ten pages that were already open and
+    # already traced. The owner rejected that split the same day. Nothing about
+    # these two films is harder than PJ400: same publication, same vector art,
+    # same three panel kinds, same C-41 push ladder printed on page 3.
+    #
+    # ⚠ THE LISTBOX SHIFTS ONCE FOR THE PAIR. Adding a stock moves
+    # eTOTAL_FILMS_PROFILES, the generated enum and every line index in
+    # film_names.txt, which is the plugin's stock list -- so these two go in
+    # together, as GEVACHROME_600/605 and EASTMAN_TRI_X_5223/KODAK_8374 did.
+    FilmProfile(
+        name="KODAK_EKTAPRESS_PJ100",
+        aliases=("pj100", "ektapress 100", "ektapress pj100"),
+        description=(
+            "[T1] Kodak Professional EKTAPRESS PJ100: the slow, sharp member "
+            "of the press trio -- the sheet rates its sharpness EXTREMELY "
+            "HIGH against PJ400's and PJ800's HIGH, and its Print Grain Index "
+            "28/50/79 against 41/62/92 and 53/75/104. Single development "
+            "condition: E-116 prints no push ladder for this film, only EI "
+            "100 at C-41 3:15, which is why it carries no ProcessVariant when "
+            "its two siblings do. Curves, spectral sensitivity, spectral dye "
+            "density, Print Grain Index, aim densities and the reciprocity "
+            "bound all traced from E-116 (April 2003) on 2026-09-24b. "
+            "PGI only; rms [C4]."
+        ),
+        era="1994-2001",
+        exposure_index=100,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            # ⚠⚠ THIS PANEL SHOULDERS INSIDE THE PLOT, AND THAT IS WHY THESE
+            # SIX NUMBERS COME FROM A DIFFERENT FIT THAN PJ400's.
+            # `measure_char` exists because eleven Kodak colour-negative
+            # panels in this corpus are STILL STRAIGHT where they stop, so a
+            # free six-parameter fit invents a shoulder. E-116 page 5 is not
+            # one of them: it is drawn to logE +1.32, a full 0.77 log further
+            # right than PJ400's page-6 panel, and every channel visibly rolls
+            # off -- red's local slope falls from 0.57 mid-scale to 0.40 over
+            # the last third. Running `measure_char` on it anyway returns rms
+            # 0.015 / 0.022 / 0.029 D, three to five times this file's own
+            # tracing floor, because a straight-line model is being asked to
+            # follow a curve that bends.
+            #
+            # So the fit here is the FULL six-parameter one, with D-MIN HELD at
+            # the traced toe plateau (the softplus asymptote sits below the
+            # lowest plotted density -- the trap recorded on PJ400's push
+            # legs). rms 0.0097 / 0.0103 / 0.0172 D, worst 0.0233 / 0.0240 /
+            # 0.0407, over logE -2.78..+1.32. shoulder_x 1.26 / 1.28 / 1.33 is
+            # INSIDE the drawn range on all three channels, so unlike PJ400
+            # nothing about the shoulder is carried over from an analogy.
+            r=ToneCurve(0.2891, 0.5763, -1.927, 0.244, 1.263, 0.342),
+            g=ToneCurve(0.7241, 0.5963, -1.935, 0.239, 1.284, 0.334),
+            b=ToneCurve(0.9313, 0.7102, -1.881, 0.284, 1.332, 0.398),
+        ),
+        # ⚠ ESTIMATES, AND THE SHEET FORBIDS THE OBVIOUS DERIVATION. E-116
+        # page 4: Print Grain Index "replaces rms granularity and has a
+        # different scale which cannot be compared to rms granularity." PJ100's
+        # 28/50/79 is stored as published in `print_grain_index` and NOTHING
+        # here is computed from it. 4.6 is the ISO-100 Kodak colour-negative
+        # class figure this file already carries on KODAK_PROFOTO_100, chosen
+        # because the sheet's own qualitative ladder puts PJ100 a class finer
+        # than PJ400's estimated 6.0.
+        grain=GrainSpec(4.6, 2.194, 2.387, 2.839, clump_gain=0.24, fog_grain=0.17),
+        # ⚠ SAME STATUS. The only sharpness datum E-116 prints for PJ100 is
+        # the word "Extremely High" (page 5), against "High" for PJ400 and
+        # PJ800. That is a manufacturer statement about ORDER, not a number:
+        # these f50 values are the ISO-100 class estimate, placed above
+        # PJ400's 58/66/76 because the sheet places the film above it.
+        mtf=MTFSpec(64.0, 72.0, 82.0, adjacency=0.11, adjacency_um=17.0),
+        couplers=CouplerSpec(0.13, 50.0, 0.07, 10.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.000, 0.991, 0.970),
+        misregistration_um=4.5,
+        # TRACED, E-116 page 5. Midscale-neutral + D-min pair, 400-700 nm.
+        # ⚠ THE 400 nm CELL OF `d_neutral` IS A LOWER BOUND, NOT A READING.
+        # The neutral curve leaves the panel through the TOP at 400.55 nm,
+        # still rising, so 2.500 is the frame ceiling and the true density is
+        # above it by an amount Kodak did not print. Every other cell is the
+        # drawn curve resampled onto the corpus 10 nm grid.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_dmin=(
+            1.9250, 1.0170, 0.8193, 0.8494, 0.8855, 0.9065, 0.9080, 0.8957,
+            0.8671, 0.8177, 0.7718, 0.7452, 0.7082, 0.6858, 0.6924, 0.6995,
+            0.7045, 0.6917, 0.6271, 0.4925, 0.3643, 0.2956, 0.2732, 0.2729,
+            0.2835, 0.2986, 0.3170, 0.3356, 0.3517, 0.3640, 0.3754),
+            d_neutral=(
+            2.5000, 1.7407, 1.6600, 1.8150, 1.8960, 1.9360, 1.9210, 1.8470,
+            1.7281, 1.6051, 1.5296, 1.5137, 1.5155, 1.5438, 1.6038, 1.6045,
+            1.5202, 1.3687, 1.1833, 0.9877, 0.8596, 0.8265, 0.8588, 0.9273,
+            1.0115, 1.0983, 1.1782, 1.2491, 1.3029, 1.3312, 1.3399),
+            normalisation="as_printed_status_m",
+            source=("Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS "
+                    "Films», KODAK Publication No. E-116, April 2003, page 5, "
+                    "panel 'Spectral-Dye-Density Curves' (PJ100) -- typical "
+                    "densities for a midscale neutral subject and D-min, "
+                    "Process C-41. Vector-path extraction 2026-09-24b."),
+        ),
+        # TRACED, E-116 page 5, same criterion PRINTED ON THE PANEL as PJ400's:
+        # "Effective Exposure: 1/25 second / Process: C-41 / Densitometry:
+        # Status M / Density: 0.2 above D-min". ⚠ 1/25 SECOND, NOT PJ400's
+        # 1/100 -- the exposure time differs between the two panels in the same
+        # publication, which is recorded because a sensitisation measured at a
+        # different exposure time is not strictly the same measurement.
+        # Layer identity is by band centroid: 400.0-500.0 nm peaking 460
+        # (yellow-forming, blue-sensitive), 470.0-590.1 peaking 540 (magenta,
+        # green), 550.0-679.9 peaking 650 (cyan, red). -4.0 is the file's
+        # off-band floor, not a measurement.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -1.7150,
+                     -1.5051, -1.3342, -0.9021, -0.5520, -0.3991, -0.3020,
+                     -0.2708, -0.1821, -0.0731, 0.0000, -0.0463, -0.8857,
+                     -4.0000, -4.0000, -4.0000),
+            log_s_g=(-4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -1.7228, -1.3976, -0.9091,
+                     -0.6071, -0.4156, -0.2779, -0.1274, 0.0000, -0.0015,
+                     -0.0659, -0.1163, -0.4983, -1.5097, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000),
+            log_s_b=(-4.0000, -4.0000, -0.9238, -0.3707, -0.1655, -0.1031,
+                     -0.0259, -0.0419, 0.0000, -0.1337, -0.7395, -1.3471,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=("Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS "
+                    "Films», KODAK Publication No. E-116, April 2003, page 5, "
+                    "panel 'Spectral-Sensitivity Curves' (PJ100), effective "
+                    "exposure 1/25 second. Vector-path extraction 2026-09-24b "
+                    "with min_span=0.20."),
+        ),
+        default_format="ff35",
+        features=Feature.STRONG_DIR_COUPLERS,
+    ),
+    FilmProfile(
+        name="KODAK_EKTAPRESS_PJ800",
+        aliases=("pj800", "ektapress 800", "ektapress pj800"),
+        description=(
+            "[T1] Kodak Professional EKTAPRESS PJ800: the fast end of the "
+            "press trio, pushable to EI 3200 on the sheet's own ladder. "
+            "E-116 warns in print that it is 'sensitive to environmental "
+            "radiation' and asks for hand inspection at airport x-ray, which "
+            "is a fog-accumulation statement about a high-speed emulsion and "
+            "not a handling nicety. Curves for all three legs, spectral "
+            "sensitivity, spectral dye density, Print Grain Index 53/75/104, "
+            "aim densities and the 1-second reciprocity bound all traced from "
+            "E-116 (April 2003) on 2026-09-24b. PGI only; rms [C4]."
+        ),
+        era="1994-2001",
+        exposure_index=800,
+        balance_kelvin=5500,
+        curves=RGBCurves(
+            # ⚠ SAME SHOULDERING PANEL AS PJ100, AND MORE OF IT. E-116 page 7
+            # draws PJ800 over logE -3.53..+0.26 and the green record's slope
+            # falls from 0.66 mid-scale to 0.26 at the right edge. Full
+            # six-parameter fit, D-min held at the traced toe plateau: rms
+            # 0.0182 / 0.0139 / 0.0171 D, worst 0.0314 / 0.0358 / 0.0308.
+            # ⚠ GREEN'S shoulder_x -0.215 IS INSIDE the plotted range and
+            # LEFT of red's 0.271 and blue's 0.373 -- the green record turns
+            # over first on this film, which is what the drawn curves show and
+            # not a fit artefact; it repeats on both push legs.
+            r=ToneCurve(0.3138, 0.6631, -2.657, 0.300, 0.271, 0.420),
+            g=ToneCurve(0.7646, 0.6918, -2.659, 0.261, -0.215, 0.366),
+            b=ToneCurve(1.0182, 0.7661, -2.668, 0.267, 0.373, 0.374),
+        ),
+        # ⚠ ESTIMATES. Same bar as PJ100: PGI 53/75/104 is stored as published
+        # and the sheet forbids converting it to rms. 11.0 is the ISO-800
+        # Kodak colour-negative class figure this file carries on
+        # KODAK_PORTRA_800, which is the nearest documented neighbour in speed.
+        grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
+        # ⚠ E-116 RATES PJ800's SHARPNESS "High" -- the SAME WORD it gives
+        # PJ400 (page 7 against page 6). These f50 values are therefore PJ400's
+        # own estimates carried across on the manufacturer's own equivalence,
+        # NOT a fresh guess and NOT a measurement: the sheet prints no MTF for
+        # any of the three films.
+        mtf=MTFSpec(58.0, 66.0, 76.0, adjacency=0.11, adjacency_um=17.0),
+        couplers=CouplerSpec(0.15, 50.0, 0.08, 10.0),
+        dye_matrix=_dye(-0.10),
+        base_tint=(1.000, 0.990, 0.966),
+        misregistration_um=4.5,
+        # TRACED, E-116 page 8. ⚠ TWO THINGS ABOUT THIS PANEL.
+        # First, the 400 nm cell of `d_neutral` is a LOWER BOUND: the neutral
+        # curve leaves the frame through the top at 403.86 nm, so 2.500 is the
+        # ceiling and the printed density is above it.
+        # Second, that clipping is why `assign_dye_pair` grew a `y_ceiling`
+        # exemption on 2026-09-24b. Its extent check demands both curves span
+        # 400-700 nm within 2.5 nm, because a mis-snapped 400 tick once shifted
+        # an entire E-4035 panel by 4.6 nm. Here the axis is right and the
+        # CURVE stops early -- the D-min trace spans 400.05-700.05, which is
+        # what proves the calibration, and the neutral's first vertex sits
+        # exactly on the ceiling, which is what proves it exited the top.
+        dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0,
+            d_dmin=(
+            2.2500, 1.4808, 1.1636, 1.1300, 1.1334, 1.1085, 1.0702, 1.0302,
+            0.9869, 0.9369, 0.9183, 0.9217, 0.8588, 0.7820, 0.7501, 0.7334,
+            0.7300, 0.7218, 0.6639, 0.5340, 0.4106, 0.3402, 0.3216, 0.3233,
+            0.3382, 0.3516, 0.3698, 0.3899, 0.4079, 0.4177, 0.4200),
+            d_neutral=(
+            2.5000, 2.1047, 1.8652, 1.9096, 1.9515, 1.9451, 1.9036, 1.8255,
+            1.7223, 1.6304, 1.5950, 1.6166, 1.6002, 1.5800, 1.5917, 1.5703,
+            1.4938, 1.3742, 1.2127, 1.0227, 0.8872, 0.8417, 0.8631, 0.9131,
+            0.9812, 1.0580, 1.1279, 1.1880, 1.2357, 1.2633, 1.2700),
+            normalisation="as_printed_status_m",
+            source=("Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS "
+                    "Films», KODAK Publication No. E-116, April 2003, page 8, "
+                    "panel 'Spectral-Dye-Density Curves' (PJ800) -- typical "
+                    "densities for a midscale neutral subject and D-min, "
+                    "Process C-41. Vector-path extraction 2026-09-24b. The "
+                    "400 nm neutral cell is the panel ceiling and a LOWER "
+                    "BOUND; the curve exits the top of the frame at 403.9 nm."),
+        ),
+        # TRACED, E-116 page 8, criterion printed on the panel. Bands by
+        # centroid: 378.7-528.5 nm peaking 470 (yellow-forming), 458.6-598.4
+        # peaking 550 (magenta), 538.5-678.2 peaking 650 (cyan). ⚠ THE BLUE
+        # RECORD IS THE ONE SPECTRAL DIFFERENCE FROM PJ400 WORTH NAMING: it
+        # still reads -1.41 at 380 nm where PJ400's is off the bottom of its
+        # own band, i.e. this emulsion is sensitised further into the near-UV,
+        # which is consistent with the sheet's environmental-radiation warning
+        # but is NOT evidence for it and is not treated as such.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=380.0, lambda_step_nm=10.0,
+            log_s_r=(-4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -1.8155, -1.6472,
+                     -1.4333, -1.1331, -0.7373, -0.4634, -0.3161, -0.2645,
+                     -0.2438, -0.1642, -0.0596, 0.0000, -0.2683, -1.0385,
+                     -4.0000, -4.0000, -4.0000),
+            log_s_g=(-4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -1.9566, -1.6007, -1.1669, -0.7174,
+                     -0.4730, -0.3335, -0.2095, -0.0851, -0.0009, 0.0000,
+                     -0.0338, -0.1436, -0.5980, -1.3643, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000),
+            log_s_b=(-1.4122, -1.2628, -0.8367, -0.3467, -0.1872, -0.1648,
+                     -0.1783, -0.2922, -0.4000, 0.0000, -0.3192, -0.7622,
+                     -1.1558, -1.5863, -2.0001, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000, -4.0000, -4.0000, -4.0000,
+                     -4.0000, -4.0000, -4.0000),
+            criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+            source=("Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS "
+                    "Films», KODAK Publication No. E-116, April 2003, page 8, "
+                    "panel 'Spectral-Sensitivity Curves' (PJ800). Vector-path "
+                    "extraction 2026-09-24b with min_span=0.20."),
+        ),
         default_format="ff35",
         features=Feature.STRONG_DIR_COUPLERS,
     ),
@@ -34935,7 +37696,8 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # now measured; grain LEVEL (rms 5.0) is not, and the 1.5x level gap
         # remains a possible re-engineering of the emulsion.
         # [T1] clump_um 0.859 -> 0.655, 2026-08-25, owner-approved. NOT a new
-        # measurement -- a CONDITION CORRECTION to yesterday's, and the reason
+        # measurement -- a CONDITION CORRECTION to the preceding entry's, and
+        # the reason
         # it was needed is a mismatch this file shipped without noticing.
         #
         # 0.859 came from T-101 Table 2's printed equivalent grain diameter
@@ -35045,6 +37807,73 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
                 DevelopmentPoint(developer="Perceptol", dilution="1+3",
                                  minutes=24.0, celsius=20.0,
                                  contrast_index=0.70, exposure_index=32),
+                # -- «Ilford Monochrome Darkroom Practice», 2026-09-24c.
+                # Ilford's OWN recommended times, which the Photo-Lab-Index
+                # rows above do not cover: undiluted ID-11, Perceptol and
+                # Microphen at stock strength, Ilfosol S and Ilfotec RT,
+                # each in both printing geometries where the book prints
+                # both. ⚠ THE TWO SOURCES DISAGREE WHERE THEY OVERLAP and
+                # neither is discarded: at ID-11 1+1 the Index gives 9 min
+                # for contrast index 0.55 and Ilford give 8.5 min for a
+                # condenser and 12 for a diffusion head, which is the same
+                # film described at two different target contrasts.
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=6.0, celsius=20.0, vessel="small tank", print_geometry="condenser"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=8.5, celsius=20.0, vessel="small tank", print_geometry="diffusion"),
+                DevelopmentPoint(developer="ID-11", dilution="1+1", minutes=8.5, celsius=20.0, vessel="small tank", print_geometry="condenser"),
+                DevelopmentPoint(developer="ID-11", dilution="1+1", minutes=12.0, celsius=20.0, vessel="small tank", print_geometry="diffusion"),
+                DevelopmentPoint(developer="ID-11", dilution="1+3", minutes=12.5, celsius=20.0, vessel="small tank", print_geometry="condenser"),
+                DevelopmentPoint(developer="ID-11", dilution="1+3", minutes=18.0, celsius=20.0, vessel="small tank", print_geometry="diffusion"),
+                DevelopmentPoint(developer="Perceptol", dilution="stock", minutes=11.0, celsius=20.0, exposure_index=25, vessel="small tank", print_geometry="condenser"),
+                DevelopmentPoint(developer="Perceptol", dilution="stock", minutes=16.0, celsius=20.0, exposure_index=32, vessel="small tank", print_geometry="diffusion"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=4.5, celsius=20.0, exposure_index=64, vessel="small tank", print_geometry="condenser"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=7.0, celsius=20.0, exposure_index=100, vessel="small tank", print_geometry="diffusion"),
+                DevelopmentPoint(developer="Ilfosol S", dilution="1+9", minutes=4.0, celsius=20.0, contrast_index=0.62, exposure_index=50, vessel="small tank"),
+                DevelopmentPoint(developer="Ilfotec RT Rapid", dilution="stock", minutes=0.6667, celsius=27.0, contrast_index=0.62, vessel="small tank", film_format="135"),
+                DevelopmentPoint(developer="Ilfotec RT Rapid", dilution="stock", minutes=0.6667, celsius=27.0, contrast_index=0.62, vessel="small tank", film_format="120"),
+                # -- ⚠⚠ A THIRD SOURCE, AND IT IS A DIFFERENT EMULSION UNDER
+                # THE SAME NAME. Peter Hansell, «35 mm. Filmstrip Technique»,
+                # Ilford Limited, 1949, pp. 44-45: «ILFORD PAN F. 35mm.
+                # MINIATURE FILM ... Weston speed: 16, daylight; 10, artificial
+                # light». Weston 16 against this profile's ISO 50 is more than
+                # a stop and a third slower, and the gammas below run 1.1-1.6
+                # where every other point on this family is 0.55-0.70. This is
+                # NOT the Pan F the 1979 Photo-Lab-Index and the Ilford
+                # darkroom book describe, and the generation tag is what keeps
+                # the two apart. ⚠ EVERY TAGGED POINT MUST STATE ITS OWN SPEED
+                # (verify.py), and the number below IS A WESTON SPEED, NOT AN
+                # ISO -- 16 daylight / 10 artificial, as Ilford print it. The
+                # field is an integer with no scale attached; the scale lives
+                # here and in the ParamSource, exactly as the 1956 Kodak
+                # points carry American Standard speeds in the same field.
+                # ⚠ `vessel="tray"` IS THE SCHEMA'S WORD FOR ILFORD'S «DISH».
+                # The field admits a closed set -- tank, small tank, large
+                # tank, tray, drum -- and a British dish IS an American tray.
+                # The developer NAME keeps Ilford's own phrasing so that the
+                # strength is not lost: «dish strength» is a CONCENTRATION,
+                # not a vessel, and ID-2 at tank strength is a weaker bath
+                # that would not give these times.
+                # -- Ilford's OWN PRINTED gamma-time curve, Fig. 17 inset,
+                # traced 2026-09-24d: gamma 1.108 at 1.51 min rising to 1.621
+                # at 8.25, read at the three times the main panel plots.
+                DevelopmentPoint(developer="ID-2 (M.Q., dish strength)", dilution="1+2 (dish strength)", minutes=2.0, celsius=18.3333, gamma=1.148, exposure_index=16, vessel="tray", film_format="135", edition="Pan F, the 1949 35 mm miniature coating"),
+                DevelopmentPoint(developer="ID-2 (M.Q., dish strength)", dilution="1+2 (dish strength)", minutes=4.0, celsius=18.3333, gamma=1.338, exposure_index=16, vessel="tray", film_format="135", edition="Pan F, the 1949 35 mm miniature coating"),
+                DevelopmentPoint(developer="ID-2 (M.Q., dish strength)", dilution="1+2 (dish strength)", minutes=8.0, celsius=18.3333, gamma=1.609, exposure_index=16, vessel="tray", film_format="135", edition="Pan F, the 1949 35 mm miniature coating"),
+                # -- and Ilford's recommended-time ladder from the same page.
+                # ⚠⚠ THE 68 degF CELL IS PRINTED AND IS REFUSED. The book sets
+                # «60°F. 6 mins. / 65°F. 4 1/2 mins. / 68°F. 4 3/4 min. /
+                # 75°F. 2 1/2 mins.», and 4 3/4 at 68 is LONGER than 4 1/2 at
+                # 65 -- development cannot slow down as the bath warms. The
+                # sister film two pages later, Fine Grain Safety Positive,
+                # prints 5 1/2 / 4 / 3 1/2 / 2 1/2 at the same four
+                # temperatures, monotone, which is the shape this row should
+                # have; 3 3/4 differs from the printed 4 3/4 by one glyph.
+                # THE CORRECTION IS NOT MADE: a plausible repair to a
+                # manufacturer's table is still this project's number wearing
+                # Ilford's authority. The cell is recorded here and omitted
+                # from the data.
+                DevelopmentPoint(developer="ID-2 (M.Q., dish strength)", dilution="1+2 (dish strength)", minutes=6.0, celsius=15.5556, exposure_index=16, vessel="tray", film_format="135", edition="Pan F, the 1949 35 mm miniature coating"),
+                DevelopmentPoint(developer="ID-2 (M.Q., dish strength)", dilution="1+2 (dish strength)", minutes=4.5, celsius=18.3333, exposure_index=16, vessel="tray", film_format="135", edition="Pan F, the 1949 35 mm miniature coating"),
+                DevelopmentPoint(developer="ID-2 (M.Q., dish strength)", dilution="1+2 (dish strength)", minutes=2.5, celsius=23.8889, exposure_index=16, vessel="tray", film_format="135", edition="Pan F, the 1949 35 mm miniature coating"),
             ),
             source=("Pittaro, ed., «The Compact Photo-Lab-Index», Morgan & "
                     "Morgan, 2nd Compact Edition 1979, Ilford Pan F development table "
@@ -35053,7 +37882,9 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
                     "each developer yields (ID-11 ASA 50, Microphen DIN 20 ~ ASA 80, "
                     "Perceptol ASA 32 / DIN 16). Contrast index defined in the source "
                     "as the average gradient over 1.5 log-exposure units from 0.1 "
-                    "above fog"),
+                    "above fog"
+                    " ⚠ SECOND SOURCE, 2026-09-24c: «Ilford Monochrome Darkroom Practice» Tables 2, 6, 7, 8, 9 and 11 -- Ilford's own times at stock strength and their effective ISOs, stored with the schema v53 `print_geometry` axis because Ilford print every table twice, for condenser and for diffusion enlargers."
+                    " ⚠⚠ THIRD SOURCE, 2026-09-24d, AND IT IS A DIFFERENT COATING: Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949 (printed by Lund Humphries), pp. 44-45 -- «ILFORD PAN F. 35mm. MINIATURE FILM: a very fine grain panchromatic emulsion of medium speed and medium-to-high contrast, on grey-dyed 5/1,000-in. safety base. Weston speed: 16, daylight; 10, artificial light». The six points tagged «Pan F, the 1949 35 mm miniature coating» are its: three gammas READ OFF ILFORD'S OWN PRINTED GAMMA-TIME INSET (Fig. 17, traced 2026-09-24d -- gamma 1.108 at 1.51 min to 1.621 at 8.25, sampled at the 2, 4 and 8 minutes the main panel plots), and three recommended times at 60, 65 and 75 degF. ⚠ THE SPEED FIELD ON THOSE POINTS IS A WESTON NUMBER, NOT AN ISO: Weston 16 daylight / 10 artificial, as printed. ⚠ THE 68 degF CELL IS PRINTED AND REFUSED: 4 3/4 min at 68 degF is longer than 4 1/2 at 65, which development cannot be, and the sister film's monotone 5 1/2 / 4 / 3 1/2 / 2 1/2 two pages later shows what the row should look like -- the misprint is recorded and not repaired. ⚠ WHAT ELSE THE PAGE STATES, none of it moving a stored field: panchromatic «sensitive to ultra-violet and to the visible spectrum», NO safelight of any kind («the material should be handled in total darkness»), the grey-dyed base whose 5/1,000 in is 127 um and independently confirms this profile's stored base thickness, and Ilford's own filter-factor table -- Alpha 104, Beta 401, Gamma 402, Tri-Blue 304, Tri-Green 404, Tri-Red 204 at 1 1/2, 2, 4, 5 1/2, 6 and 10 in daylight and 1 1/4, 1 1/2, 3, 14, 6 and 3 1/2 under half-watt lighting."),
         ),
         features=Feature.NONE,
     ),
@@ -35102,6 +37933,53 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         misregistration_um=0.0,
         default_flare=0.03,
         features=Feature.NONE,
+        # ⚠⚠ ILFORD'S OWN DEVELOPMENT TABLES, 2026-09-24c. The profile had NO processing family at all before this: its `processing.developer` said ID-11 and nothing said for how long.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=6.5, celsius=20.0, vessel="small tank", film_format="135", print_geometry="condenser"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=10.0, celsius=20.0, vessel="small tank", film_format="135", print_geometry="diffusion"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=7.5, celsius=20.0, vessel="small tank", film_format="sheet", print_geometry="condenser"),
+                DevelopmentPoint(developer="ID-11", dilution="stock", minutes=10.5, celsius=20.0, vessel="small tank", film_format="sheet", print_geometry="diffusion"),
+                DevelopmentPoint(developer="ID-11", dilution="1+1", minutes=9.0, celsius=20.0, vessel="small tank", print_geometry="condenser"),
+                DevelopmentPoint(developer="ID-11", dilution="1+1", minutes=14.0, celsius=20.0, vessel="small tank", print_geometry="diffusion"),
+                DevelopmentPoint(developer="ID-11", dilution="1+3", minutes=15.0, celsius=20.0, vessel="small tank", print_geometry="condenser"),
+                DevelopmentPoint(developer="ID-11", dilution="1+3", minutes=22.0, celsius=20.0, vessel="small tank", print_geometry="diffusion"),
+                DevelopmentPoint(developer="Perceptol", dilution="stock", minutes=10.0, celsius=20.0, exposure_index=64, vessel="small tank", print_geometry="condenser"),
+                DevelopmentPoint(developer="Perceptol", dilution="stock", minutes=13.0, celsius=20.0, exposure_index=100, vessel="small tank", print_geometry="diffusion"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=5.0, celsius=20.0, exposure_index=200, vessel="small tank", print_geometry="condenser"),
+                DevelopmentPoint(developer="Microphen", dilution="stock", minutes=7.5, celsius=20.0, exposure_index=320, vessel="small tank", print_geometry="diffusion"),
+                DevelopmentPoint(developer="Ilfosol S", dilution="1+14", minutes=7.0, celsius=20.0, contrast_index=0.62, exposure_index=125, vessel="small tank"),
+                DevelopmentPoint(developer="Ilfotec RT Rapid", dilution="stock", minutes=0.8333, celsius=27.0, contrast_index=0.62, vessel="small tank", film_format="135"),
+                DevelopmentPoint(developer="Ilfotec RT Rapid", dilution="stock", minutes=0.8333, celsius=27.0, contrast_index=0.62, vessel="small tank", film_format="120"),
+                DevelopmentPoint(developer="Ilfotec RT Rapid", dilution="stock", minutes=1.1667, celsius=27.0, contrast_index=0.62, vessel="small tank", film_format="sheet"),
+            ),
+            source=("«Ilford Monochrome Darkroom Practice», Ilford Ltd, read "
+                    "2026-09-24c from the owner's copy. Tables 6 and 7 (ID-11 "
+                    "undiluted, 1+1 and 1+3 at 20 C), Table 8 (Perceptol at 20 C "
+                    "with effective ISO), Table 9 (Microphen at 20 C with "
+                    "effective ISO), Table 10 (the HP5 push ladder, meter "
+                    "settings 800 / 1600 / 3200 in Microphen and ID-11), "
+                    "Table 11 (Ilfotec RT Rapid at 27 C, printed in SECONDS and "
+                    "stored here as minutes) and Table 2 (Ilfosol S at 20 C). "
+                    "⚠⚠ EVERY ILFORD TIME TABLE IS PRINTED TWICE -- «Negatives "
+                    "to be used in condenser enlargers» and «... in diffusion "
+                    "enlargers» -- and the two columns differ by 30-75 % of "
+                    "time. BOTH are stored, separated by the schema v53 "
+                    "`print_geometry` field added for this harvest: storing one "
+                    "would have meant choosing which of the manufacturer's two "
+                    "recommendations to believe, and storing both without the "
+                    "field would have left them in one flat tuple as "
+                    "near-duplicates told apart only by which time is longer. "
+                    "⚠ THE BOOK STATES ITS TARGET CONTRAST for the single-time "
+                    "developers -- «a contrast of about G = 0.62» for Ilfosol S "
+                    "and for Ilfotec RT -- so `contrast_index` carries 0.62 on "
+                    "those points and ZERO on every other point here, because "
+                    "Ilford print no contrast beside the ID-11, Perceptol or "
+                    "Microphen times. ⚠ THE EFFECTIVE SPEEDS ARE THE BOOK'S OWN "
+                    "and are stored per point rather than on the profile: "
+                    "Perceptol costs about a stop, Microphen buys one to one "
+                    "and a half."),
+        ),
     ),
 
     FilmProfile(
@@ -35360,7 +38238,14 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # «Excellent Grain Quality» and «New Super Uniform Fine Grain
         # Technology» are the whole of what it says about grain. Set from the
         # ISO 200 colour-negative ladder.
-        grain=GrainSpec(4.5, 2.581, 2.581, 3.226, clump_gain=0.55,
+        # ⚠⚠ rms 4.5 -> 4.0 ON 2026-09-24, AND THIS IS A CORRECTION
+        # RATHER THAN A CITATION. The AgfaPhoto AP-F sheet prints
+        # 'Granularity (x 1000): RMS 4.0' for this film in plain text on
+        # page 5. The value that stood here was an estimate, and it was
+        # 4.5 -- 12 % too coarse. Unlike the T-MAX figures harvested the
+        # same day, where the document confirmed what the database
+        # already held, here the document DISAGREED and the document wins.
+        grain=GrainSpec(4.0, 2.581, 2.581, 3.226, clump_gain=0.55,
                         fog_grain=0.17),
         # ⚠⚠ ADOPTED FROM A SHARED DRAWING, BY OWNER DECISION 2026-09-07b.
         # «13. MTF Curve» is ONE DRAWING SHARED WITH VISTA PLUS 400 -- the same
@@ -35526,7 +38411,14 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             b=ToneCurve(0.7319, 0.7353, -1.55, 0.1827, 1.75, 0.2558),
         ),
         # ⚠ NO GRANULARITY ON THE SHEET, same as the 200. ISO 400 class ladder.
-        grain=GrainSpec(6.5, 3.226, 3.226, 4.032, clump_gain=0.75,
+        # ⚠⚠ rms 6.5 -> 4.5 ON 2026-09-24, AND THIS IS A CORRECTION
+        # RATHER THAN A CITATION. The AgfaPhoto AP-F sheet prints
+        # 'Granularity (x 1000): RMS 4.5' for this film in plain text on
+        # page 5. The value that stood here was an estimate, and it was
+        # 6.5 -- 44 % too coarse -- the single largest grain error this batch found. Unlike the T-MAX figures harvested the
+        # same day, where the document confirmed what the database
+        # already held, here the document DISAGREED and the document wins.
+        grain=GrainSpec(4.5, 3.226, 3.226, 4.032, clump_gain=0.75,
                         fog_grain=0.19),
         # ⚠⚠ THE OTHER HALF OF THE SHARED MTF DRAWING, adopted on the same
         # owner decision. Identical green f50 and q to the 200's, because it
@@ -37041,11 +39933,90 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     # ⚠ ADDED 2026-09-23c WITH THE NEW PROFILE. A stock whose every scalar
     # comes from a state standard must not answer "no official manufacturer
     # datasheet available", which is what `_NO_DATASHEET` would have made it
-    # say. ⚠ ЦНД-64 and ЦО-90Л are in that position TOO and are deliberately
-    # left alone in this edit: their citations live in their descriptions, the
-    # gap predates this batch, and moving them would change a census this
-    # batch is already re-baselining for the new stock. Recorded here so the
-    # next reader does not have to rediscover it.
+    # say.
+    # ⚠⚠ AND ЦНД-64 AND ЦО-90Л WERE IN EXACTLY THAT POSITION, CLOSED
+    # 2026-09-24. They were left alone on 2026-09-23c because moving them
+    # would have shifted a census that batch was already re-baselining, and
+    # the note said so. It is closed now. Both are stocks whose every
+    # photographic number is a printed ТУ norm, and both were answering «No
+    # official manufacturer datasheet available -- values estimated from
+    # secondary/historical sources», which is FALSE IN BOTH HALVES: a ТУ is a
+    # manufacturer document, and nothing on either profile is a
+    # secondary-source estimate except the curve SHAPE, which their own
+    # descriptions already label as analogy.
+    # ⚠ THE THIRD ONE, AND THE GUARD FOUND IT. G-XSRC-TU-SOURCED was written
+    # to pin the two above and failed on this one within the minute -- which
+    # is the argument for asserting a class rather than fixing its instances.
+    # ⚠⚠ AND IT IS THE STOCK THE WHOLE SOVIET SHARPNESS BRIDGE STANDS ON.
+    "SVEMA_CO_T_90LM": (
+        "«Кинопленка цветная обращаемая ЦО-Т-90ЛМ. Технические условия», "
+        "ТУ 6-17-1000-88, 18 sheets, ПО «Свема»; in force 1.11.88-1.11.93, "
+        "16 mm only, for television shooting under incandescent light at "
+        "3200 K. PROVENANCE CLASS: MANUFACTURING SPECIFICATION -- every "
+        "photographic number is an acceptance limit, so the profile renders "
+        "the worst legal example wherever the limit is one-sided. табл. 2 "
+        "supplies the speed, the speed balance, the per-layer contrast band, "
+        "the latitude floor, D_min, the per-layer D_max floor, the resolving "
+        "power, the granularity ceiling and the modulation transfer; "
+        "cl. 1.2.3 the layer-speed ordering rule; табл. 5-6 two complete "
+        "reversal cycles. The full acceptance band is in `_TOLERANCE`. "
+        "⚠⚠ THIS IS THE ONE STOCK IN 176 SHEETS OF SOVIET SPECIFICATIONS "
+        "THAT PRINTS A RESOLVING POWER AND A MODULATION-TRANSFER POINT IN "
+        "THE SAME TABLE -- п. 7 «не менее 75 мм-1» and п. 9 «не менее 0,27 "
+        "при ν = 30 мм-1» -- and that coincidence is the entire calibration "
+        "of this project's Soviet R-to-f50 bridge. See "
+        "`_SOVIET_RP_ANCHOR_STOCK`. ⚠ THE REVERSAL FOGGING IS OPTICAL, NOT "
+        "CHEMICAL: «засветка двумя лампами по 100 Вт на расстоянии 0,3 м», "
+        "and no chemical reversal bath exists in any Soviet reversal ТУ. "
+        "⚠ NOT PRINTED: any plotted curve, the BASE MATERIAL (named nowhere "
+        "in the document), the antihalation construction (cl. 1.2.7 "
+        "establishes the layer exists and says no more), storage figures, "
+        "spectral data or reciprocity. The curve shape is analogy.",),
+    "SVEMA_CND_64": (
+        "«Пленка фотографическая цветная негативная ЦНД-64. Технические "
+        "условия», ТУ 6-17-1453-89, 26 sheets, ПО «Свема», Шостка; литера О1, "
+        "«Вводится впервые», registered April 1989. PROVENANCE CLASS: "
+        "MANUFACTURING SPECIFICATION -- the contract the factory was "
+        "inspected against, so every photographic number it prints is an "
+        "ACCEPTANCE LIMIT and the profile renders the worst legal example "
+        "wherever the limit is one-sided. табл. 4 supplies the speed, the "
+        "speed balance, the recommended contrast of all layers and the "
+        "development time that produces it, the contrast balance, the three "
+        "D_min bands, the latitude floor, the granularity ceilings and the "
+        "modulation transfer at 30 mm-1; cl. 1.3.1-1.3.2 the total thickness "
+        "and the decolourising antihalation layer; табл. 6-7 the developer "
+        "formulary and the 28-minute schedule. The full acceptance band is "
+        "in `_TOLERANCE`. ⚠ NOT PRINTED ANYWHERE IN THE DOCUMENT: any "
+        "plotted curve of any kind -- so the curve SHAPE is analogy on the "
+        "ЛН-8 / ДС-5М family and is labelled so -- nor D_max, resolving "
+        "power, reciprocity, spectral sensitivity, base material, shrinkage, "
+        "or ANY MASK DATA (no «маскирующие компоненты», no «эффективность "
+        "фильтрового слоя», no УЭП matrix), which makes it the one Soviet "
+        "colour negative whose colour rendering is controlled entirely "
+        "through D_min, contrast and the two balances. ⚠ NO COLOUR "
+        "TEMPERATURE IS PRINTED: the 5500 K this profile carries is ГОСТ "
+        "9160-82's daylight condition, not a figure of this ТУ.",),
+    "SVEMA_CO_90L": (
+        "«Кинопленка и фотопленка обращаемые марок ЦО-90Л. Технические "
+        "условия», ТУ 6-42-1514-90, 20 sheets, НПО «Свема»; «Вводятся "
+        "впервые», in force 01.07.90-01.07.95 -- the YOUNGEST document in "
+        "the Soviet corpus and the last Soviet film specification this "
+        "project holds. PROVENANCE CLASS: MANUFACTURING SPECIFICATION, so "
+        "every number is an acceptance limit; see ЦНД-64 above for what that "
+        "costs a stored scalar. табл. 3 supplies the speed, the speed "
+        "balance, the OVERALL contrast band and its balance, D_min, the "
+        "per-layer D_max floor and the resolving power; cl. 1.3.7-1.3.8 the "
+        "deformation temperature and the oven shrinkage. The full acceptance "
+        "band is in `_TOLERANCE`. ⚠⚠ ITS п. 7 RESOLVING POWER OF 75 mm-1 WAS "
+        "PRINTED IN 1990 AND WAS ABSENT FROM THIS DATABASE UNTIL 2026-09-23 "
+        "-- the stock carried a heuristic f50 beside an empty "
+        "resolving-power field, and the figure surfaced only when the corpus "
+        "was searched for stocks holding both. The stored f50 is now BRIDGED "
+        "from it and is labelled `synthesized`. ⚠ NOT PRINTED: any plotted "
+        "curve, granularity, modulation transfer, base thickness, curl, "
+        "moisture capacity, spectral data or reciprocity. The curve shape is "
+        "analogy; the antihalation layer is named only in the adhesion "
+        "clause.",),
     "SVEMA_CND_32": (
         "ГОСТ 25120-82 «Пленки фотографические цветные негативные. "
         "Технические условия», Государственный комитет СССР по стандартам, "
@@ -37522,6 +40493,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "EASTMAN_TRI_X_5223": (
         "«Photographic film grain: a study with the aid of an optical correlator», BBC Research Department Report No. T-101, 1963/5, and K. Hacking, «An Analysis of Film Granularity in Television Reproduction», BBC Engineering Division Monograph No. 54, August 1964 -- ». ⚠ THIRD-PARTY MEASUREMENTS (method rule 14), image-only scans read from the page images; a Kodak sheet for 5223 would outrank both. PROFILE CREATED 2026-08-24 (queue item C26, owner-approved) precisely so these numbers stop being footnotes on the STILL film -- KODAK_TRI_X_320TXP's citation had carried them since 2026-08-23 with the note that they were \"a family datum for this profile and a full one only for a 5223 profile, which this database does not yet have\". WHAT IS PRINTED, and it is the whole grain block: T-101 Table 1 p27, manufacturers' data relayed by the BBC -- \"Tri-X Type 5223 (KODAK)\", 35 mm, 250 A.S.A. tungsten / 320 daylight, \"an extremely high speed panchromatic negative material\", stored-field telefilm recording; Table 2 p28 -- process control gamma 0.64, mean transmission 0.36, mean-signal-to-r.m.s.-noise 1.02, equivalent grain diameter 2.2 um; Table 3 p35 -- the development-gamma dependence measured directly, equivalent diameter 2.40 um at gamma 0.56 and 2.72 at 0.94 for mean density 0.23, and 2.12 / 2.64 at mean density 0.54, so diameter scales as sqrt(point gamma) to about 5 % and FALLS as density rises at fixed development; Table 4 p38 -- relative granularity 3.5 with 5302 as unity over 0-40 cycles/mm. Monograph 54 Table I p12 -- 250 A.S.A. / 35 deg B.S., grain Wiener spectrum 0.555 square microns at D 0.48 above base, converting through the 48 um aperture to sigma*1000 = 17.5, which is what this profile stores. ⚠ T-101 Fig. 18 p30 was digitised 2026-08-24 (method on ILFORD_HPS) and reads W(0) = 0.552 square microns for this emulsion -- 0.5 % from Monograph 54's printed 0.555, measured by a different instrument in a different year, which is the single strongest validation of that digitisation. The traced spectrum fits clump_um 1.454 against the 1.259 stored from Table 2's printed diameter; the printed value is stored and both are on record. ⚠ AND FIG. 25 p37 MEASURES THE CALLIER QUOTIENT OF THIS EMULSION: log10 Q against diffuse density at two development gammas, 0.37 at D 0.1 falling to 0.30 at D 1.0, i.e. Q from 2.34 to 2.00, at a stated specular collection angle of 0.0016 steradian. That angle is nearly collimated, so 2.0-2.34 is the UPPER BOUND a directional reader can see and is NOT adopted over the 1.3 class value, which corresponds to a real condenser cone -- the same reading recorded on KODAK_TRI_X_320TXP. It also shows Q falling with density and varying with development, neither of which the constant-Q model expresses. NOT GROUNDED, i.e. estimate-grade in this profile: the tone curve dmin/toe/shoulder, f50 58.0, adjacency, spectral weights, fog_grain and the era bounds. Neither document prints a characteristic curve, an MTF, a spectral sensitivity or a resolving power for any of its six emulsions. ⚠ T-101 Fig. 24 p36 also plots the effect of development gamma on this emulsion's Wiener spectrum, untraced as of this citation",),
     "KODAK_8374": (
+        "K. Hacking, «An Analysis of Film Granularity in Television Reproduction», BBC Engineering Monograph No. 54, August 1964 -- THE DOCUMENT ITSELF, supplied by the owner 2026-09-24c. ⚠ IT WAS ALREADY BEING CITED SECOND-HAND ON THIS PROFILE, through its Table I figure for ILFORD HPS, and its own plate for THIS emulsion had never been read. Fig. 3(a) is Kodak 8374's absolute grain Wiener spectrum, captioned «Kodak 8374 (uniform exposure), D = 0.48, gamma = 1.0», drawn 0-150 cycles/mm against a labelled 0-0.08 square-micron ordinate, with a second dashed curve that is the BEAM-WEIGHTED spectrum and NOT a property of the film. Traced 2026-09-24c off the page image at 300 dpi: W(0) 0.0751 um^2, 0.0716 at 100 cycles/mm, and a carrier fit at f_hi 620 c/mm (rms 0.00027 um^2). ⚠ FIG. 3(b) IS NOT A SECOND MEASUREMENT AND IS DELIBERATELY NOT STORED: the text states it is «derived from the measured Wiener spectrum by supposing that the same type of emulsion, namely Kodak 8374, is used for both negative and positive», i.e. a calculated print-through of 3(a) rather than a measured print. ⚠ Fig. 4 plots mean-signal-to-rms-noise against scanning beam diameter for these same samples -- a property of the BBC's flying-spot scanner as much as of the film, and stored nowhere.",
         "«Photographic film grain: a study with the aid of an optical correlator», BBC Research Department Report No. T-101, 1963/5. ⚠ THIRD-PARTY MEASUREMENT (method rule 14), image-only scan. SOLE SOURCE FOR THIS STOCK -- there is no Kodak sheet for 8374 in this corpus and Monograph 54 does not list it, so unlike the other five T-101 emulsions this one has no second document. PROFILE CREATED 2026-08-24, queue item C26, owner-approved. WHAT IS PRINTED: Table 1 p27 -- \"8374 (KODAK)\", 16 mm, \"Television recording film. Blue and U.V. sensitive\", cable-film and 16 mm telefilm recording, AND BOTH SPEED CELLS LEFT BLANK, which is why this profile's exposure_index is an acknowledged placeholder rather than a datum: a recording film was rated against a CRT phosphor, not in A.S.A.; Table 2 p28 -- process control gamma 1.0, mean transmission 0.33, mean-signal-to-r.m.s.-noise 1.28, equivalent grain diameter 1.2 um; Table 4 p38 -- relative granularity 1.3 with 5302 as unity over 0-40 cycles/mm at mean transmission 0.33. THE GRAIN LEVEL IS DERIVED FROM PRINTED NUMBERS ONLY: 1.3 on a ladder where HPS is 3.9, and Monograph 54 prints HPS absolute at 0.62 square microns, giving W(0) = 0.62 * (1.3/3.9)^2 = 0.0689 and sigma*1000 = 6.2. ⚠ CROSS-CHECK from the 2026-08-24 Fig. 18 digitisation, which is independent of the ratio ladder: W(0) = 0.0744, 8 % high. ⚠ 8374 WAS THE HARDEST CURVE ON FIG. 18 AND NEARLY WENT MISSING: it runs almost exactly along the W = 0.075 gridline at low frequency, so the gridline tracker followed the CURVE instead of the line, wandered 83 px, and its removal band deleted the emulsion while leaving the real gridline in place. A trimmed quadratic fit across the ladder repaired it. The traced spectrum fits clump_um 0.606 against the 0.687 stored from the printed diameter, and its shape prefers a super-Gaussian exponent (n = 2.44). NOT GROUNDED: the speed, the tone curve dmin/toe/shoulder, f50 78.0, adjacency, the spectral weights (only the COLOUR CLASS \"blue and U.V. sensitive\" is documented, not the response shape), fog_grain and the era bounds",),
     "EASTMAN_PLUS_X_5231": (
         "EASTMAN PLUS-X 5231/7231 Technical Data, Eastman Kodak Company",
@@ -38085,9 +41057,58 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "FOMAPAN_400_ACTION": (
         "FOMAPAN 400 Action technical datasheet, Foma Bohemia Ltd",
     ),
+    # ⚠ CORRECTED 2026-09-27. This entry named «Ferrania P30 manufacturer
+    # product specification, Film Ferrania S.r.l., 2017», a document that is
+    # not in the corpus and that no field of the profile cites. It now lists
+    # the four documents the profile's fields actually come from.
     "FERRANIA_P30": (
-        "Ferrania P30 manufacturer product specification, "
-        "Film Ferrania S.r.l., 2017",
+        "Film Ferrania S.r.l., «Curve caratteristiche e sensibilita "
+        "spettrali», 2 pages, undated, page 2 -- the dashed «P30» curve of "
+        "the three-film comparison plot (default curve since 2026-09-27)",
+        "P.F.G. by Karl Bielser s.a.s., «Ferrania 2026» range sheet, 4 "
+        "pages -- page 2 prose («con bassa sensibilita al rosso»), page 3 "
+        "reprint of the same comparison plot",
+        "Film Ferrania S.r.l., «FERRANIA P30 BEST PRACTICES», version 2.5, "
+        "3 pages -- box speed and processing chart",
+        "«Ferrania P30 alfa», sensitometric test report, test date "
+        "05/13/17, 14 pages -- the five D-76 1+1 ProcessVariants",
+    ),
+    # ⚠ THE 2026-09-25 SPLIT. FERRANIA_P30 above keeps the ORIGINAL (cinema)
+    # emulsion; these three are new profiles off two vendor sheets that were
+    # not in the corpus until that date. The P30 entry above gains nothing
+    # here: its curve is still the alfa report's and its spectral record is
+    # now DERIVED from a colour-target measurement, both cited on the fields
+    # themselves.
+    "FERRANIA_P30_MK2": (
+        "Film Ferrania S.r.l., «Curve caratteristiche e sensibilita "
+        "spettrali», 2 pages, undated, page 1 -- the «P 30 New» "
+        "characteristic curve and its wedge spectrogram; processing caption "
+        "«sviluppo in Kodak D-76 stock a 20 C - 8 min a sensibilita "
+        "nominali»",
+        "P.F.G. by KARL BIELSER s.a.s. (Rollei Film Point, Milan), «Ferrania "
+        "2026» range sheet, page 2 -- the prose that separates P30 original "
+        "(«piu alto contrasto con bassa sensibilita al rosso») from P30 Mk2 "
+        "(«una vera pellicola pancromatica moderna») -- and page 4, the "
+        "14-row indicative development table",
+    ),
+    "FERRANIA_P33_160": (
+        "Film Ferrania S.r.l., «Curve caratteristiche e sensibilita "
+        "spettrali», page 1 -- the «P 33» characteristic curve and its wedge "
+        "spectrogram, the curve drawn twice on the sheet and traced twice",
+        "P.F.G. by KARL BIELSER s.a.s., «Ferrania 2026» range sheet, page 2 "
+        "identikit -- ISO 160/23, «Sensibilita spettrale 380 a 640 nm (lg "
+        "sens. <2,0/>-0,5)», «supporto in triacetato da 130 mu con leggera "
+        "maschera», «Codice DX» -- and page 4 development table",
+    ),
+    "FERRANIA_ORTO_50": (
+        "Film Ferrania S.r.l., «Curve caratteristiche e sensibilita "
+        "spettrali», page 2 -- the «Orto» characteristic curve and the ONLY "
+        "wedge spectrogram on either sheet carrying a printed sensitivity "
+        "ladder, «Scale: 1 / 0,5 / 0 -- sensibilita», which is the reference "
+        "the other two strips are cross-calibrated against",
+        "P.F.G. by KARL BIELSER s.a.s., «Ferrania 2026» range sheet, page 2 "
+        "-- ISO 50/18, «sensibile solo alla radiazione ultravioletta, alla "
+        "luce blu e alla luce verde» -- and page 4 development table",
     ),
     "CINESTILL_800T": (
         "CineStill 800T product documentation, CineStill Film, 2012 "
@@ -38507,14 +41528,184 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "densities, so this fills an empty field rather than displacing "
         "one.",),
     "KODAK_EKTAPRESS_PJ400": (
-        "KODAK PROFESSIONAL EKTAPRESS Films, publication E-116, Eastman Kodak Company",
+        "Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS Films -- "
+        "PJ100, PJ400, PJ800», KODAK Publication No. E-116, April 2003 "
+        "(NOTICE OF DISCONTINUANCE printing), 10 pages, in the corpus since that date. ⚠ SUPPLIED BY THE OWNER 2026-09-24 "
+        "AND NOT IN THE CORPUS BEFORE THAT DATE -- every earlier citation of "
+        "'publication E-116' on this profile was a NAME, not a document, "
+        "which is exactly why the curve was an analogy for two years. "
+        "PAGE 6 is PJ400's own: Image-Structure Data, and three vector "
+        "characteristic panels (normal; Push 1 EI 800; Push 2 EI 1600), all "
+        "Exposure Daylight / Process C-41 / Densitometry Status M. PAGE 7 "
+        "top carries PJ400's Spectral-Sensitivity Curves -- Effective "
+        "Exposure 1/100 second, Process C-41, Densitometry Status M, and the "
+        "criterion PRINTED ON THE PANEL as 'Density: 0.2 above D-min' -- and "
+        "its Spectral-Dye-Density Curves, midscale neutral plus minimum "
+        "density, 400-700 nm. PAGE 2 prints the long/short-exposure rule, "
+        "PAGE 3 the C-41 development times and the Status M aim densities, "
+        "PAGE 4 the Print Grain Index table. ⚠ THE WHOLE DOCUMENT IS VECTOR: "
+        "pdfimages reports ZERO embedded rasters across all ten pages, so "
+        "unlike the VISION3 sheets every panel traces at path precision.",
         _SOVREMENNYE_2004,
-        "p.140, «Характеристические кривые фотопленки PJ400». Same flat "
-        "placeholder as Vericolor III, same fill: traced 1.020 / 0.803 / "
-        "0.382 B/G/R, a heavier mask than Vericolor III's, which is what a "
-        "400-speed press negative built for a four-stop push should carry, "
-        "and it lands beside PORTRA 800 rather than beside the 160-speed "
-        "stocks. E-116 prints no base densities.",),
+        "p.140, «Характеристические кривые фотопленки PJ400» -- the plot "
+        "atlas that carried this stock's curve until E-116 arrived. Kept as "
+        "a citation because it is what the 2026-09-15b dmin fill was read "
+        "from and because it CORROBORATES the sheet: its traced base "
+        "densities 1.020 / 0.803 / 0.382 B/G/R sit within 0.013 D of "
+        "E-116's own 1.0068 / 0.7914 / 0.3696. ⚠ SUPERSEDED FOR EVERY CURVE "
+        "PARAMETER on 2026-09-24 -- the atlas was right about the mask and "
+        "wrong about the toe by 0.8 log and about blue gamma by 16 %.",),
+    "ILFORD_XP1_400": (
+        "«Ilford Monochrome Darkroom Practice», Ilford Ltd, read 2026-09-24c "
+        "from the owner's copy. ⚠ IT IS THE MAKER'S OWN MANUAL, which is why "
+        "it may carry a profile, and it is a HANDBOOK rather than a data "
+        "sheet, which is why the tier is 2: it states properties and "
+        "processing in words and prints its sensitometry as small undimensioned "
+        "line drawings. "
+        "WHAT IT STATES: XP1-400 is chromogenic monochrome -- the emulsion "
+        "carries colour couplers, all silver is bleached away, and the "
+        "negative is a near-neutral composite of yellow, magenta and cyan dye; "
+        "a DIR coupler is added «to produce the enhanced edge effect that "
+        "gives a negative a subtle quality sometimes called sparkle»; the "
+        "characteristic curve has a long shoulder because those couplers "
+        "«prevent the build-up of excessive density as exposure increases»; "
+        "effective granularity FALLS as exposure rises past the rated speed, "
+        "against HP5 and FP4 rising over the same range; «a dye image, unlike "
+        "a silver image, will not scatter any of the light it transmits. The "
+        "Callier effect ... does not come into play»; the film may be exposed "
+        "anywhere from ISO 50/18 to ISO 1600/33 -- mid-roll if wanted -- on ONE "
+        "development time; excessive agitation reduces the edge effects. "
+        "PROCESSING, both routes in full: Ilford XP1 chemistry, water bath 40 C, "
+        "develop 5 min at 38 C (mixed at 40 C, one-shot), bleach-fix 5 min at "
+        "38 C, wash 3 min at 35-40 C, Ilfotol rinse, dry up to 50 C; or C-41, "
+        "developer 3 min 15 s at 37.8 +/- 0.15 C, bleach 6 min 30 s, wash "
+        "3 min 15 s, fix 6 min 30 s, wash 3 min 15 s, stabiliser 1 min 30 s. "
+        "AND A THIRD ROUTE THE BOOK TABULATES (Table 3, XP1 in black-and-white "
+        "developer, fixing times +50 %): ID-11 1+1 20 C 12 min -> ISO 160, "
+        "18 min -> ISO 400; Microphen 1+1 12 min -> ISO 320, 15 min -> ISO 400; "
+        "Ilfotec LC29 1+29 10 min -> ISO 320, 15 min -> ISO 400 -- with "
+        "increased graininess, reduced sharpness and, at the longer times, "
+        "higher contrast. "
+        "⚠ WHAT IT DOES NOT GIVE, so that nothing on this profile is read as "
+        "measured: no numbered characteristic curve (the plate's ordinate is "
+        "unlabelled and its abscissa is «log exposure (relative)»), no rms "
+        "granularity, no resolving power or MTF, no spectral sensitivity, and "
+        "no reciprocity table -- only a correction CHART for exposures longer "
+        "than one second, drawn against measured seconds 2 to 18.",),
+    "EASTMAN_5254_1968": (
+        "Raymond L. Beeler, Robert A. Morris and C. Weston Simonds, «A New, "
+        "Higher Speed Color Negative Film», Journal of the SMPTE, Vol. 77, "
+        "No. 9, September 1968, pp 988-990 -- the paper that introduced this "
+        "film, presented at the Society's Technical Conference in Los Angeles "
+        "on 7 May 1968. Supplied by the owner 2026-09-24b; this profile had "
+        "said «no online datasheet exists» since it was written. ⚠ THE "
+        "AUTHORS ARE KODAK -- Beeler of the Film Emulsion Division, Morris and "
+        "Simonds of the Film Testing Division, Kodak Park, Rochester -- so "
+        "this is the manufacturer describing its own product in a refereed "
+        "venue, which is why it may move the tier. It is NOT a data sheet. "
+        "WHAT IT STATES IN WORDS: EI 100 tungsten, EI 64 daylight with a "
+        "KODAK Wratten 85 (or 85N3 / 85N6), balance 3200 K; structurally the "
+        "same as Type 5251 on the same safety support with a jet antihalation "
+        "backing; coloured couplers in the red- and green-sensitive layers "
+        "for masking; «Spectral sensitivities of the three emulsion layers "
+        "are identical to those of Type 5251 (Fig. 1)»; one stop faster than "
+        "5251 «at no increase in graininess», sharpness and colour rendition "
+        "preserved; dye stability equivalent to 5251; the S-9 stabilising "
+        "bath recommended. "
+        "WHAT IT PLOTS: Fig. 1 spectral sensitivity of the three layers, "
+        "TRACED and stored on this profile; Fig. 2 «Spectral density curves», "
+        "three dye absorption curves 400-700 nm against density 0-3.0, NOT "
+        "yet harvested; Fig. 3 «Effective printing contrast onto Eastman "
+        "Color Print Film, Type 5385 and red, green and blue light contrast "
+        "measured on Eastman Type 31A densitometer» -- three printing-density "
+        "curves (solid) with three Status M curves (dashed) over them. "
+        "⚠⚠ FIG. 3's ABSCISSA CARRIES NO NUMBERS: it is labelled «LOG "
+        "EXPOSURE» and has two unlabelled ticks, so no gamma in density per "
+        "log E can be read from it and none is stored. Its ordinate IS "
+        "labelled 0 to 3.4 in steps of 0.2, so the base-density ladder and "
+        "the printing-versus-Status-M divergence are readable and are the "
+        "next harvest from this document. "
+        "⚠ THE PAGE IS A 1-BIT 300 dpi SCAN of a 1968 journal and its OCR is "
+        "bad («'l'his year's biq one», «SIhlONDS»): every value here was read "
+        "from the page IMAGE, with the text layer used only to find pages.",),
+    "LUMIERE_LUMICHROME": (
+        "Societe Lumiere, «Agenda Lumiere», 463 views, digitised by the CNAM "
+        "as Cnum M12484. ⚠ THE CATALOGUE CALLS IT «Agenda Lumiere 1938» AND "
+        "THE BOOK ITSELF IS 1933: its calendar pages are the 1933 year and "
+        "p.6 says «en 1932, paraissait la nouvelle plaque Lumichrome». The "
+        "catalogue date is cited alongside the internal one rather than "
+        "corrected, because the volume may be a later reissue and this corpus "
+        "does not settle which. Read 2026-09-24b at the owner's request. "
+        "⚠ THE PUBLISHER IS THE MANUFACTURER -- Societe Lumiere's own annual, "
+        "printed for its own products -- so this is a maker's statement and "
+        "not a dealer catalogue, which is why it is allowed to move a [T3] "
+        "profile. It is nonetheless PROSE PLUS ONE TABLE, not a data sheet. "
+        "WHAT IT GROUNDS: p.6, the plate is new in 1932 and faster than the "
+        "«Opta»; p.212, «Les nouvelles plaques Lumichrome atteignent la plus "
+        "grande sensibilite qu'il soit possible de realiser», daylight speed "
+        "above Opta and MORE THAN DOUBLE Opta under gas-filled electric "
+        "lamps, orthochromatism good enough that no yellow filter is needed "
+        "in ordinary practice, and «une gradation tres etendue, qui lui "
+        "assure une tolerance de pose rarement obtenue avec les emulsions "
+        "ultra-sensibles»; p.213, fine grain despite extreme speed, the red "
+        "dissolving anti-halo backing, and that development time moves the "
+        "gradation a long way -- short development gives light, soft but "
+        "complete negatives suited to portraits, full development gives "
+        "normal gradation for landscape and industrial work; p.228, the "
+        "relative-speed table transcribed in `_LUMIERE_1933_HD_SPEEDS`; "
+        "pp.291-292, the same emulsion as roll film («Pellicule "
+        "Lumichrome»), more than twice the speed of the ordinary Film "
+        "Lumiere, same backing. "
+        "⚠ WHAT IT DOES NOT GROUND, so that nothing on this profile is read "
+        "as measured: no characteristic curve, no gamma, no D-min or D-max, "
+        "no rms or resolving power, no spectral-sensitivity curve, no "
+        "reciprocity, and no exposure index in any modern unit.",),
+    "KODAK_EKTAPRESS_PJ100": (
+        "Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS Films -- "
+        "PJ100, PJ400, PJ800», KODAK Publication No. E-116, April 2003 "
+        "(NOTICE OF DISCONTINUANCE printing), 10 pages, supplied by the owner "
+        "2026-09-24. PAGE 5 IS PJ100's WHOLE SHEET: Image-Structure Data "
+        "(Sharpness Extremely High, Degree of Enlargement Very High) and "
+        "three vector panels -- Characteristic Curves (Exposure Daylight, "
+        "Process C-41, Densitometry Status M), Spectral-Sensitivity Curves "
+        "(Effective Exposure 1/25 second, criterion PRINTED as 'Density: 0.2 "
+        "above D-min') and Spectral-Dye-Density Curves (midscale neutral plus "
+        "minimum density, 400-700 nm). PAGE 2 prints the long/short-exposure "
+        "rule that bounds reciprocity at 10 s for this film, PAGE 3 the single "
+        "C-41 development condition (EI 100, 3:15) and the Status M aim "
+        "densities, PAGE 4 the Print Grain Index table. ⚠ WHAT THE SHEET DOES "
+        "NOT PRINT, so that the estimates on this profile are not mistaken for "
+        "harvest: no rms granularity (Print Grain Index replaces it and the "
+        "page says the two cannot be compared), no MTF or resolving power, no "
+        "push ladder, no reciprocity correction past the 10 s onset, and no "
+        "interimage or halation figure of any kind. ⚠ THE DOCUMENT IS VECTOR "
+        "THROUGHOUT -- pdfimages reports zero embedded rasters on all ten "
+        "pages -- so every panel traces at path precision rather than pixel "
+        "precision.",),
+    "KODAK_EKTAPRESS_PJ800": (
+        "Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS Films -- "
+        "PJ100, PJ400, PJ800», KODAK Publication No. E-116, April 2003 "
+        "(NOTICE OF DISCONTINUANCE printing), 10 pages, supplied by the owner "
+        "2026-09-24. PJ800 RUNS ACROSS TWO PAGES: page 7 below the fold "
+        "carries its Image-Structure Data (Sharpness High, Degree of "
+        "Enlargement High) and the first two characteristic panels (normal "
+        "EI 800; Push 1), page 8 the third (Push 2) plus Spectral-Sensitivity "
+        "and Spectral-Dye-Density Curves. ⚠ THE PAGE-7 SPLIT IS A TRAP AND WAS "
+        "CHECKED RATHER THAN ASSUMED: the two panels ABOVE the PJ800 heading "
+        "at y=337 are PJ400's, not this film's, and the heading position is "
+        "what decides it. PAGE 2 bounds this film's reciprocity at 1 SECOND "
+        "against 10 s for PJ100/PJ400 -- the one place the sheet separates "
+        "them. PAGE 3 prints the three-step C-41 ladder (EI 800 / 1600 Push 1 "
+        "/ 3200 Push 2 at 3:15 / 3:45 / 4:15) and the Status M aim densities "
+        "for both EI 800 and EI 1600. PAGE 4 prints Print Grain Index "
+        "53/75/104. PAGE 2 also carries the environmental-radiation warning "
+        "and the x-ray hand-inspection request, which are statements about "
+        "this film alone. ⚠ NOT PRINTED: rms granularity, MTF, resolving "
+        "power, and any reciprocity correction past the 1 s onset.",),
+    "AGFA_VISTA_PLUS_200": (
+        "Technical Data Sheet AP-F, AgfaPhoto Holding GmbH / Lupus Imaging & Media GmbH & Co. KG, Stand 07/2007, brochure printed 11.01.2008, 7 pages, in the corpus since that date. Supplied by the owner 2026-09-24. Page 5 carries four panels for each of Vista 100/200/400 -- Spectral sensitivity (Y/M/C, lg sensitivity 0-2.0, 400-700 nm), Spectral density (medium and minimum), Sharpness (transfer factor % against 2-100 lines/mm) and Colour density curves (Blue/Green/Red, D 0-4.0, lg exposure -4.0..+1.0) -- plus printed Speed ISO 200/24 deg and Granularity RMS 4.0 for Vista 200, ISO 400/27 deg and RMS 4.5 for Vista 400. Page 3 carries the reciprocity statement. The panels are RASTER at 330 ppi (about 95 px per density unit), so they trace to roughly +-0.015 D rather than the +-0.005 D a vector sheet gives; that is recorded here so the tier is read with the right precision attached. WARNING: THIS IS THE AGFAPHOTO/LUPUS-ERA PRODUCT, NOT AGFA-GEVAERT'S AGFACOLOR VISTA, WHICH IS A SEPARATE PROFILE IN THIS DATABASE. The rights line reads 'AGFAPHOTO is used under License of Agfa-Gevaert NV & Co. KG'; Agfa-Gevaert's photographic film business had been bankrupt since 2005. The two documents were compared before this one was attached: the 06/2000 Agfa-Gevaert sheet, also on file, prints Vista 200 at RMS 4.3 with resolving power 130/50 lines/mm, exposure latitude -1.5 to +3 stops and layer thickness 18 um, while this sheet prints RMS 4.0 and omits all three of the others; and the two characteristic panels differ by up to 0.48 D -- red at lg exposure +1.0 reads 1.97 on the 2000 sheet against 2.45 here, with D-min up 0.15 on red and on blue. Whether that is a re-sourced emulsion or a genuine revision under one name CANNOT be settled from these two documents and neither reading is asserted here; DIGITIZATION_QUEUE row P90 asks for the one piece of evidence that would settle it. What IS settled is that the 2007 data does not describe the same emulsion state as the 2000 data.",),
+    "AGFA_VISTA_PLUS_400": (
+        "Technical Data Sheet AP-F, AgfaPhoto Holding GmbH / Lupus Imaging & Media GmbH & Co. KG, Stand 07/2007, brochure printed 11.01.2008, 7 pages, in the corpus since that date. Supplied by the owner 2026-09-24. Page 5 carries four panels for each of Vista 100/200/400 -- Spectral sensitivity (Y/M/C, lg sensitivity 0-2.0, 400-700 nm), Spectral density (medium and minimum), Sharpness (transfer factor % against 2-100 lines/mm) and Colour density curves (Blue/Green/Red, D 0-4.0, lg exposure -4.0..+1.0) -- plus printed Speed ISO 200/24 deg and Granularity RMS 4.0 for Vista 200, ISO 400/27 deg and RMS 4.5 for Vista 400. Page 3 carries the reciprocity statement. The panels are RASTER at 330 ppi (about 95 px per density unit), so they trace to roughly +-0.015 D rather than the +-0.005 D a vector sheet gives; that is recorded here so the tier is read with the right precision attached. WARNING: THIS IS THE AGFAPHOTO/LUPUS-ERA PRODUCT, NOT AGFA-GEVAERT'S AGFACOLOR VISTA, WHICH IS A SEPARATE PROFILE IN THIS DATABASE. The rights line reads 'AGFAPHOTO is used under License of Agfa-Gevaert NV & Co. KG'; Agfa-Gevaert's photographic film business had been bankrupt since 2005. The two documents were compared before this one was attached: the 06/2000 Agfa-Gevaert sheet, also on file, prints Vista 200 at RMS 4.3 with resolving power 130/50 lines/mm, exposure latitude -1.5 to +3 stops and layer thickness 18 um, while this sheet prints RMS 4.0 and omits all three of the others; and the two characteristic panels differ by up to 0.48 D -- red at lg exposure +1.0 reads 1.97 on the 2000 sheet against 2.45 here, with D-min up 0.15 on red and on blue. Whether that is a re-sourced emulsion or a genuine revision under one name CANNOT be settled from these two documents and neither reading is asserted here; DIGITIZATION_QUEUE row P90 asks for the one piece of evidence that would settle it. What IS settled is that the 2007 data does not describe the same emulsion state as the 2000 data.",),
     "KODAK_PROFOTO_100": ("KODAK PROFOTO 100 Film, publication E-2e, Eastman Kodak Company",),
     "KODAK_ULTRA_COLOR_100UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
     "KODAK_ULTRA_COLOR_400UC": ("KODAK PROFESSIONAL ULTRA COLOR 100UC and 400UC Films, publication E-4035, Eastman Kodak Company",),
@@ -38691,6 +41882,24 @@ _UNTAGGED_TIER: dict[str, int] = {
 
 _FITTED_FROM = {1: "datasheet_curve", 2: "secondary_sources", 3: "analogy"}
 
+#: Stocks whose tone curves were traced from a THIRD-PARTY sensitometric test
+#: report rather than from anything the maker published. See the hook in
+#: `_provenance_for` for why the three `_FITTED_FROM` labels cannot say this.
+#: ⚠ EASTMAN_5294_1983 JOINED ON 2026-09-26 (queue 463) AND IT IS A PARTIAL
+#: CASE, WHICH IS WHY IT BELONGS HERE RATHER THAN IN `_VENDOR_TRACED_CURVES`.
+#: Its GREEN record's shape is traced from Fig. 14 of Sehlin & Kennel's SMPTE
+#: paper -- Kodak's own engineers, but a journal article and not a data sheet,
+#: which is exactly the distinction "laboratory_report" was added to carry.
+#: Red and blue are still analogy and the D-min is still analogy, so the label
+#: is the most this profile has earned: "the curves came from a measurement
+#: that is not the maker's published sheet". `CURVE_MISSING` lists it 🟡
+#: ESTIMATED for the same reason.
+#: ⚠ FERRANIA_P30 LEFT THIS SET ON 2026-09-27 (owner decision): its default
+#: curve is now Film Ferrania's own D-76 stock drawing, so it is in
+#: `_VENDOR_TRACED_CURVES` instead. The alfa report's five legs stay on its
+#: ProcessVariants.
+_LAB_REPORT_CURVES = {"EASTMAN_5294_1983"}
+
 
 #: Stocks whose stored spectral density CRITERION is a family inference rather
 #: than a reading of their own sheet, with the anchor that licenses it.
@@ -38776,7 +41985,17 @@ _VENDOR_TRACED_CURVES = frozenset({
     "AGFA_RSX_II_50",
     "AGFA_RSX_II_100",
     "AGFA_RSX_II_200",
+    # ⚠ 2026-09-27, OWNER DECISION. FERRANIA_P30's default curve became Film
+    # Ferrania's own dashed «P30» trace on «Curve caratteristiche» p2,
+    # reprinted on the 2026 P.F.G. range sheet p3 -- a vendor plot, not a
+    # formal data sheet, which is exactly this set's definition. It left
+    # `_LAB_REPORT_CURVES` the same day. Tier tag stays [T2]: grain, MTF,
+    # halation and the spectral triple on that profile are still estimates.
+    "FERRANIA_P30",
 })
+
+#: Profiles whose curves moved on 2026-09-27, for the review date only.
+_REVIEWED_2026_09_27 = frozenset({"FERRANIA_P30"})
 
 
 #: DEVELOPMENT PROGRESS TYPE BY DEVELOPING-AGENT CLASS (schema v18,
@@ -40549,37 +43768,59 @@ _PARAM_SOURCES: dict[str, tuple[ParamSource, ...]] = {
                     source="FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, harvested 2026-08-27, archived in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. Hand-authored engine values; no instrument, operator, date or laboratory named anywhere. NotFound.md 7.1.",
                     confidence="low",
                     note="GREEN RE-ANCHORED on the source's single mtf50 = 55 lp/mm; red and blue keep this project's per-layer ratios, so the LEVEL is third-party and the SHAPE is ours. \u26a0 The same source prints Velvia 50's RESOLVING POWER (160 lp/mm) in its mtf50 field, so its grasp of that distinction is unreliable. mtf_measured stays False."),
-        ParamSource("curves.r.gamma", 2, "traced",
+        # ⚠⚠ THESE SIX ROWS WENT TIER 2 -> TIER 1 ON 2026-09-24, ON THE
+        # OWNER'S ARGUMENT, AND THE ARGUMENT IS RIGHT. This project's tier
+        # states WHO PUBLISHED a number, not how many pixels its artwork
+        # carries. Queue P58 adopted twelve gamma families at T1 precisely
+        # as "a manufacturer's printed statement about its own product",
+        # and the VISION3 sheets hold T1 while recording that their panels
+        # are raster. cinestill.film is CineStill's own site and 800T is
+        # CineStill's own product, so `cs41curves_600x600.png` is a primary
+        # source by the same rule that admitted those.
+        #
+        # ⚠ THE RESOLUTION OBJECTION THAT KEPT IT AT T2 IS REAL AND IS NOT
+        # DISMISSED -- it is moved to where the schema puts it. A 580x600
+        # web figure gives roughly 120 px per density unit against a vector
+        # sheet's path precision, so `confidence` STAYS "medium" on all six
+        # rows while the tier rises. Authority and precision are different
+        # axes and this dataclass carries a field for each; collapsing them
+        # into one number was the error.
+        #
+        # ⚠ WHAT DID NOT CHANGE: nothing else on this profile. The page
+        # prints no granularity, no MTF, no spectral and no halation figure,
+        # and those rows stay tier 3 estimates. A vendor page is a primary
+        # source for what it prints and for nothing else.
+        ParamSource("curves.r.gamma", 1, "traced",
                     unit="density per decade of log exposure",
                     conditions="straight-line slope, C-41 cross-process as shipped",
                     source="CineStill Film, figure cs41curves_600x600.png on cinestillfilm.com/blogs/news/, digitised 2026-08-27: 480 samples per layer, one per pixel column. Archived in doc/thirdparty/cinestill_curves_2026-08-27.json",
                     confidence="medium",
                     note="VENDOR-PUBLISHED PLOT, not a technical data sheet -- CineStill issue none. Fit residual rms 0.0197/0.0248/0.0154 D. \u26a0 The chart's two abscissae disagree by 3.7 %; the log axis was adopted and the stops axis used only for its zero."),
-        ParamSource("curves.r.dmin", 2, "traced",
+        ParamSource("curves.r.dmin", 1, "traced",
                     unit="density",
                     conditions="toe plateau at log E -4.0, includes the orange mask",
                     source="Same figure as curves.r.gamma",
                     confidence="medium",
                     note="The traced ladder 0.187/0.526/0.876 replaced a FLAT 0.22/0.20/0.19, which was the wrong KIND of description for a masked colour negative. Cross-checks against KODAK VISION3 500T 5219 (0.187/0.581/0.837 from Kodak H-1) to 0.06 D worst channel, which is what identifies the plot as this emulsion."),
-        ParamSource("curves.g.gamma", 2, "traced",
+        ParamSource("curves.g.gamma", 1, "traced",
                     unit="density per decade of log exposure",
                     conditions="straight-line slope, C-41 cross-process as shipped",
                     source="CineStill Film, figure cs41curves_600x600.png on cinestillfilm.com/blogs/news/, digitised 2026-08-27: 480 samples per layer, one per pixel column. Archived in doc/thirdparty/cinestill_curves_2026-08-27.json",
                     confidence="medium",
                     note="VENDOR-PUBLISHED PLOT, not a technical data sheet -- CineStill issue none. Fit residual rms 0.0197/0.0248/0.0154 D. \u26a0 The chart's two abscissae disagree by 3.7 %; the log axis was adopted and the stops axis used only for its zero."),
-        ParamSource("curves.g.dmin", 2, "traced",
+        ParamSource("curves.g.dmin", 1, "traced",
                     unit="density",
                     conditions="toe plateau at log E -4.0, includes the orange mask",
                     source="Same figure as curves.g.gamma",
                     confidence="medium",
                     note="The traced ladder 0.187/0.526/0.876 replaced a FLAT 0.22/0.20/0.19, which was the wrong KIND of description for a masked colour negative. Cross-checks against KODAK VISION3 500T 5219 (0.187/0.581/0.837 from Kodak H-1) to 0.06 D worst channel, which is what identifies the plot as this emulsion."),
-        ParamSource("curves.b.gamma", 2, "traced",
+        ParamSource("curves.b.gamma", 1, "traced",
                     unit="density per decade of log exposure",
                     conditions="straight-line slope, C-41 cross-process as shipped",
                     source="CineStill Film, figure cs41curves_600x600.png on cinestillfilm.com/blogs/news/, digitised 2026-08-27: 480 samples per layer, one per pixel column. Archived in doc/thirdparty/cinestill_curves_2026-08-27.json",
                     confidence="medium",
                     note="VENDOR-PUBLISHED PLOT, not a technical data sheet -- CineStill issue none. Fit residual rms 0.0197/0.0248/0.0154 D. \u26a0 The chart's two abscissae disagree by 3.7 %; the log axis was adopted and the stops axis used only for its zero."),
-        ParamSource("curves.b.dmin", 2, "traced",
+        ParamSource("curves.b.dmin", 1, "traced",
                     unit="density",
                     conditions="toe plateau at log E -4.0, includes the orange mask",
                     source="Same figure as curves.b.gamma",
@@ -41229,7 +44470,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Agfa-Gevaert, AGFAPAN APX 100 data sheet, p2'Spektrale Empfindlichkeit / Spectral sensitivity'; PDF vector-path extraction 2026-08-17, superseding the 2026-08-02 visual transcription of the same plot",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.261, 0.343, 0.396), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.276, 0.364, 0.360), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'AGFA_APX_25': (
         ParamSource(
@@ -41288,7 +44529,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Agfa-Gevaert, AGFAPAN APX 25 data sheet, p2'Spektrale Empfindlichkeit / Spectral sensitivity'; PDF vector-path extraction 2026-08-17, superseding the 2026-08-02 visual transcription of the same plot",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.315, 0.339, 0.346), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.362, 0.346, 0.292), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'AGFA_APX_400': (
         ParamSource(
@@ -41347,7 +44588,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Agfa-Gevaert, AGFAPAN APX 400 data sheet, p2'Spektrale Empfindlichkeit / Spectral sensitivity'; PDF vector-path extraction 2026-08-17, superseding the 2026-08-02 visual transcription of the same plot",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.251, 0.336, 0.413), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.279, 0.367, 0.354), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'AGFA_OPTIMA_100': (
         ParamSource(
@@ -41636,7 +44877,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source='Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition, 09/1998, p9, Spectral sensitivity panel; conditions from p5, equal-energy spectrum, reading density 1.0 above minimum density',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.270, 0.351, 0.379), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.281, 0.365, 0.354), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'AGFA_VISTA_200': (
         ParamSource(
@@ -42051,13 +45292,145 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ INERT FOR THIS STOCK. spectral_weights collapses scene RGB onto ONE silver record and is read only where profile.is_monochrome (film_sim stage 7; Algo_07_Sim.cpp case 2). This is a three-layer colour stock, so no renderer ever reads it and its value cannot affect any frame. The stored triple is the FilmProfile dataclass default (0.30, 0.59, 0.11), which is Rec.601 video luma. ⚠ CORRECTED 2026-08-29: 48 colour stocks previously carried status 'derived' with conditions 'integrated from the traced log-sensitivity curves'. That label was false on every one of them -- each still stored the untouched default. Nothing was integrated."),
     ),
+    'ILFORD_XP1_400': (
+        ParamSource(
+            param='exposure_index', tier=2, status='stated',
+            unit='ISO',
+            conditions='one development time over the whole range; ISO 400/27 nominal, usable 50/18 to 1600/33',
+            source=('«Ilford Monochrome Darkroom Practice», «Exposure range of '
+                    'XP1-400»: «XP1-400 film has exceptionally wide exposure '
+                    'flexibility, so that it can be exposed over the range from '
+                    'ISO 50/18 to ISO 800/30 and even up to ISO 1600/33 when '
+                    'really necessary ... The same development time is used '
+                    'regardless of subject or exposure rating.»'),
+            confidence='high',
+            note=("⚠ THIS IS A LATITUDE STATEMENT, NOT A PUSH LADDER, and the "
+                  "difference is the whole character of the film: the "
+                  "development time does NOT change with the rating, so there "
+                  "is no ProcessVariant to write. Grain is finest below ISO "
+                  "400, which is the opposite of a silver film's behaviour "
+                  "and is the DIR coupler doing it.")),
+        ParamSource(
+            param='callier_q', tier=2, status='stated',
+            unit='dimensionless',
+            conditions='dye image, all silver bleached out',
+            source=('«Ilford Monochrome Darkroom Practice»: «a dye image, unlike '
+                    'a silver image, will not scatter any of the light it '
+                    'transmits. The Callier effect ... does not come into play.»'),
+            confidence='high',
+            note=("Q = 1.0, applied through `_CHROMOGENIC_MONO` beside KODAK "
+                  "BW400CN and T400CN. ⚠ THE SOURCE STATES THE PROPERTY THIS "
+                  "DATABASE HAD ALREADY INFERRED for the other two, which is "
+                  "the first time a manufacturer's own manual has said it in "
+                  "this corpus.")),
+        ParamSource(
+            param='processing.developer', tier=2, status='stated',
+            unit='',
+            conditions='Ilford XP1 chemistry 5 min at 38 C, or C-41 3 min 15 s at 37.8 C',
+            source=('«Ilford Monochrome Darkroom Practice», Tables 1, 2 and 3 of '
+                    'the colour-process chapter.'),
+            confidence='high',
+            note=("The stored string is the C-41 sweep's, because the minilab "
+                  "route is the one the book calls «very important» and the one "
+                  "the engine's process vocabulary knows. Ilford's own XP1 "
+                  "chemistry runs at the SAME 38 C with a 5-minute developer, "
+                  "and the black-and-white alternative (Table 3) trades speed "
+                  "for contrast: ID-11 1+1 12 min gives ISO 160, 18 min gives "
+                  "the rated 400.")),
+        ParamSource(
+            param='curves.g.gamma', tier=3, status='estimated',
+            unit='dimensionless',
+            conditions='class estimate for a chromogenic monochrome negative',
+            source='',
+            confidence='low',
+            note=("⚠ THE BOOK PRINTS THIS FILM'S CHARACTERISTIC CURVE AND IT "
+                  "CANNOT BE READ: the plate is a small line drawing whose "
+                  "ordinate is captioned «Density» with no numbers on it and "
+                  "whose abscissa is «Log exposure (relative)» with ticks at 0 "
+                  "to 4. A gamma needs both scales. What the figure DOES "
+                  "support is the SHAPE claim the text makes twice -- a long "
+                  "shoulder held down by the DIR couplers -- and that is why "
+                  "`shoulder_x` is 1.55 here against 2.0 on the Kodak "
+                  "chromogenic pair.")),
+        ParamSource(
+            param='grain.rms_granularity', tier=3, status='estimated',
+            unit='rms x 1000, 48 um aperture',
+            conditions='class estimate for a 400-speed chromogenic monochrome',
+            source='',
+            confidence='low',
+            note=("⚠⚠ THE MODEL CANNOT EXPRESS WHAT THIS FILM'S OWN MANUAL "
+                  "MEASURES, and that is the finding rather than the number. "
+                  "Ilford chart «the effective granularity of XP1-400 film "
+                  "decreases as exposure is increased beyond the rated speed», "
+                  "six stops either side, against HP5 and FP4 rising across the "
+                  "same range. `GrainSpec.clump_gain` scales grain WITH density "
+                  "and there is no carrier for a negative slope, so writing the "
+                  "behaviour into it would store the opposite of the "
+                  "measurement. The class figure stands and the gap is "
+                  "recorded.")),
+    ),
     'EASTMAN_5254_1968': (
         ParamSource(
-            param='curves.g.dmin', tier=3, status='assumed',
+            param='spectral', tier=2, status='traced',
+            unit='log relative sensitivity, peak-normalised',
+            conditions='no density criterion is printed on the plate; ordinate captioned "SPECTRAL SENSITIVITY S(lambda)", four decades 0.001 to 10',
+            source=('Beeler, Morris & Simonds, «A New, Higher Speed Color Negative '
+                    'Film», Journal of the SMPTE 77(9), September 1968, Fig. 1. '
+                    'Traced 2026-09-24b off the page image at native 300 dpi.'),
+            confidence='medium',
+            note=("⚠ TIER 2 RATHER THAN 1, AND THE REASON IS THE VENUE, NOT THE "
+                  "AUTHORS: they are Kodak's own emulsion and testing divisions, "
+                  "which is what lets this outrank a trade compilation, but a "
+                  "conference paper is not the product's data sheet and an "
+                  "Eastman sheet would outrank it. ⚠ THE PAPER ATTRIBUTES THE "
+                  "SAME SENSITIVITIES TO 5251 in as many words, so the figure is "
+                  "not exclusively this film's. ⚠ MEDIUM CONFIDENCE BECAUSE THE "
+                  "PLATE IS A 1-BIT SCAN: the ordinate fit reproduces its five "
+                  "decade ticks to 0.010 decade and the abscissa fit reproduces "
+                  "its three inner labels exactly, but the three records cross "
+                  "twice and had to be separated by upper/lower windows around "
+                  "the crossings. Both stitches were checked -- green reads "
+                  "-0.10 / +0.09 across the 500 nm crossing, and green and red "
+                  "both read -0.39 at 586 nm, which is where the plate draws "
+                  "them crossing.")),
+        ParamSource(
+            param='exposure_index', tier=2, status='stated',
+            unit='exposure index',
+            conditions='EI 100 tungsten at 3200 K; EI 64 in daylight with a KODAK Wratten 85',
+            source=('Beeler, Morris & Simonds, Journal of the SMPTE 77(9), '
+                    'September 1968, p 988: «The Exposure Index of 100 for '
+                    'tungsten permits normal exposures at f/2.8 aperture for '
+                    'incident light measurements of 100 fc. For daylight '
+                    'conditions, with the Wratten 85 filter, the Exposure Index '
+                    'is 64.»'),
+            confidence='high',
+            note=("The stored 100 matches, so this closes a provenance gap "
+                  "rather than moving a value. ⚠ THE DAYLIGHT 64 IS NOT STORED "
+                  "in `exposure_index_daylight`: that field is written from "
+                  "`_EXPOSURE_INDEX_TUNGSTEN` and its companions, whose header "
+                  "admits UNFILTERED pairs only, and this pair needs a Wratten "
+                  "85. `_refuse_dead_literals` blocked the attempt to write it "
+                  "on the profile, which is the guard working.")),
+        ParamSource(
+            param='curves.g.dmin', tier=2, status='traced',
             unit='density',
-            conditions='green record, base+fog',
-            confidence='low',
-            note="provenance.fitted_from is 'analogy': the curve was taken from a comparable stock. ⚠ Nothing about this curve is a measurement of THIS film."),
+            conditions='green record, base+fog read where the plotted curve runs flat at the left edge; PRINTING density, not Status M',
+            source=('Beeler, Morris & Simonds, Journal of the SMPTE 77(9), '
+                    'September 1968, Fig. 3, solid curves -- "printing '
+                    'densities on to Eastman Color Print Film". Ordinate fitted on ten '
+                    'printed tick values, worst residual 0.0057 D; traced '
+                    '2026-09-24b off the page image.'),
+            confidence='medium',
+            note=("Ladder 0.854 / 0.591 / 0.106 B/G/R, replacing the estimates "
+                  "1.08 / 0.67 / 0.23 -- the estimate overstated the mask on "
+                  "every record, by 0.08 to 0.23 D. ⚠ PRINTING DENSITY IS NOT "
+                  "STATUS M and the same plate measures the gap: where both "
+                  "families are drawn, at the top of the scale, they differ by "
+                  "0.045 D on the top band and 0.041 D on the bottom. The "
+                  "dashed Status M curves are not drawn down at the base, so "
+                  "the base ladder exists in printing density only and carries "
+                  "that ~0.04 D systematic. ⚠ NO GAMMA COMES FROM THIS PLATE: "
+                  "its abscissa is labelled 'LOG EXPOSURE' with no numbers.")),
         ParamSource(
             param='curves.g.gamma', tier=3, status='assumed',
             unit='dimensionless',
@@ -42167,7 +45540,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, «EASTMAN DOUBLE-X Negative Film 5222/7222 -- Technical Data», KODAK Publication No. H-1-5222, Revised 7-15 (header JULY 2015), (c) 2015, p3 'Spectral Sensitivity Curves'; PDF vector-path extraction 2026-08-26 by spectral_vector.extract_mono_sheet. Printed footnote in full: '*Sensitivity = reciprocal of exposure (ergs/cm2) required to produce specified density'. THE SPECIFIED DENSITY IS PRINTED HERE, twice: the panel draws TWO curves captioned 'D = 0.3 Above Gross Fog' and 'D = 1.0 Above Gross Fog', and the adopted set is the D 1.0 one, selected by matching that caption to the curve it sits above rather than by page order. Also printed inside the frame: 'Processing: KODAK Developer D-96 at 21 C (70 F) to recommended control gamma', 'Exposure: 1.4 sec', 'Densitometry: Diffuse Visual'. Traced extent 419-655 nm, 24 measured samples on the 380-680 nm grid, absolute peak log sensitivity 0.90 at 430 nm; the peak is thrown away by the schema's per-layer normalisation and survives only here. Axis from 11 wavelength ticks (worst residual 0.29 pt) and 5 sensitivity ticks (0.33 pt); the axis runs to -1.0 and Kodak draws that minus as an OVERBAR absent from the text layer, so the tick was signed by its position about the zero tick and the five-tick collinearity confirms it. ⚠ THIS REPLACES A READING OF THE SAME FIGURE from the sheet's OTHER EDITION: H-1-5222 revised 3-26 prints the identical plot as a raster and was read by hand on 2026-08-02. The two agree to rms 0.037 decades over the 23 mutually-measured samples and peak on the same 430 nm sample, so the numbers are confirmed rather than corrected; what changes is that they are now machine-derived with residuals on record",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.320, 0.470, 0.210), a class default. This cell prints (0.277, 0.360, 0.363), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.320, 0.470, 0.210), a class default. This cell prints (0.285, 0.329, 0.385), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'EASTMAN_EKTACHROME_5239': (
         ParamSource(
@@ -42630,7 +46003,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, 'EASTMAN PLUS-X Negative Film 5231/7231', Technical Data H-1-5231, February 1999",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.540, 0.190), a class default. This cell prints (0.296, 0.340, 0.364), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.540, 0.190), a class default. This cell prints (0.325, 0.316, 0.359), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'EASTMAN_SUPER_XX_1938': (
         ParamSource(
@@ -42978,17 +46351,41 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
     ),
     'FERRANIA_P30': (
         ParamSource(
-            param='curves.g.dmin', tier=2, status='estimated',
+            param='curves.g.dmin', tier=2, status='measured',
             unit='density',
-            conditions='green record, base+fog',
-            confidence='low',
-            note="provenance.fitted_from is 'secondary_sources': the curve shape comes from books or trade literature, not from a manufacturer plot."),
+            conditions='diffuse density, base+fog, D-76 1+1 at 20 C; carried onto the default D-76 stock curve, whose sheet plots «Su DMIN» and prints no D-min',
+            source="«Ferrania P30 alfa», sensitometric test report, test date 05/13/17, page 2 (density table: 21 step-tablet densities against measured density for five developments) and pages 4-8 (per-curve analysis). D-76 1+1, 20 C, 300 ml, ISO 80, flare density 0.0200, speed method '0.1 over FB+F'.",
+            confidence='medium',
+            note=("⚠ 2026-09-27: THE DEFAULT CURVE IS NOW FERRANIA'S OWN D-76 "
+                  "STOCK DRAWING (owner decision), and 0.26 is the value that "
+                  "curve carries. The drawing is plotted «Su DMIN» -- above "
+                  "D-min -- so its absolute density needs a base+fog from "
+                  "somewhere, and the only measurement of one is this report: "
+                  "0.2432 / 0.2289 / 0.2368 / 0.2409 / 0.2385 across the five "
+                  "legs, flat to 0.014 D, which is what a base+fog should do. "
+                  "⚠ It is a different developer dilution from the curve it is "
+                  "attached to, which is why confidence is medium and not high. "
+                  "⚠ TIER 2: a named third party, and the report's Notes field "
+                  "says «Pellicola di pre-produzione, stage alfa, difettata».")),
         ParamSource(
-            param='curves.g.gamma', tier=2, status='estimated',
+            param='curves.g.gamma', tier=1, status='traced',
             unit='dimensionless',
-            conditions='green record, softplus fit; see ToneCurve.is_degenerate before reading gamma as a slope',
-            confidence='low',
-            note="provenance.fitted_from is 'secondary_sources': the curve shape comes from books or trade literature, not from a manufacturer plot. ⚠ gamma is a MODEL COEFFICIENT. Where (shoulder_x - toe_x) < 2.5*max(toe_k, shoulder_k) it is not a slope at all -- use ToneCurve.mid_slope."),
+            conditions='D-76 stock, 20 C, 8 min, nominal speed; softplus fit to the traced dashed «P30» curve; see ToneCurve.is_degenerate before reading gamma as a slope',
+            source="Film Ferrania S.r.l., «Curve caratteristiche e sensibilita spettrali», 2 pages, undated, page 2, the DASHED «P30» trace of the three-film comparison plot «Riepilogo delle 3 tipologie di pellicole pancromatiche»; the same plot reprinted on P.F.G. by Karl Bielser s.a.s., «Ferrania 2026» range sheet, page 3, captioned «Parametri: sviluppo in Kodak D-76 stock a 20°C - 8' a sensibilita nominali».",
+            confidence='high',
+            note=("⚠⚠ THE DEFAULT SINCE 2026-09-27, OWNER DECISION. Until then "
+                  "this cell held the alfa report's 11-minute D-76 1+1 leg "
+                  "(gamma 1.3342, tier 2), which its own tester calls "
+                  "defective pre-production stock and whose measured "
+                  "effective speed is 33.63 against the EI 80 this profile "
+                  "meters at. This is the maker's curve at nominal speed. "
+                  "Fit rms 0.0123 D (Curve caratteristiche raster) and "
+                  "0.0140 D (1579 p3 raster), steps 7-19; both re-traced on "
+                  "every build by ferrania_vendor_sheets.py. The alfa legs "
+                  "remain as ProcessVariants with their measured tables. "
+                  "⚠ CONTRAST IS NOT ONE NUMBER FOR THIS FILM: the alfa "
+                  "series runs Avg. G 0.55-0.93 across 5-23 min, so «P30 is "
+                  "contrasty» is a statement about a development time.")),
         ParamSource(
             param='grain.clump_um_g', tier=2, status='estimated',
             unit='um',
@@ -43026,12 +46423,24 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
-            param='spectral_weights', tier=1, status='derived',
+            param='spectral_weights', tier=3, status='estimated',
             unit='normalised weights',
-            conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
-            source="Film Ferrania S.r.l., 'Curve caratteristiche e sensibilita spettrali' [Characteristic curves and spectral sensitivities], undated (P30 New / P33 / Orto comparison sheet); processing Kodak D-76 stock 20 C 8 min",
-            confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.550, 0.180), a class default. This cell prints (0.361, 0.365, 0.274), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            conditions='AUTHORED triple, READ by both engines: this stock carries no spectral curve, so the stored weights are the fallback film_sim.spectral_monochrome_weights() and AlgoSpectralMonoWeights() use',
+            source="Constructed 2026-09-27 from two documented values, neither of them a measurement of this film's spectrum: (1) the MEDIAN of the twelve panchromatic monochrome stocks in this database whose spectral curve is measured, integrated at the shipping 34 nm primary basis, (0.3128, 0.3526, 0.3142); (2) a red deficit of 10^-0.60 on the red weight alone, from analogica.it user «ometto», 10/10/2020, who needed +5 stops through an orange/red filter where the filter's own factor is +3. Renormalised: (0.105, 0.473, 0.422). Supported in words by the 2026 P.F.G. «Ferrania 2026» range sheet, page 2: «Ferrania P30 (cinema) ... con bassa sensibilita al rosso, proprio come le pellicole pancromatiche degli anni '50».",
+            confidence='low',
+            note=("⚠⚠ CORRECTED 2026-09-27. This record still described the "
+                  "WITHDRAWN derivation -- Tri-X's F-4017 curve plus a "
+                  "logistic fitted to the analogica.it colour-target frame, "
+                  "at the withdrawn 55 nm lobe width, tier 1 'derived', "
+                  "printing (0.076, 0.166, 0.758) -- after the profile's own "
+                  "field and comment had moved to the authored triple. The "
+                  "field was right and this record was stale. ⚠ FROZEN BY "
+                  "OWNER DECISION until Ferrania publish new metrics; "
+                  "mono_primary_width.py fails the build if this profile "
+                  "regains a log_s_pan. ⚠ 'estimated', not 'derived': an "
+                  "authored value with its arithmetic written down. Tier 3 because one "
+                  "measured scalar and a class median are all it rests on; "
+                  "sensitisation_class.py gates it.")),
     ),
     'FOMAPAN_400_ACTION': (
         ParamSource(
@@ -43090,7 +46499,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Foma Bohemia, 'FOMAPAN 400 Action' technical datasheet, undated (PDF 2023)",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.480, 0.220), a class default. This cell prints (0.395, 0.349, 0.256), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.480, 0.220), a class default. This cell prints (0.407, 0.344, 0.249), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'FUJICOLOR_A250': (
         ParamSource(
@@ -43369,7 +46778,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), section 9 SPECTRAL SENSITIVITY CURVE (PDF p3), 'Spectrogram to Daylight (5400K)' -- re-traced at 5 nm on 2026-08-15 from the 300 dpi raster; agrees with the earlier 10 nm trace to 0.016 log",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.550, 0.180), a class default. This cell prints (0.275, 0.328, 0.397), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.550, 0.180), a class default. This cell prints (0.309, 0.296, 0.395), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'FUJI_NEOPAN_ACROS_100': (
         ParamSource(
@@ -43416,7 +46825,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Fuji Photo Film Co., Ltd., 'NEOPAN 100 ACROS' data sheet, Ref. No. AF3-095E, sec. 12, wedge spectrogram to daylight 5400 K; original release 2001 (printer's code EIGI-01.6)",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.550, 0.180), a class default. This cell prints (0.342, 0.353, 0.304), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.270, 0.550, 0.180), a class default. This cell prints (0.390, 0.333, 0.277), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'FUJI_PROVIA_400X': (
         ParamSource(
@@ -44219,7 +47628,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="HARMAN technology Limited, 'ILFORD DELTA 3200 PROFESSIONAL' technical information sheet, wedge spectrogram to tungsten 2856 K, November 2018",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.330, 0.460, 0.210), a class default. This cell prints (0.356, 0.347, 0.297), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.330, 0.460, 0.210), a class default. This cell prints (0.371, 0.333, 0.296), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'ILFORD_FP4': (
         ParamSource(
@@ -44432,7 +47841,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="HARMAN technology Limited, 'ILFORD HP5 PLUS' technical information sheet, wedge spectrogram to tungsten 2850 K, November 2018",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.340, 0.460, 0.200), a class default. This cell prints (0.323, 0.370, 0.307), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.340, 0.460, 0.200), a class default. This cell prints (0.348, 0.361, 0.291), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'ILFORD_HPS': (
         ParamSource(
@@ -44832,6 +48241,44 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
     ),
     'KODAK_8374': (
         ParamSource(
+            param='grain.rms_granularity', tier=2, status='traced',
+            unit='sigma(D) x 1000 at a 48 um aperture',
+            conditions='uniformly exposed sample at D 0.48 above base, development gamma 1.0; converted from the measured Wiener spectrum through sigma^2 A = W(0)',
+            source=('K. Hacking, «An Analysis of Film Granularity in Television '
+                    'Reproduction», BBC Engineering Monograph No. 54, August '
+                    '1964, Fig. 3(a). Traced 2026-09-24c off the page image at '
+                    '300 dpi; W(0) = 0.0751 um^2.'),
+            confidence='medium',
+            note=("⚠ 6.2 -> 6.44 ON 2026-09-24c, A DIRECT MEASUREMENT REPLACING "
+                  "A RATIO. The stored 6.2 came from T-101 Table 4's relative "
+                  "granularity 1.3 scaled through ILFORD HPS's absolute "
+                  "spectrum; this is 8374's own plotted spectrum. The two "
+                  "routes that measure this film directly -- Monograph 54 "
+                  "Fig. 3(a) at 0.0751 and the T-101 Fig. 18 trace at 0.0744 -- "
+                  "agree to 1 %, and the ratio route's 0.0689 is the outlier. "
+                  "⚠ STILL AT D 0.48, NOT AT NET 1.0, which is the convention "
+                  "this field is defined at; the same caveat the profile "
+                  "records for EASTMAN_TRI_X_5223 applies here.")),
+        ParamSource(
+            param='grain.clump_um_g', tier=1, status='stated',
+            unit='um',
+            conditions="T-101 Table 2's printed equivalent grain diameter 1.2 um, converted by D_eq = 1.7473 * clump_um",
+            source=('BBC Research Department Report No. T-101, 1963/5, Table 2 '
+                    '(printed p28), cross-read against BBC Engineering '
+                    'Monograph No. 54 Fig. 3(a).'),
+            confidence='medium',
+            note=("⚠ THE TWO BBC DOCUMENTS DISAGREE ABOUT THIS EMULSION'S "
+                  "CORRELATION LENGTH BY 17 % AND THE PRINTED NUMBER IS KEPT. "
+                  "T-101's printed diameter converts to 0.687 um; fitting this "
+                  "file's carrier to Monograph 54's drawn spectrum gives 0.806 "
+                  "at an rms of 0.00027 um^2. The drawn spectrum therefore "
+                  "falls FASTER than the printed diameter implies, while "
+                  "T-101 p38 states its printed diameters are already UPPER "
+                  "bounds -- so this is a real disagreement between two "
+                  "measurements of one emulsion, recorded rather than "
+                  "averaged. ⚠ THE SPECTRUM IS NEARLY WHITE: 5 % of fall from "
+                  "0 to 100 cycles/mm, against HPS's 10 % by 60.")),
+        ParamSource(
             param='curves.g.dmin', tier=3, status='assumed',
             unit='density',
             conditions='green record, base+fog',
@@ -44843,18 +48290,6 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='green record, softplus fit; see ToneCurve.is_degenerate before reading gamma as a slope',
             confidence='low',
             note="provenance.fitted_from is 'analogy': the curve was taken from a comparable stock. ⚠ Nothing about this curve is a measurement of THIS film. ⚠ gamma is a MODEL COEFFICIENT. Where (shoulder_x - toe_x) < 2.5*max(toe_k, shoulder_k) it is not a slope at all -- use ToneCurve.mid_slope."),
-        ParamSource(
-            param='grain.clump_um_g', tier=2, status='estimated',
-            unit='um',
-            conditions="mean DEVELOPED clump diameter at the profile's own gamma",
-            confidence='low',
-            note="⚠ NOT a crystal size. clump_um is the developed clump and depends on development gamma and density -- BBC T-101 measures it shrinking ~20 % across one film's tone scale. EmulsionSpec.grain_um is the crystal diameter and the two must never be aliased."),
-        ParamSource(
-            param='grain.rms_granularity', tier=2, status='estimated',
-            unit='sigma(D) x 1000',
-            conditions='48 um aperture, NET density 1.0 (schema v9 convention)',
-            confidence='low',
-            note="No published rms for this stock in the corpus. ⚠ A granularity figure without its aperture and density is not a number; the stored value follows this project's convention and should not be compared with a maker's figure read under another one."),
         ParamSource(
             param='halation.gain_r', tier=3, status='assumed',
             unit='dimensionless gain',
@@ -44941,7 +48376,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source='Eastman Kodak Company, publication F-4036, SpectralSensitivity Curves, p5; PDF vector-path extraction 2026-08-16',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.354, 0.396, 0.250), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.380, 0.406, 0.215), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_EKTACHROME_100D_5285': (
         ParamSource(
@@ -45055,19 +48490,232 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='No traced spectral sensitivity for this stock; weights come from its class (ordinary / orthochromatic / panchromatic / colour).'),
     ),
+    'KODAK_EKTAPRESS_PJ100': (
+        ParamSource(
+            param='curves.g.dmin', tier=1, status='traced',
+            unit='density',
+            conditions='green record, base+fog read at the toe plateau of the Status M characteristic panel',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 5, panel "Characteristic Curves" (PJ100). Vector art, traced '
+                    '2026-09-24b with kodak_still_curves.extract_panel + measure_char.'),
+            confidence='high',
+            note=("The mask ladder reads 0.2891 / 0.7241 / 0.9313 R/G/B, about 0.08 D "
+                  "below PJ400's 0.3696 / 0.7914 / 1.0068 on every channel -- a lighter "
+                  "orange mask on the slower emulsion, in the same publication and the "
+                  "same densitometry, which is the kind of family consistency a "
+                  "mis-calibrated axis does not produce.")),
+        ParamSource(
+            param='curves.g.gamma', tier=1, status='traced',
+            unit='dimensionless',
+            conditions='green record, full six-parameter fit of the Status M panel; see ToneCurve.is_degenerate before reading gamma as a slope',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 5, panel "Characteristic Curves" (PJ100), logE -2.78..+1.32. '
+                    'Fit rms 0.0103 D, worst 0.0240 D, D-min held at the traced plateau.'),
+            confidence='high',
+            note=("⚠ UNLIKE PJ400, THE SHOULDER HERE IS MEASURED. This panel is drawn "
+                  "0.77 log further right and rolls off inside the frame, so "
+                  "shoulder_x 1.284 sits among the plotted points rather than being "
+                  "carried over. That is also why `measure_char`'s straight-line model "
+                  "was NOT used for the adopted numbers: it returns rms 0.0222 D here "
+                  "against 0.0103 for the full fit. ⚠ gamma is a MODEL COEFFICIENT; "
+                  "use ToneCurve.mid_slope for the drawn slope, 0.591.")),
+        ParamSource(
+            param='spectral', tier=1, status='traced',
+            unit='log relative sensitivity',
+            conditions='effective exposure 1/25 second, Process C-41, Status M, criterion 0.2 above D-min as printed on the panel',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 5, panel "Spectral-Sensitivity Curves" (PJ100). Vector-path '
+                    'extraction 2026-09-24b, min_span=0.20, peak-normalised per layer.'),
+            confidence='high',
+            note=("⚠ THE EXPOSURE TIME IS NOT PJ400's. This panel states 1/25 second "
+                  "where page 7 states 1/100 for PJ400, so the two sensitisations are "
+                  "measured a bit over two stops apart in time. On a film whose own "
+                  "sheet says reciprocity holds from 1/10,000 s to 10 s that should "
+                  "not matter, and no correction is applied -- but it is recorded, "
+                  "because the alternative is silently treating two conditions as one.")),
+        ParamSource(
+            param='dye_density', tier=1, status='traced',
+            unit='diffuse spectral density',
+            conditions='midscale neutral and D-min, Process C-41, 400-700 nm',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 5, panel "Spectral-Dye-Density Curves" (PJ100).'),
+            confidence='medium',
+            note=("⚠ CONFIDENCE IS MEDIUM FOR ONE CELL ONLY. d_neutral at 400 nm is the "
+                  "panel ceiling 2.500 and a LOWER BOUND: the neutral curve leaves the "
+                  "frame through the top at 400.55 nm, still rising. Every other cell "
+                  "of both curves is the drawn line at vector precision.")),
+        ParamSource(
+            param='grain.rms_granularity', tier=3, status='estimated',
+            unit='rms x 1000, 48 um aperture',
+            conditions='class estimate for an ISO 100 Kodak colour negative',
+            source='',
+            confidence='low',
+            note=("⚠ E-116 PUBLISHES NO rms FOR ANY OF THE THREE FILMS and forbids "
+                  "deriving one: page 4 says Print Grain Index \"replaces rms "
+                  "granularity and has a different scale which cannot be compared to "
+                  "rms granularity.\" The measured graininess datum for this stock is "
+                  "the PGI triple 28/50/79, stored in `print_grain_index`. 4.6 is the "
+                  "same class figure KODAK_PROFOTO_100 carries, placed below PJ400's "
+                  "6.0 because the sheet's own ladder places the film below it.")),
+        ParamSource(
+            param='mtf.f50_g', tier=3, status='estimated',
+            unit='cycles/mm',
+            conditions='class estimate; the sheet rates sharpness qualitatively only',
+            source='',
+            confidence='low',
+            note=("The only sharpness statement in the document for this film is the "
+                  "word \"Extremely High\" (page 5), against \"High\" for PJ400 and "
+                  "PJ800. That fixes an ORDER and no number. 64/72/82 is the ISO-100 "
+                  "class estimate, above PJ400's 58/66/76 for that reason alone.")),
+        ParamSource(
+            param='reciprocity_table', tier=1, status='stated',
+            unit='stops',
+            conditions='no filter correction or exposure adjustment required, 1/10,000 s to 10 s',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 2, "Adjustments for Long and Short Exposures".'),
+            confidence='high',
+            note=("The sentence names PJ100 explicitly, so the bound is this film's own "
+                  "and not inherited from PJ400. ONSET ONLY -- no correction is printed "
+                  "for any time past 10 s.")),
+    ),
+    'KODAK_EKTAPRESS_PJ800': (
+        ParamSource(
+            param='curves.g.dmin', tier=1, status='traced',
+            unit='density',
+            conditions='green record, base+fog read at the toe plateau of the Status M characteristic panel',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 7, panel "Characteristic Curves" (PJ800, EI 800). Vector art, '
+                    'traced 2026-09-24b.'),
+            confidence='high',
+            note=("0.3138 / 0.7646 / 1.0182 R/G/B. ⚠ THE PANEL IS BELOW THE PJ800 "
+                  "HEADING ON PAGE 7 AND THE TWO ABOVE IT ARE PJ400's. The page carries "
+                  "both films: PJ400's spectral and dye panels at the top, the PJ800 "
+                  "heading at y=337, then PJ800's normal and Push 1 panels. Attribution "
+                  "was decided by heading position, not by page number.")),
+        ParamSource(
+            param='curves.g.gamma', tier=1, status='traced',
+            unit='dimensionless',
+            conditions='green record, full six-parameter fit of the Status M panel',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 7, panel "Characteristic Curves" (PJ800), logE -3.53..+0.26. '
+                    'Fit rms 0.0139 D, worst 0.0358 D, D-min held at the traced plateau.'),
+            confidence='high',
+            note=("⚠ GREEN SHOULDERS FIRST ON THIS FILM: fitted shoulder_x -0.215 "
+                  "against red's 0.271 and blue's 0.373, and the same ordering repeats "
+                  "on both push legs, so it is the drawn shape rather than a fit "
+                  "artefact. gamma is a MODEL COEFFICIENT; the drawn slope is "
+                  "mid_slope 0.664.")),
+        ParamSource(
+            param='spectral', tier=1, status='traced',
+            unit='log relative sensitivity',
+            conditions='Process C-41, Status M, criterion 0.2 above D-min as printed on the panel',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 8, panel "Spectral-Sensitivity Curves" (PJ800). Vector-path '
+                    'extraction 2026-09-24b, min_span=0.20, peak-normalised per layer.'),
+            confidence='high',
+            note=("Bands by centroid: yellow-forming 378.7-528.5 nm peaking 470, "
+                  "magenta 458.6-598.4 peaking 550, cyan 538.5-678.2 peaking 650. The "
+                  "blue record still reads -1.41 at 380 nm, further into the near-UV "
+                  "than either sibling.")),
+        ParamSource(
+            param='dye_density', tier=1, status='traced',
+            unit='diffuse spectral density',
+            conditions='midscale neutral and D-min, Process C-41, 400-700 nm',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 8, panel "Spectral-Dye-Density Curves" (PJ800).'),
+            confidence='medium',
+            note=("⚠ d_neutral AT 400 nm IS THE PANEL CEILING 2.500 AND A LOWER BOUND: "
+                  "the curve exits the top of the frame at 403.86 nm. This is also the "
+                  "panel that made `assign_dye_pair` grow a `y_ceiling` exemption -- "
+                  "its extent check reads a curve that stops early as a mis-calibrated "
+                  "axis, and the D-min trace spanning 400.05-700.05 nm is what proves "
+                  "the axis is right.")),
+        ParamSource(
+            param='grain.rms_granularity', tier=3, status='estimated',
+            unit='rms x 1000, 48 um aperture',
+            conditions='class estimate for an ISO 800 Kodak colour negative',
+            source='',
+            confidence='low',
+            note=("Same bar as PJ100 and PJ400: E-116 prints Print Grain Index and no "
+                  "rms, and says the two scales cannot be compared. The measured datum "
+                  "is the PGI triple 53/75/104 -- the highest in this database. 11.0 is "
+                  "KODAK_PORTRA_800's figure, the nearest documented neighbour in "
+                  "speed, and is an estimate on this profile.")),
+        ParamSource(
+            param='mtf.f50_g', tier=3, status='estimated',
+            unit='cycles/mm',
+            conditions='class estimate carried across on the sheet\'s own equivalence',
+            source='',
+            confidence='low',
+            note=("E-116 rates PJ800's sharpness \"High\" -- the SAME WORD it gives "
+                  "PJ400 on the facing page. So these f50 values are PJ400's estimates "
+                  "reused on the manufacturer's own equivalence rather than a fresh "
+                  "guess; the sheet prints no MTF or resolving power for any of the "
+                  "three films.")),
+        ParamSource(
+            param='reciprocity_table', tier=1, status='stated',
+            unit='stops',
+            conditions='no adjustment required, 1/10,000 s to 1 s',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 2, "Adjustments for Long and Short Exposures".'),
+            confidence='high',
+            note=("⚠ ONE SECOND, NOT TEN. The same sentence gives PJ100 and PJ400 a "
+                  "10 s bound and this film a 1 s bound -- a decade earlier, stated "
+                  "separately, which is the sheet distinguishing the emulsions rather "
+                  "than the reader inferring a difference. ONSET ONLY past 1 s.")),
+    ),
     'KODAK_EKTAPRESS_PJ400': (
         ParamSource(
-            param='curves.g.dmin', tier=3, status='assumed',
+            param='curves.g.dmin', tier=1, status='traced',
             unit='density',
-            conditions='green record, base+fog',
-            confidence='low',
-            note="provenance.fitted_from is 'analogy': the curve was taken from a comparable stock. ⚠ Nothing about this curve is a measurement of THIS film."),
+            conditions='green record, base+fog read at the toe plateau of the Status M characteristic panel',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 6, panel "Characteristic Curves" (PJ400). Vector art, traced '
+                    '2026-09-24 with kodak_still_curves.extract_panel + measure_char.'),
+            confidence='high',
+            note=("Traced 0.7914; the plot atlas that preceded this sheet said 0.803, "
+                  "so the two agree to 0.012 D. Cross-checked against an independent "
+                  "600 dpi raster trace of the same panel: 0.789.")),
         ParamSource(
-            param='curves.g.gamma', tier=3, status='assumed',
+            param='curves.g.gamma', tier=1, status='traced',
             unit='dimensionless',
-            conditions='green record, softplus fit; see ToneCurve.is_degenerate before reading gamma as a slope',
-            confidence='low',
-            note="provenance.fitted_from is 'analogy': the curve was taken from a comparable stock. ⚠ Nothing about this curve is a measurement of THIS film. ⚠ gamma is a MODEL COEFFICIENT. Where (shoulder_x - toe_x) < 2.5*max(toe_k, shoulder_k) it is not a slope at all -- use ToneCurve.mid_slope."),
+            conditions='green record, straight-line slope of the Status M panel; see ToneCurve.is_degenerate before reading gamma as a slope',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 6, panel "Characteristic Curves" (PJ400), straight segment '
+                    'logE -1.72..0.00. Fit rms 0.0117 D, worst 0.0146 D.'),
+            confidence='high',
+            note=("⚠ THE SHOULDER IS NOT FROM THIS SHEET. The panel is still straight "
+                  "where it stops at logE +0.55, so measure_char fits dmin, gamma, "
+                  "toe_x and toe_k with the shoulder held six decades out and "
+                  "shoulder_x / shoulder_k are carried over from the superseded "
+                  "analogy. ⚠ gamma is a MODEL COEFFICIENT. Where "
+                  "(shoulder_x - toe_x) < 2.5*max(toe_k, shoulder_k) it is not a slope "
+                  "at all -- use ToneCurve.mid_slope.")),
+        ParamSource(
+            param='curves.b.gamma', tier=1, status='traced',
+            unit='dimensionless',
+            conditions='blue record, straight-line slope of the Status M panel',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 6, panel "Characteristic Curves" (PJ400), straight segment '
+                    'logE -1.82..-0.35. Fit rms 0.0063 D, worst 0.0105 D.'),
+            confidence='high',
+            note=("⚠ THIS IS THE PARAMETER THE ANALOGY GOT WORST. It carried 0.622; "
+                  "the sheet draws 0.7189 -- sixteen percent low, on the record that "
+                  "sets how a C-41 negative renders shadow colour. Red and green were "
+                  "within 0.015 of the truth, which is why the error survived two "
+                  "reviews: nothing that checked dmin or overall contrast could see it.")),
+        ParamSource(
+            param='curves.g.toe_x', tier=1, status='traced',
+            unit='log exposure (lux-seconds)',
+            conditions='green record, toe position fitted with dmin and gamma held',
+            source=('Eastman Kodak Company, KODAK Publication No. E-116, April 2003, '
+                    'page 6, panel "Characteristic Curves" (PJ400).'),
+            confidence='high',
+            note=("-2.540 against the analogy's -1.72: the toe sat nearly a full log "
+                  "unit too far right, with toe_k 0.31 against a traced 0.180 -- 1.8x "
+                  "too soft. Shadows entered the curve late and rolled in gently. "
+                  "All three records trace to the same toe_x within 0.001, which is "
+                  "itself a check: the panel draws them as a parallel family.")),
         ParamSource(
             param='grain.clump_um_g', tier=2, status='estimated',
             unit='um',
@@ -45359,7 +49007,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK PANATOMIC-X FILM, p. 19, sunlight + tungsten; 380-660 nm, peak 570 nm",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.306, 0.372, 0.322), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.324, 0.374, 0.302), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_PANATOMIC_X_SHEET_1952': (
         ParamSource(
@@ -45416,7 +49064,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK PANATOMIC-X SHEET FILM, p. 33, sunlight + tungsten; 380-660 nm, peak 610 nm",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.240, 0.520, 0.240), a class default. This cell prints (0.308, 0.368, 0.324), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.240, 0.520, 0.240), a class default. This cell prints (0.330, 0.336, 0.334), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_PLUS_X_125': (
         ParamSource(
@@ -45473,7 +49121,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source='Eastman Kodak Company, publication F-4018, SpectralSensitivity Curves, p9; PDF vector-path extraction 2026-08-16',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.205, 0.292, 0.502), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.221, 0.246, 0.532), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_PORTRA_100T': (
         ParamSource(
@@ -45918,7 +49566,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK ROYAL PAN SHEET FILM, p. 23, sunlight + tungsten; 380-670 nm, peak 470 nm",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.296, 0.379, 0.324), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.311, 0.372, 0.317), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_ROYAL_X_PAN_4166': (
         ParamSource(
@@ -45975,7 +49623,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK ROYAL-X PAN SHEET FILM, p. 44, sunlight + tungsten; 380-660 nm, peak 590 nm",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.329, 0.386, 0.286), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.355, 0.385, 0.260), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_SUPER_XX_PAN_4142': (
         ParamSource(
@@ -46032,7 +49680,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK SUPER-XX PANCHROMATIC SHEET FILM, p. 29, sunlight + tungsten; 380-660 nm, peak 470 nm",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.290, 0.356, 0.354), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.308, 0.308, 0.384), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_T400CN': (
         ParamSource(
@@ -46089,7 +49737,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source='Eastman Kodak Company, publication F-2350, SpectralSensitivity Curves, p6; PDF vector-path extraction 2026-08-16',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.350, 0.398, 0.252), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.374, 0.410, 0.216), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TECHNICAL_PAN': (
         ParamSource(
@@ -46149,9 +49797,35 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, 'KODAK Technical Pan Film', publication P-255, February 2000, p9 'Spectral-Sensitivity Curves' -- PDF vector-path extraction 2026-08-31 (queue B3). Panel conditions as printed: effective exposure 1.4 s visible / 0.2 s ultraviolet; KODAK HC-110 Developer (Dil D), 8 minutes at 68 F (20 C); sensitivity = reciprocal of the erg/cm2 required to produce the specified density. Absolute peak log sensitivity 1.03 at the 380 nm grid edge. The panel's second criterion, D=1.0 above D-min, was traced in the same pass and lies 0.408 +/- 0.036 decades below this curve; the same figure reads 0.408 off the June 2003 edition, whose artwork is bit-identical",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.400, 0.350, 0.250), a class default. This cell prints (0.330, 0.298, 0.373), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.400, 0.350, 0.250), a class default. This cell prints (0.358, 0.273, 0.370), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TMAX_100': (
+        ParamSource(
+            param='grain.rms_granularity', tier=1, status='stated',
+            unit='sigma(D) x 1000',
+            conditions='diffuse rms, 48 um aperture, 12X magnification, read at net diffuse density 1.00, D-76 at 68 F (20 C)',
+            source=('Eastman Kodak Company, «KODAK T-MAX Professional Films», '
+                    'KODAK Publication No. F-32, March 2002, '
+                    '"IMAGE-STRUCTURE CHARACTERISTICS": "Diffuse rms '
+                    'Granularity 8".'),
+            confidence='high',
+            note=("⚠ A CITATION, NOT A NEW VALUE -- and that is the finding. "
+                  "The database already stored 8 and scored it as an "
+                  "ESTIMATE, because no document in the corpus named it. F-32 "
+                  "names it, and names the measurement conditions the estimate "
+                  "never carried. The three T-MAX stocks ladder 8 / 10 / 18 on one page, which is a stronger statement than three separate numbers: they were measured against each other under one method.")),
+        ParamSource(
+            param='mtf.resolving_power_lp_mm_lowc', tier=1, status='stated',
+            unit='lines/mm',
+            conditions='test-object contrast 1.6:1, method similar to ISO 6328, D-76 at 68 F (20 C)',
+            source=('Eastman Kodak Company, KODAK Publication No. F-32, March '
+                    '2002, "IMAGE-STRUCTURE CHARACTERISTICS": Resolving Power '
+                    'TOC 1.6:1 = 63 lines/mm, TOC 1000:1 = 200 lines/mm.'),
+            confidence='high',
+            note=("Both stored figures match the sheet exactly, so this row "
+                  "closes a provenance gap rather than changing a number. "
+                  "F-32 says 'similar to' ISO 6328 rather than claiming "
+                  "conformance; the hedge is reproduced, not tidied away.")),
         ParamSource(
             param='curves.g.dmin', tier=2, status='estimated',
             unit='density',
@@ -46170,12 +49844,6 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions="mean DEVELOPED clump diameter at the profile's own gamma",
             confidence='low',
             note="⚠ NOT a crystal size. clump_um is the developed clump and depends on development gamma and density -- BBC T-101 measures it shrinking ~20 % across one film's tone scale. EmulsionSpec.grain_um is the crystal diameter and the two must never be aliased."),
-        ParamSource(
-            param='grain.rms_granularity', tier=2, status='estimated',
-            unit='sigma(D) x 1000',
-            conditions='48 um aperture, NET density 1.0 (schema v9 convention)',
-            confidence='low',
-            note="No published rms for this stock in the corpus. ⚠ A granularity figure without its aperture and density is not a number; the stored value follows this project's convention and should not be compared with a maker's figure read under another one."),
         ParamSource(
             param='halation.gain_r', tier=3, status='assumed',
             unit='dimensionless gain',
@@ -46203,14 +49871,60 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
+            param='mtf.adjacency', tier=1, status='traced',
+            unit='difference-of-Gaussians lift amplitude',
+            conditions="solved so the rendered kernel reproduces the sheet's own overshoot -- peak value and peak frequency together",
+            source=('Eastman Kodak Company, KODAK Publication No. F-32, March '
+                    '2002, page 14, left-hand "Modulation Transfer Curve" '
+                    '(TMX): 57 vertices over 2.4-148 cycles/mm, peak +11.0 % '
+                    'at 18.25 cycles/mm. Traced 2026-09-24b by '
+                    'kodak_still_curves; pinned in EXPECTED_MTF_MONO and in '
+                    'verify.py _A4_SOLVED.'),
+            confidence='high',
+            note=("⚠ THE MEASUREMENT EXISTED SINCE 2026-09-06 AND WAS NOT "
+                  "ADOPTED, by an explicit decision recorded on the profile: "
+                  "the sheet's overshoot was read but the mapping from a drawn "
+                  "peak to this file's stored amplitude was undocumented. It "
+                  "was documented on 2026-09-02 by queue A4 -- the stored pair "
+                  "is the lift BEFORE the rolloff attenuates it, and a "
+                  "resolved peak gives two numbers against two unknowns -- and "
+                  "nobody came back for this stock. adjacency 0.1111 at "
+                  "13.05 um now reproduces the printed peak exactly."),),
+        ParamSource(
             param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source='Eastman Kodak Company, publication F-4016, SpectralSensitivity Curves, p8; PDF vector-path extraction 2026-08-16',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.267, 0.340, 0.393), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.283, 0.325, 0.392), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TMAX_400': (
+        ParamSource(
+            param='grain.rms_granularity', tier=1, status='stated',
+            unit='sigma(D) x 1000',
+            conditions='diffuse rms, 48 um aperture, 12X magnification, read at net diffuse density 1.00, D-76 at 68 F (20 C)',
+            source=('Eastman Kodak Company, «KODAK T-MAX Professional Films», '
+                    'KODAK Publication No. F-32, March 2002, '
+                    '"IMAGE-STRUCTURE CHARACTERISTICS": "Diffuse rms '
+                    'Granularity 10".'),
+            confidence='high',
+            note=("⚠ A CITATION, NOT A NEW VALUE -- and that is the finding. "
+                  "The database already stored 10 and scored it as an "
+                  "ESTIMATE, because no document in the corpus named it. F-32 "
+                  "names it, and names the measurement conditions the estimate "
+                  "never carried. ⚠ THIS IS THE 2002 TMY FIGURE. The profile describes the 2007 TMY-2 reformulation, whose own sheet F-4043 prints the same 10 -- so the number survived the reformulation, which is why citing the older sheet for it is legitimate rather than anachronistic.")),
+        ParamSource(
+            param='mtf.resolving_power_lp_mm_lowc', tier=1, status='stated',
+            unit='lines/mm',
+            conditions='test-object contrast 1.6:1, method similar to ISO 6328, D-76 at 68 F (20 C)',
+            source=('Eastman Kodak Company, KODAK Publication No. F-32, March '
+                    '2002, "IMAGE-STRUCTURE CHARACTERISTICS": Resolving Power '
+                    'TOC 1.6:1 = 50 lines/mm, TOC 1000:1 = 125 lines/mm.'),
+            confidence='high',
+            note=("Both stored figures match the sheet exactly, so this row "
+                  "closes a provenance gap rather than changing a number. "
+                  "F-32 says 'similar to' ISO 6328 rather than claiming "
+                  "conformance; the hedge is reproduced, not tidied away.")),
         ParamSource(
             param='curves.g.dmin', tier=2, status='estimated',
             unit='density',
@@ -46230,29 +49944,61 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note="⚠ NOT a crystal size. clump_um is the developed clump and depends on development gamma and density -- BBC T-101 measures it shrinking ~20 % across one film's tone scale. EmulsionSpec.grain_um is the crystal diameter and the two must never be aliased."),
         ParamSource(
-            param='grain.rms_granularity', tier=2, status='estimated',
-            unit='sigma(D) x 1000',
-            conditions='48 um aperture, NET density 1.0 (schema v9 convention)',
-            confidence='low',
-            note="No published rms for this stock in the corpus. ⚠ A granularity figure without its aperture and density is not a number; the stored value follows this project's convention and should not be compared with a maker's figure read under another one."),
-        ParamSource(
             param='halation.gain_r', tier=3, status='assumed',
             unit='dimensionless gain',
             conditions='n/a',
             confidence='low',
             note='Halation gain is ZERO on this profile, i.e. the effect is OFF. ⚠ That is an absence of data, NOT a measurement that this film does not halate. Every film on a transparent support halates to some degree.'),
         ParamSource(
-            param='mtf.f50_g', tier=2, status='estimated',
+            param='mtf.f50_g', tier=2, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (50 lp/mm at 1.6:1, 125 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='D-76 at 68 F (20 C); f50 read off the traced modulation-transfer curve',
+            source=('«Современные фотоматериалы и их обработка» p341, the adopted '
+                    'drawing; corroborated by Eastman Kodak Company, KODAK '
+                    'Publication No. F-32, March 2002, page 14, right-hand '
+                    '"Modulation Transfer Curve", traced 2026-09-24b at f50 '
+                    '95.7 cycles/mm.'),
+            confidence='medium',
+            note=("⚠ THIS ROW WAS WRONG UNTIL 2026-09-24b, AND IT WAS WRONG IN "
+                  "THE WORST WAY A PROVENANCE ROW CAN BE: it said 'No published "
+                  "MTF curve for this stock.' There is one, in the "
+                  "manufacturer's own publication, on a page this corpus "
+                  "already held -- F-32 p14 -- and the profile's own comment "
+                  "had been citing it as the corroboration for the stored 98.7 "
+                  "since before this row was last touched. The row was a "
+                  "leftover from the era-and-class heuristic and nobody "
+                  "revisited it when the value stopped coming from that "
+                  "heuristic. ⚠ THE STORED 98.7 IS STILL THE BOOK PANEL'S "
+                  "rather than F-32's 95.7, because f50 and rolloff are taken "
+                  "together from one drawing; the two readings are 3.1 % "
+                  "apart.")),
         ParamSource(
-            param='mtf.f50_r', tier=2, status='estimated',
+            param='mtf.f50_r', tier=2, status='traced',
             unit='cycles/mm',
-            conditions='n/a',
-            confidence='low',
-            note="No published MTF curve for this stock; f50 comes from the project's era-and-class sharpness heuristic. ⚠ A PUBLISHED RESOLVING POWER DOES EXIST for this stock (50 lp/mm at 1.6:1, 125 at 1000:1, see _RESOLVING_POWER) and is NOT what f50 was derived from. Tani's MTF-50 ~ 1/2 resolving power relation (EMULSION_KNOWLEDGE_BASE.md 18) would turn it into an f50 estimate; that conversion has not been adopted, so this cell is an estimate with a better source sitting unused beside it."),
+            conditions='monochrome: one drawn curve, carried on all three channels',
+            source=('«Современные фотоматериалы и их обработка» p341, corroborated by '
+                    'KODAK Publication No. F-32, March 2002, page 14, at 95.7 '
+                    'cycles/mm.'),
+            confidence='medium',
+            note=("Same reading as the green row. A silver monochrome emulsion "
+                  "draws one MTF curve and the file carries it on all three "
+                  "channels.")),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='traced',
+            unit='difference-of-Gaussians lift amplitude',
+            conditions="solved so the rendered kernel reproduces the sheet's own overshoot -- peak value and peak frequency together",
+            source=('Eastman Kodak Company, KODAK Publication No. F-32, March '
+                    '2002, page 14, right-hand "Modulation Transfer Curve": 57 '
+                    'vertices over 2.4-144 cycles/mm, peak +16.8 % at 7.53 '
+                    'cycles/mm. Traced 2026-09-24b by kodak_still_curves and '
+                    'pinned in EXPECTED_MTF_MONO and verify.py _A4_SOLVED.'),
+            confidence='high',
+            note=("⚠ THE LARGEST RESOLVED OVERSHOOT ON ANY BLACK-AND-WHITE "
+                  "STILL FILM IN THIS CORPUS. The stored 0.2069 at 26.45 um is "
+                  "the A4 solve and NOT the raw peak: the amplitude is the lift "
+                  "before the rolloff attenuates it. The estimates it replaces "
+                  "(0.1929 at 15.0 um) put the peak at the wrong frequency "
+                  "entirely.")),
         ParamSource(
             param='processing.developer', tier=3, status='assumed',
             unit='',
@@ -46265,21 +50011,66 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source='Eastman Kodak Company, publication F-4043Spectral-Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.296, 0.370, 0.334), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.314, 0.384, 0.302), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TMAX_P3200': (
         ParamSource(
-            param='curves.g.dmin', tier=2, status='estimated',
+            param='curves.g.dmin', tier=1, status='traced',
             unit='density',
-            conditions='green record, base+fog',
-            confidence='low',
-            note="provenance.fitted_from is 'secondary_sources': the curve shape comes from books or trade literature, not from a manufacturer plot."),
+            conditions='diffuse visual density, base+fog of the 6-minute leg at 75 F in T-MAX Developer',
+            source=('Eastman Kodak Company, «KODAK T-MAX Professional Films», '
+                    'KODAK Publication No. F-32, March 2002, page 24, panel '
+                    '"Characteristic Curves" (T-MAX 3200 / TMZ). Vector art; '
+                    'the whole 28-page document carries zero embedded rasters. '
+                    'Traced 2026-09-24.'),
+            confidence='high',
+            note=("0.301 against the estimate's 0.22. Base fog across the "
+                  "traced family climbs 0.301 / 0.321 / 0.361 / 0.391 for the "
+                  "6 / 8 / 10 / 12-minute legs, which is the physical check on "
+                  "the trace: a longer development that did not raise base fog "
+                  "would mean two curves had been merged.")),
         ParamSource(
-            param='curves.g.gamma', tier=2, status='estimated',
+            param='curves.g.gamma', tier=1, status='traced',
             unit='dimensionless',
-            conditions='green record, softplus fit; see ToneCurve.is_degenerate before reading gamma as a slope',
-            confidence='low',
-            note="provenance.fitted_from is 'secondary_sources': the curve shape comes from books or trade literature, not from a manufacturer plot. ⚠ gamma is a MODEL COEFFICIENT. Where (shoulder_x - toe_x) < 2.5*max(toe_k, shoulder_k) it is not a slope at all -- use ToneCurve.mid_slope."),
+            conditions='diffuse visual density, straight-line slope of the 6-minute leg; see ToneCurve.is_degenerate before reading gamma as a slope',
+            source=('Eastman Kodak Company, KODAK Publication No. F-32, March '
+                    '2002, page 24, 6-minute leg. Fit rms 0.0133 D.'),
+            confidence='high',
+            note=("0.575 against the estimate's 0.66. ⚠ WHICH LEG IS 'THE' "
+                  "GAMMA IS A CHOICE THIS FILM FORCES: F-32 plots four "
+                  "developments and their slopes run 0.575 / 0.739 / 0.828 / "
+                  "1.139. The 6-minute leg is stored because page 19's "
+                  "small-tank table puts this profile's own EI 1000 at about "
+                  "6.7 minutes; the other three are kept as ProcessVariants "
+                  "rather than discarded. ⚠ gamma is a MODEL COEFFICIENT. "
+                  "Where (shoulder_x - toe_x) < 2.5*max(toe_k, shoulder_k) it "
+                  "is not a slope at all -- use ToneCurve.mid_slope.")),
+        ParamSource(
+            param='grain.rms_granularity', tier=1, status='stated',
+            unit='sigma(D) x 1000',
+            conditions='diffuse rms, 48 um aperture, 12X magnification, read at net diffuse density 1.00, D-76 at 68 F (20 C)',
+            source=('Eastman Kodak Company, KODAK Publication No. F-32, March '
+                    '2002, "IMAGE-STRUCTURE CHARACTERISTICS" for T-MAX P3200: '
+                    '"Diffuse rms Granularity 18".'),
+            confidence='high',
+            note=("The stored 18.0 was already correct and already in the "
+                  "database -- what was missing was the document naming it, so "
+                  "this row is a citation rather than a new value. The same "
+                  "page prints the measurement conditions, which the estimate "
+                  "it replaces did not carry at all.")),
+        ParamSource(
+            param='mtf.resolving_power_lp_mm_lowc', tier=1, status='stated',
+            unit='lines/mm',
+            conditions='test-object contrast 1.6:1, method similar to ISO 6328, D-76 at 68 F',
+            source=('Eastman Kodak Company, KODAK Publication No. F-32, March '
+                    '2002, "IMAGE-STRUCTURE CHARACTERISTICS" for T-MAX P3200: '
+                    'Resolving Power, TOC 1.6:1 = 40 lines/mm, TOC 1000:1 = '
+                    '125 lines/mm.'),
+            confidence='high',
+            note=("Both contrasts are printed, so the pair is stored as a "
+                  "pair. F-32 qualifies the method as 'similar to' ISO 6328 "
+                  "rather than claiming conformance, and that hedge is "
+                  "reproduced here rather than tidied away.")),
         ParamSource(
             param='grain.clump_um_g', tier=2, status='estimated',
             unit='um',
@@ -46307,12 +50098,28 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
         ParamSource(
+            param='mtf.adjacency', tier=1, status='traced',
+            unit='difference-of-Gaussians lift amplitude',
+            conditions="solved so the rendered kernel reproduces the sheet's own overshoot -- peak value and peak frequency together",
+            source=('Eastman Kodak Company, KODAK Publication No. F-32, March '
+                    '2002, page 24, "Modulation-Transfer Curve" (TMZ): 41 '
+                    'vertices over 3.0-145 cycles/mm, peak +8.7 % at 5.22 '
+                    'cycles/mm. Traced 2026-09-24b by kodak_still_curves; '
+                    'pinned in EXPECTED_MTF_MONO and in verify.py _A4_SOLVED.'),
+            confidence='high',
+            note=("adjacency 0.1072 at 38.10 um, replacing the estimates 0.08 "
+                  "at 16.0 um. ⚠ 38.10 um IS THE LONGEST ADJACENCY LENGTH IN "
+                  "THIS FILE, and that is what a 5.2 cycles/mm peak requires: "
+                  "the lift band-passes at 206.07 / adjacency_um. It is well "
+                  "clear of the 74-84 um band that signals an UNRESOLVED peak, "
+                  "which is the failure this solve is checked against.")),
+        ParamSource(
             param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source='Eastman Kodak Company, publication F-4001, SpectralSensitivity Curves, p7; PDF vector-path extraction 2026-08-16',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.292, 0.364, 0.344), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.299, 0.344, 0.357), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TRI_X_320TXP': (
         ParamSource(
@@ -46363,6 +50170,22 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='n/a',
             confidence='low',
             note='⚠ NO DEVELOPER RECORDED. The characteristic curve, the gamma and the granularity of this profile are all developer-dependent, and which developer they refer to is unknown. This is the gap that blocks DevelopmentProgress from reaching past 9 stocks.'),
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='traced',
+            unit='difference-of-Gaussians lift amplitude',
+            conditions="solved so the rendered kernel reproduces the sheet's own overshoot -- peak value and peak frequency together",
+            source=('Eastman Kodak Company, KODAK Publication No. F-32, March '
+                    '2002, page 24, "Modulation-Transfer Curve" (TMZ): 41 '
+                    'vertices over 3.0-145 cycles/mm, peak +8.7 % at 5.22 '
+                    'cycles/mm. Traced 2026-09-24b by kodak_still_curves; '
+                    'pinned in EXPECTED_MTF_MONO and in verify.py _A4_SOLVED.'),
+            confidence='high',
+            note=("adjacency 0.1072 at 38.10 um, replacing the estimates 0.08 "
+                  "at 16.0 um. ⚠ 38.10 um IS THE LONGEST ADJACENCY LENGTH IN "
+                  "THIS FILE and that is what a 5.2 cycles/mm peak requires: "
+                  "the lift band-passes at 206.07 / adjacency_um. It is well "
+                  "clear of the 74-84 um band that signals an UNRESOLVED peak, "
+                  "which is the failure mode this solve is checked against."),),
         ParamSource(
             param='spectral_weights', tier=2, status='estimated',
             unit='normalised weights',
@@ -46415,7 +50238,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source='Eastman Kodak Company, publication F-4017, SpectralSensitivity Curves, p7; PDF vector-path extraction 2026-08-16',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.253, 0.322, 0.425), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.280, 0.301, 0.419), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TRI_X_REVERSAL_200': (
         ParamSource(
@@ -46474,7 +50297,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, 'KODAK TRI-X Reversal Film 7266 Technical Information', publication H-1-7266, revised March 2026 (film line dating to 1955)",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.320, 0.470, 0.210), a class default. This cell prints (0.271, 0.354, 0.375), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.320, 0.470, 0.210), a class default. This cell prints (0.292, 0.361, 0.347), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TRI_X_SHEET_1952': (
         ParamSource(
@@ -46531,7 +50354,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK TRI-X PANCHROMATIC SHEET FILM, p. 25, sunlight + tungsten; 390-660 nm, peak 450 nm",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.460, 0.240), a class default. This cell prints (0.330, 0.337, 0.333), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.460, 0.240), a class default. This cell prints (0.370, 0.272, 0.358), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_ULTRAMAX_400': (
         ParamSource(
@@ -46854,7 +50677,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester N.Y., 1956 -- wedge spectrogram, read as a density boundary at 600 dpi. Wavelength from the plate's own 400/500/600 nm boundary ticks against the four labelled ticks of the page-12 reference plate; vertical scale from that plate's SENSITIVITY OF THE EYE record against CIE 1924 V(lambda), r=0.979, so log depths carry about +/-10 %. The spectrograph's own illuminant is divided out as a Planck radiator at 5500 K (sunlight) and 2850 K (tungsten); the two plates of one emulsion then agree to 0.266 log on average, which is the accuracy of this curve. Kodak states the plates give relative colour sensitivity only and warns that the indicated ultraviolet sensitivity is below the true value. Traced 2026-09-17, queue P62.  KODAK VERICHROME PAN FILM, p. 12, sunlight + tungsten; 380-670 nm, peak 450 nm",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.281, 0.367, 0.352), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.296, 0.355, 0.349), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_VERICOLOR_III_160': (
         ParamSource(
@@ -47945,17 +51768,80 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
     ),
     'LUMIERE_LUMICHROME': (
         ParamSource(
+            param='exposure_index', tier=2, status='stated',
+            unit='H&D degrees (NOT an exposure index)',
+            conditions="Societe Lumiere's own relative-speed table; H&D 950, exposure time 1/4 of the 350-degree plates",
+            source=('Societe Lumiere, «Agenda Lumiere» (internal date 1933; CNAM '
+                    'Cnum M12484, catalogued 1938), p.228, table «SENSIBILITES '
+                    'RELATIVES DES PLAQUES LUMIERE ET JOUGLA». Transcribed in '
+                    '`_LUMIERE_1933_HD_SPEEDS`.'),
+            confidence='low',
+            note=("⚠⚠ THE STORED EI 40 IS UNCHANGED AND IS STILL AN ESTIMATE. The "
+                  "source gives H&D 950, and this project's own knowledge base "
+                  "records why that cannot become an ISO number: Davis & Walters "
+                  "1922 p.32 state H&D numbers cannot be converted (the measuring "
+                  "light differs), and EMULSION_KNOWLEDGE_BASE.md concludes there "
+                  "is no valid path from an H&D or B.S. speed to a modern ISO "
+                  "value. The apparent 34/i vs 10/i factor of 3.4 is exactly the "
+                  "conversion the source refuses. WHAT IS NOW KNOWN is the "
+                  "RATIO: Lumichrome is two stops faster than the 350-degree "
+                  "plates in the same table and about 1/3 stop faster than the "
+                  "«Opta». If any plate in that ladder ever gains a measured "
+                  "modern speed, this profile's EI follows from the ratio -- "
+                  "which is the whole reason the ladder is stored rather than "
+                  "just this stock's row.")),
+        ParamSource(
+            param='features.ORTHO_RESPONSE', tier=2, status='stated',
+            unit='',
+            conditions='daylight, no filter',
+            source=('Societe Lumiere, «Agenda Lumiere», p.212 (plate) and p.292 '
+                    '(roll film).'),
+            confidence='medium',
+            note=("«L'orthochromatisme des plaques Lumichrome est excellent. La "
+                  "sensibilite au jaune et au vert est telle que, meme sans "
+                  "emploi d'un ecran jaune, on peut considerer dans la pratique "
+                  "courante, comme correctement traduites les differentes valeurs "
+                  "des objets colorees.» ⚠ THAT IS A STATEMENT ABOUT BALANCE, NOT "
+                  "A CURVE: the stored spectral_weights (0.24/0.52/0.24) remain "
+                  "this project's ortho class estimate and the profile still "
+                  "carries no SpectralSensitivity. The sheet prints none.")),
+        ParamSource(
+            param='anti_halation', tier=2, status='stated',
+            unit='',
+            conditions='red dorsal coating, dissolves in the developer, no separate bath',
+            source=('Societe Lumiere, «Agenda Lumiere», p.213 (plate) and p.292 '
+                    '(roll film).'),
+            confidence='medium',
+            note=("Position, colour and removability are the maker's own words; "
+                  "NO OPTICAL DENSITY IS PRINTED, so the spec stores none and "
+                  "`measured` stays False. The profile's halation gains stay at "
+                  "zero, which this citation now explains rather than merely "
+                  "asserts.")),
+        ParamSource(
+            param='curves.g.gamma', tier=3, status='estimated',
+            unit='dimensionless',
+            conditions='class estimate for a 1930s ultra-rapid orthochromatic plate',
+            source='',
+            confidence='low',
+            note=("⚠ THE SOURCE SAYS THIS NUMBER SHOULD NOT BE ONE NUMBER. p.213: "
+                  "«Le temps du developpement a une tres grande influence sur la "
+                  "gradation: un developpement court conduira a l'obtention de "
+                  "negatifs legers et doux, quoique complets ... Si le "
+                  "developpement est pousse a fond, on obtiendra des negatifs "
+                  "bien couverts, d'une gradation normale», and the developer "
+                  "choice moves it too (diamidophenol softer than "
+                  "genol-hydroquinone). That is a ProcessVariant ladder with no "
+                  "numbers attached to its rungs, so none is stored. The single "
+                  "stored gamma 0.700 is the estimate it always was, and the "
+                  "source's own claim of «une gradation tres etendue ... une "
+                  "tolerance de pose rarement obtenue» is consistent with a soft "
+                  "curve without measuring one.")),
+        ParamSource(
             param='curves.g.dmin', tier=3, status='assumed',
             unit='density',
             conditions='green record, base+fog',
             confidence='low',
             note="provenance.fitted_from is 'analogy': the curve was taken from a comparable stock. ⚠ Nothing about this curve is a measurement of THIS film."),
-        ParamSource(
-            param='curves.g.gamma', tier=3, status='assumed',
-            unit='dimensionless',
-            conditions='green record, softplus fit; see ToneCurve.is_degenerate before reading gamma as a slope',
-            confidence='low',
-            note="provenance.fitted_from is 'analogy': the curve was taken from a comparable stock. ⚠ Nothing about this curve is a measurement of THIS film. ⚠ gamma is a MODEL COEFFICIENT. Where (shoulder_x - toe_x) < 2.5*max(toe_k, shoulder_k) it is not a slope at all -- use ToneCurve.mid_slope."),
         ParamSource(
             param='grain.clump_um_g', tier=3, status='assumed',
             unit='um',
@@ -48572,7 +52458,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Polaroid, 'Film Data Sheet - Type 52 / Polapan Pro 100', undated (PDF 1999), p3 spectral sensitivity panel, traced from the page's vector path 2026-08-31 (queue E2)",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.180, 0.268, 0.552), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.198, 0.223, 0.579), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'POLAROID_55_PN_NEG': (
         ParamSource(
@@ -48631,7 +52517,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Polaroid, 'Film Data Sheet - Type 55 P/N', undated (PDF 1999), p3 spectral sensitivity panel, traced from the page's vector path 2026-08-31 (queue E2)",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.269, 0.336, 0.395), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.300, 0.347, 0.353), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'POLAROID_664': (
         ParamSource(
@@ -48688,7 +52574,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Polaroid, 'Film Data Sheet - Polapan Pro 100 B&W (T-54, T-554, T-664, T-804)', undated (PDF 1999)",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.301, 0.295, 0.403), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.351, 0.293, 0.356), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'POLAROID_667': (
         ParamSource(
@@ -48745,7 +52631,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Polaroid, 'Film Data Sheet - T-87, T-667 & Viva 3000 Instant B&W Peel-Apart Pack Films', undated (PDF 1999)",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.253, 0.299, 0.448), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.280, 0.560, 0.160), a class default. This cell prints (0.263, 0.256, 0.481), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'POLAROID_SX70': (
         ParamSource(
@@ -48919,7 +52805,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Rollei/MACO, 'ROLLEI R3 - Product information and instructions for use', GBA R3_D,GB, 21 October 2004",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.320, 0.400, 0.280), a class default. This cell prints (0.250, 0.293, 0.458), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.320, 0.400, 0.280), a class default. This cell prints (0.251, 0.268, 0.481), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'ROLLEI_RETRO_400': (
         ParamSource(
@@ -48978,7 +52864,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
             source="Rollei GmbH, 'ROLLEI RETRO 100/400' technical data sheet, January 2008",
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.160, 0.440, 0.400), a class default. This cell prints (0.260, 0.340, 0.400), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.160, 0.440, 0.400), a class default. This cell prints (0.287, 0.365, 0.348), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'SOVIET_PANCHROM_1939': (
         ParamSource(
@@ -50495,7 +54381,15 @@ _CALLIER_NOTE_CHROMO = (
 #:
 #: \u26a0 DEFINED HERE, NOT BESIDE `_DMIN_LADDER`, because the loop below runs at
 #: import time and the tables down there are built later in the file.
-_CHROMOGENIC_MONO = frozenset({"KODAK_BW400CN", "KODAK_T400CN"})
+_CHROMOGENIC_MONO = frozenset({"KODAK_BW400CN", "KODAK_T400CN",
+                               # ⚠ ILFORD XP1-400, 2026-09-24c. Its
+                               # manual states the property this set
+                               # exists for, in as many words: "a dye
+                               # image, unlike a silver image, will not
+                               # scatter any of the light it transmits.
+                               # The Callier effect ... does not come
+                               # into play."
+                               "ILFORD_XP1_400"})
 
 for _p in FILM_PROFILES:
     _have = {_e.param for _e in _PARAM_SOURCES.get(_p.name, ())}
@@ -50738,7 +54632,7 @@ _PRO_800Z_RECORDS = (
         conditions='section 20, Daylight, C-41',
         source=_PRO_800Z_SRC,
         confidence='medium',
-        note="⚠⚠ TRACED 2026-09-06c, AND THIS RETRACTS A REFUSAL I WROTE EARLIER THE SAME DAY. The refusal argued that assuming 1-200 cycles/mm and 2-150 % puts the abscissa ladder at 83 px per decade against the ordinate's 62 and that both cannot be true. THAT ARGUMENT IS INVALID: the two axes span 2.301 and 1.875 decades, so their px-per-decade are not required to agree and their disagreement is not evidence of anything. Read on its own rungs the panel calibrates cleanly -- eleven ordinate rules (150/100/70/50/30/20/10/7/5/3/2 %) at 87.38 pt per decade, worst residual 0.59 pt, and seven abscissa rules (1/5/10/20/50/100/200 c/mm) at 84.86 pt, worst 2.13 pt. ⚠ WHAT MADE ME LOOK AGAIN WAS ANOTHER SHEET, exactly as with F-4001's P3200 panel: AF3-100E (FUJICOLOR PORTRAIT NPZ 800) prints this same drawing as a bilevel raster with its labels intact. Never write a refusal from a single file when the corpus holds another. ⚠ ONE DRAWING, TWO EXTRACTIONS, 0.91 % APART: this vector trace (652 samples off two Beziers) and the raster twin agree to a maximum of 0.91 % response and an rms of 0.51 % over 1.58 decades, at DIFFERENT panel aspect ratios -- 198.1 x 164.1 pt here against a square 170.1 x 170.1 pt there. f50 46.1 c/mm against the estimate 45.0 this profile shipped with, the closest any estimate in this database has come to its measurement (2.4 %); q 1.86 at rms 0.0175 against the Gaussian's 0.0843. The +14.0 % adjacency overshoot is not adopted."),
+        note="⚠⚠ TRACED 2026-09-06c, AND THIS RETRACTS A REFUSAL RECORDED EARLIER THE SAME DAY. The refusal argued that assuming 1-200 cycles/mm and 2-150 % puts the abscissa ladder at 83 px per decade against the ordinate's 62 and that both cannot be true. THAT ARGUMENT IS INVALID: the two axes span 2.301 and 1.875 decades, so their px-per-decade are not required to agree and their disagreement is not evidence of anything. Read on its own rungs the panel calibrates cleanly -- eleven ordinate rules (150/100/70/50/30/20/10/7/5/3/2 %) at 87.38 pt per decade, worst residual 0.59 pt, and seven abscissa rules (1/5/10/20/50/100/200 c/mm) at 84.86 pt, worst 2.13 pt. ⚠ WHAT MADE ME LOOK AGAIN WAS ANOTHER SHEET, exactly as with F-4001's P3200 panel: AF3-100E (FUJICOLOR PORTRAIT NPZ 800) prints this same drawing as a bilevel raster with its labels intact. Never write a refusal from a single file when the corpus holds another. ⚠ ONE DRAWING, TWO EXTRACTIONS, 0.91 % APART: this vector trace (652 samples off two Beziers) and the raster twin agree to a maximum of 0.91 % response and an rms of 0.51 % over 1.58 decades, at DIFFERENT panel aspect ratios -- 198.1 x 164.1 pt here against a square 170.1 x 170.1 pt there. f50 46.1 c/mm against the estimate 45.0 this profile shipped with, the closest any estimate in this database has come to its measurement (2.4 %); q 1.86 at rms 0.0175 against the Gaussian's 0.0843. The +14.0 % adjacency overshoot is not adopted."),
     ParamSource(
         param='reciprocity_table', tier=1, status='stated',
         unit='stops of lens opening',
@@ -52039,6 +55933,31 @@ _TI0835_F50_VISUAL_NOT_ADOPTED = 46.9
 #: [T1/T2] tag's T2 half stands.
 _TI0835_DMIN = (0.173, 0.531, 0.962)
 
+#: ⚠ THE SHARED CITATION FOR THE FIVE FERRANIA P30 LEGS. Written once because
+#: `SensitometryReport.validate` refuses a record with numbers and no source,
+#: and five copies of a 900-byte string would be paid for five times in the
+#: emitted C++.
+_P30_ALFA_REPORT_SRC = (
+    "«Ferrania P30 alfa», sensitometric test report, test date 05/13/17, "
+    "14 pages. Pages 4-8 print this leg's analysis block -- B+F, Emax, "
+    "IDmax, Emin, IDmin, DR, LogE, Avg. G, Paper ES, SBR, EFS, the speed "
+    "method and the flare density. ⚠ TWO QUANTITIES ARE TRACED RATHER THAN "
+    "PRINTED, 2026-09-25: the Zone N number, which the report only PLOTS "
+    "(pages 11 and 14), and the sub-step part of the effective film speed, "
+    "which the analysis block prints as a qualifier -- «32+», «50-», «64--» "
+    "-- and the page-12/14 log axis resolves to a number. ⚠ THE TRACE IS "
+    "LICENSED BY THE PAGES WHERE THE ANSWER IS ALREADY KNOWN: the same "
+    "tracer on pages 9 and 10 returns the PRINTED SBR to 0.04 and the "
+    "PRINTED Avg. G to 0.00, and the EFS axis reproduces its own nine-rung "
+    "ladder to 0.08 px. ⚠ AND THE N NUMBER IS PLOTTED TWICE, against time on "
+    "page 11 and against effective speed on page 14; the two readings agree "
+    "to 0.002. ⚠ THE REPORT'S OWN N CONVENTION, derived from these five "
+    "points rather than assumed: N falls to zero at SBR 7.0 -- the "
+    "Zone-System normal -- at about 0.56 N per stop of SBR, which is NOT the "
+    "one-N-per-stop rule of thumb and is why the numbers are stored rather "
+    "than computed. ⚠ PRE-PRODUCTION ALPHA STOCK: «Pellicola di "
+    "pre-produzione, stage alfa, difettata»")
+
 _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
     # -- ЦО-Т-90ЛМ AND ЦО-90Л: TWO SANCTIONED REGIMES, AND DELIBERATELY NOT
     # -- RECORDED HERE, 2026-09-23 -------------------------------------------
@@ -52766,6 +56685,627 @@ _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
                 "its traces reversed. See the `_sign_ticks` docstring"),
         ),
     ),
+    # =======================================================================
+    #  FERRANIA P30 alfa -- five developments from one sensitometric test,
+    #  05/13/17, D-76 1+1 at 20 C. ⚠ EVERY LEG CARRIES push_stops = 0 AND
+    #  THAT IS CORRECT: the report varied DEVELOPMENT TIME at a fixed ISO 80,
+    #  it did not push. Contrast moves from Avg. G 0.55 to 0.93 across the
+    #  series while the exposure index never changes, which is precisely the
+    #  distinction `push_stops` exists to keep -- a longer development is not
+    #  a push unless the film was metered faster.
+    # =======================================================================
+    "FERRANIA_P30": (
+        # ⚠ PROCESSING BLOCK FILLED 2026-09-25f. It was ProcessingSpec("",
+        # "", 0.0, 0.0, "") on every leg while the report prints the whole
+        # block in its page header on all fourteen pages. See
+        # doc/AUDIT_2026-09-25_ferrania_p30_md_recommendations.md §0.1.
+        # ⚠⚠ push_stops IS DERIVED FROM THE MEASURED SPEED RATIO, by owner
+        # decision 2026-09-25. The schema's `push_stops == 0` MEANS "a
+        # different chemistry", and these five legs are ONE chemistry with
+        # more time, so 0 misdescribed them; the schema also prefers a PRINTED
+        # stop count and this report prints Zone N numbers instead, so the
+        # derivation is stated rather than passed off as printed.
+        #
+        # ⚠ THE REFERENCE IS THE PROFILE'S OWN BOX SPEED, NOT THE DEFAULT
+        # LEG'S, AND THE SCHEMA DECIDES THAT. `FilmProfile.validate` requires
+        # `exposure_index == profile EI x 2**push_stops` to 2 %, because that
+        # is what the field means: stops relative to the film's own rating.
+        # The first draft referenced the 11-minute default (EFS 33.63) and the
+        # guard refused it at once -- correctly. So each leg carries
+        # log2(EI_leg / 80), where EI_leg is the ISO-ladder step that leg's
+        # MEASURED effective film speed rounds to. The speed ratio is the
+        # measurement; the ladder is the quantisation the schema works in.
+        #
+        # ⚠ The 11-minute leg kept 0.0 while it WAS the default, because the
+        # schema refuses a push that is also the default. ⚠ 2026-09-27, owner
+        # decision: the default moved to Ferrania's own D-76 STOCK curve (the
+        # sixth variant below), so the 11-minute leg now follows the same
+        # rule as the other four: log2(32 / 80) = -1.3219.
+        ProcessVariant(
+            name="D-76 1+1, 5 min at 20 C",
+            process="BW-negative",
+            exposure_index=12,
+            push_stops=-2.7370,   # log2(12 / 80), the ISO-ladder
+            #                      step this leg's measured EFS
+            #                      12.01 rounds to, against the
+            #                      profile's own box speed
+            processing=ProcessingSpec(
+                developer="D-76", dilution="1+1", minutes=5.0,
+                celsius=20.0,
+                agitation="continua primo 30s poi 6 ribaltamenti ogni 30s "
+                "(continuous for the first 30 s, then 6 inversions "
+                "every 30 s); 300 ml"),
+            curves=_mono(ToneCurve(0.2432, 0.7286, -1.312, 0.301, 1.210, 0.020, measured=_p30_measured(5))),
+            report=SensitometryReport(
+                avg_gradient=0.55, subject_brightness_range=6.1,
+                effective_film_speed=12.01,
+                effective_film_speed_label="12",
+                zone_n_number=0.527, base_fog=0.27,
+                log_exposure_range=1.82,
+                exposure_min=1.57, exposure_max=-0.25,
+                density_min=0.37, density_max=1.37,
+                density_range=1.00,
+                paper_exposure_scale=1.00, paper_speed_point=2.40,
+                flare_density=0.0200, speed_method="0.1 over FB+F",
+                source=_P30_ALFA_REPORT_SRC),
+            source=("«Ferrania P30 alfa», sensitometric test report, test date 05/13/17, 14 pages, page 2 (the density table) and pages 4-8 (per-curve analysis). D-76 1+1, 20 C, 300 ml, ISO 80, flare density 0.0200, speed method '0.1 over FB+F'. Fitted 2026-09-24 from the PRINTED densities -- 21 step-tablet values against measured density -- so nothing here is traced. "
+                    "This leg: Avg. G = 0.55, SBR = 6.1, fit rms 0.0065 D. "
+                    "⚠ Avg. G is the report's own average gradient over the "
+                    "subject brightness range and is NOT ToneCurve.gamma, "
+                    "which is an asymptotic slope; both are printed here so "
+                    "neither is mistaken for the other."),
+        ),
+        # ⚠ PROCESSING BLOCK FILLED 2026-09-25f. It was ProcessingSpec("",
+        # "", 0.0, 0.0, "") on every leg while the report prints the whole
+        # block in its page header on all fourteen pages. See
+        # doc/AUDIT_2026-09-25_ferrania_p30_md_recommendations.md §0.1.
+        # ⚠⚠ push_stops IS DERIVED FROM THE MEASURED SPEED RATIO, by owner
+        # decision 2026-09-25. The schema's `push_stops == 0` MEANS "a
+        # different chemistry", and these five legs are ONE chemistry with
+        # more time, so 0 misdescribed them; the schema also prefers a PRINTED
+        # stop count and this report prints Zone N numbers instead, so the
+        # derivation is stated rather than passed off as printed.
+        #
+        # ⚠ THE REFERENCE IS THE PROFILE'S OWN BOX SPEED, NOT THE DEFAULT
+        # LEG'S, AND THE SCHEMA DECIDES THAT. `FilmProfile.validate` requires
+        # `exposure_index == profile EI x 2**push_stops` to 2 %, because that
+        # is what the field means: stops relative to the film's own rating.
+        # The first draft referenced the 11-minute default (EFS 33.63) and the
+        # guard refused it at once -- correctly. So each leg carries
+        # log2(EI_leg / 80), where EI_leg is the ISO-ladder step that leg's
+        # MEASURED effective film speed rounds to. The speed ratio is the
+        # measurement; the ladder is the quantisation the schema works in.
+        #
+        # ⚠ The 11-minute leg keeps 0.0 because it IS the default, and the
+        # schema refuses a push that is also the default: the default is the
+        # development the profile's own curves represent.
+        ProcessVariant(
+            name="D-76 1+1, 8 min at 20 C",
+            process="BW-negative",
+            exposure_index=25,
+            push_stops=-1.6781,   # log2(25 / 80), the ISO-ladder
+            #                      step this leg's measured EFS
+            #                      25.07 rounds to, against the
+            #                      profile's own box speed
+            processing=ProcessingSpec(
+                developer="D-76", dilution="1+1", minutes=8.0,
+                celsius=20.0,
+                agitation="continua primo 30s poi 6 ribaltamenti ogni 30s "
+                "(continuous for the first 30 s, then 6 inversions "
+                "every 30 s); 300 ml"),
+            curves=_mono(ToneCurve(0.2289, 1.1872, -1.308, 0.402, 1.610, 0.020, measured=_p30_measured(8))),
+            report=SensitometryReport(
+                avg_gradient=0.66, subject_brightness_range=5.0,
+                effective_film_speed=25.07,
+                effective_film_speed_label="25",
+                zone_n_number=1.117, base_fog=0.28,
+                log_exposure_range=1.51,
+                exposure_min=1.89, exposure_max=0.38,
+                density_min=0.38, density_max=1.38,
+                density_range=1.00,
+                paper_exposure_scale=1.00, paper_speed_point=2.40,
+                flare_density=0.0200, speed_method="0.1 over FB+F",
+                source=_P30_ALFA_REPORT_SRC),
+            source=("«Ferrania P30 alfa», sensitometric test report, test date 05/13/17, 14 pages, page 2 (the density table) and pages 4-8 (per-curve analysis). D-76 1+1, 20 C, 300 ml, ISO 80, flare density 0.0200, speed method '0.1 over FB+F'. Fitted 2026-09-24 from the PRINTED densities -- 21 step-tablet values against measured density -- so nothing here is traced. "
+                    "This leg: Avg. G = 0.66, SBR = 5.0, fit rms 0.0097 D. "
+                    "⚠ Avg. G is the report's own average gradient over the "
+                    "subject brightness range and is NOT ToneCurve.gamma, "
+                    "which is an asymptotic slope; both are printed here so "
+                    "neither is mistaken for the other."),
+        ),
+        # ⚠ THE DEFAULT LEG UNTIL 2026-09-27. The default moved, by owner
+        # decision, to Ferrania's own D-76 STOCK curve (the sixth variant),
+        # so this leg now carries log2(32 / 80) like the other four and its
+        # processing block is no longer the one in `_PROCESSING`. It keeps
+        # its measured table: it is still the alfa report's 11-minute column.
+        ProcessVariant(
+            name="D-76 1+1, 11 min at 20 C",
+            process="BW-negative",
+            is_default=False,
+            processing=ProcessingSpec(
+                developer="D-76", dilution="1+1", minutes=11.0,
+                celsius=20.0,
+                agitation="continua primo 30s poi 6 ribaltamenti ogni 30s "
+                "(continuous for the first 30 s, then 6 inversions "
+                "every 30 s); 300 ml"),
+            exposure_index=32,
+            push_stops=-1.3219,  # log2(32 / 80), see the note above
+            curves=_mono(ToneCurve(0.2368, 1.3342, -1.479, 0.364, 1.410, 0.020, measured=_p30_measured(11))),
+            report=SensitometryReport(
+                avg_gradient=0.73, subject_brightness_range=4.6,
+                effective_film_speed=33.63,
+                effective_film_speed_label="32+",
+                zone_n_number=1.391, base_fog=0.29,
+                log_exposure_range=1.37,
+                exposure_min=2.02, exposure_max=0.65,
+                density_min=0.39, density_max=1.39,
+                density_range=1.00,
+                paper_exposure_scale=1.00, paper_speed_point=2.40,
+                flare_density=0.0200, speed_method="0.1 over FB+F",
+                source=_P30_ALFA_REPORT_SRC),
+            source=("«Ferrania P30 alfa», sensitometric test report, test date 05/13/17, 14 pages, page 2 (the density table) and pages 4-8 (per-curve analysis). D-76 1+1, 20 C, 300 ml, ISO 80, flare density 0.0200, speed method '0.1 over FB+F'. Fitted 2026-09-24 from the PRINTED densities -- 21 step-tablet values against measured density -- so nothing here is traced. "
+                    "This leg: Avg. G = 0.73, SBR = 4.6, fit rms 0.0107 D. "
+                    "⚠ Avg. G is the report's own average gradient over the "
+                    "subject brightness range and is NOT ToneCurve.gamma, "
+                    "which is an asymptotic slope; both are printed here so "
+                    "neither is mistaken for the other."),
+        ),
+        # ⚠ PROCESSING BLOCK FILLED 2026-09-25f. It was ProcessingSpec("",
+        # "", 0.0, 0.0, "") on every leg while the report prints the whole
+        # block in its page header on all fourteen pages. See
+        # doc/AUDIT_2026-09-25_ferrania_p30_md_recommendations.md §0.1.
+        # ⚠⚠ push_stops IS DERIVED FROM THE MEASURED SPEED RATIO, by owner
+        # decision 2026-09-25. The schema's `push_stops == 0` MEANS "a
+        # different chemistry", and these five legs are ONE chemistry with
+        # more time, so 0 misdescribed them; the schema also prefers a PRINTED
+        # stop count and this report prints Zone N numbers instead, so the
+        # derivation is stated rather than passed off as printed.
+        #
+        # ⚠ THE REFERENCE IS THE PROFILE'S OWN BOX SPEED, NOT THE DEFAULT
+        # LEG'S, AND THE SCHEMA DECIDES THAT. `FilmProfile.validate` requires
+        # `exposure_index == profile EI x 2**push_stops` to 2 %, because that
+        # is what the field means: stops relative to the film's own rating.
+        # The first draft referenced the 11-minute default (EFS 33.63) and the
+        # guard refused it at once -- correctly. So each leg carries
+        # log2(EI_leg / 80), where EI_leg is the ISO-ladder step that leg's
+        # MEASURED effective film speed rounds to. The speed ratio is the
+        # measurement; the ladder is the quantisation the schema works in.
+        #
+        # ⚠ The 11-minute leg keeps 0.0 because it IS the default, and the
+        # schema refuses a push that is also the default: the default is the
+        # development the profile's own curves represent.
+        ProcessVariant(
+            name="D-76 1+1, 16 min at 20 C",
+            process="BW-negative",
+            exposure_index=50,
+            push_stops=-0.6781,   # log2(50 / 80), the ISO-ladder
+            #                      step this leg's measured EFS
+            #                      48.71 rounds to, against the
+            #                      profile's own box speed
+            processing=ProcessingSpec(
+                developer="D-76", dilution="1+1", minutes=16.0,
+                celsius=20.0,
+                agitation="continua primo 30s poi 6 ribaltamenti ogni 30s "
+                "(continuous for the first 30 s, then 6 inversions "
+                "every 30 s); 300 ml"),
+            curves=_mono(ToneCurve(0.2409, 1.6323, -1.645, 0.296, 1.610, 0.020, measured=_p30_measured(16))),
+            report=SensitometryReport(
+                avg_gradient=0.83, subject_brightness_range=4.0,
+                effective_film_speed=48.71,
+                effective_film_speed_label="50-",
+                zone_n_number=1.715, base_fog=0.29,
+                log_exposure_range=1.2,
+                exposure_min=2.18, exposure_max=0.98,
+                density_min=0.39, density_max=1.39,
+                density_range=1.00,
+                paper_exposure_scale=1.00, paper_speed_point=2.40,
+                flare_density=0.0200, speed_method="0.1 over FB+F",
+                source=_P30_ALFA_REPORT_SRC),
+            source=("«Ferrania P30 alfa», sensitometric test report, test date 05/13/17, 14 pages, page 2 (the density table) and pages 4-8 (per-curve analysis). D-76 1+1, 20 C, 300 ml, ISO 80, flare density 0.0200, speed method '0.1 over FB+F'. Fitted 2026-09-24 from the PRINTED densities -- 21 step-tablet values against measured density -- so nothing here is traced. "
+                    "This leg: Avg. G = 0.83, SBR = 4.0, fit rms 0.0116 D. "
+                    "⚠ Avg. G is the report's own average gradient over the "
+                    "subject brightness range and is NOT ToneCurve.gamma, "
+                    "which is an asymptotic slope; both are printed here so "
+                    "neither is mistaken for the other."),
+        ),
+        # ⚠ PROCESSING BLOCK FILLED 2026-09-25f. It was ProcessingSpec("",
+        # "", 0.0, 0.0, "") on every leg while the report prints the whole
+        # block in its page header on all fourteen pages. See
+        # doc/AUDIT_2026-09-25_ferrania_p30_md_recommendations.md §0.1.
+        # ⚠⚠ push_stops IS DERIVED FROM THE MEASURED SPEED RATIO, by owner
+        # decision 2026-09-25. The schema's `push_stops == 0` MEANS "a
+        # different chemistry", and these five legs are ONE chemistry with
+        # more time, so 0 misdescribed them; the schema also prefers a PRINTED
+        # stop count and this report prints Zone N numbers instead, so the
+        # derivation is stated rather than passed off as printed.
+        #
+        # ⚠ THE REFERENCE IS THE PROFILE'S OWN BOX SPEED, NOT THE DEFAULT
+        # LEG'S, AND THE SCHEMA DECIDES THAT. `FilmProfile.validate` requires
+        # `exposure_index == profile EI x 2**push_stops` to 2 %, because that
+        # is what the field means: stops relative to the film's own rating.
+        # The first draft referenced the 11-minute default (EFS 33.63) and the
+        # guard refused it at once -- correctly. So each leg carries
+        # log2(EI_leg / 80), where EI_leg is the ISO-ladder step that leg's
+        # MEASURED effective film speed rounds to. The speed ratio is the
+        # measurement; the ladder is the quantisation the schema works in.
+        #
+        # ⚠ The 11-minute leg keeps 0.0 because it IS the default, and the
+        # schema refuses a push that is also the default: the default is the
+        # development the profile's own curves represent.
+        ProcessVariant(
+            name="D-76 1+1, 23 min at 20 C",
+            process="BW-negative",
+            exposure_index=64,
+            push_stops=-0.3219,   # log2(64 / 80), the ISO-ladder
+            #                      step this leg's measured EFS
+            #                      58.58 rounds to, against the
+            #                      profile's own box speed
+            processing=ProcessingSpec(
+                developer="D-76", dilution="1+1", minutes=23.0,
+                celsius=20.0,
+                agitation="continua primo 30s poi 6 ribaltamenti ogni 30s "
+                "(continuous for the first 30 s, then 6 inversions "
+                "every 30 s); 300 ml"),
+            curves=_mono(ToneCurve(0.2385, 2.0683, -1.659, 0.307, 1.610, 0.020, measured=_p30_measured(23))),
+            report=SensitometryReport(
+                avg_gradient=0.93, subject_brightness_range=3.6,
+                effective_film_speed=58.58,
+                effective_film_speed_label="64--",
+                zone_n_number=1.943, base_fog=0.29,
+                log_exposure_range=1.08,
+                exposure_min=2.26, exposure_max=1.18,
+                density_min=0.39, density_max=1.39,
+                density_range=1.00,
+                paper_exposure_scale=1.00, paper_speed_point=2.40,
+                flare_density=0.0200, speed_method="0.1 over FB+F",
+                source=_P30_ALFA_REPORT_SRC),
+            source=("«Ferrania P30 alfa», sensitometric test report, test date 05/13/17, 14 pages, page 2 (the density table) and pages 4-8 (per-curve analysis). D-76 1+1, 20 C, 300 ml, ISO 80, flare density 0.0200, speed method '0.1 over FB+F'. Fitted 2026-09-24 from the PRINTED densities -- 21 step-tablet values against measured density -- so nothing here is traced. "
+                    "This leg: Avg. G = 0.93, SBR = 3.6, fit rms 0.0103 D. "
+                    "⚠ Avg. G is the report's own average gradient over the "
+                    "subject brightness range and is NOT ToneCurve.gamma, "
+                    "which is an asymptotic slope; both are printed here so "
+                    "neither is mistaken for the other."),
+        ),
+        # ⚠⚠ THE SIXTH LEG IS NOT FROM THE ALFA REPORT AND NOT D-76 1+1.
+        # Added 2026-09-25. The five above are one third party's 2017 test of
+        # PRE-PRODUCTION alpha stock at D-76 **1+1**; this one is Film
+        # Ferrania's own drawing of the ORIGINAL P30 at D-76 **stock**, and
+        # it is the only manufacturer characteristic curve this emulsion has.
+        #
+        # It is the DASHED black member of the three-film comparison plot on
+        # page 2 of «Curve caratteristiche e sensibilita spettrali», legend
+        # «P30», beside «P30 new» (solid) and «P33» (red). The solid member
+        # of that same plot is traced independently and reproduces the page-1
+        # «P 30 New» drawing to 0.007 D, which is what establishes that the
+        # dashed member is being read off a correctly calibrated pair of axes
+        # rather than guessed at.
+        #
+        # ⚠ WHY IT IS NOT THE PROFILE DEFAULT. The default is the alfa
+        # report's 11-minute leg, chosen because it is the nearest MEASURED
+        # development to Ferrania's own recommended ID-11 1:1 time and
+        # because that report prints numbers rather than a plot. This leg is
+        # a trace of a drawing, one development only, no base+fog printed and
+        # no analysis block -- better provenance (the maker) but thinner data.
+        # Both are kept; neither is averaged into the other.
+        #
+        # Conditions from the sheet's own caption: «sviluppo in Kodak D-76
+        # stock a 20°C - 8\' a sensibilita nominali». 0.15 log H per
+        # sensitometer step, ordinate «Su DMIN», dmin 0.26 carried from the
+        # alfa report's measured base+fog because the sheet prints none.
+        # ⚠ Steps 20 is dropped and the shoulder pinned at the family's
+        # 1.610 / 0.020 rather than fitted: the dashed trace gains only
+        # 0.040 D between steps 19 and 20 against 0.158 between 18 and 19,
+        # which is the drawing's right-hand frame and not a shoulder.
+        # Fit residual rms 0.0123 D over steps 7-19; straight-line gamma
+        # 1.126 against the 8-minute 1+1 leg's 1.187 -- stock strength for
+        # the same eight minutes lands almost exactly where the diluted
+        # developer does, which is the one internal cross-check available
+        # between the two documents.
+        # ⚠⚠ THE DEFAULT LEG SINCE 2026-09-27, OWNER DECISION: Film
+        # Ferrania's own curve for this emulsion, at nominal speed. The
+        # profile's `curves` and `_PROCESSING["FERRANIA_P30"]` are this leg.
+        ProcessVariant(
+            name="D-76 stock, 8 min at 20 C",
+            process="BW-negative",
+            is_default=True,
+            exposure_index=80,
+            # ⚠ push_stops 0 IS CORRECT HERE AND IS NOT THE SAME 0 AS
+            # THE 11-MINUTE LEG'S. This variant is D-76 at STOCK
+            # strength against the other five at 1+1: a different
+            # chemistry, which is exactly what the schema says 0 means.
+            push_stops=0,
+            processing=ProcessingSpec(
+                developer="D-76", dilution="stock", minutes=8.0,
+                celsius=20.0),
+            curves=_mono(ToneCurve(0.2600, 1.1257, -1.4114, 0.2265, 1.610, 0.020)),
+            source=("Film Ferrania S.r.l., «Curve caratteristiche e "
+                    "sensibilita spettrali», 2 pages, undated, page 2, the "
+                    "DASHED «P30» trace of the three-film comparison plot "
+                    "(«Riepilogo delle 3 tipologie di pellicole "
+                    "pancromatiche»). Machine-traced 2026-09-25, 173 columns "
+                    "after dash-gap rejection, steps 6.5-19.9. Caption: "
+                    "Kodak D-76 stock, 20 C, 8 min, at nominal speed. Axis "
+                    "convention 0.15 log H per sensitometer step (the "
+                    "standard 21-step tablet increment, confirmed for this "
+                    "maker's own testing by the alfa report's printed tablet "
+                    "densities 0.04 ... 3.03, mean increment 0.1495); "
+                    "ordinate is «Su DMIN» and dmin 0.26 is carried from the "
+                    "alfa report's measured base+fog, the sheet printing "
+                    "none. rms 0.0123 D over steps 7-19, straight-line gamma "
+                    "1.126; step 20 dropped and the shoulder pinned at the "
+                    "family's 1.610 / 0.020 rather than fitted. ⚠ THE "
+                    "SOLID member of the same plot is «P30 new», i.e. the "
+                    "Mk2, and is stored on FERRANIA_P30_MK2 -- this profile "
+                    "takes only the dashed one. ⚠ RE-TRACED 2026-09-27 from "
+                    "the SAME plot as reprinted on the 2026 P.F.G. range "
+                    "sheet, page 3, an independent 129 ppi page "
+                    "raster: 173 columns, steps 7.4-19.0, rms 0.0140 D "
+                    "against this fit (a refit to that raster alone gives "
+                    "gamma 1.153). Both rasters are re-traced on every build "
+                    "by ferrania_vendor_sheets.py"),
+        ),
+    ),
+    # =======================================================================
+    #  KODAK T-MAX P3200 (TMZ) -- the F-32 development-time family, traced
+    #  2026-09-24. Four legs, one panel, page 24: Exposure Daylight, Process
+    #  Small Tank, KODAK T-MAX Developer at 75 F (24 C), Densitometry Diffuse
+    #  Visual. The EI column is F-32 page 19's own small-tank table read at
+    #  75 F, not an inference: 6 1/2 min is EI 800, 7 min is EI 1600 and
+    #  9 1/2 min is EI 3200, so the plotted 6 / 8 / 10 / 12 bracket roughly
+    #  EI 800 / 2000 / 3600 / 8000. Those interpolated indexes are NOT stored
+    #  as `exposure_index` -- only the two the table states outright are --
+    #  because a speed read off a curve between two printed rows is a guess
+    #  wearing a number's clothes.
+    # =======================================================================
+    "KODAK_TMAX_P3200": (
+        # ⚠ THE NOMINAL INDEX ON EACH LEG IS THE STOP LADDER FROM THIS PROFILE'S OWN EI 1000, NOT THE SHEET'S EI COLUMN, AND THE SCHEMA FORCES THAT: `ProcessVariant.validate` requires exposure_index to equal the base index shifted by push_stops, so the legs must read 1000 / 2000 / 4000 / 8000. F-32 page 19's own rows are 800 / 1600 / 3200 / 6400 at 6 1/2 / 7 / 9 1/2 / 11 minutes, which is a slightly different ladder because Kodak's speeds are not spaced by exact stops. The DEVELOPMENT TIME is the identity of each leg here; the index beside it is the schema's arithmetic, and the sheet's real figures are quoted in each source string.
+        # ⚠ THE 6-MINUTE LEG IS NOT STORED AS A VARIANT: it is the profile's
+        # own curve, for the reason given under PJ400 below. The ladder here
+        # therefore starts at 8 minutes, and each leg is a genuine departure
+        # from what the stock renders by default.
+        ProcessVariant(
+            name="T-MAX Developer, 6 min at 75 F",
+            process="BW-negative",
+            is_default=True,
+            exposure_index=1000,
+            push_stops=0,
+            curves=_mono(ToneCurve(0.301, 0.575, -3.007, 0.160, 1.85, 0.40)),
+            source=("Eastman Kodak Company, «KODAK T-MAX Professional "
+                    "Films», KODAK Publication No. F-32, March 2002, page "
+                    "24, 6-minute leg; fit rms 0.0133 D. The leg nearest "
+                    "this profile's stored EI 1000 -- page 19 gives 6 1/2 "
+                    "min for EI 800 and 7 min for EI 1600 at 75 F -- and "
+                    "therefore the default. Curves identical to the "
+                    "profile's own, as schema v37 requires."),
+        ),
+        ProcessVariant(
+            name="T-MAX Developer, 8 min at 75 F",
+            process="BW-negative",
+            exposure_index=2000,
+            push_stops=1,
+            curves=_mono(ToneCurve(0.321, 0.739, -3.082, 0.110, 1.85, 0.40)),
+            source=("F-32, March 2002, page 24, 8-minute leg; fit rms 0.0318 "
+                    "D. ⚠ THE EI 2000 IS INTERPOLATED BETWEEN PAGE 19'S "
+                    "PRINTED ROWS (EI 1600 -> 7 min, EI 3200 -> 9 1/2 min) "
+                    "and is recorded as the variant's nominal index only; no "
+                    "speed claim is stored on the profile from it."),
+        ),
+        ProcessVariant(
+            name="T-MAX Developer, 10 min at 75 F",
+            process="BW-negative",
+            exposure_index=4000,
+            push_stops=2,
+            curves=_mono(ToneCurve(0.361, 0.828, -3.195, 0.050, 1.85, 0.40)),
+            source=("F-32, March 2002, page 24, 10-minute leg; fit rms 0.0291 "
+                    "D. This is the leg closest to the film's ADVERTISED "
+                    "EI 3200, for which page 19 prints 9 1/2 min at 75 F -- "
+                    "i.e. the development the product name refers to."),
+        ),
+        ProcessVariant(
+            name="T-MAX Developer, 12 min at 75 F",
+            process="BW-negative",
+            exposure_index=8000,
+            push_stops=3,
+            curves=_mono(ToneCurve(0.391, 1.139, -2.895, 0.510, 1.85, 0.40)),
+            source=("F-32, March 2002, page 24, 12-minute leg. ⚠ THE WORST "
+                    "FIT OF THE FOUR, rms 0.1319 D against 0.013-0.032 for "
+                    "the others, and it is stored flagged rather than "
+                    "silently: at this development the curve shoulders inside "
+                    "the plotted range and `measure_char`, which holds the "
+                    "shoulder six decades out by design, cannot follow it. "
+                    "Re-fit with the full six-parameter fitter before relying "
+                    "on this leg's highlights. Page 19 prints 11 min for "
+                    "EI 6400 at 75 F, which is what the nominal index here "
+                    "refers to."),
+        ),
+    ),
+    # =======================================================================
+    #  KODAK EKTAPRESS PJ400 -- the E-116 push ladder, traced 2026-09-24.
+    # ⚠⚠ D-MIN IS HELD AT THE TRACED TOE PLATEAU ON BOTH PUSH LEGS, AND THE
+    # FIRST ATTEMPT WITHOUT THAT CONSTRAINT WAS CAUGHT BY A GUARD RATHER THAN
+    # BY REVIEW. A free six-parameter fit returns the softplus ASYMPTOTE as
+    # dmin, which on a pushed panel sits BELOW the lowest plotted density:
+    # 0.3477 against a traced minimum of 0.433 on Push 1 red. Read against the
+    # box-speed curve -- whose dmin comes from `measure_char`, i.e. the mean of
+    # the toe plateau -- that made base fog appear to FALL under extended
+    # development, 0.3696 -> 0.3477. verify.py refused it: "a negative push
+    # gains contrast; a reversal one loses Dmax whichever way its contrast
+    # goes". The guard was right and the fit was comparing two different
+    # definitions of one word.
+    #
+    # Re-fitted with dmin pinned to the plateau, base fog now climbs the way
+    # extended development makes it climb -- R 0.3696 / 0.4389 / 0.4674,
+    # G 0.7914 / 0.8360 / 0.8443, B 1.0068 / 1.0481 / 1.0877 across box speed,
+    # Push 1 and Push 2 -- and the cost is 0.008 D of fit quality (rms 0.019 to
+    # 0.030 against 0.015 to 0.022). That is the right trade: one consistent
+    # definition of dmin across a stock's own ladder is worth more than eight
+    # thousandths of a density unit on a curve nobody reads to four decimals.
+    #
+    #  ⚠ THESE TWO PANELS NEEDED A DIFFERENT FIT FROM THE BOX-SPEED ONE ON
+    #  THE SAME PAGE, AND THE REASON IS PHYSICS RATHER THAN METHOD. PJ400's
+    #  normal panel is still straight where it stops, so `measure_char` is
+    #  correct there and the shoulder must not be fitted. The PUSHED panels
+    #  are NOT straight: extended development brings the shoulder down into
+    #  the plotted range, which is exactly what a push does. Running
+    #  `measure_char` on them -- shoulder held six decades out, by design --
+    #  gives rms up to 0.064 D and worst 0.212 D, because the model is being
+    #  forbidden to draw a bend the document clearly draws. The full
+    #  six-parameter `fit_tone_curve` gives rms 0.015-0.022 D and worst
+    #  0.047-0.065 D on the same traces. So the choice of fitter is made per
+    #  panel, on evidence of a shoulder, not per sheet.
+    #
+    #  ⚠ ONE EXTRAPOLATION IS PRESENT AND IS NAMED HERE RATHER THAN BURIED.
+    #  Both panels end at logE +0.57. Green and blue place their shoulders at
+    #  0.31-0.41, inside the traced range and therefore measured. RED does
+    #  not: 0.800 on Push 1 and 1.031 on Push 2, both PAST the last traced
+    #  point. Those two numbers are FITTED, not read, and a reader who needs
+    #  red's highlight roll-off on a pushed PJ400 frame should treat them as
+    #  the model's best guess rather than as Kodak's statement.
+    #
+    #  WHAT IS MEASURED AND IS THE POINT: gamma climbs 0.594 -> 0.768 ->
+    #  0.774 (red), 0.619 -> 0.784 -> 0.842 (green), 0.719 -> 0.946 -> 0.989
+    #  (blue) across the ladder, and base fog climbs with it. The layers do
+    #  NOT move together -- blue gains 0.27 of gamma from box speed to Push 2
+    #  against red's 0.18 -- which is the very asymmetry
+    #  `ProcessVariant.validate` refuses to let a single `gamma_scale` claim.
+    # =======================================================================
+    "KODAK_EKTAPRESS_PJ400": (
+        # ⚠ NO BOX-SPEED VARIANT IS STORED FOR PJ400, DELIBERATELY. One was
+        # written and then removed: a ProcessVariant whose curves are
+        # byte-identical to the profile's own says nothing the profile does
+        # not already say, and verify.py caught it -- "a negative push gains
+        # contrast" compares each variant against the base curve, and a leg
+        # that IS the base curve cannot gain anything. The C-41 3:15
+        # development time for EI 400 is recorded in `processing` and in the
+        # push legs' own citations instead. The enumerator PJ400_EI400 stays
+        # in ProcessVariantCtrl because that list is append-only; an id no
+        # stock offers resolves to "as shipped", which is the correct render.
+        ProcessVariant(
+            name="EI 400, box speed, C-41 3:15",
+            process="C-41",
+            is_default=True,
+            exposure_index=400,
+            push_stops=0,
+            curves=RGBCurves(
+                r=ToneCurve(0.3696, 0.5942, -2.540, 0.180, 2.14, 0.42),
+                g=ToneCurve(0.7914, 0.6194, -2.540, 0.180, 2.08, 0.42),
+                b=ToneCurve(1.0068, 0.7189, -2.540, 0.170, 2.00, 0.42),
+            ),
+            source=("Eastman Kodak Company, KODAK Publication No. E-116, "
+                    "April 2003, page 6, panel 'Characteristic Curves' and "
+                    "page 3 'PROCESSING' -- PJ400 Film, Exposure Index 400, "
+                    "Development Time 3:15 in KODAK FLEXICOLOR Chemicals for "
+                    "Process C-41. Schema v37 requires every stock with "
+                    "variants to mark which leg its stored curves represent, "
+                    "so this record exists and its curves are deliberately "
+                    "identical to the profile's own."),
+        ),
+        ProcessVariant(
+            name="EI 800 (Push 1), as E-116 prints it",
+            process="C-41",
+            push_stops=1,
+            exposure_index=800,
+            curves=RGBCurves(
+                r=ToneCurve(0.4389, 0.7804, -2.393, 0.358, 0.625, 0.502),
+                g=ToneCurve(0.8360, 0.7732, -2.493, 0.294, 0.347, 0.412),
+                b=ToneCurve(1.0481, 0.9106, -2.503, 0.280, 0.354, 0.392),
+            ),
+            source=("Eastman Kodak Company, KODAK Publication No. E-116, "
+                    "April 2003, page 6, panel 'Characteristic Curves / "
+                    "Push 1' -- Exposure Daylight, EI 800 (Push 1), Process "
+                    "C-41, Densitometry Status M. Development time 3:45 "
+                    "(page 3). Traced 2026-09-24 by kodak_still_curves.py, "
+                    "six-parameter fit with D-MIN HELD at the traced toe plateau; rms 0.0265 / 0.0218 / 0.0240 D over logE -3.43..+0.57. "
+                    "⚠ RED'S shoulder_x 0.800 lies past the last traced point "
+                    "and is fitted rather than measured; green's 0.406 and "
+                    "blue's 0.387 are inside the panel."),
+        ),
+        ProcessVariant(
+            name="EI 1600 (Push 2), as E-116 prints it",
+            process="C-41",
+            push_stops=2,
+            exposure_index=1600,
+            curves=RGBCurves(
+                r=ToneCurve(0.4674, 0.7727, -2.426, 0.336, 0.823, 0.471),
+                g=ToneCurve(0.8443, 0.8507, -2.453, 0.288, 0.250, 0.403),
+                b=ToneCurve(1.0877, 0.9013, -2.571, 0.142, 0.319, 0.198),
+            ),
+            source=("Eastman Kodak Company, KODAK Publication No. E-116, "
+                    "April 2003, page 6, panel 'Characteristic Curves / "
+                    "Push  2' -- Exposure Daylight, EI 1600 (Push 2), Process "
+                    "C-41, Densitometry Status M. Development time 4:15 "
+                    "(page 3). Traced 2026-09-24, D-min held at the traced toe plateau; rms 0.0303 / 0.0245 / 0.0185 D. ⚠ RED'S "
+                    "shoulder_x 1.031 is 0.46 log PAST the end of the plot -- "
+                    "the most extrapolated number in this entry, and the one "
+                    "to distrust first if a pushed render looks wrong in the "
+                    "highlights. ⚠ THE SHEET STOPS AT PUSH 2 and so does this "
+                    "ladder: the description's 'push latitude to EI 1600' is "
+                    "the document's own ceiling, not a rounding of a wider "
+                    "claim."),
+        ),
+    ),
+    "KODAK_EKTAPRESS_PJ800": (
+        ProcessVariant(
+            name="EI 800, box speed, C-41 3:15",
+            process="C-41",
+            is_default=True,
+            exposure_index=800,
+            push_stops=0,
+            curves=RGBCurves(
+                r=ToneCurve(0.3138, 0.6631, -2.657, 0.300, 0.271, 0.420),
+                g=ToneCurve(0.7646, 0.6918, -2.659, 0.261, -0.215, 0.366),
+                b=ToneCurve(1.0182, 0.7661, -2.668, 0.267, 0.373, 0.374),
+            ),
+            source=("Eastman Kodak Company, KODAK Publication No. E-116, "
+                    "April 2003, page 7, panel 'Characteristic Curves' -- "
+                    "Exposure Daylight EI 800, Process C-41, Densitometry "
+                    "Status M; development time 3:15 (page 3). Curves "
+                    "deliberately identical to the profile's own: schema v37 "
+                    "requires every stock with variants to mark which leg its "
+                    "stored curves represent."),
+        ),
+        ProcessVariant(
+            name="EI 1600 (Push 1), as E-116 prints it",
+            process="C-41",
+            push_stops=1,
+            exposure_index=1600,
+            curves=RGBCurves(
+                r=ToneCurve(0.3508, 0.7248, -2.733, 0.273, 0.341, 0.382),
+                g=ToneCurve(0.7993, 0.7405, -2.776, 0.215, -0.385, 0.301),
+                b=ToneCurve(1.0934, 0.8393, -2.638, 0.300, 0.158, 0.420),
+            ),
+            source=("Eastman Kodak Company, KODAK Publication No. E-116, "
+                    "April 2003, page 7, panel 'Characteristic Curves / "
+                    "Push 1' -- EI 1600, Process C-41, Status M; development "
+                    "3:45 (page 3). Traced 2026-09-24b, six-parameter fit "
+                    "with D-MIN HELD at the traced toe plateau; rms 0.0169 / "
+                    "0.0106 / 0.0223 D. Base fog climbs 0.3138 -> 0.3508 on "
+                    "red, which is the direction a push must move it."),
+        ),
+        ProcessVariant(
+            name="EI 3200 (Push 2), as E-116 prints it",
+            process="C-41",
+            push_stops=2,
+            exposure_index=3200,
+            curves=RGBCurves(
+                r=ToneCurve(0.3896, 0.7949, -2.738, 0.289, 0.397, 0.404),
+                g=ToneCurve(0.8299, 0.8376, -2.782, 0.226, -0.573, 0.317),
+                b=ToneCurve(1.1521, 0.8615, -2.696, 0.265, 0.039, 0.372),
+            ),
+            source=("Eastman Kodak Company, KODAK Publication No. E-116, "
+                    "April 2003, page 8, panel 'Characteristic Curves / "
+                    "Push 2' -- EI 3200, Process C-41, Status M; development "
+                    "4:15 (page 3). Traced 2026-09-24b, D-min held at the "
+                    "traced toe plateau; rms 0.0196 / 0.0107 / 0.0140 D. "
+                    "⚠ EI 3200 IS THE SHEET'S CEILING for this film and the "
+                    "highest published C-41 index in this database. The "
+                    "ladder's drawn slopes run 0.635 / 0.708 / 0.772 on red "
+                    "and 0.664 / 0.725 / 0.804 on green, so contrast rises "
+                    "monotonically across all three legs -- which is the "
+                    "property verify.py checks and the one a mis-assigned "
+                    "panel would break."),
+        ),
+    ),
 }
 
 
@@ -52789,6 +57329,18 @@ def _processing_with_progress(p: FilmProfile) -> ProcessingSpec:
 #: strength of its tabulated norms, it must be added here in the same edit.
 _NO_CURVE_IN_PRIMARY_SOURCE: frozenset[str] = frozenset({
     "SVEMA_DS_5M",
+})
+
+
+#: The three EKTAPRESS films, whose curves all come off KODAK Publication
+#: E-116 (April 2003). PJ400 was traced 2026-09-24 and the other two on
+#: 2026-09-24b, out of the same ten pages -- so the set is by DOCUMENT rather
+#: than by date, which is what keeps the three from drifting apart the next
+#: time one of them is touched.
+_E116_HARVEST_2026_09_24: frozenset[str] = frozenset({
+    "KODAK_EKTAPRESS_PJ100",
+    "KODAK_EKTAPRESS_PJ400",
+    "KODAK_EKTAPRESS_PJ800",
 })
 
 
@@ -52867,6 +57419,19 @@ def _provenance_for(p: FilmProfile) -> Provenance:
     # Exactly the split the Kodak still-film note above sets out.
     if p.name in _VENDOR_TRACED_CURVES:
         fitted = "datasheet_curve"
+    # ⚠ SEVENTH USE OF THE HOOK, 2026-09-25c, AND IT NEEDED A NEW VALUE. The
+    # tier map has three labels and FERRANIA_P30's curves match none of them.
+    # They are traced -- 5 x 21 step-tablet readings on an instrument, pages
+    # 4-8 of a BTZS sensitometric test report -- so "secondary_sources" and
+    # "analogy" both understate them; but the report is a THIRD PARTY's, on
+    # PRE-PRODUCTION alpha stock, and Ferrania have never published a
+    # characteristic curve for this emulsion, so "datasheet_curve" would cite
+    # a document that does not exist. The tier tag stays [T2] for the usual
+    # reason: grain, MTF and halation on this profile are still class
+    # estimates.
+    if p.name in _LAB_REPORT_CURVES:
+        fitted = "laboratory_report"
+        reviewed = "2026-09-25"
     # ⚠ FIFTH USE OF THE HOOK, 2026-09-20, AND IT IS ABOUT THE DATE. The two
     # hooks above can both fire on one profile, and the LAST one wins the
     # review date -- EKTAR 100 is in the still-film curve set AND in the
@@ -52904,6 +57469,22 @@ def _provenance_for(p: FilmProfile) -> Provenance:
     # establishes as the right call when a profile gained data on a stated day.
     if p.name in _5293_REVIEW_2026_09_17:
         reviewed = "2026-09-17"
+    # ⚠ NINTH USE OF THE HOOK, 2026-09-24b, AND IT CORRECTS A STALE CLAIM AS
+    # WELL AS COVERING TWO NEW PROFILES. The note on
+    # `_DATASHEET_CURVE_RELABEL_2026_09_20` below still lists
+    # KODAK_EKTAPRESS_PJ400 among the stocks with "TRACED DMINS and assumed
+    # gammas", which was true until 2026-09-24 and stopped being true that
+    # morning: every parameter of all three of its curves now comes off E-116
+    # page 6. PJ100 and PJ800 were created the same week from the same
+    # publication. All three take "datasheet_curve" and today's review date.
+    if p.name in _E116_HARVEST_2026_09_24:
+        fitted = "datasheet_curve"
+        reviewed = "2026-09-24"
+    # ⚠ TENTH USE OF THE HOOK, 2026-09-27: FERRANIA_P30's default curve was
+    # replaced by the maker's own drawing (owner decision), so the review date
+    # moves with the value, as for `_RETRACED_2026_09_22`.
+    if p.name in _REVIEWED_2026_09_27:
+        reviewed = "2026-09-27"
     return Provenance(
         tier=tier,
         sources=srcs,
@@ -53645,6 +58226,39 @@ _PROCESSING: dict[str, ProcessingSpec] = {
     # states no development at all. Both facts are stored; `processing_family`
     # on each profile carries the gamma-vs-time mapping between them, so the
     # gap is visible and traversable rather than averaged away.
+    # ⚠⚠ FERRANIA P30 HAD AN EMPTY ProcessingSpec UNTIL 2026-09-25f, AND A
+    # PARAMSOURCE THAT POINTED AT IT. The profile carried a `ParamSource` for
+    # `processing.developer` citing the BEST PRACTICES chart as *stated*,
+    # while the field itself held developer "", dilution "", 0.0 minutes and
+    # 0.0 °C -- a provenance record aimed at nothing. Found by the
+    # 2026-09-25 audit of the P30 laboratory-report recommendations
+    # (`doc/AUDIT_2026-09-25_ferrania_p30_md_recommendations.md`, §0.1).
+    #
+    # ⚠ THE VALUES ARE THE DEFAULT LEG'S AND THEY ARE PRINTED, NOT INFERRED.
+    # «Ferrania P30 alfa» prints the whole processing block in its page header
+    # on ALL FOURTEEN PAGES: «D-76, 1+1, 20°C, 300 ml», agitation «continua
+    # primo 30s poi 6 ribaltamenti ogni 30s», five times. The default leg is
+    # the 11-minute one -- the nearest MEASURED development to Ferrania's own
+    # recommendation of 13.5 min for the D-76-equivalent formula at this
+    # dilution and speed.
+    #
+    # ⚠ THE 300 ml LIVES IN THE AGITATION STRING because the schema has no
+    # field for solution volume, and volume bears on exhaustion. That is
+    # recorded as schema gap S14 in the audit rather than hidden here.
+    #
+    # ⚠ contrast_index STAYS 0.0. The report prints an average gradient
+    # (0.73 for this leg) which is NOT a Kodak contrast index, and the
+    # profile's `gamma_criterion` is empty, so the schema's own conditional
+    # for filling this field is unmet. The average gradient is already stored,
+    # in `SensitometryReport.avg_gradient`, where it means what it says.
+    # ⚠⚠ 2026-09-27, OWNER DECISION: THE DEFAULT IS NOW FERRANIA'S OWN D-76
+    # STOCK CURVE, so the block above describes the alfa legs and not this
+    # entry. «sviluppo in Kodak D-76 stock a 20°C - 8' a sensibilita
+    # nominali» is the caption under the comparison plot on «Curve
+    # caratteristiche» p2 and on 1579.pdf p3; it names no agitation, so none
+    # is stored.
+    "FERRANIA_P30": ProcessingSpec(
+        developer="D-76", dilution="stock", minutes=8.0, celsius=20.0),
     "AGFA_APX_25": ProcessingSpec(
         developer="REFINAL", dilution="stock", minutes=6.0, celsius=20.0,
         agitation="small tank", contrast_index=0.65),
@@ -54026,6 +58640,10 @@ _C41_STOCKS = (
     # one-hour minilab could run them, i.e. C-41 is their stated process.
     # `is_monochrome` is True on both, so a rule keyed on colour drops them.
     "KODAK_BW400CN", "KODAK_T400CN",
+    # ⚠ AND THE THIRD CHROMOGENIC MONOCHROME, ADDED 2026-09-24c:
+    # ILFORD XP1-400, whose manual gives the C-41 sequence in full
+    # beside Ilford's own XP1 chemistry at the same 38 C.
+    "ILFORD_XP1_400",
     # ⚠ AND CINESTILL 800T IS AN ECN-2 EMULSION RUN IN C-41. It is KODAK
     # VISION3 500T with the rem-jet stripped so that it survives a C-41
     # machine; the coating is a cine coating and the PROCESS is C-41, which is
@@ -54167,6 +58785,22 @@ _SOVIET_TU_SHELF_DRIFT: dict[str, tuple[int, float, float, str, str, str]] = {
     # светочувствительности не более чем на 50 % и увеличение суммарной
     # оптической плотности вуали и маски за каждым из трех светофильтров не
     # более чем на 0,15 от норм, установленных в табл. 6».
+    # ⚠ ЦНЛ-65 TAKES THE SAME ROW, ADDED 2026-09-24, AND ITS ABSENCE WAS A
+    # GAP RATHER THAN A DECISION. ГОСТ 25120-82 prints ONE ageing allowance in
+    # прим. к табл. 6 and that note governs the WHOLE table -- all three
+    # columns, both marks, both quality grades. ЦНД-32 was entered when it
+    # arrived on 2026-09-23c and ЦНЛ-65, which had been in the database for
+    # months, was not; the durability fold of 2026-09-24 surfaced it by
+    # producing an empty envelope for a stock whose own source string already
+    # quoted the allowance.
+    "SVEMA_CNL_65": (12, 0.50, +0.15, "dmin",
+        "ГОСТ 25120-82 прим. к табл. 6 / cl. 6.2",
+        "«допускается снижение общей светочувствительности не более чем на "
+        "50 % и увеличение суммарной оптической плотности вуали и маски за "
+        "каждым из трех светофильтров не более чем на 0,15 от норм, "
+        "установленных в табл. 6»; «Гарантийный срок хранения пленок -- "
+        "1 год со дня изготовления». ⚠ ONE NOTE FOR THE WHOLE TABLE, so it "
+        "applies to both ЦНЛ-65 grades and to ЦНД-32 alike"),
     "SVEMA_CND_32": (12, 0.50, +0.15, "dmin",
         "ГОСТ 25120-82 прим. к табл. 6 / cl. 6.2",
         "«снижение общей светочувствительности не более чем на 50 % и "
@@ -54450,6 +59084,49 @@ _DENSITY_METRIC_OVERRIDES: dict[str, tuple[str, str]] = {
                    ("SVEMA_LN_8", "ТУ 6-17-1109-88"),
                    ("SVEMA_LN_9", "ТУ 6-17-1443-88"),
                    ("SVEMA_LN_9S", "ТУ 6-17-1443-88"))
+}
+
+#: ⚠⚠ THE SPEED CRITERION OF A MONOCHROME STOCK IS NOT AUTOMATICALLY ISO 6,
+#: AND THE CLASS BRANCH IN `_apply_schema_v2` HAD MADE IT SO. That branch
+#: writes "iso6" onto every `is_monochrome` profile, which is a statement
+#: about HOW THE NUMBER WAS MEASURED -- and for a stock whose speed is a box
+#: figure the maker printed without naming a method, it is an invented
+#: citation of a standard nobody ran.
+#:
+#: ⚠ FERRANIA_P30 IS THE CASE THAT FOUND IT (audit 2026-09-25, §0.2). Two
+#: different speeds live on that profile and NEITHER is an ISO 6 speed:
+#:   * the profile's `exposure_index` 80 is Ferrania's printed box speed, and
+#:     the maker's own words are an exposure instruction, not a measurement --
+#:     «We firmly recommend shooting this film at the box speed of 80 ISO ...
+#:     we suggest using +/- exposure compensation instead of a different ISO»;
+#:   * the five `ProcessVariant` EIs 12 / 25 / 32 / 50 / 64 are BTZS EFFECTIVE
+#:     FILM SPEEDS from the alfa test report -- the exposure that puts the
+#:     shadow on the paper's speed point at each development time. They move
+#:     with development, which an ISO 6 speed by definition does not.
+#: So the profile gets "manufacturer_ei" and the vocabulary gains "btzs_efs"
+#: for the per-leg quantity, which has nowhere to live until S5 puts a
+#: criterion on `DevelopmentPoint` / `ProcessVariant`.
+#:
+#: ⚠ THIS IS AN OVERRIDE AND NOT A FIFTH BRANCH, for the same reason
+#: `_DENSITY_METRIC_OVERRIDES` is: the class rule is still right for the other
+#: 199 stocks, and the exception is a property of the DOCUMENT, not of the
+#: emulsion kind.
+#:
+#: ⚠ IT DELIBERATELY DOES NOT TOUCH THE SIX ГОСТ MISMATCH STOCKS. G-V40-P34C
+#: asserts that all six carry "iso6" beside a ГОСТ 9160-91 class precisely so
+#: that the disagreement between the two fields stays visible; silencing it
+#: here would hide conflict I-24 instead of surfacing it.
+#:
+#: name -> (criterion, the wording that licenses it)
+_SPEED_CRITERION_OVERRIDES: dict[str, tuple[str, str]] = {
+    "FERRANIA_P30": ("manufacturer_ei",
+        "Film Ferrania S.r.l., «FERRANIA P30 BEST PRACTICES» v 2.5, page 1: "
+        "«We firmly recommend shooting this film at the box speed of 80 ISO». "
+        "The sheet names no measurement standard anywhere, and Ferrania "
+        "publish no data sheet for this emulsion; the only instrumented "
+        "speeds on file are the five BTZS effective film speeds in the alfa "
+        "test report, which are a different quantity and move with "
+        "development time."),
 }
 
 # ---------------------------------------------------------------------------
@@ -54903,6 +59580,89 @@ _TOLERANCE: dict[str, tuple[ToleranceSpec, ...]] = {
         ),
     ),
 }
+
+# ---------------------------------------------------------------------------
+# ⚠⚠ THE DURABILITY BLOCK IS FOLDED IN HERE RATHER THAN WRITTEN OUT ON EACH
+# RECORD ABOVE, 2026-09-24 (schema v52), AND THE REASON IS THAT THE FOUR
+# SOURCE TABLES ALREADY EXIST AND ARE AUDITED.
+#
+# `_SOVIET_TU_SHELF_DRIFT`, `_SOVIET_TU_DRIFT_FREE_MONTHS`,
+# `_SOVIET_TU_THERMOSTAT_SHRINKAGE` and `_SOVIET_SENSITISATION_LIMIT_NM` were
+# read on 2026-09-23, carry their own clause citations and their own verify
+# guards (G-TU-AGEING-SIGN among them), and were parked because the only
+# carrier that looked right was `AgingSpec` -- which holds a STATE where a ТУ
+# prints a BOUND. `ToleranceSpec` is a struct of bounds, so the objection
+# lapses and the tables can be folded in.
+#
+# ⚠ COPYING THE NUMBERS BY HAND INTO EACH RECORD WOULD HAVE BEEN THE WRONG
+# FIX. It would give two sources of truth for nine stocks' ageing envelope and
+# nothing to keep them equal; the guard that checks the sign flips with stock
+# kind reads the TABLE, so a divergent copy on the profile would pass it. The
+# fold below means the table stays the single definition and the record is
+# derived from it on every import.
+# ---------------------------------------------------------------------------
+def _fold_soviet_durability() -> None:
+    """Merge the four Soviet bound tables into their `_TOLERANCE` records."""
+    for _n, _recs in list(_TOLERANCE.items()):
+        _drift = _SOVIET_TU_SHELF_DRIFT.get(_n)
+        _shrink = _SOVIET_TU_THERMOSTAT_SHRINKAGE.get(_n)
+        _sens = _SOVIET_SENSITISATION_LIMIT_NM.get(_n)
+        _free = _SOVIET_TU_DRIFT_FREE_MONTHS.get(_n, 0)
+        if not (_drift or _shrink or _sens):
+            continue
+        _months, _loss, _delta, _which = (
+            (_drift[0], _drift[1], _drift[2], _drift[3]) if _drift
+            else (0, 0.0, 0.0, ""))
+        _new = []
+        for _t in _recs:
+            # ⚠ THE BOUNDS GO ON EVERY GRADE, and for ЦНЛ-65 that is correct
+            # rather than lazy: ГОСТ 25120-82 prints ONE ageing allowance in
+            # its прим. к табл. 6, covering the whole table, not one per
+            # quality column.
+            _new.append(replace(
+                _t,
+                guarantee_months=_months,
+                drift_free_months=_free,
+                ageing_speed_loss_frac=_loss,
+                ageing_density_drift=_delta,
+                ageing_drift_quantity=_which,
+                thermostat_shrinkage_pct_max=(_shrink[0] if _shrink else 0.0),
+                red_sensitisation_limit_nm=(_sens[0] if _sens else 0.0),
+            ))
+        _TOLERANCE[_n] = tuple(_new)
+
+
+_fold_soviet_durability()
+
+
+# ---------------------------------------------------------------------------
+# ⚠ THE SECOND OFFICIAL SCHEDULE, FOLDED INTO `_PROCESSING` (schema v52).
+# `_SOVIET_TU_ALT_REGIME` held two complete alternative cycles and reached no
+# profile, for the reason recorded at `ProcessingSpec.alternative_regime`: the
+# `ProcessVariant` carrier would have put four dead enumerators into a control
+# the user selects. A free-text field on the spec that already describes the
+# process is the honest home, and it matches how the Soviet entries in
+# `_PROCESSING` already use `dilution` to carry a schedule summary.
+# ---------------------------------------------------------------------------
+def _fold_soviet_alt_regime() -> None:
+    for _n, (_cite, _steps) in _SOVIET_TU_ALT_REGIME.items():
+        _spec = _PROCESSING.get(_n)
+        if _spec is None:
+            continue
+        _txt = "; ".join(
+            "%s %s min%s" % (_what, _mins,
+                             "" if _degc is None else " @ %.0f C" % _degc)
+            for _what, _mins, _degc in _steps)
+        _PROCESSING[_n] = replace(
+            _spec, alternative_regime="%s -- %s" % (_cite, _txt))
+
+
+# ⚠ THE CALL IS NOT HERE. It sits after the LAST `_PROCESSING.update`, because
+# the Soviet reversal entries are written further down this file and a fold
+# run at this point saw ЦО-Т-90ЛМ's entry before it existed -- it silently
+# produced one regime instead of two, which is exactly the kind of ordering
+# bug a fold invites. Search `_fold_soviet_alt_regime()` for the call site.
+
 _TU_MACHINE = ("continuous, проявочная машина per ГОСТ 9160-82; the "
                "production regime is set by each machine's аттестат from the "
                "базовая метрологическая служба по сенситометрии и "
@@ -55053,6 +59813,10 @@ _PROCESSING.update({
 # each film's own ТУ. The filters below drop exactly that one cell per
 # profile and leave the rest of the derived record alone.
 # ---------------------------------------------------------------------------
+# -- the alternative-regime fold, run HERE so that every `_PROCESSING` entry
+# -- it can touch already exists. See the note at the function definition.
+_fold_soviet_alt_regime()
+
 _TU_DEV_SRC = {
     "SVEMA_LN_8": "ТУ 6-17-1109-88 sheets 14-16, табл. 4 (bath schedule) and "
                   "табл. 5 (formulary)",
@@ -55572,6 +60336,89 @@ _RECIPROCITY_TABLES: dict[str, ReciprocityTable] = {
     # that says "no correction from A to B" fixes the ONSET of the stock's
     # reciprocity failure, which is the single most useful number on this
     # axis: it is what the class default gets wrong by orders of magnitude.
+    # ⚠ ADDED 2026-09-24 FROM E-116, WHICH ENTERED THE CORPUS THAT DAY. Same
+    # shape as the four zero-correction ranges below and for the same reason:
+    # the sheet fixes the ONSET and prints no ladder past it.
+    # ⚠ THE ONSET IS 10 SECONDS, NOT 1. That is unusually late for a C-41
+    # negative -- the four Kodak stocks below all hold to 1 s -- and it is
+    # consistent with what the film was built for: a press emulsion designed
+    # to survive a three-stop push has to hold its speed under long exposure
+    # too. The general class default this replaces assumed failure from 1 s.
+    "FOMAPAN_400_ACTION": ReciprocityTable(
+        times_s=(0.001, 0.5, 1.0, 10.0, 100.0),
+        stops_correction=(0.0, 0.0, 1.0, 2.5, 3.0),
+        source="Foma Bohemia spol. s r.o., «FOMAPAN 400 Action -- Black-and-white negative film», 2 pages, held in the corpus (the same sheet this profile already cited for 'RMS = 17.5 (Microphen at 20 C, developed to gamma 0.6, measured at D = 1.0)'), section 'Schwarzschild effect', read 2026-09-24. The sheet prints the compensation BOTH ways and the two agree: Exposure (seconds) 1/1000-1/2, 1, 10, 100; Lengthening of exposure 1x, 1.5x, 6x, 8x; Correction of aperture number 0, -1, -2.5, -3. The aperture row is stored, as stops of extra exposure. WARNING -- THE SHEET WAS ALREADY IN THE CORPUS AND ALREADY CITED BY THIS PROFILE, FOR A DIFFERENT NUMBER. RECIPROCITY_MISSING listed FOMAPAN 400 as 'nothing named -- search by product name and year' while the document sat on disk with a full four-point Schwarzschild table on page 1. The rms figure had been read off it; the table beside that figure had not. This is the third instance of the same class found on 2026-09-24, after PRO 400H and PROVIA 100F, and the most pointed: here the survey did not even need to open a new file. Foma's own siblings print the same table -- FOMAPAN 100 Classic 1x / 2x / 8x / 16x (0, -1, -3, -4) and FOMAPAN 200 Creative 1x / 3x / 9x / 18x (0, -1.5, -3, -4) -- so the three films differ markedly in long-exposure behaviour and neither sibling is in this database yet.",
+    ),
+    "FUJICOLOR_PRO_400H": ReciprocityTable(
+        times_s=(1.0/4000.0, 1.0, 4.0, 16.0),
+        stops_correction=(0.0, 0.0, 0.5, 1.0),
+        cc_filters=('', '', '', ''),
+        source="Fujifilm, «FUJICOLOR PRO 400H Professional -- Data Sheet», ref. AF3-176E, 8 pages, held in the corpus. Section 'LONG EXPOSURE COMPENSATION', read 2026-09-24: 'For exposures of 4 seconds or more, the exposure compensations indicated in the table below is required. No exposure color balance compensation is required for exposures within a shutter speed range of 1/4000 to 1 second.' The Exposure Compensation Table prints 1/4000 to 1 s = None, 4 s = +1/2 stop, 16 s = +1 stop, with the footnote '(Exposure time longer than 16 seconds is not recommended.)' -- so the table is stored to its own stated ceiling and no further. WARNING -- THIS SHEET WAS ON DISK THE WHOLE TIME AND THE SURVEY MISSED IT, WHICH IS A METHOD DEFECT WORTH RECORDING. RECIPROCITY_MISSING listed this stock as 'AF3-176E named in the profile, NOT HELD'. The file was in the Fuji corpus folder and the survey keyed on the word 'reciprocity', which appears exactly once in this document -- in an unrelated footnote stating that sensitivity is the reciprocal of exposure. Fuji's C-41 sheets head the section 'LONG EXPOSURE COMPENSATION' and never print the word. A keyword is not a concept.",
+    ),
+    "FUJI_PROVIA_100F": ReciprocityTable(
+        times_s=(1.0/4000.0, 128.0, 240.0),
+        stops_correction=(0.0, 0.0, 0.3333),
+        cc_filters=('', '', '2.5G'),
+        source="Fujifilm, «FUJICHROME PROVIA 100F Professional [RDP III] -- Data Sheet», ref. AF3-036E, 6 pages, held in the corpus, read 2026-09-24: 'seconds or longer, reciprocity-failure related color balance and exposure compensations are required', with the table Exposure time 1/4000-128 sec = no filter, no correction; 4 min = CC filter 2.5G, +1/3 stop; 8 min = Not Recommended. The footnote states 'Exposure correction values include filter exposure factors. These values are added to unfiltered exposure meter readings.' The 128-second no-correction window is unusually long and is the film's own headline claim rather than a rounding: the same sheet advertises 'Excellent Long-exposure Suitability'. WARNING -- ALSO ON DISK ALREADY. RECIPROCITY_MISSING listed this stock as 'AF3-036E named in the profile, not held'; the same bookkeeping error as PRO 400H, found the same day.",
+    ),
+    "AGFA_VISTA_PLUS_200": ReciprocityTable(
+        times_s=(1.0e-4, 10.0),
+        stops_correction=(0.0, 0.0),
+        source="AgfaPhoto «Technical Data Sheet AP-F», Stand 07/2007, page 3, 'Long and short-term effects', read 2026-09-24: 'The reciprocity effect of AgfaPhoto films is excellent. If the exposure time is within 1/10 000th and 10 second, the colours and speed remain the same. However if the exposure is any longer or shorter, then it may be necessary to make exposure or colour adjustments.' WARNING -- ONSET ONLY, AND IT REPLACES SOMETHING WORSE THAN AN ESTIMATE. This stock was running the class default p = 1.000, which is not a weak guess but reciprocity failure switched OFF ENTIRELY: a film that obeys the reciprocity law perfectly, which no emulsion does. A stated 10-second onset is a real bound where there was previously no effect at all. The sheet prints no correction ladder past 10 s, so the Schwarzschild exponent beyond the onset remains the class estimate and nothing past the endpoint is extrapolated. The sentence says 'AgfaPhoto films' as a range statement rather than naming one stock, so it is stored for the Vista films page 5 documents and for no others.",
+    ),
+    "AGFA_VISTA_PLUS_400": ReciprocityTable(
+        times_s=(1.0e-4, 10.0),
+        stops_correction=(0.0, 0.0),
+        source="AgfaPhoto «Technical Data Sheet AP-F», Stand 07/2007, page 3, 'Long and short-term effects', read 2026-09-24: 'The reciprocity effect of AgfaPhoto films is excellent. If the exposure time is within 1/10 000th and 10 second, the colours and speed remain the same. However if the exposure is any longer or shorter, then it may be necessary to make exposure or colour adjustments.' WARNING -- ONSET ONLY, AND IT REPLACES SOMETHING WORSE THAN AN ESTIMATE. This stock was running the class default p = 1.000, which is not a weak guess but reciprocity failure switched OFF ENTIRELY: a film that obeys the reciprocity law perfectly, which no emulsion does. A stated 10-second onset is a real bound where there was previously no effect at all. The sheet prints no correction ladder past 10 s, so the Schwarzschild exponent beyond the onset remains the class estimate and nothing past the endpoint is extrapolated. The sentence says 'AgfaPhoto films' as a range statement rather than naming one stock, so it is stored for the Vista films page 5 documents and for no others.",
+    ),
+    "KODAK_EKTAPRESS_PJ100": ReciprocityTable(
+        times_s=(1.0e-4, 10.0),
+        stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS Films», "
+                "KODAK Publication No. E-116, April 2003, page 2, "
+                "'Adjustments for Long and Short Exposures', read 2026-09-24b: "
+                "'For EKTAPRESS PJ100 and PJ400 Films, no filter corrections "
+                "or exposure adjustments are required for exposure times of "
+                "1/10,000 second to 10 seconds.' ⚠ ONSET ONLY -- the sentence "
+                "names this film explicitly alongside PJ400, so the bound is "
+                "stated rather than inherited, but the sheet prints no stop "
+                "figure for any longer time and nothing past 10 s is stored."),
+    ),
+    "KODAK_EKTAPRESS_PJ800": ReciprocityTable(
+        times_s=(1.0e-4, 1.0),
+        stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS Films», "
+                "KODAK Publication No. E-116, April 2003, page 2, "
+                "'Adjustments for Long and Short Exposures', read 2026-09-24b: "
+                "'for EKTAPRESS PJ800 Film, no adjustments are required for "
+                "exposures from 1/10,000 second to 1 second. At longer "
+                "exposure times, exposure compensation is required.' ⚠ ONE "
+                "SECOND, A DECADE EARLIER THAN ITS TWO SIBLINGS, and that "
+                "separation is the reason this table is worth storing at all: "
+                "the sheet could have made one statement for the family and "
+                "chose not to. ⚠ ONSET ONLY; no correction ladder is printed "
+                "past 1 s, so the Schwarzschild exponent past the onset stays "
+                "the class estimate."),
+    ),
+    "KODAK_EKTAPRESS_PJ400": ReciprocityTable(
+        times_s=(1.0e-4, 10.0),
+        stops_correction=(0.0, 0.0),
+        source=("Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS Films», "
+                "KODAK Publication No. E-116, April 2003, page 2, "
+                "'Adjustments for Long and Short Exposures', read 2026-09-24: "
+                "'For EKTAPRESS PJ100 and PJ400 Films, no filter corrections "
+                "or exposure adjustments are required for exposure times of "
+                "1/10,000 second to 10 seconds; for EKTAPRESS PJ800 Film, no "
+                "adjustments are required for exposures from 1/10,000 second "
+                "to 1 second. At longer exposure times, exposure compensation "
+                "is required.' ⚠ ONSET ONLY. The sheet states that "
+                "compensation IS required past 10 s and then prints neither a "
+                "stop figure nor a filter for any longer time, so nothing "
+                "beyond the endpoint is stored and the Schwarzschild exponent "
+                "remains the class estimate. A sheet that says where failure "
+                "begins without saying how fast it grows has given half the "
+                "axis, and half is recorded as half."),
+    ),
     "EASTMAN_DOUBLE_X_5222": ReciprocityTable(
         times_s=(1.0e-4, 1.0),
         stops_correction=(0.0, 0.0),
@@ -56503,6 +61350,343 @@ def _vignette_for(p: FilmProfile) -> float:
 #: reproduce the published IIE figure instead of sharing an absolute number
 #: that only suits one of them. Verified: using a fixed conversion gamma left
 #: blue 28% below the patent target; per-stock conversion removes that.
+#: ⚠⚠ THE LUMIERE / JOUGLA RELATIVE-SPEED LADDER, «Agenda Lumiere» p.228,
+#: table «SENSIBILITES RELATIVES DES PLAQUES LUMIERE ET JOUGLA», read
+#: 2026-09-24b. Two columns as printed: «Rapport des temps de pose» -- the
+#: exposure time relative to the 350-degree plates, which are the table's unit
+#: -- and «Degres sensitometriques Hurter et Driffield (H et D)».
+#:
+#: ⚠ IT IS HERE AS A LADDER, NOT AS A SPEED. This project's own knowledge base
+#: records, from Davis & Walters 1922 p.32, that the authors of the Bureau of
+#: Standards survey state H&D numbers CANNOT be converted to B.S. speeds
+#: («particularly in the case of color-sensitive plates», because the light
+#: differs), and EMULSION_KNOWLEDGE_BASE.md concludes there is «no valid path
+#: in this set from any 1922 B.S. speed or 1929 H&D speed to a modern ISO
+#: value». The bare arithmetic is tempting -- H&D is 34/i and B.S. speed is
+#: 10/i off the same inertia, so the ratio LOOKS like a constant 3.4 -- and it
+#: is exactly the conversion the source refuses. So no EI is derived from the
+#: 950 below.
+#:
+#: WHAT IT IS GOOD FOR: the RATIOS inside one maker's own table, measured the
+#: same way on the same day. Lumichrome needs a quarter of the exposure of the
+#: 350-degree plates (two stops faster) and 3/4 of the «Opta»'s, which is the
+#: first quantitative statement this profile has ever carried.
+_LUMIERE_1933_HD_SPEEDS: dict[str, tuple[str, int]] = {
+    "Lumiere «Lumichrome»":            ("1/4", 950),
+    "Lumiere «Opta»":                  ("1/3", 750),
+    "Lumiere «etiquette violette»":    ("1/2", 650),
+    "Jougla «etiquette mauve»":        ("1/2", 650),
+    "Lumiere «2»":                     ("2/3", 450),
+    "Jougla «etiquette verte»":        ("2/3", 450),
+    "Jougla «Procede»":                ("2/3", 450),
+    "Lumiere «Gradua»":                ("2/3", 450),
+    "Lumiere «etiquette bleue»":       ("1", 350),
+    "Lumiere «Chroma»":                ("1", 350),
+    "Jougla «Orthochromatiques J.V.»": ("1", 350),
+    "Intensive":                       ("1", 350),
+    "Lumiere «S. B.»":                 ("1,2", 300),
+    "Lumiere «Micro»":                 ("2", 200),
+    "Jougla «Reproduction»":           ("4", 100),
+    "Diapositives T. N.":              ("20", 25),
+    "Lumiere «etiquette rouge»":       ("40", 10),
+}
+
+
+#: EASTMAN'S OWN 1922 PORTRAIT/COMMERCIAL SHEET-FILM LADDER, in H&D degrees.
+#:
+#: SOURCE: «Bulletin de la Société française de Photographie», 1922, No. 2 --
+#: two places in one issue. Printed p.47, «Portrait-film Eastman Super-Speed»,
+#: the Kodak (Société Anonyme Française) presentation of 27 January 1922:
+#: «un nouveau film-portrait Super-Speed d'une sensibilité de 700 H & D, soit
+#: donc une sensibilité double de celle du portrait-film antérieurement
+#: présenté, désigné maintenant sous le nom de portrait-film Par-Speed», and
+#: on the Commercial films «quatre fois moins rapides que le portrait-film
+#: Par-Speed, mais de grain plus fin, et donnant plus facilement des images
+#: contrastées». Printed p.33, the session minute, adds the processing
+#: difference: «leur émulsion est plus sensible et nécessite un développement
+#: plus long de 10 à 15 pour 100».
+#:
+#: ⚠⚠ ONE NUMBER IS PRINTED AND THE REST ARE THE SOURCE'S OWN RATIOS APPLIED
+#: TO IT, which is why they are stored in one table with the ratio beside
+#: them rather than as free-standing speeds. 700 H&D is printed. Par-Speed is
+#: «double» slower, so 350. Commercial is «quatre fois moins rapide» than
+#: Par-Speed, so about 87. Process-film is described only as «émulsion lente»
+#: with no ratio at all, and is entered with 0 -- NOT with a guess.
+#:
+#: ⚠⚠ AND NO EXPOSURE INDEX IS DERIVED FROM ANY OF THEM. This is the same
+#: refusal `_LUMIERE_1933_HD_SPEEDS` records and for the same reason: the
+#: project's knowledge base (Davis & Walters 1922, p.32) states that no
+#: conversion exists in this set from an H&D speed to a modern ISO value, and
+#: the tempting arithmetic -- H&D 34/i against B.S. 10/i, an apparent constant
+#: 3.4 -- is exactly the conversion that source refuses. What the table is
+#: good for is RATIOS inside one maker's own range, measured the same way:
+#: Super-Speed is one stop faster than Par-Speed and three stops faster than
+#: Commercial.
+#:
+#: ⚠ NOTHING IN THIS DATABASE IS ONE OF THESE FIVE. They are Eastman
+#: semi-rigid SHEET films for studio portraiture and industrial work;
+#: `EASTMAN_ORTHO_1930` is a 35 mm CINE negative on a different base for a
+#: different camera. The table is knowledge-base material, held here so that
+#: it is versioned with the database rather than only in a Markdown file, and
+#: it is deliberately attached to no profile.
+#:
+#: ⚠ WHAT THE SAME PAGE SAYS THAT IS NOT A SPEED, recorded because it is the
+#: kind of construction fact this corpus otherwise has to infer: the
+#: portrait-films are «absolument exempts de halo» (an antihalation
+#: construction, stated, in 1922) and their emulsion «très riche en argent»,
+#: which the source connects directly to their ability to hold «de très
+#: grands contrastes» and back-lit subjects. Dupli-Tized film is coated on
+#: BOTH faces with a fast emulsion, for radiography.
+#: FERRANIA P30 -- PAGE 3 OF «BEST PRACTICES» v 2.5, THE COMMUNITY TABLE.
+#:
+#: ⚠⚠ WHY THESE ARE HERE AND NOT IN THE PROCESSING FAMILY. Ferrania print
+#: them under their own heading, «Additional Community-Submitted Processing
+#: Techniques», on a separate page from the eleven they recommend themselves.
+#: `DevelopmentPoint` HAS NO EVIDENCE TIER. Dropped into one tuple beside the
+#: manufacturer's rows, thirteen user submissions become indistinguishable
+#: from eleven manufacturer recommendations to every consumer of that family,
+#: `resolve_development_time` included -- and the whole point of the corpus's
+#: tier discipline is that the difference survives storage. So they are
+#: transcribed in full, here, where no engine reads them.
+#:
+#: ⚠ THEY ARE NOT WORTHLESS AND THE DISTINCTION IS NOT ABOUT QUALITY. Ferrania
+#: chose to publish them, which makes them a manufacturer-CURATED third-party
+#: set rather than an anonymous forum post; several are lab-processor times
+#: that the manufacturer's own hand-processing chart cannot give. What they
+#: are not is a measurement Ferrania stand behind.
+#:
+#: ⚠ ONE OF THEM CARRIES THE SAME UNIT DEFECT AS THE MAIN CHART: Fuji
+#: Negastar prints «24ºC/72.5ºF», and 24 ºC is 75.2 ºF. The Ilford DD row two
+#: lines below prints «24ºC/75ºF» correctly. Celsius is kept for both.
+#:
+#: (developer, dilution, celsius, exposure_index, minutes, procedure)
+_FERRANIA_P30_COMMUNITY_TIMES: tuple[
+        tuple[str, str, float, int, float, str], ...] = (
+    ("Adox Adonal", "1:80", 19.0, 80, 16.5,
+     "small tank: continuous inversions first minute, then two inversions "
+     "every minute"),
+    ("Fuji Negastar", "1:4", 24.0, 80, 5.0,
+     "lab processing (dip-and-dunk). ⚠ printed «24ºC/72.5ºF», which disagree"),
+    ("Ilford DD", "1:4", 24.0, 80, 11.0, "lab processing (dip-and-dunk)"),
+    ("Ilford DD-X", "1:5", 20.0, 50, 7.5, "rotary tank: continuous rotation"),
+    ("Ilford DD-X", "1:6", 20.5, 80, 15.0, "rotary tank: continuous rotation"),
+    ("Ilford ID-11", "1:1", 20.0, 80, 13.5,
+     "small tank: three inversions each minute"),
+    ("Ilford Microphen", "1:3", 20.0, 80, 17.0,
+     "rotary tank: continuous rotation"),
+    ("Kodak XTOL", "1:1", 20.0, 80, 12.0,
+     "small tank: inversions for first minute, then 10 second agitations "
+     "each minute"),
+    ("Kodak XTOL", "1:3", 20.0, 80, 16.0,
+     "lab processing / rotary tank: continuous rotation"),
+    ("Perceptol", "stock", 20.0, 80, 9.0,
+     "small tank: first 30 seconds continuous, then 2 inversions each minute"),
+    ("Promicrol", "1:9", 20.0, 80, 8.0, "rotary tank: continuous rotation"),
+    ("Promicrol", "1:14", 20.5, 50, 8.5,
+     "small tank: 30 second agitations for 2 minutes, then 2 inversions each "
+     "minute"),
+    ("R09 (Rodinal)", "1:50", 20.0, 80, 14.0,
+     "small tank: inversions for first 30 seconds, then inversions for 10 "
+     "seconds each minute"),
+    # ⚠⚠ FIVE MORE ROWS ADDED 2026-09-25e, AND THEY COME FROM A FORUM AND NOT
+    # FROM FERRANIA. They are the development times analogica.it users report
+    # for the ORIGINAL P30 in the thread «Ferrania P-30 new test», with the
+    # author and date on every one. They sit in the SAME register as
+    # Ferrania's own community page for the same reason: `DevelopmentPoint`
+    # has no evidence tier, so anything in a `ProcessingFamily` reads to
+    # `resolve_development_time` as a manufacturer recommendation. Here they
+    # are machine-readable, attributable and inert.
+    # ⚠ THE SPREAD IS THE FINDING. Five photographers, five developers, and
+    # exposure indexes from 12 to 50 against a box speed of 80 -- which is the
+    # numeric form of «la sensibilità di questa pellicola è ancora bassa,
+    # molto bassa». No average is taken: an average of five people's taste is
+    # not a measurement of anything.
+    ("Kodak X-Tol", "1+2", 24.0, 20, 10.0,
+     "analogica.it «ometto», 10/10/2020, EI 12-20, 2 minute pre-bath at "
+     "working temperature; printed condenser, #2, Ilford FB Classic. His "
+     "result: «la grana è assente e i passaggi tonali sono ricchi di grigi. "
+     "Anche il contrasto è sotto controllo»"),
+    ("Kodak D-96", "stock", 18.0, 25, 10.0,
+     "analogica.it «gfirmani», 05/01/2021: «Esposta a 25 asa e sviluppata in "
+     "d96 sui 18 gradi x 10 minuti». ⚠ D-96 is the cine negative developer "
+     "Ferrania themselves call «most similar to the original P30 developer "
+     "made by Ferrania in the 1960s»"),
+    ("Kodak D-76", "1+1", 20.0, 50, 13.0,
+     "analogica.it «chromemax», 15/01/2018, Jobo continuous rotation: «D-76 "
+     "per 13 minuti si hanno degli onesti 50 iso, ma con un gradiente di "
+     "contrasto pazzesco» -- about N+3"),
+    ("Kodak D-76", "1+1", 20.0, 12, 4.5,
+     "analogica.it «chromemax», 15/01/2018, continuous first minute then 30 "
+     "s: his best print of the series, grade 2 -- «la stampa è equilibrata "
+     "ed ha un buon contrasto; tecnicamente un ottimo punto di partenza»"),
+    ("R09 (Rodinal)", "1+50", 20.0, 80, 14.0,
+     "analogica.it «chromemax», 15/01/2018, Paterson inversion. ⚠ SAME "
+     "DEVELOPER AND DILUTION AS FERRANIA'S OWN COMMUNITY ROW ABOVE AND THE "
+     "SAME 14 MINUTES, reached independently -- but he reports it does not "
+     "get there: «si mangia sensibilità», the curve shifted right with a long "
+     "flat toe, and «bisogna usare una sensibilità di 12 iso per compensare "
+     "il mancato annerimento»"),
+)
+
+#: ⚠⚠ THE CONTRAST COLUMN OF THE 2026 DISTRIBUTOR TABLE, AS PRINTED WORDS AND
+#: AS AN ORDINAL -- NOT AS A GAMMA.
+#:
+#: P.F.G. / Karl Bielser's «Ferrania 2026» range sheet, page 4, prints a
+#: contrast beside every development time, and every one of them is an
+#: ADJECTIVE: «basso», «medio/basso», «medio», «medio/alto», «alto». Those 41
+#: cells are real data and they were being thrown away, because
+#: `DevelopmentPoint.contrast_index` and `.gamma` take numbers and there is no
+#: honest number to put in them -- the sheet states no gamma, no density
+#: range and no measurement method.
+#:
+#: They are kept here instead, with the word verbatim AND an ordinal rank on
+#: the scale the sheet's own vocabulary defines:
+#:     1 basso < 2 medio/basso < 3 medio < 4 medio/alto < 5 alto
+#: An ordinal is exactly what the source publishes, so a consumer can order
+#: developers by contrast, ask which developer the maker's distributor calls
+#: softest, or check that a stored gamma ranks where the sheet puts it --
+#: none of which requires inventing a gamma. ⚠ THE RANK IS NOT A CONTRAST
+#: INDEX AND MUST NOT BE FED TO ANYTHING THAT WANTS ONE: the interval between
+#: two ranks is unknown and is certainly not constant.
+#:
+#: Keyed (film, developer, dilution) -> {film: (word, rank)}. The Rollei Low
+#: Contrast row has no P33 cell on the sheet and gets none here.
+_FERRANIA_2026_CONTRAST_WORDS: tuple[
+        tuple[str, str, str, str, int], ...] = (
+    ("FERRANIA_P30_MK2", "Kodak D-76 / Ilford ID-11", "stock", "medio", 3),
+    ("FERRANIA_ORTO_50", "Kodak D-76 / Ilford ID-11", "stock", "medio/alto", 4),
+    ("FERRANIA_P33_160", "Kodak D-76 / Ilford ID-11", "stock", "medio", 3),
+    ("FERRANIA_P30_MK2", "Kodak D-76 / Ilford ID-11", "1+1", "medio", 3),
+    ("FERRANIA_ORTO_50", "Kodak D-76 / Ilford ID-11", "1+1", "medio alto", 4),
+    ("FERRANIA_P33_160", "Kodak D-76 / Ilford ID-11", "1+1", "medio", 3),
+    ("FERRANIA_P30_MK2", "Rodinal / R09 One Shot", "1+100", "medio", 3),
+    ("FERRANIA_ORTO_50", "Rodinal / R09 One Shot", "1+100", "medio", 3),
+    ("FERRANIA_P33_160", "Rodinal / R09 One Shot", "1+100", "basso", 1),
+    ("FERRANIA_P30_MK2", "Rodinal / R09 One Shot", "1+25", "medio/alto", 4),
+    ("FERRANIA_ORTO_50", "Rodinal / R09 One Shot", "1+25", "alto", 5),
+    ("FERRANIA_P33_160", "Rodinal / R09 One Shot", "1+25", "medio/alto", 4),
+    ("FERRANIA_P30_MK2", "Rodinal / R09 One Shot", "1+50", "medio", 3),
+    ("FERRANIA_ORTO_50", "Rodinal / R09 One Shot", "1+50", "alto/medio", 4),
+    ("FERRANIA_P33_160", "Rodinal / R09 One Shot", "1+50", "medio", 3),
+    ("FERRANIA_P30_MK2", "Rollei Low Contrast", "1+4", "medio/basso", 2),
+    ("FERRANIA_ORTO_50", "Rollei Low Contrast", "1+4", "medio", 3),
+    ("FERRANIA_P30_MK2", "Rollei Supergrain", "1+12", "medio", 3),
+    ("FERRANIA_ORTO_50", "Rollei Supergrain", "1+12", "medio/alto", 4),
+    ("FERRANIA_P33_160", "Rollei Supergrain", "1+12", "medio", 3),
+    ("FERRANIA_P30_MK2", "Kodak T-Max Developer", "1+4", "medio", 3),
+    ("FERRANIA_ORTO_50", "Kodak T-Max Developer", "1+4", "medio/alto", 4),
+    ("FERRANIA_P33_160", "Kodak T-Max Developer", "1+4", "medio", 3),
+    ("FERRANIA_P30_MK2", "Bellini Ecofilm / X-Tol", "1+1", "medio/basso", 2),
+    ("FERRANIA_ORTO_50", "Bellini Ecofilm / X-Tol", "1+1", "medio", 3),
+    ("FERRANIA_P33_160", "Bellini Ecofilm / X-Tol", "1+1", "medio/basso", 2),
+    ("FERRANIA_P30_MK2", "Bellini Hydrofen", "1+15", "medio/alto", 4),
+    ("FERRANIA_ORTO_50", "Bellini Hydrofen", "1+15", "alto", 5),
+    ("FERRANIA_P33_160", "Bellini Hydrofen", "1+15", "medio", 3),
+    ("FERRANIA_P30_MK2", "Bellini Hydrofen", "1+31", "medio/alto", 4),
+    ("FERRANIA_ORTO_50", "Bellini Hydrofen", "1+31", "alto", 5),
+    ("FERRANIA_P33_160", "Bellini Hydrofen", "1+31", "medio", 3),
+    ("FERRANIA_P30_MK2", "Bellini Hydrofen", "1+50", "medio/alto", 4),
+    ("FERRANIA_ORTO_50", "Bellini Hydrofen", "1+50", "medio/alto", 4),
+    ("FERRANIA_P33_160", "Bellini Hydrofen", "1+50", "medio", 3),
+    ("FERRANIA_P30_MK2", "Ornano Gradual ST 20", "1+9", "medio", 3),
+    ("FERRANIA_ORTO_50", "Ornano Gradual ST 20", "1+9", "medio/alto", 4),
+    ("FERRANIA_P33_160", "Ornano Gradual ST 20", "1+9", "medio", 3),
+    ("FERRANIA_P30_MK2", "Ornano Nucleol BF200", "20+15+965ml", "medio", 3),
+    ("FERRANIA_ORTO_50", "Ornano Nucleol BF200", "20+15+965ml", "medio/alto", 4),
+    ("FERRANIA_P33_160", "Ornano Nucleol BF200", "20+15+965ml", "medio", 3),
+)
+
+#: The contrast vocabulary the sheet uses, lowest to highest. The two
+#: transposed spellings the sheet prints -- «medio alto» without the slash and
+#: «alto/medio» -- are the same rungs as «medio/alto», and are kept verbatim
+#: above rather than normalised away.
+_FERRANIA_2026_CONTRAST_SCALE: tuple[str, ...] = (
+    "basso", "medio/basso", "medio", "medio/alto", "alto")
+
+#: ⚠ A CAPABILITY THE SHEET STATES AND THIS DATABASE DOES NOT MODEL.
+#: «Le FERRANIA P30 e ORTO danno ottimi risultati anche in dia» -- both films
+#: also reversal-process well. Recorded as a fact about the emulsions, with no
+#: curve behind it: Ferrania publish no reversal characteristic curve, no
+#: first-developer formula and no times for either film, so a `ProcessVariant`
+#: would be an empty shell that a consumer could nevertheless select. Kept
+#: here so the statement is in the database and searchable, and so that the
+#: day a reversal curve appears there is a row waiting for it.
+_FERRANIA_REVERSAL_CAPABILITY: tuple[tuple[str, str], ...] = (
+    ("FERRANIA_P30",
+     "P.F.G. «Ferrania 2026» range sheet, page 4: «Le FERRANIA P30 e ORTO "
+     "danno ottimi risultati anche in dia». No reversal curve, first "
+     "developer or time is published for this film by anyone."),
+    ("FERRANIA_ORTO_50",
+     "P.F.G. «Ferrania 2026» range sheet, page 4: «Le FERRANIA P30 e ORTO "
+     "danno ottimi risultati anche in dia». No reversal curve, first "
+     "developer or time is published for this film by anyone."),
+)
+
+
+_EASTMAN_1922_HD_SPEEDS: dict[str, tuple[str, int]] = {
+    "Eastman Portrait-film Super-Speed":  ("1 (reference)", 700),
+    "Eastman Portrait-film Par-Speed":    ("2x slower", 350),
+    "Eastman Commercial-film, ordinary":  ("8x slower", 87),
+    "Eastman Commercial-film, ortho":     ("8x slower", 87),
+    "Eastman Process-film":               ("not stated", 0),
+}
+
+#: McRAE 1930 -- WHERE THE LIGHT GOES ON AN EASTMAN 40 PLATE, per cent.
+#:
+#: SOURCE: Daniel Brent McRae, «Investigations on the Reflection and
+#: Transmission Characteristics of Photographic Plates», PhD thesis,
+#: California Institute of Technology, Pasadena, 1930 -- Table XIII, printed
+#: p.38. One emulsion throughout: «several boxes of Eastman 40 plates,
+#: Emulsion No. 2637» (printed p.5). Reflection, transmission, absorption,
+#: constrained by the author to sum to 100 %.
+#:
+#: ⚠⚠ THE HEADLINE IS THE WAVELENGTH DEPENDENCE, NOT ANY ONE NUMBER. A plate
+#: absorbs 66 % of the blue it is sensitive to and essentially NONE of the
+#: red it is not: reflection and transmission together account for 101 % of
+#: the incident red, which is where the -1 % absorption comes from and which
+#: the author reports as such rather than rounding away. His own reading, in
+#: his words: the plate «wastes very little of any incident energy which it
+#: is capable of using».
+#:
+#: ⚠ THE «WHITE» ROW IS NOT WHITE AND HE SAYS SO. Its receiver is another
+#: Eastman 40 rather than a panchromatic plate, so it measures only the band
+#: the plate is sensitive to; he proposes calling it «The Actinic Band»
+#: instead. Its absorption is not printed in the table and is NOT computed
+#: here -- the two printed figures are stored and the third is left at the
+#: sentinel, because completing a row the author left incomplete would be
+#: this project's arithmetic wearing his authority.
+#:
+#: ⚠⚠ NOT WIRED INTO ANY PROFILE, AND THE REASON IS THE SCHEMA, NOT THE DATA.
+#: `EmulsionSpec` has no front-surface reflectance and `HalationSpec` takes a
+#: gain and a radius set, not a transmitted fraction; there is no field these
+#: numbers belong in. Inventing one for a single 1930 plate measurement would
+#: put a carrier in the schema with one occupant and no consumer. What the
+#: measurement DOES support, stated so the next reader does not have to
+#: rediscover it: the transmitted fraction is the light that reaches the back
+#: of the support and comes back as halation, and it rises 9 % -> 35 % -> 43 %
+#: from blue to red. That is the physical reason halation is red-dominant,
+#: and this is the only direct measurement of it in the corpus. It is NOT
+#: applied to `EASTMAN_ORTHO_1930`'s equal 0.30/0.30/0.30 halation gains: that
+#: is a 35 mm cine film on nitrate, this is a glass plate, and the support is
+#: half of what the number measures.
+#:
+#: ⚠ APPENDIX B IS A NEGATIVE RESULT AND IS KEPT: Eastman Speedway plates
+#: were tried first and gave transmissions scattered 23-30 % over four runs
+#: with heavy development fog, so the author changed plates. Any later reader
+#: tempted to cite a Speedway transmission from this thesis should read that
+#: appendix first.
+_MCRAE_1930_PLATE_LIGHT: dict[str, tuple[float, float, float, str]] = {
+    # band            reflected  transmitted  absorbed   receiver
+    "red":           (58.0, 43.0, -1.0, "Wratten A filter, W+W Pan receiver"),
+    "green":         (57.0, 35.0,  8.0, "Wratten B filter, W+W Pan receiver"),
+    "blue":          (25.0,  9.0, 66.0, "Wratten C filter, W+W Pan receiver"),
+    "actinic_band":  (29.0, 15.0,  0.0, "unfiltered tungsten at lowered "
+                                        "voltage, Eastman 40 receiver; the "
+                                        "author's own «white» row, absorption "
+                                        "NOT printed and NOT computed here"),
+}
+
+
 _IIE_TIERS: dict[str, tuple[float, float, float]] = {
     "strong": (25.0, 45.0, 42.0),   # US5273870A Ex.1 invention, DIR in layer B
     "medium": (25.0, 33.0, 35.0),   # US5273870A Ex.3 invention
@@ -58670,7 +63854,8 @@ _SCHEMA_V2_DERIVED_FIELDS: dict[str, str] = {
                   "the [T*] description tag for tier, and one of the "
                   "review-date hooks for `last_reviewed`",
     "referred": "nowhere -- derived from `default_print`",
-    "speed_criterion": "the class branch at the head of `_apply_schema_v2`",
+    "speed_criterion": "`_SPEED_CRITERION_OVERRIDES`, or the class branch "
+                       "at the head of `_apply_schema_v2`",
     "speed_point_x": "nowhere -- the per-render anchor solve owns it",
     "temporal": "`_TEMPORAL_OVERRIDES`",
     "trim": "nowhere -- the per-render anchor solve owns it",
@@ -58807,6 +63992,16 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
     _dmo = _DENSITY_METRIC_OVERRIDES.get(p.name)
     if _dmo is not None:
         density_metric = _dmo[0]
+
+    # ⚠ SAME SHAPE, SAME REASON, FOR THE SPEED CRITERION (2026-09-25c). See
+    # `_SPEED_CRITERION_OVERRIDES`: the monochrome branch above asserts an
+    # ISO 6 measurement on every black-and-white stock, and that is false for
+    # any stock whose rating is a printed box speed. It runs BEFORE the
+    # `historic` clamp so that an explicit override can still name something
+    # other than "manufacturer_ei" on a stock the clamp would flatten.
+    _sco = _SPEED_CRITERION_OVERRIDES.get(p.name)
+    if _sco is not None:
+        speed_criterion = _sco[0]
 
     if historic:
         speed_criterion = "manufacturer_ei"
@@ -59358,6 +64553,44 @@ _KODAK_STILL_HARVEST: dict = {
 #: film against the wrong number. Every row below was reconstructed from the
 #: GLYPH POSITIONS on the page and re-checked against the rendered page image.
 _KODAK_STILL_PGI: dict = {
+    # ⚠ ADDED 2026-09-24 WITH THE E-116 HARVEST. The sheet prints ONE row per
+    # film for 135-size negatives only -- "prints were made from 135-size
+    # (24 x 36 mm) negatives", at the standard 14-inch viewing distance and
+    # 4.4X / 8.8X / 17.8X magnification -- so fmt_120 and fmt_sheet stay
+    # empty rather than being interpolated from the 135 row.
+    # ⚠⚠ AND THIS IS WHY PJ400's `grain.rms_granularity` IS STILL AN ESTIMATE
+    # AFTER A TIER-1 HARVEST. E-116 replaced rms granularity with Print Grain
+    # Index and forbids the conversion in its own words on page 4: "It
+    # replaces rms granularity and has a different scale which cannot be
+    # compared to rms granularity." The stored 6.0 therefore keeps its
+    # estimated tag; 41 is not 6.0 in other units, it is a different quantity.
+    "KODAK_EKTAPRESS_PJ100": ((28.0, 50.0, 79.0), (), (),
+                              "Eastman Kodak Company, «KODAK PROFESSIONAL "
+                              "EKTAPRESS Films», KODAK Publication No. E-116, "
+                              "April 2003, page 4, table 'Print Grain Index' "
+                              "(4x6 / 8x10 / 16x20 at 4.4X / 8.8X / 17.8X). "
+                              "The finest of the three: 28 at 4x6 against "
+                              "PJ400's 41 and PJ800's 53, and the only one of "
+                              "the trio whose 4x6 figure is near the sheet's "
+                              "own stated visual threshold of 25."),
+    "KODAK_EKTAPRESS_PJ800": ((53.0, 75.0, 104.0), (), (),
+                              "Eastman Kodak Company, «KODAK PROFESSIONAL "
+                              "EKTAPRESS Films», KODAK Publication No. E-116, "
+                              "April 2003, page 4, table 'Print Grain Index' "
+                              "(4x6 / 8x10 / 16x20 at 4.4X / 8.8X / 17.8X). "
+                              "⚠ 104 AT 16x20 IS THE HIGHEST PGI IN THIS "
+                              "DATABASE. On the sheet's own scale -- four "
+                              "units to a just-noticeable difference for 90 % "
+                              "of observers -- that is six JNDs above PJ100 at "
+                              "the same enlargement."),
+    "KODAK_EKTAPRESS_PJ400": ((41.0, 62.0, 92.0), (), (),
+                              "Eastman Kodak Company, «KODAK PROFESSIONAL "
+                              "EKTAPRESS Films», KODAK Publication No. E-116, "
+                              "April 2003, page 4, table 'Print Grain Index' "
+                              "(print sizes 4x6 / 8x10 / 16x20 at 4.4X / 8.8X "
+                              "/ 17.8X). The same table prints PJ100 at "
+                              "28/50/79 and PJ800 at 53/75/104, which orders "
+                              "the family exactly as their speeds do."),
     "KODAK_PORTRA_160NC": ((36.0, 58.0, 87.0), (0.0, 36.0, 58.0), (0.0, 0.0, 35.0),
                                "KODAK PROFESSIONAL PORTRA 160NC, 160VC, 400NC, 400VC, 400UC and 800 Films, publication E-190, May 2003, Eastman Kodak Company, page 8. ⚠ PRINT GRAIN INDEX IS NOT rms GRANULARITY AND THE SHEET SAYS SO: \"It replaces rms granularity and has a different scale which cannot be compared to rms granularity.\" Stored as published; nothing in this profile's grain block is derived from it. \"Less than 25\" is stored as 0.0, the file's convention for below-threshold."),
     "KODAK_PORTRA_160VC": ((40.0, 62.0, 91.0), (28.0, 40.0, 62.0), (0.0, 0.0, 39.0),
@@ -60682,11 +65915,16 @@ _CURVE_PROVENANCE_UPGRADE: dict[str, tuple[int, str, str, str]] = {
         "Eastman Kodak, publication E-190, May 2003 p12; kodak_still_curves.py, "
         "fit rms 0.0047/0.0103/0.0051 D"),
     # -- Ferrania -----------------------------------------------------------
+    # ⚠ CORRECTED 2026-09-27. The cite named the «P30 New» plot, which since
+    # the 2026-09-25 split is the Mk2's curve. It never reached a ParamSource
+    # (the profile's own gamma/dmin records pre-empt this table), but a stale
+    # cite in a provenance table is still a wrong claim.
     "FERRANIA_P30": (
-        1, "traced", "traced",
-        "Ferrania 'Curve caratteristiche e sensibilita spettrali', P30 New "
-        "plot p1, cross-checked against the p2 comparison plot to 0.01 D; "
-        "2195 samples, fit rms 0.007 D, max 0.022"),
+        1, "traced", "measured",
+        "Film Ferrania 'Curve caratteristiche e sensibilita spettrali' p2, "
+        "the dashed «P30» curve of the comparison plot, reprinted on the "
+        "2026 P.F.G. range sheet p3; fit rms 0.0123 / 0.0140 D against the "
+        "two rasters. D-min is the alfa report's measured base+fog"),
     # -- ORWO, a 1972 journal half-tone re-derived on every build ------------
     # ⚠ D-MIN IS `derived`, NOT `traced`, ON THIS ONE STOCK. Its own comment
     # records that the stored D-mins are the fitted model's asymptotes and sit
@@ -61261,6 +66499,434 @@ for _p in FILM_PROFILES:
 REGISTER_GAP_FILLED = _register_filled
 REGISTER_GAP_STOCKS = tuple(_register_stocks)
 del _register_filled, _register_stocks, _have, _add, _param, _unit, _cond
+
+# ---------------------------------------------------------------------------
+#  AgfaPhoto «Technical Data Sheet AP-F», page 5 -- the six RASTER panels,
+#  2026-09-24d.  Read by `agfaphoto_apf_panels.py`.
+# ---------------------------------------------------------------------------
+#: ⚠⚠ WHAT THIS BLOCK IS FOR, AND IT IS NOT AN ADOPTION. Every number this
+#: sheet supplies that is not already stored at higher precision is recorded
+#: here as PROVENANCE, and no stored field moves. Two reasons, in order:
+#:
+#:   (1) `mtf.adjacency` CARRIES A TRACED VALUE ON BOTH VISTA PLUS STOCKS AND
+#:       HAS NO PROVENANCE RECORD, so the `edge_effects` realism axis --
+#:       evidenced by the `mtf.adjacency` / `mtf.edge` prefixes, see
+#:       `realism_axes.AXIS_EVIDENCE_PREFIX` -- counts them as unevidenced
+#:       while the render uses their overshoot. That is the worst of the three
+#:       states a number can be in: used, real, and invisible to the audit.
+#:       Three stocks are given the record they were missing.
+#:   (2) The SAME AXIS now has THREE readings for one film and they disagree,
+#:       so the record has to say which one is stored and why:
+#:
+#:         Agfa-Gevaert «Technical Data AF» 06/2000, VECTOR, per film
+#:              Vista 200      f50 47.83   overshoot +0.0978  peak 3.5 c/mm
+#:         AgfaPhoto AP-F 07/2007, RASTER, per film  (this block)
+#:              Vista 100      f50 51.89   overshoot +0.1379  peak 4.97
+#:              Vista 200      f50 51.28   overshoot +0.1012  peak 4.60
+#:              Vista 400      f50 51.28   overshoot +0.1012  peak 2.97
+#:         AgfaPhoto «Product Information» undated, VECTOR, ONE SHARED DRAWING
+#:              Vista plus 200 AND 400     f50 58.68   overshoot +0.1842
+#:
+#:       The first two are independent documents seven years and one bankruptcy
+#:       apart and they agree to 3.5 % on the overshoot and 7 % on f50. The
+#:       third is what the two profiles carry, it is 1.8x the other two on the
+#:       overshoot, and it is the one drawing KNOWN not to be per-film -- the
+#:       same 47-point path placed on page 4 and page 8. ⚠ IT IS STILL WHAT IS
+#:       STORED, because it is a vector trace of the product the profile is
+#:       named for and this is a 330 ppi raster trace of that product's
+#:       predecessor, and because the corpus rule after the Eterna back-out is
+#:       that a neighbouring product's number labelled as this film's is worse
+#:       than the document you actually have. DIGITIZATION_QUEUE row P93 asks
+#:       for the one thing that settles it: a Vista plus sheet with per-film
+#:       MTF artwork, or any AgfaPhoto publication that prints the Sharpness
+#:       panel for Vista plus rather than for Vista.
+#:
+#: ⚠ AND THE SHEET DOES SETTLE ONE THING, WHICH IS WHY IT IS ATTACHED TO THESE
+#: PROFILES AT ALL. Fitted against the stored `ToneCurve`s with two free
+#: parameters -- one log-exposure shift and one density offset -- its
+#: colour-density panels reproduce the Vista plus characteristic curves at
+#: 0.024-0.076 D rms, and the density offset comes out as ONE constant,
+#: +0.192..+0.243 D across all six records rather than three different ones.
+#: A changed zero reference, not a changed emulsion. That test is what
+#: licensed the 2026-09-24 rms-granularity correction (4.5 -> 4.0) on the 200,
+#: and `agfaphoto_apf_panels.py` re-runs it on every build.
+#:
+#: ⚠ VISTA 100 IS ON THE SAME PAGE AND HAS NO PROFILE. Its panels are traced
+#: and pinned in the reader -- f50 51.89, q 3.02, overshoot +0.1379, D-min
+#: B/G/R 0.883 / 0.618 / 0.244, printed RMS 3.5 -- so adding the stock later is
+#: a scope decision and not another digitisation job.
+
+
+# ---------------------------------------------------------------------------
+#  CINESTILL 800T -- the second figure, identified 2026-09-24d
+# ---------------------------------------------------------------------------
+#: ⚠⚠ NotFound.md §7.2 AND THE 800T LEDGER BOTH HELD `cs41vscs2curves2` AS
+#: «VENDOR, but UNIDENTIFIED -- which curve is which process is unknown, so no
+#: value can be attributed». That refusal was right and it is now answered,
+#: without a new document and without a guess. The FIRST figure from the same
+#: page is already adopted on this profile; a comparison figure captioned «CS41
+#: against CS2» must therefore plot, as one of its two curves, a record this
+#: database already holds. Put figure 2 on figure 1's abscissa -- the SAME
+#: +1.51681 decade shift, chosen in advance and not fitted, or the test would
+#: buy its own answer -- and the six pairings separate at better than three to
+#: one:
+#:
+#:      curve             vs stored r   vs stored g   vs stored b
+#:      curve_red            0.4693        0.0848        0.3544   D rms
+#:      curve_neutral        0.2878        0.2748        0.5332   D rms
+#:
+#: `curve_red` is the CS41 GREEN record; by elimination `curve_neutral` is CS2.
+#: Its own six-parameter refit gives gamma 0.6112 against the stored green's
+#: 0.6214 -- 1.6 % apart on two independent traces of two different drawings.
+#:
+#: ⚠ THE DIRECTION OF THE ANSWER IS ITS OWN CHECK. Cs2 is CineStill's ECN-2
+#: kit and Cs41 their C-41 kit, and ECN-2 develops a colour negative FLATTER.
+#: The identification returns CS2 17.7 % flatter (gamma 0.5029 against 0.6112)
+#: -- the direction the chemistry predicts, arrived at by a test that knew
+#: nothing about it. `cinestill_cs2.py` FAILS the build if that sign flips.
+#:
+#: ⚠⚠ AND IT IS STORED AS A DELTA ON ONE RECORD, NOT AS A ProcessVariant. The
+#: figure prints ONE record per process; a variant needs three, and carrying a
+#: green delta across to red and blue is exactly what `_PROCESS_VARIANTS`
+#: exists to prevent -- a process change does not move three layers by one
+#: factor, which is why the PJ800 push ladder fits three records per step.
+#:
+#: ⚠ THE TWO FIGURES DISAGREE BY 0.075 D ON THE RECORD THEY SHARE (D-min
+#: 0.6009 in figure 2 against the 0.5258 adopted from figure 1) while agreeing
+#: on gamma to 1.6 %. That is why the DELTA is what is stored: CS2 minus CS41
+#: measured inside one figure cancels that figure's own base, where CS2 from
+#: figure 2 minus CS41 from figure 1 would carry the whole 0.075.
+_CINESTILL_CS2_DELTA: tuple[float, float, str] = (
+    -0.0364, -0.1083,
+    'CineStill Film, figure `cs41vscs2curves2_PNG_480x480.png` on '
+    'cinestillfilm.com/blogs/news/, traced 2026-08-27, IDENTIFIED 2026-09-24d '
+    'by cinestill_cs2.py. Six-parameter fits on the figure\'s own two dashed '
+    'traces: CS41 (C-41) dmin 0.6009 gamma 0.6112, CS2 (ECN-2) dmin 0.5645 '
+    'gamma 0.5029, fit rms 0.0061 and 0.0056 D. VENDOR-PUBLISHED PLOT, one '
+    'record per process, not a data sheet')
+
+
+# ---------------------------------------------------------------------------
+#  ILFORD PAN F -- the 1949 filmstrip book, 2026-09-24d
+# ---------------------------------------------------------------------------
+#: ⚠ ONE CLASS DEFAULT BECOMES A STATED NUMBER, and nothing else on the
+#: profile moves. `emulsion.base_um` has been 127.0 since the Glafkides pass
+#: put it there -- a CLASS figure keyed off `default_format`, «standard
+#: cellulose-acetate support gauges by format», explicitly «not a measurement
+#: of this product». Peter Hansell's «35 mm. Filmstrip Technique» (Ilford
+#: Limited, 1949, p.44) states it for the product: «on grey-dyed 5/1,000-in.
+#: safety base». Five thousandths of an inch is 127.0 um exactly, so the
+#: VALUE does not change by a digit and its EVIDENCE CLASS changes completely.
+#: That is worth a record on its own: a class default that happens to be right
+#: and a stated figure are indistinguishable in the field and must not be
+#: indistinguishable in the provenance.
+#:
+#: ⚠ THE GREY DYE IS NOT WRITTEN INTO `anti_halation`, AND THAT IS DELIBERATE.
+#: «Permanently grey-dyed base» (p.57) is an antihalation construction stated
+#: in Ilford's own words, and the AntiHalationSpec on this profile is entirely
+#: empty, so the temptation is obvious. It is a statement about the 1949
+#: coating -- the one whose Weston 16 is a stop and a third off this profile's
+#: ISO 50 and whose gammas run 1.1-1.6 against the family's 0.55-0.70 -- and
+#: this profile is the later film. Filling a modern profile's construction
+#: from a 1949 book because the name matches is the error the generation tag
+#: on the six development points exists to prevent, committed one field over.
+_PARAM_SOURCES["ILFORD_PAN_F"] = _PARAM_SOURCES.get("ILFORD_PAN_F", ()) + (
+    ParamSource(
+        param='emulsion.base_um', tier=1, status='stated', unit='um',
+        conditions='35 mm miniature film, 1949 coating; support gauge as the '
+                   'manufacturer prints it, in thousandths of an inch',
+        source=('Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, '
+                'Ilford, London, 1949, printed by Lund Humphries, p.44 -- '
+                '«ILFORD PAN F. 35mm. MINIATURE FILM ... on grey-dyed '
+                '5/1,000-in. safety base», and p.57 «It has a permanently '
+                'grey-dyed base». 5/1000 in = 127.0 um'),
+        confidence='high',
+        note=('⚠ THE NUMBER DOES NOT MOVE AND THE EVIDENCE DOES. 127.0 um was '
+              'a CLASS DEFAULT from Glafkides §428 -- the standard '
+              'cellulose-acetate gauge for cine-slit 35 mm, whose own note '
+              'says it is «not a measurement of this product». Ilford state '
+              'the same gauge for the product, so the field is unchanged and '
+              'its class rises from engineering estimate to manufacturer '
+              'statement. ⚠ THE SUPPORT POLYMER IS STILL NOT STATED: «safety '
+              'base» rules out nitrate and says nothing more, so '
+              '`base_material` stays empty rather than being filled with the '
+              'acetate the class default assumed. ⚠ AND THE «GREY-DYED» HALF '
+              'OF THE SENTENCE IS NOT WRITTEN INTO `anti_halation`, because '
+              'it describes the 1949 coating -- Weston 16, gammas 1.1-1.6 -- '
+              'and this profile is the later ISO 50 film. See the six '
+              'generation-tagged development points and the processing '
+              'family source for the rest of what that book states.')),
+)
+
+# ---------------------------------------------------------------------------
+#  FERRANIA P30 -- «BEST PRACTICES» v 2.5, 2026-09-25
+# ---------------------------------------------------------------------------
+#: ⚠ THE FILM HAD FIVE PROCESS VARIANTS AND NO MANUFACTURER PROCESSING TIME.
+#: The five come from a named third party's D-76 1+1 test on PRE-PRODUCTION
+#: alpha stock the tester's own notes call «difettata». This sheet is the
+#: manufacturer's, covers eight developers, and confirms the box speed the
+#: profile already carries.
+_P30_BP_SRC = (
+    'Film Ferrania S.r.l., «FERRANIA P30 BEST PRACTICES», version 2.5, '
+    '3 pages, undated, published by the manufacturer at '
+    'www.filmferrania.it/p30. Page 2 is the recommended processing chart '
+    '(11 rows, 8 developers); page 3 is a community-submitted table the '
+    'manufacturer curates but does not itself recommend; page 1 is usage '
+    'guidance')
+
+# ⚠ `processing.developer` IS REPLACED, NOT APPENDED TO. G-PROV allows one
+# record per parameter, and this profile already carried a placeholder from
+# the register-gap pass. A manufacturer chart displaces a placeholder.
+_replace_param_source("FERRANIA_P30", ParamSource(
+        param='processing.developer', tier=1, status='stated', unit='',
+        conditions='eight developers with dilution, temperature, exposure '
+                   'index and time; NO contrast printed for any of them',
+        source=_P30_BP_SRC + ' -- page 2',
+        confidence='high',
+        note=('⚠ THE FIRST MANUFACTURER PROCESSING DATA THIS PROFILE HAS EVER '
+              'CARRIED. Its five ProcessVariants are a third party\'s D-76 '
+              '1+1 test of PRE-PRODUCTION alpha stock; these eleven are '
+              'Ferrania\'s own, at D-76 STOCK, so neither displaces the '
+              'other. ⚠ No gamma is printed anywhere on the sheet, so all '
+              'eleven are time-only. ⚠ Page 3\'s thirteen COMMUNITY times '
+              'are not stored as points: `DevelopmentPoint` has no evidence '
+              'tier, so mixing them in would make a user submission '
+              'indistinguishable from a manufacturer recommendation. See '
+              '`_FERRANIA_P30_COMMUNITY_TIMES`.')))
+
+_PARAM_SOURCES["FERRANIA_P30"] = _PARAM_SOURCES.get("FERRANIA_P30", ()) + (
+    ParamSource(
+        param='exposure_index', tier=1, status='stated', unit='ISO',
+        conditions='box speed, daylight',
+        source=_P30_BP_SRC + ' -- page 1',
+        confidence='high',
+        note=('«We firmly recommend shooting this film at the box speed of 80 '
+              'ISO ... we suggest using +/- exposure compensation instead of '
+              'a different ISO.» The stored 80 is confirmed by the maker, and '
+              'the chart backs it: only D-76 and D-96 are given at BOTH EI 50 '
+              'and EI 80, and D-96 is given the SAME 8 minutes at each, so '
+              'the sheet treats EI 50 as an exposure choice rather than a '
+              'development change. ⚠ «Ferrania P30 is not DX coded» (page 1); '
+              'no schema field carries DX coding.')),
+    # ⚠⚠ THE PROFILE WAS ASSERTING AN ISO 6 MEASUREMENT AND NO SUCH
+    # MEASUREMENT EXISTS. Corrected 2026-09-25c; see
+    # `_SPEED_CRITERION_OVERRIDES` for the full argument.
+    ParamSource(
+        param='speed_criterion', tier=1, status='stated', unit='',
+        conditions='box speed printed by the maker; no standard named',
+        source=_P30_BP_SRC + ' -- page 1',
+        confidence='high',
+        note=('⚠⚠ CORRECTED FROM «iso6», WHICH THE MONOCHROME BRANCH OF '
+              '`_apply_schema_v2` HAD ASSIGNED TO EVERY BLACK-AND-WHITE '
+              'STOCK. Ferrania name no measurement standard on any of the '
+              'three pages and publish no data sheet for this emulsion, so '
+              'the 80 is a box speed and nothing more. ⚠ The five '
+              'ProcessVariant EIs 12/25/32/50/64 are a DIFFERENT QUANTITY -- '
+              'BTZS effective film speeds that move with development time, '
+              'which an ISO 6 speed by definition cannot. The vocabulary '
+              'gained «btzs_efs» in the same edit; it has nowhere to be '
+              'stored until a criterion field reaches ProcessVariant.')),
+    # ⚠ THE SHOULDER IS THIS PROJECT'S NUMBER, NOT THE REPORT'S. Recorded
+    # 2026-09-25c because the profile looked like it was traced end to end.
+    ParamSource(
+        param='curves.g.shoulder_x', tier=2, status='assumed', unit='log H',
+        conditions='family convention, shared with the other three Ferrania '
+                   'monochrome stocks',
+        confidence='low',
+        note=('⚠⚠ NO SHOULDER IS VISIBLE IN THE SOURCE AND NONE WAS FITTED. '
+              'The five step-tablet curves on pages 4-8 END AT THEIR OWN '
+              'ORDINATE FRAME -- the highest step is still on the straight '
+              'line -- so there is nothing in the document to fit a shoulder '
+              'to. 1.610 / 0.020 is the P30 family convention, carried '
+              'across all four Ferrania monochrome profiles so that they '
+              'differ only where the evidence differs. ⚠ THIS IS NOT '
+              'COSMETIC: an earlier pass DID fit a shoulder to the '
+              'flattening at the top of the drawn data, which put it just '
+              'above mid grey and made eighteen of twenty-four ColorChecker '
+              'patches render identically. The convention is the safe '
+              'choice, and it is a choice.')),
+    # ⚠ AND SO IS THE DENSITY BASIS.
+    ParamSource(
+        param='density_metric', tier=2, status='assumed', unit='',
+        conditions='class default for a monochrome stock',
+        confidence='low',
+        note=('⚠ «visual_iso» COMES FROM THE MONOCHROME BRANCH OF '
+              '`_apply_schema_v2`, NOT FROM THE SOURCE. The alfa report '
+              'prints densities to two places on every one of its five '
+              'pages and names no densitometer, no filter and no status '
+              'anywhere; Ferrania\'s own BEST PRACTICES sheet carries no '
+              'densitometry at all. The value is almost certainly right -- a '
+              'BTZS workflow reads visual diffuse density by construction -- '
+              'but it is inferred from the class and the workflow, not read, '
+              'and a profile whose curves are traced to 0.01 D should not '
+              'imply that the basis of those densities was stated.')),
+)
+
+
+_cs800 = [_r for _r in _PARAM_SOURCES.get("CINESTILL_800T", ())
+          if _r.param == "curves.g.gamma"]
+if _cs800:
+    _replace_param_source("CINESTILL_800T", replace(
+        _cs800[0],
+        note=(_cs800[0].note or "") + (
+            ' ⚠⚠ THE SECOND FIGURE IS IDENTIFIED, 2026-09-24d. '
+            '`cs41vscs2curves2` was held as «which curve is which process is '
+            'unknown» by NotFound.md 7.2 and by the 800T ledger. Placing it on '
+            'THIS figure\'s abscissa -- the same +1.51681 decade, fixed in '
+            'advance -- matches its red dashed trace to this green record at '
+            '0.0848 D rms where the next-best of the six pairings is 0.2748, '
+            'three times worse; and that trace\'s own refit returns gamma '
+            '0.6112 against the 0.6214 stored here, 1.6 % apart on two '
+            'independent traces of two different drawings. So the red trace '
+            'is CS41 and, by elimination, the neutral one is CS2. '
+            'MEASURED DELTA, CS2 MINUS CS41, INSIDE THAT ONE FIGURE: '
+            'D-min -0.0364, gamma -0.1083, i.e. ECN-2 develops this film '
+            '17.7 % flatter than C-41 -- the direction the chemistry predicts, '
+            'from a test that was not told it. ⚠ NOT PROMOTED TO A '
+            'ProcessVariant: the figure prints ONE record per process and a '
+            'variant needs three, and spreading a green delta over red and '
+            'blue is the error `_PROCESS_VARIANTS` exists to prevent. '
+            '⚠ THE TWO FIGURES DISAGREE BY 0.075 D ON D-MIN for the record '
+            'they share while agreeing on gamma to 1.6 %, which is why a '
+            'delta is stored and not an absolute.')))
+del _cs800
+
+
+_APF_SRC = (
+    'AgfaPhoto Holding GmbH / Lupus Imaging & Media GmbH & Co. KG, '
+    '«Technical Data Sheet AP-F», Stand 07/2007, brochure printed 11.01.2008, '
+    'page 5. RASTER panels, '
+    'traced 2026-09-24d by agfaphoto_apf_panels.py. ⚠ THE PANELS HAVE NO TEXT '
+    'LAYER AT ALL -- no curve labels, no axis numerals, not even tick values '
+    '-- so the calibration is anchored on the drawn gridlines, six verticals '
+    'and five horizontals per panel, worst residual 3.0 px on a 550 px axis '
+    '(0.55 %, 0.9 % in frequency). ⚠ NOT an Agfa-Gevaert publication: the '
+    'rights line reads «AGFAPHOTO is used under License of Agfa-Gevaert NV & '
+    'Co. KG» and Agfa-Gevaert had left the photographic film business in 2005')
+
+_APF_ADJ_NOTE = (
+    '⚠⚠ THREE DOCUMENTS, THREE READINGS, AND THE STORED ONE IS THE OUTLIER. '
+    'Agfa-Gevaert 06/2000, vector and per film: +0.0978 at 3.5 c/mm. '
+    'AgfaPhoto AP-F 07/2007, raster and per film: +0.1012 at 4.60 (200) '
+    'and at 2.97 (400). AgfaPhoto «Product Information», vector but ONE '
+    'shared 47-point path for both films: +0.1842, which is what is '
+    'stored. Kept because it is a vector trace of the product this '
+    'profile is named for and the other two are a raster trace of its '
+    'predecessor; recorded rather than averaged. Queue P93 names the '
+    'document that would decide it. ⚠ `adjacency_um` is from neither: it '
+    'is the A4 solve, and the 12.1 c/mm it implies is 2.6x the AP-F '
+    "panel's measured 4.60.")
+
+for _apf_n, _apf_film, _apf_v in (
+        ("AGFA_VISTA_PLUS_200", "Vista 200", (51.28, 2.43, 0.1012, 4.60)),
+        ("AGFA_VISTA_PLUS_400", "Vista 400", (51.28, 2.45, 0.1012, 2.97))):
+    _PARAM_SOURCES[_apf_n] = _PARAM_SOURCES.get(_apf_n, ()) + (
+        ParamSource(
+            param='mtf.adjacency', tier=1, status='traced', unit='fraction',
+            conditions='«Sharpness», transfer factor % against 2-100 lines '
+                       'per mm; the stored value is the Vista plus vector '
+                       'panel, this record also carries the AP-F reading',
+            source=_APF_SRC + (' («Sharpness», %s: peak %+.4f at %.2f c/mm, '
+                               'f50 %.2f c/mm, rolloff q %.2f fitted above '
+                               'the peak only)'
+                               % (_apf_film, _apf_v[2], _apf_v[3],
+                                  _apf_v[0], _apf_v[1])),
+            confidence='medium',
+            note=_APF_ADJ_NOTE),
+    )
+    # ⚠ THE CROSS-DOCUMENT CURVE TEST GOES INTO THE EXISTING `curves` RECORD
+    # RATHER THAN BESIDE IT. `ParamSource.param` must resolve to a real field
+    # -- `curves.apf_crosscheck` is refused by the validator, correctly -- and
+    # G-PROV allows one record per parameter, so the second reading of the
+    # same axis is an ADDENDUM to the first, not a rival to it. The stored
+    # curves do not move: they are the Vista plus VECTOR trace, and this is a
+    # 330 ppi raster of a different printing.
+    _apf_curves = next(r for r in _PARAM_SOURCES[_apf_n] if r.param == 'curves')
+    _replace_param_source(_apf_n, replace(
+        _apf_curves,
+        note=_apf_curves.note + (
+            ' ⚠⚠ SECOND DOCUMENT, 2026-09-24d -- AgfaPhoto «Technical Data '
+            'Sheet AP-F» 07/2007 p5, «Colour densitiy curves» for %s, '
+            'RASTER. NOTHING IS ADOPTED FROM IT. It is the CROSS-DOCUMENT '
+            'IDENTITY TEST that licenses attaching an AP-F «Vista» sheet to '
+            'a «Vista plus» profile at all: fitted against the stored '
+            'ToneCurves with TWO free parameters, one lg-E shift and one '
+            'density offset, the three records land at 0.024-0.076 D rms and '
+            'the offset is ONE CONSTANT of +0.192..+0.243 D across all six '
+            'records of both films -- a changed zero reference, not a changed '
+            'emulsion. ⚠ THE SHIFT IS NOT A SPEED: +1.07 decade on the 200 '
+            'and +1.30 on the 400, a difference of 0.23 where the speed '
+            'difference is a full stop. ⚠ D-MIN AS AP-F PRINTS IT: B 0.945 / '
+            'G 0.649 / R 0.342 (200), B 0.990 / G 0.717 / R 0.413 (400).'
+            % _apf_film)))
+    # ⚠⚠ AND THE EXISTING GRANULARITY RECORD IS NOW FALSE AND IS REPLACED,
+    # NOT APPENDED TO. It reads «THE SHEET CARRIES NO GRANULARITY FIGURE AT
+    # ALL», which was true of the Vista plus «Product Information» sheet and
+    # is why both stocks carried a class estimate. THIS sheet prints one, in
+    # plain text beside the panels, and the 200's stored rms was changed to it
+    # on 2026-09-24 -- so the profile shipped a vendor number underneath a
+    # record calling it an estimate, which is exactly the state the FilmLabPro
+    # near-miss showed is dangerous: an automated pass reading `estimated`
+    # would offer to overwrite a printed figure with a hand-authored one.
+    # G-PROV forbids two records for one parameter, so this REPLACES.
+    _replace_param_source(_apf_n, ParamSource(
+        param='grain.rms_granularity', tier=1, status='stated',
+        unit='sigma_D x 1000',
+        conditions='printed in plain text beside the panels; NO aperture, NO '
+                   'reference density and NO filter are stated with it',
+        source=_APF_SRC + (' («Granularity (x 1000): RMS 3.5 / 4.0 / 4.5» for '
+                           'Vista 100 / 200 / 400; this stock is %s)'
+                           % _apf_film),
+        confidence='medium',
+        note=('⚠⚠ THIS DISPLACED AN ESTIMATE AND THE DOCUMENT DISAGREED WITH '
+              'IT: the 200 carried 4.5 and the sheet prints 4.0, 12 % too '
+              'coarse; the 400\'s 4.5 it confirms. ⚠ NO MEASUREMENT '
+              'CONDITIONS ARE PRINTED, so this is not comparable like-for-like '
+              'with a Kodak diffuse rms at 48 um and net density 1.0 -- tier 1 '
+              'for authority, `medium` for confidence, on that ground. ⚠ IT IS '
+              'THE PREDECESSOR PRODUCT\'S FIGURE, accepted only because the '
+              'same sheet\'s colour-density panels reproduce this profile\'s '
+              'stored curves at 0.024-0.076 D rms under ONE constant offset '
+              '(see the `curves` record). If that test fails, this goes. ⚠ THE '
+              'REST OF THE GRAIN BLOCK IS STILL A CLASS ESTIMATE: no '
+              'granularity curve, no clump size, no resolving-power table.')))
+
+#: ⚠ AGFA_VISTA_200 GETS THE SAME MISSING RECORD, from its own sheet. Its
+#: `mtf.adjacency` of 0.0978 has been in the database since 2026-09-06j,
+#: traced by `agfa_vista_mtf.py` off the panel that Agfa's page 4 names an MTF
+#: in so many words, and it too had no ParamSource. Three stocks in this family
+#: were using a traced overshoot that the evidence census could not see.
+_PARAM_SOURCES["AGFA_VISTA_200"] = _PARAM_SOURCES.get("AGFA_VISTA_200", ()) + (
+    ParamSource(
+        param='mtf.adjacency', tier=1, status='traced', unit='fraction',
+        conditions='«Sharpness», transfer factor % against 2-100 lines per '
+                   'mm; exposure daylight, densitometry visual filter '
+                   '(V-lambda)',
+        source=('Agfa-Gevaert AG, «AGFACOLOR Vista 100, 200, 400, 800 -- '
+                'Technical Data AF», 2nd edition 06/2000, printed page 6, '
+                'left column of «AGFACOLOR Vista 100, 200, '
+                '400, 800». Vector trace 2026-09-06j by agfa_vista_mtf.py: '
+                'peak +0.0978 at 3.5 c/mm, f50 47.83 c/mm, rolloff q 2.63 '
+                'fitted above the peak only'),
+        confidence='high',
+        note=('⚠ AN MTF CANNOT EXCEED 1, so the >100 % transfer factor at low '
+              'frequency is an adjacency-enhanced measured response and the '
+              'peak goes here rather than into the rolloff -- the treatment '
+              'all thirteen AGFA sharpness panels get. ⚠ THE PANEL IS '
+              'READABLE AT ALL BECAUSE OF A SENTENCE: page 4 of the same '
+              'sheet says «Sharpness -- International name of the chart: MTF '
+              '(Modulation Transfer Function)», which is the manufacturer '
+              'naming the quantity and is what retired the 2026-08-18 refusal '
+              'that this is a rectangular-wave CTF f50 is not defined '
+              'against. `agfa_vista_mtf.py` re-reads that sentence every '
+              'build and FAILS if it goes. ⚠ INDEPENDENT SUPPORT, '
+              '2026-09-24d: the AgfaPhoto AP-F brochure of 07/2007 prints the '
+              'same chart for the successor product and its Vista 200 panel '
+              'gives +0.1012 at 4.60 c/mm -- two documents seven years and '
+              'one bankruptcy apart, agreeing on this overshoot to 3.5 %.')),
+)
+
+
 
 FILM_PROFILES = tuple(
     replace(_p, param_sources=_PARAM_SOURCES.get(_p.name, ()))
@@ -62397,6 +68063,62 @@ _V29_RATE_LAW: dict[str, tuple[float, float, float, float, str]] = {
 # window, not a gamma-time curve.
 
 
+#: Per-developer rate laws, schema v41's `DevelopmentLaw`, for families whose
+#: points span more chemistries than one (gamma_inf, k, t0) can describe.
+#:
+#: ⚠⚠ WHY THIS EXISTS AT ALL, AND IT IS A DEFECT THE HARVEST CREATED. Before
+#: 2026-09-24, FUJI_NEOPAN_1600 carried exactly three development points, all
+#: in SPD, and the family law fitted to them (gamma_inf 1.125, k 0.266) was
+#: checked against all three and passed. The Neopan 1600 harvest of 2026-09-24
+#: added nine more from the same manufacturer's processing table in THREE
+#: OTHER developers -- D-76, Fujidol E and Microfine -- and
+#: `ProcessingFamily.validate` immediately refused the record: the D-76 point
+#: at 4 min measures contrast index 0.48 where the SPD law predicts 0.737, 53 %
+#: apart. **THE VALIDATOR WAS RIGHT AND THE DATABASE WAS WRONG.** A rate law
+#: fitted to one developer does not describe another; SPD is a high-energy
+#: developer that reaches CI 0.58 in 2.75 min where D-76 needs 4 for 0.48.
+#: Queue P52 put `DevelopmentLaw` in the schema for exactly this and
+#: KODAK_T_MAX_P3200 was the first user; this is the second.
+#:
+#: ⚠ EACH LAW IS FITTED TO ITS OWN THREE POINTS AND TO NOTHING ELSE, and the
+#: residuals below are against those three. Worst 2.5 % of contrast index,
+#: against the 12 % window `validate` enforces.
+#:
+#: ⚠⚠ AND THE ASYMPTOTE IS NOT MEASURED BY THESE DATA -- this is the honest
+#: limitation and it is the reason the fits are constrained. Three points
+#: spanning 3.5 min on the near-linear part of a saturating curve leave
+#: gamma_infinity almost free: an unconstrained least-squares fit puts it at
+#: 2.39 for D-76 and 3.01 for Fujidol E, which no negative emulsion reaches
+#: and which would let `minutes_for_gamma` promise a contrast index of 2.4.
+#: So every fit here is constrained to Glafkides §211's stated negative range
+#: of 1.0-1.6, the same ceiling argument the family laws use. D-76 lands ON
+#: the upper bound (1.600) and Fujidol E ON the lower (1.000): in both cases
+#: the CONSTRAINT is setting the asymptote, not the data, and neither number
+#: may be read as a measurement of where that developer saturates. Microfine's
+#: 1.120 is interior and is the only one the points themselves choose.
+_V41_PER_DEVELOPER_LAWS: dict[str, tuple["DevelopmentLaw", ...]] = {
+    "FUJI_NEOPAN_1600": (
+        # «FUJIFILM DATA SHEET -- NEOPAN 1600 Professional», Ref. AF3-608E(N),
+        # processing table, 20 degC small tank, EI 1600:
+        #   D-76      4.00 / 5.25 / 7.50 min -> CI 0.48 / 0.59 / 0.81
+        #   Fujidol E 4.50 / 5.00 / 6.50 min -> CI 0.54 / 0.62 / 0.76
+        #   Microfine 5.50 / 6.50 / 8.00 min -> CI 0.52 / 0.60 / 0.70
+        DevelopmentLaw(developer="D-76", dilution="stock",
+                       vessel="small tank", gamma_infinity=1.600,
+                       dev_rate_k=0.1000, induction_t0_min=0.50,
+                       fit_rms=0.0100),
+        DevelopmentLaw(developer="Fujidol E", dilution="stock",
+                       vessel="small tank", gamma_infinity=1.000,
+                       dev_rate_k=0.3280, induction_t0_min=2.10,
+                       fit_rms=0.0051),
+        DevelopmentLaw(developer="Microfine", dilution="stock",
+                       vessel="small tank", gamma_infinity=1.120,
+                       dev_rate_k=0.1420, induction_t0_min=1.10,
+                       fit_rms=0.0004),
+    ),
+}
+
+
 def _v29_speed_class(p: "FilmProfile") -> str:
     """Glafkides' emulsion speed class for a profile, by exposure index.
 
@@ -62537,6 +68259,15 @@ def _apply_v29_harvest(p: "FilmProfile") -> "FilmProfile":
             p.processing_family,
             source=_v29_join_source(p.processing_family.source, src),
             **pf_kw)
+
+    # ---- 8b. per-developer laws, where a second source added a chemistry --
+    pdl = _V41_PER_DEVELOPER_LAWS.get(p.name)
+    if pdl is not None:
+        base = kw.get("processing_family", p.processing_family)
+        have = {(_l.developer, _l.vessel) for _l in base.laws}
+        add = tuple(_l for _l in pdl if (_l.developer, _l.vessel) not in have)
+        if add:
+            kw["processing_family"] = replace(base, laws=base.laws + add)
 
     if not kw:
         return p
@@ -63209,6 +68940,37 @@ _K56_TRACE_SOURCE = (
     "\u26a0 THE EXPOSURE INDEX IS THE PRE-1960 AMERICAN STANDARD VALUE of the "
     "printed family this inset sits beside, which is not an ISO number.")
 
+#: EDITION-TAGGED GAMMA POINTS THAT CAME OFF A DRAWN CURVE, NOT A LABEL.
+#:
+#: ⚠⚠ WHY THIS EXISTS SEPARATELY FROM `_K56_TRACE`. verify.py holds every
+#: generation-tagged (time, gamma) family to a Mees-Sheppard fit, and to TWO
+#: tolerances rather than one, because a TRANSCRIBED pair and a TRACED pair
+#: fail in different ways: a printed number quoted to two decimals can only be
+#: mistyped, which moves it by 0.1, while a pixel reading of a draughtsman's
+#: line carries the draughtsman's own smoothing. Until 2026-09-24d the only
+#: way a point could be declared traced was to appear in `_K56_TRACE`, which
+#: is the 1956 Kodak Data Book's own reader -- so the FIRST traced gamma from
+#: any other publication landed in the transcription bin and was held to a
+#: tolerance meant for typing errors. This table is the general answer: any
+#: reader that traces a gamma-time curve registers its points here.
+#:
+#: (profile, edition, developer, dilution, minute)
+_TRACED_GAMMA_POINTS: tuple[tuple[str, str, str, str, float], ...] = tuple(
+    ("ILFORD_PAN_F", "Pan F, the 1949 35 mm miniature coating",
+     "ID-2 (M.Q., dish strength)", "1+2 (dish strength)", _m)
+    # Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited 1949,
+    # Fig. 17 INSET -- Ilford's own gamma-against-time curve, traced
+    # 2026-09-24d off a 300 dpi render at 24.90 px per minute and 125.33 px
+    # per 0.5 gamma, sampled at the three times the main panel plots.
+    # ⚠ THE FAMILY DOES NOT FIT A SATURATING EXPONENTIAL WELL and that is a
+    # property of the data, not of the trace: 1.148 / 1.338 / 1.609 at 2 / 4 /
+    # 8 min is still climbing almost linearly in log time at 8 minutes, so the
+    # asymptote is nowhere near and the constrained fit lands at 0.086 rms.
+    # Inside the traced bound of 0.100, well outside the transcription bound
+    # of 0.035, and it is the second of those that this table exists to stop
+    # being applied to a drawn line.
+    for _m in (2.0, 4.0, 8.0))
+
 #: (profile, edition, developer, dilution, vessel, exposure_index,
 #:  agreement, points) -- see `_K56_TRACE_SOURCE`.
 _K56_TRACE: tuple = (
@@ -63347,6 +69109,32 @@ _PV_BY_NAME.update({
     ("GEVACHROME_605",
      "26 DIN / 320 ASA (push 1, extended first development)"):
         "GEVACHROME_26DIN_320ASA",
+    ("FERRANIA_P30", "D-76 1+1, 5 min at 20 C"): "P30_D76_1_1_5MIN",
+    ("FERRANIA_P30", "D-76 1+1, 8 min at 20 C"): "P30_D76_1_1_8MIN",
+    ("FERRANIA_P30", "D-76 1+1, 11 min at 20 C"): "P30_D76_1_1_11MIN",
+    ("FERRANIA_P30", "D-76 1+1, 16 min at 20 C"): "P30_D76_1_1_16MIN",
+    ("FERRANIA_P30", "D-76 1+1, 23 min at 20 C"): "P30_D76_1_1_23MIN",
+    ("FERRANIA_P30", "D-76 stock, 8 min at 20 C"): "P30_D76_STOCK_8MIN",
+    ("KODAK_TMAX_P3200", "T-MAX Developer, 6 min at 75 F"):
+        "TMZ_TMAX_DEV_6MIN",
+    ("KODAK_TMAX_P3200", "T-MAX Developer, 8 min at 75 F"):
+        "TMZ_TMAX_DEV_8MIN",
+    ("KODAK_TMAX_P3200", "T-MAX Developer, 10 min at 75 F"):
+        "TMZ_TMAX_DEV_10MIN",
+    ("KODAK_TMAX_P3200", "T-MAX Developer, 12 min at 75 F"):
+        "TMZ_TMAX_DEV_12MIN",
+    ("KODAK_EKTAPRESS_PJ400", "EI 400, box speed, C-41 3:15"):
+        "PJ400_EI400",
+    ("KODAK_EKTAPRESS_PJ400", "EI 800 (Push 1), as E-116 prints it"):
+        "PJ400_EI800_PUSH1",
+    ("KODAK_EKTAPRESS_PJ400", "EI 1600 (Push 2), as E-116 prints it"):
+        "PJ400_EI1600_PUSH2",
+    ("KODAK_EKTAPRESS_PJ800", "EI 800, box speed, C-41 3:15"):
+        "PJ800_EI800",
+    ("KODAK_EKTAPRESS_PJ800", "EI 1600 (Push 1), as E-116 prints it"):
+        "PJ800_EI1600_PUSH1",
+    ("KODAK_EKTAPRESS_PJ800", "EI 3200 (Push 2), as E-116 prints it"):
+        "PJ800_EI3200_PUSH2",
     ("KODAK_PORTRA_800", "EI 800 (box speed)"): "PORTRA800_EI800",
     ("KODAK_PORTRA_800", "EI 1600 (Push 1)"): "PORTRA800_EI1600_PUSH1",
     ("KODAK_PORTRA_800", "EI 3200 (Push 2)"): "PORTRA800_EI3200_PUSH2",
@@ -63391,6 +69179,109 @@ def _apply_v37_variant_ids(p: "FilmProfile") -> "FilmProfile":
 
 
 FILM_PROFILES = tuple(_apply_v37_variant_ids(_p) for _p in FILM_PROFILES)
+
+
+def _apply_speed_only_pushes(p: "FilmProfile") -> "FilmProfile":
+    """Record the speed a curveless variant STATES (schema v56, queue 560).
+
+    ⚠⚠ SEVEN LEGS WERE STORING «NO SPEED CHANGE» ON A SHEET THAT PRINTS ONE.
+    Agfa's «Technical Data PF» p11 gives a working exposure index per
+    developer -- APX 100 meters ISO 125 in Refinal against a nominal 100, APX
+    400 meters 320 in Rodinal 1+25, APX 25 meters 20 in Rodinal 1+25 -- and
+    every one of those legs carried `push_stops = 0.0`, which is not "unknown"
+    but "the same speed as the box". The value was absent because
+    `ProcessVariant.validate` refused a push on a leg with no curves, and Agfa
+    plot one characteristic curve per FILM, not one per developer.
+
+    ⚠ DERIVED, NEVER AUTHORED. `push_stops` here is exactly
+    log2(exposure_index / box speed) -- the two numbers are already stored
+    beside each other and this only writes down their ratio. A curveless leg
+    is not permitted to assert any other figure; see the `speed_only` field
+    and the validator it gates.
+
+    ⚠ THE DEFAULT LEG IS SKIPPED AND THAT IS NOT A HOLE. The profile's stored
+    curves ARE the default development, so a push on it would claim the
+    profile's own curves are a push of themselves. ⚠ APX 100's default leg is
+    the interesting case: Refinal's ISO 125 differs from the profile's nominal
+    100, so this stock's own curves were measured a third of a stop off its
+    box speed. That is a real disagreement between Agfa's rating and Agfa's
+    processing table; it is left standing, visible in the two fields, and is
+    NOT reconciled by moving either one.
+    """
+    if not p.process_variants or p.exposure_index <= 0:
+        return p
+    out = []
+    changed = False
+    for v in p.process_variants:
+        if (v.curves is None and not v.is_default and v.exposure_index > 0
+                and v.push_stops == 0.0
+                and v.exposure_index != p.exposure_index):
+            out.append(replace(
+                v, speed_only=True,
+                push_stops=_math.log2(v.exposure_index / p.exposure_index)))
+            changed = True
+        else:
+            out.append(v)
+    return replace(p, process_variants=tuple(out)) if changed else p
+
+
+FILM_PROFILES = tuple(_apply_speed_only_pushes(_p) for _p in FILM_PROFILES)
+
+
+def _apply_reciprocity_onset(p: "FilmProfile") -> "FilmProfile":
+    """Take `onset_s` from the maker's own flat window (queue 533).
+
+    ⚠⚠ TWENTY-THREE STOCKS WERE RENDERING RECIPROCITY FAILURE AT A THRESHOLD
+    THEIR OWN DATASHEET CONTRADICTS, and the contradiction was sitting in two
+    fields of the same profile. `ReciprocityTable` holds the correction ladder
+    exactly as the sheet prints it; `ReciprocitySpec.onset_s` holds the
+    threshold the RENDERER uses, and its docstring defines it as "exposure
+    time, seconds, below which no correction applies". Nothing connected the
+    two, so a table harvested from a sheet left `onset_s` at the class default
+    1.0 and the renderer went on using a number nobody had read off anything.
+    Found while closing the AgfaPhoto AP-F harvest, whose sheet says in words
+    that nothing needs correcting out to 10 seconds while the profile was
+    applying failure from 1.
+
+    ⚠ THE RULE IS THE FIELD'S OWN DEFINITION, APPLIED LITERALLY: onset_s is
+    the LARGEST time the table gives a zero correction for. Nothing is
+    interpolated and nothing is averaged.
+
+      * AGFAPHOTO VISTA plus 200/400 -- the sheet says 1/10 000 s to 10 s
+        needs nothing, so 1.0 -> 10.0 and the film stops being penalised
+        across nine seconds the maker certifies as clean.
+      * KODAK TRI-X 400TX -- the ladder reads 0 at 0.001-0.1 s and +1.0 stop
+        AT 1 s, so 1.0 -> 0.1. This one moves the threshold EARLIER, and it
+        has to: holding 1.0 asserted "no correction below 1 second" on a sheet
+        that prints a whole stop of correction at exactly 1 second.
+      * FUJI PROVIA 100F -- 1.0 -> 128.0, the film's own headline claim.
+
+    ⚠ WHAT THIS DOES NOT DO. It does not touch the Schwarzschild exponent: a
+    threshold is a different statement from a slope, and the sheets that give
+    a flat window mostly print no ladder past it, so the exponent stays the
+    class estimate it already was and is still labelled as one. It also leaves
+    `short_onset_s` alone -- that is the SHORT-exposure threshold and it has
+    its own evidence.
+
+    ⚠ AND IT IS AN OVERRIDE, NOT A REPLACEMENT. A stock with no table keeps
+    whatever `_RECIPROCITY` gives it; a table with no zero-correction entry
+    (the sheet begins already corrected) changes nothing, because there is no
+    flat window to read.
+    """
+    tab = getattr(p, "reciprocity_table", None)
+    if tab is None or not getattr(tab, "times_s", ()):
+        return p
+    flat = [t for t, c in zip(tab.times_s, tab.stops_correction)
+            if abs(c) < 1e-9]
+    if not flat:
+        return p
+    onset = max(flat)
+    if abs(onset - p.reciprocity.onset_s) < 1e-12:
+        return p
+    return replace(p, reciprocity=replace(p.reciprocity, onset_s=onset))
+
+
+FILM_PROFILES = tuple(_apply_reciprocity_onset(_p) for _p in FILM_PROFILES)
 
 
 # ---------------------------------------------------------------------------
@@ -65019,6 +70910,14 @@ _P47_LADDER_CONFIRMED: frozenset[str] = frozenset({
     # was consistent; it is not consistent with a traced mask, and G-MASKENC
     # caught exactly that the moment the curves landed.
     "KODAK_EKTAR_100",
+    # ⚠ ADDED 2026-09-24b WITH THE TWO NEW EKTAPRESS PROFILES. Both ladders are
+    # READ, not inferred: E-116 page 5 draws PJ100's dmin at 0.289 / 0.724 /
+    # 0.931 and page 7 draws PJ800's at 0.314 / 0.765 / 1.018, both on vector
+    # art at Status M. PJ400 is absent from this set because its profile sets
+    # `mask_encoding` in its own literal; these two take the default and are
+    # relabelled here, which is the same outcome by the other route.
+    "KODAK_EKTAPRESS_PJ100",
+    "KODAK_EKTAPRESS_PJ800",
     "AGFA_NEG_TYPE_3",
     "AGFA_OPTIMA_200",
     "AGFA_OPTIMA_400",
@@ -65072,7 +70971,7 @@ _P47_LADDER_UNCONFIRMED: frozenset[str] = frozenset({
 
 
 def _apply_p47_mask_label(p: "FilmProfile") -> "FilmProfile":
-    """Relabel the 38 confirmed ladders. Metadata only; no number moves."""
+    """Relabel the 41 confirmed ladders. Metadata only; no number moves."""
     if p.name not in _P47_LADDER_CONFIRMED:
         return p
     if p.mask_encoding != "neutral_dmin":
@@ -68635,7 +74534,13 @@ FILM_PROFILES = tuple(_apply_grain_um_v48(_p) for _p in FILM_PROFILES)
 #: direction on all five, which is what a corrected constant looks like.
 GRAIN_UM_MEASURED_AGREEMENT: dict[str, float] = {
     "ILFORD_HPS": 1.04, "EASTMAN_TRI_X_5223": 1.05,
-    "EASTMAN_PLUS_X_5231": 1.21, "KODAK_8374": 1.62, "ILFORD_PAN_F": 1.91,
+    "EASTMAN_PLUS_X_5231": 1.21,
+    # ⚠ 1.62 -> 1.56 ON 2026-09-24c, AND THE MEASUREMENT DID NOT MOVE.
+    # 8374's clump_um is still T-101's printed 1.2 um diameter; what
+    # changed is the rms the derivation is a function of, 6.2 -> 6.44,
+    # when BBC Monograph 54 Fig. 3(a) replaced a ratio-through-HPS with
+    # this emulsion's own absolute Wiener spectrum.
+    "KODAK_8374": 1.56, "ILFORD_PAN_F": 1.91,
 }
 
 

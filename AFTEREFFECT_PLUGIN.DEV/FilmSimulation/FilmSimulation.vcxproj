@@ -160,6 +160,7 @@
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\AlgoAdobeControlEnums.hpp" />
+    <ClInclude Include="include\AlgoBatchPosition.hpp" />
     <ClInclude Include="include\AlgoBromideDrag.hpp" />
     <ClInclude Include="include\AlgoCallier.hpp" />
     <ClInclude Include="include\AlgoCharacteristicCurve.hpp" />
@@ -278,6 +279,8 @@
     <ClCompile Include="src\film_profiles_data_26.cpp" />
     <ClCompile Include="src\film_profiles_data_27.cpp" />
     <ClCompile Include="src\film_profiles_data_28.cpp" />
+    <ClCompile Include="src\film_profiles_data_29.cpp" />
+    <ClCompile Include="src\film_profiles_data_30.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\LoadFilmDataBase.cpp" />
   </ItemGroup>
@@ -306,11 +309,13 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <ResourceCompile Include="FilmSimulation.rc" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="python\color_checker.py" />
     <None Include="python\old_films_analyzing\analyze_film_scans.py" />
     <None Include="python\old_films_analyzing\README_v21.md" />
     <None Include="python\png_compare.py" />
     <None Include="python\profiles_generator\adopt_agfa_1998.py" />
     <None Include="python\profiles_generator\adopt_agfa_full.py" />
+    <None Include="python\profiles_generator\agfaphoto_apf_panels.py" />
     <None Include="python\profiles_generator\agfaphoto_vista_plus.py" />
     <None Include="python\profiles_generator\agfa_1998_curves.py" />
     <None Include="python\profiles_generator\agfa_1998_gamma_time.py" />
@@ -325,12 +330,15 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\agfa_vista_mtf.py" />
     <None Include="python\profiles_generator\algo_control_enums.py" />
     <None Include="python\profiles_generator\anscochrome_1957.py" />
+    <None Include="python\profiles_generator\batch_position_parity.py" />
     <None Include="python\profiles_generator\bbc_t101_2.py" />
     <None Include="python\profiles_generator\bromide_parity.py" />
     <None Include="python\profiles_generator\build.py" />
     <None Include="python\profiles_generator\callier_silberstein_tuttle.py" />
+    <None Include="python\profiles_generator\cinestill_cs2.py" />
     <None Include="python\profiles_generator\cpp_codegen.py" />
     <None Include="python\profiles_generator\cpp_parity.py" />
+    <None Include="python\profiles_generator\cross_component.py" />
     <None Include="python\profiles_generator\dashtrace.py" />
     <None Include="python\profiles_generator\digitize_plot.py" />
     <None Include="python\profiles_generator\di_2254.py" />
@@ -338,6 +346,10 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\dye_density.py" />
     <None Include="python\profiles_generator\dye_matrix_from_spectra.py" />
     <None Include="python\profiles_generator\empirical_import.py" />
+    <None Include="python\profiles_generator\ferrania_p30_alfa_report.py" />
+    <None Include="python\profiles_generator\ferrania_p30_best_practices.py" />
+    <None Include="python\profiles_generator\ferrania_p30_colour_target.py" />
+    <None Include="python\profiles_generator\ferrania_vendor_sheets.py" />
     <None Include="python\profiles_generator\field_coverage.py" />
     <None Include="python\profiles_generator\film_ids.lock" />
     <None Include="python\profiles_generator\film_profiles.py" />
@@ -386,8 +398,10 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\make_period_chart.py" />
     <None Include="python\profiles_generator\make_test_chart.py" />
     <None Include="python\profiles_generator\MANIFEST.md" />
+    <None Include="python\profiles_generator\measured_curve_parity.py" />
     <None Include="python\profiles_generator\mees_callier_q.py" />
     <None Include="python\profiles_generator\mees_granularity.py" />
+    <None Include="python\profiles_generator\mono_primary_width.py" />
     <None Include="python\profiles_generator\mtf_vector.py" />
     <None Include="python\profiles_generator\ooue_1959_granularity.py" />
     <None Include="python\profiles_generator\orwo_nc3_1972.py" />
@@ -400,10 +414,13 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\realism_axes.py" />
     <None Include="python\profiles_generator\realism_influence.json" />
     <None Include="python\profiles_generator\render.cmd" />
+    <None Include="python\profiles_generator\retro_ru_books.py" />
     <None Include="python\profiles_generator\run.cmd" />
     <None Include="python\profiles_generator\sayanagi_callier.py" />
     <None Include="python\profiles_generator\scan_repeat.py" />
     <None Include="python\profiles_generator\sehlin_kennel_1985.py" />
+    <None Include="python\profiles_generator\sehlin_kennel_5294_curve.py" />
+    <None Include="python\profiles_generator\sensitisation_class.py" />
     <None Include="python\profiles_generator\sheet.py" />
     <None Include="python\profiles_generator\smpte_1953_hanson_kisner.py" />
     <None Include="python\profiles_generator\smpte_1954_5382.py" />

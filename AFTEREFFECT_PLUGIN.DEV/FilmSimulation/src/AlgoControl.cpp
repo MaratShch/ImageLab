@@ -253,8 +253,20 @@ FilmDamage getFilmDamageDefault (void) noexcept
 // ---------------------------------------------------------------------------
 //  getAlgoControlsDefault
 //
-//  Mirrors film_sim.RenderSettings exactly. The comments give the reference field
-//  each value corresponds to, so the two can be diffed by eye.
+//  Mirrors film_sim.RenderSettings, and `cross_component.py` diffs the two
+//  field by field on every build instead of leaving them to be compared by
+//  eye. The comments still give the reference field each value corresponds to.
+//
+//  !! ONE FIELD IS DELIBERATELY NOT MIRRORED, AND IT IS DECLARED RATHER THAN
+//  LEFT TO BE NOTICED: `frameRate` is 24.0 here and `RenderSettings.frame_rate`
+//  is 0.0. Requirement R-T3 forbids a silent fps only in the MOTION grain
+//  path, which the Python reference implements and neither engine does; on
+//  this side frameRate feeds flicker, negative defects, gate weave and gate
+//  defects, every one of whose published rates is quoted at 24 fps, so a zero
+//  would not be a refusal here, it would be a division by nothing. The
+//  reference can refuse because it is the only side with something to refuse.
+//  cross_component.py carries the same sentence and fails if the difference
+//  stops being the only one.
 // ---------------------------------------------------------------------------
 AlgoControls getAlgoControlsDefault (void) noexcept
 {
@@ -271,7 +283,12 @@ AlgoControls getAlgoControlsDefault (void) noexcept
 
     // Frames per second OF FILM. 24 is the sound-film standard and the rate every
     // defect figure in the damage group would be tuned against.
-    controls.frameRate   = 24.0;
+    // !! FROM THE SHARED CONSTANT, NOT A LITERAL (2026-09-26). This line read
+    // a bare 24.0 while every neighbouring default already came from
+    // AlgoControlEnums.hpp, so the header's FrameRateDef could have moved
+    // without this following it -- which is exactly the drift the shared
+    // header was introduced to end.
+    controls.frameRate   = FrameRateDef;
 
     // These three are strongly typed enumerators, defined once in
     // AlgoControlEnums.hpp and shared by the scalar build, the AVX2 build and
@@ -291,7 +308,12 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     //  `AlgoControls controls{}` zero-initialises, and for these three ZERO IS
     //  NOT THE SENTINEL:
     //
-    //    * processVariant's sentinel is -1 and zero is variant INDEX ZERO.
+    //    * processVariant's sentinel is eAS_SHIPPED (-1) and zero is a REAL
+    //      enumerator -- AGFA_REFINAL. It was variant INDEX ZERO until the
+    //      control became an enumeration on 2026-09-17; the hazard is the
+    //      same and is now worse, because zero names a specific development
+    //      on every stock rather than the first entry of whatever list is
+    //      loaded.
     //      AlgorithmMain.cpp states "processVariant is -1 unless the caller
     //      selects" and the header's item 7 says DEFAULT -1; neither was true.
     //      ⚠ IT WAS HARMLESS BY ACCIDENT, NOT BY DESIGN: variant[0] on all 8
@@ -304,9 +326,13 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     //      stock was developed". Inert today because no stock's traced family
     //      is consulted at 0, but inert for the wrong reason.
     // ----------------------------------------------------------------------
-    controls.processVariant     = ProcessVariantCtrl::eAS_SHIPPED;
+    controls.processVariant     = ProcessVariantCtrlDef;
     controls.developmentMinutes = -1.0;
     controls.developmentCelsius = -1.0;
+    //    * storageYears' sentinel is 0 and means FRESH, so the zeroed
+    //      default is already correct -- set explicitly all the same, so a
+    //      reader of this function sees every control accounted for.
+    controls.storageYears       = 0.0;
 
     // film_sim: generations = 0 -- camera negative straight to print.
     controls.generations = 0;
@@ -355,7 +381,7 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     // 1.0 reproduces every render made before this control existed: at exactly
     // one the stage-14 expression is arithmetically what it always was. See the
     // field's own block in AlgoControl.hpp before moving it -- it is a look
-    // decision across all 184 stocks, not a shadow tweak.
+    // decision across all 191 stocks, not a shadow tweak.
     controls.blackPointStretch = 1.0;
 
     // ----------------------------------------------------------------------
@@ -391,7 +417,12 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     // ⚠ 0.0 STILL REPRODUCES THE STORED CHARACTERISTIC CURVES EXACTLY, because
     // those are DIFFUSE densities. Any comparison of a render against a
     // datasheet must set this back to 0.
+    // Schema v52. 0.0 = the curve as the database stores it; see
+    // AlgoBatchPosition.hpp for why the anchor is the stored value and not the
+    // band centre.
+    controls.batchPosition = BatchPositionDef;
     controls.scannerSpecular = 0.853;  // film_sim: scanner_specular
+    controls.scannerFixedPattern = 0.0;  // film_sim: scanner_fixed_pattern (v49)
 
     // ----------------------------------------------------------------------
     //  The two "auto" controls.

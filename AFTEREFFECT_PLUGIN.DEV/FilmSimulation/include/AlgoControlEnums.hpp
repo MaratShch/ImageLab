@@ -282,6 +282,34 @@ enum class ProcessVariantCtrl : int32_t
     eANSCOCHROME_B_16MIN_EI100,
     eANSCOCHROME_C_19MIN_EI150,
     eANSCOCHROME_D_22MIN_EI200,
+    ePJ400_EI400,
+    ePJ400_EI800_PUSH1,
+    ePJ400_EI1600_PUSH2,
+    eTMZ_TMAX_DEV_6MIN,
+    eTMZ_TMAX_DEV_8MIN,
+    eTMZ_TMAX_DEV_10MIN,
+    eTMZ_TMAX_DEV_12MIN,
+    eP30_D76_1_1_5MIN,
+    eP30_D76_1_1_8MIN,
+    eP30_D76_1_1_11MIN,
+    eP30_D76_1_1_16MIN,
+    eP30_D76_1_1_23MIN,
+    ePJ800_EI800,
+    ePJ800_EI1600_PUSH1,
+    ePJ800_EI3200_PUSH2,
+
+    //  Appended 2026-09-25 with the FERRANIA_P30 Cinema / Mk2 split:
+    //  Film Ferrania's own D-76 STOCK drawing of the ORIGINAL P30, the
+    //  only manufacturer characteristic curve that emulsion has. The
+    //  five legs above it are a third party's D-76 1+1 test of
+    //  pre-production alpha stock, which is a different chemistry and
+    //  a different coating; neither set replaces the other.
+    eP30_D76_STOCK_8MIN,
+
+    //  \warning APPENDED, NEVER INSERTED. A stored selection is an
+    //  integer, so inserting an enumerator in the middle silently
+    //  re-points every project saved before the edit. The list is in
+    //  the order developments were adopted, not in stock order.
 
     //  \warning TOTAL_PROCESSES IS A COUNT, NOT A PROCESS. It must stay last,
     //  it must never be offered in the list box, and it must never be stored
@@ -330,7 +358,23 @@ constexpr char ProcessVariantCtrlStr[] =
     "A -- 14 min first developer, EI 80|"
     "B -- 16 min first developer, EI 100|"
     "C -- 19 min first developer, EI 150|"
-    "D -- 22 min first developer, EI 200";
+    "D -- 22 min first developer, EI 200|"
+    "EI 400 (box speed)|"
+    "EI 800 (Push 1)|"
+    "EI 1600 (Push 2)|"
+    "T-MAX Developer, 6 min at 75 F|"
+    "T-MAX Developer, 8 min at 75 F|"
+    "T-MAX Developer, 10 min at 75 F|"
+    "T-MAX Developer, 12 min at 75 F|"
+    "D-76 1+1, 5 min at 20 C|"
+    "D-76 1+1, 8 min at 20 C|"
+    "D-76 1+1, 11 min at 20 C|"
+    "D-76 1+1, 16 min at 20 C|"
+    "D-76 1+1, 23 min at 20 C|"
+    "EI 800 (box speed)|"
+    "EI 1600 (Push 1)|"
+    "EI 3200 (Push 2)|"
+    "D-76 stock, 8 min at 20 C";
 
 constexpr const char* const ProcessVariantCtrlNoneStr = "As shipped";
 
@@ -360,6 +404,22 @@ constexpr const char* const ProcessVariantCtrlName[] =
     "B -- 16 min first developer, EI 100",
     "C -- 19 min first developer, EI 150",
     "D -- 22 min first developer, EI 200",
+    "EI 400 (box speed)",
+    "EI 800 (Push 1)",
+    "EI 1600 (Push 2)",
+    "T-MAX Developer, 6 min at 75 F",
+    "T-MAX Developer, 8 min at 75 F",
+    "T-MAX Developer, 10 min at 75 F",
+    "T-MAX Developer, 12 min at 75 F",
+    "D-76 1+1, 5 min at 20 C",
+    "D-76 1+1, 8 min at 20 C",
+    "D-76 1+1, 11 min at 20 C",
+    "D-76 1+1, 16 min at 20 C",
+    "D-76 1+1, 23 min at 20 C",
+    "EI 800 (box speed)",
+    "EI 1600 (Push 1)",
+    "EI 3200 (Push 2)",
+    "D-76 stock, 8 min at 20 C",
 };
 
 //  Database keys, index aligned with ProcessVariantCtrl. These are the exact
@@ -393,6 +453,22 @@ constexpr const char* const ProcessVariantCtrlKey[] =
     "ANSCOCHROME_B_16MIN_EI100",
     "ANSCOCHROME_C_19MIN_EI150",
     "ANSCOCHROME_D_22MIN_EI200",
+    "PJ400_EI400",
+    "PJ400_EI800_PUSH1",
+    "PJ400_EI1600_PUSH2",
+    "TMZ_TMAX_DEV_6MIN",
+    "TMZ_TMAX_DEV_8MIN",
+    "TMZ_TMAX_DEV_10MIN",
+    "TMZ_TMAX_DEV_12MIN",
+    "P30_D76_1_1_5MIN",
+    "P30_D76_1_1_8MIN",
+    "P30_D76_1_1_11MIN",
+    "P30_D76_1_1_16MIN",
+    "P30_D76_1_1_23MIN",
+    "PJ800_EI800",
+    "PJ800_EI1600_PUSH1",
+    "PJ800_EI3200_PUSH2",
+    "P30_D76_STOCK_8MIN",
 };
 
 static_assert(
@@ -473,6 +549,25 @@ constexpr const char* ProcessVariantCtrlKeyOf (const ProcessVariantCtrl v) noexc
 
 // -- exposure and development ----------------------------------------------
 
+// Position along the film's own MANUFACTURING ACCEPTANCE BAND (schema v52).
+// 0 is "as the database stores it" and is the default on every stock; +1 is the
+// upper acceptance edge, -1 the lower.
+//
+// \warning THE TWO HALVES ARE NOT SYMMETRIC AND THAT IS THE DOCUMENT, NOT A
+// DEFECT. The four masked Soviet cine negatives print «+0,06 / -0,04» on every
+// layer, so +1 moves the contrast half again as far as -1 does. A control that
+// symmetrised it would be rendering a film nobody specified.
+//
+// \warning INERT ON 184 OF 194 STOCKS, and that is correct rather than
+// unfinished: their manufacturers published TYPICAL values and explicitly
+// disclaimed being a specification, so there is no band to move along. The host
+// should hide or disable this control wherever the selected stock carries no
+// `tolerance` record, the same rule `processVariant` already follows.
+constexpr double BatchPositionMin  = -1.0;
+constexpr double BatchPositionMax  =  1.0;
+constexpr double BatchPositionDef  =  0.0;
+constexpr double BatchPositionStep =  0.05;
+
 // Exposure offset in stops. Advisory both ends; no guard of any kind exists.
 constexpr double ExposureStopsMin  = -4.0;
 constexpr double ExposureStopsMax  =  4.0;
@@ -545,6 +640,11 @@ constexpr int32_t GenerationsStep = 1;
 constexpr double ScannerSpecularMin  = 0.0;
 constexpr double ScannerSpecularMax  = 1.0;
 constexpr double ScannerSpecularDef  = 0.853;  // 1 - Streiffert's E = 0.1471
+//: v49. Fraction of grain VARIANCE that is frame-locked sensor pattern.
+//: 0 = pure emulsion, which is the film behaviour and the pre-v49 path.
+constexpr double ScannerFixedPatternDef = 0.0;
+constexpr double ScannerFixedPatternMin = 0.0;
+constexpr double ScannerFixedPatternMax = 1.0;
 constexpr double ScannerSpecularStep = 0.01;
 
 // Scene illuminant colour temperature in kelvin. Advisory bounds.
@@ -729,11 +829,6 @@ constexpr double WeaveAmountMax  = 2.0;
 constexpr double WeaveAmountDef  = 0.50;
 constexpr double WeaveAmountStep = 0.01;
 
-// Gate weave amplitude. Floor enforced at stage 15.
-constexpr double SpliceAndTearsEventstMin = 0.0;
-constexpr double SpliceAndTearsEventstMax = 2.0;
-constexpr double SpliceAndTearsEventstDef = 0.20;
-constexpr double SpliceAndTearsEventsttep = 0.01;
 // Discrete damage event rate. Floor enforced at stage 16. An implicit
 // switch-off exists far above the advisory range: once the derived interval
 // falls below one frame the generator stops entirely.
@@ -778,5 +873,10 @@ constexpr double ScannerArtifactsMax  = 2.0;
 constexpr double ScannerArtifactsDef  = 0.20;
 constexpr double ScannerArtifactsStep = 0.01;
 
+// Gate weave amplitude. Floor enforced at stage 15.
+constexpr double SpliceAndTearsEventstMin = 0.0;
+constexpr double SpliceAndTearsEventstMax = 2.0;
+constexpr double SpliceAndTearsEventstDef = 0.20;
+constexpr double SpliceAndTearsEventsttep = 0.01;
 
 #endif // __IMAGE_LAB2_ALGO_CONTROL_ENUMERATORS__

@@ -434,8 +434,22 @@ HighPrecType AlgoDensityScalar
         static_cast<HighPrecType>(curve.shoulder_k));
 
     // Base plus fog, plus the contrast slope applied to the bracket.
-    return static_cast<HighPrecType>(curve.dmin)
+    const HighPrecType fit = static_cast<HighPrecType>(curve.dmin)
          + static_cast<HighPrecType>(curve.gamma) * (rise - fall);
+
+    // ⚠⚠ AND THE MEASURED TABLE, WHERE THERE IS ONE (schema v55). THIS IS THE
+    // VECTOR BUILD'S COPY AND IT NEEDS THE BRANCH JUST AS MUCH AS THE SCALAR
+    // ONE DOES -- more subtly, in fact. The vector PIXEL path gets the
+    // measurement for free, because AlgoBuildCurveLut bakes it into the shared
+    // table; the vector SOLVE does not, because it calls this function. Left
+    // out, this build would place mid grey by inverting the fit and then
+    // render the table, and the error would look like a vector/scalar
+    // precision problem rather than what it is.
+    //
+    // ⚠ IN HighPrecType, for the reason softplusHP above exists: AlgoType is
+    // float here and the solve's bisection bracket shrinks below float
+    // resolution long before it finishes.
+    return AlgoMeasuredDensityHP(curve, logE, fit);
 }
 
 
@@ -662,7 +676,24 @@ void AlgoSolveAnchors
     // Delegate to the public solver, which stage 13 also uses: after a dupe chain
     // the neutral density has moved and the final print offsets have to be
     // re-solved against the new value, so the routine cannot stay private here.
-    AlgoSolveStageOffsets(dMid, pPrintStock->curves, pPrintStock->dye_matrix,
+
+    // ⚠⚠ FIXED 2026-09-27: A BLACK-AND-WHITE NEGATIVE GOES ONTO A NEUTRAL
+    // PRINT. film_sim.simulate() replaces the print stock's three curves by
+    // its green one and its dye matrix by identity for every monochrome
+    // negative; the engine printed through the stock's three slightly
+    // different colour curves and left a cast on a greyscale image (up to
+    // 0.0155 display-linear per channel on a ColorChecker, measured over all
+    // 78 monochrome stocks against film_sim).
+    const bool neutralPrint = profile.is_monochrome && !profile.isReversal();
+    film::RGBCurves neutralCurves = pPrintStock->curves;
+    film::Matrix3   printDyeM     = pPrintStock->dye_matrix;
+    if (neutralPrint)
+    {
+        neutralCurves.r = neutralCurves.g;
+        neutralCurves.b = neutralCurves.g;
+        printDyeM = {{ {{ 1.0f, 0.0f, 0.0f }}, {{ 0.0f, 1.0f, 0.0f }}, {{ 0.0f, 0.0f, 1.0f }} }};
+    }
+    AlgoSolveStageOffsets(dMid, neutralCurves, printDyeM,
                           target, blackPointStretch, anchorOut);
 
     return;

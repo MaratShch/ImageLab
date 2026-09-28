@@ -937,6 +937,41 @@ def numeric_cells(p, ev, blocks_all) -> list[str]:
             c_col, c_phys]
 
 
+def evidence_coverage() -> dict[str, float]:
+    """Per-stock evidence coverage, as a percentage, from `gen_realism_score`.
+
+    ⚠⚠ THIS IS NOT AN ACCURACY AGAINST REAL FILM AND MUST NEVER BE PRINTED AS
+    ONE. Nothing in this project has ever been compared with a scan of the same
+    scene on the same stock; no such measurement exists here. What the number
+    reports is narrower and checkable: THE FRACTION OF THE PIXEL MOVEMENT IN A
+    RENDER THAT COMES FROM A MEASURED NUMBER RATHER THAN FROM AN ESTIMATE.
+
+    ⚠ THE WEIGHTS ARE MEASURED, NOT ASSIGNED, which is what stops this being an
+    opinion dressed as arithmetic. `realism_ablation.py` renders each sample
+    stock twice per axis -- once with the stock's own measurement, once with
+    the fallback a stock lacking it gets -- and weights the axis by the mean
+    CIE76 dE between the two renders. The per-stock term is that stock's own
+    `ParamSource` tier on that axis: tier 1 traced or measured scores 1.0,
+    tier 2 estimated 0.5, tier 3 assumed 0.1.
+    ⚠ A STOCK CAN SCORE HIGH AND STILL LOOK WRONG if the model itself is
+    wrong. A stock that scores LOW is guaranteed to be partly invention. The
+    number is a floor on honesty, not a ceiling on quality.
+
+    Returns {} when the influence table is absent, so this report still
+    generates on a tree that has not run the ablation.
+    """
+    try:
+        import gen_realism_score as _grs
+    except Exception:
+        return {}
+    try:
+        inf = _grs.load_influence(strict=False)
+        _live, _dorm, _dead, _total, rows, _all, _mean = _grs.score_all(inf)
+    except Exception:
+        return {}
+    return {name: 100.0 * score for name, score, _per in rows}
+
+
 def _iie_pct(p):
     """Model interimage percentage per (blue, green, red) receiver, by the
     US5273870A protocol -- reuses the calibrator in film_profiles."""
@@ -1049,6 +1084,20 @@ def main() -> int:
       f"from the two guards that reason about red records |")
     w(f"| Resolving power (printed pair) | **{_rp}** | {_n - _rp} | only sheets "
       f"that print a TOC pair; many never did |")
+    _band = sum(1 for q in fp.FILM_PROFILES if q.tolerance)
+    _bandrec = sum(len(q.tolerance) for q in fp.FILM_PROFILES)
+    w(f"| Manufacturing acceptance band (schema v51) | **{_band}** | "
+      f"{_n - _band} | ⚠ THE ABSENCE IS THE CORRECT STATE ON THE OTHER "
+      f"{_n - _band}, not a backlog. This carrier holds LIMITS, and only the "
+      f"nine Soviet ТУ films and the one ГОСТ film are specified by limits. "
+      f"Every other source in this corpus publishes TYPICAL values and says "
+      f"so: KODAK F-5's own wording is that its curves «do not represent "
+      f"standards or specifications which must be met». A band on such a "
+      f"stock would be a fabrication, and `G-TOL-NO-TYPICAL-DATA` forbids it. "
+      f"{_bandrec} records across {_band} stocks -- Фото ЦНЛ-65 carries two, "
+      f"because ГОСТ 25120-82 табл. 6 prints that mark twice, высшая and "
+      f"первая категория качества, and the two grades differ by 27 "
+      f"lin/mm in resolving power alone |")
     w(f"| Spectral sensitivity curve | **{_spec}** | {_n - _spec} | mostly a "
       f"tracing job on pages already held -- \u26a0 BUT NOT ALL OF IT IS TRACING. On "
       f"the KODAK still sheets the three layer curves CROSS, and `assign_layers` "
@@ -1536,6 +1585,105 @@ def main() -> int:
       "because a real condenser is not collimated would count the geometry "
       "twice.")
     w("")
+    # ---------------------------------------------------------------
+    #  The v51/v52 carriers. Documented HERE rather than only in
+    #  PROGRESS.md because this is the file a reader opens to find out
+    #  what the database holds per stock.
+    # ---------------------------------------------------------------
+    _nb = sum(1 for q in fp.FILM_PROFILES if q.tolerance)
+    _nrec = sum(len(q.tolerance) for q in fp.FILM_PROFILES)
+    _nalt = sum(1 for q in fp.FILM_PROFILES if q.processing.alternative_regime)
+    w("## Acceptance bands \u2014 schema v51 and v52")
+    w("")
+    w("\u26a0\u26a0 **THE SCHEMA NOW HOLDS TWO KINDS OF NUMBER, AND THE "
+      "DIFFERENCE IS THE POINT.** Every source in this corpus except ten "
+      "publishes a TYPICAL VALUE -- one number per quantity, which is what "
+      "every column to the left of this section reports. KODAK F-5 states the "
+      "distinction itself: its data \u00abare averages of a number of production "
+      "coatings and, therefore, do not apply directly to a particular box or "
+      "roll of film. They do not represent standards or specifications which "
+      "must be met\u00bb.")
+    w("")
+    w("A Soviet \u00ab\u0422\u0435\u0445\u043d\u0438\u0447\u0435\u0441\u043a\u0438\u0435 \u0443\u0441\u043b\u043e\u0432\u0438\u044f\u00bb publishes neither. It is the "
+      "contract a factory was inspected against, so **\u00ab\u043d\u0435 \u043c\u0435\u043d\u0435\u0435 100\u00bb means "
+      "a roll testing at 99 is rejected** and says nothing whatever about what "
+      "a good roll did. `FilmProfile.tolerance` is where that kind of number "
+      "lives. **%d records on %d stocks**; empty everywhere else, and "
+      "`G-TOL-NO-TYPICAL-DATA` fails the build if that changes."
+      % (_nrec, _nb))
+    w("")
+    w("| field | what it holds |")
+    w("|---|---|")
+    w("| `speed_nominal`, `speed_min`, `speed_max` | the box speed and the "
+      "acceptance window around it. \u26a0 A roll that is too FAST fails "
+      "inspection too |")
+    w("| `layer_speed_min` | the floor under the SLOWEST layer -- a different "
+      "test from the overall speed, which a roll can fail while passing the "
+      "other |")
+    w("| `speed_balance_min/max` | \u0411_S, the largest legal ratio between "
+      "fastest and slowest layer |")
+    w("| `gamma_nominal_rgb`, `gamma_lo_rgb`, `gamma_hi_rgb` | the printed "
+      "contrast and its band, **per layer**. \u26a0 Often ASYMMETRIC: the four "
+      "masked cine negatives print \u00ab+0,06 / \u22120,04\u00bb |")
+    w("| `contrast_balance_max` | \u0411_\u03b3, the largest legal DIFFERENCE between "
+      "layer gammas |")
+    w("| `contrast_time_min/max` | the development time the gamma band is "
+      "quoted at |")
+    w("| `dmin_min_rgb`, `dmin_max_rgb`, `dmax_min_rgb` | density limits per "
+      "filter; on a masked negative the blue band IS the orange mask |")
+    w("| `latitude_min`, `resolving_power_min` | \u00ab\u043d\u0435 \u043c\u0435\u043d\u0435\u0435\u00bb floors |")
+    w("| `granularity_max_rgb`, `mtf_min_rgb`, `mtf_freq_mm` | \u00ab\u043d\u0435 \u0431\u043e\u043b\u0435\u0435\u00bb "
+      "and \u00ab\u043d\u0435 \u043c\u0435\u043d\u0435\u0435\u00bb structure limits. \u26a0 A zero FREQUENCY beside a "
+      "non-zero MTF limit is a real state: \u041b\u041d-8's \u0442\u0430\u0431\u043b. 2 \u043f. 8 sets the "
+      "symbol and both values and leaves the numeral blank |")
+    w("| `uniformity_pct_max` | \u00ab\u0444\u043e\u0442\u043e\u0433\u0440\u0430\u0444\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u043e\u0434\u043d\u043e\u0440\u043e\u0434\u043d\u043e\u0441\u0442\u044c \u0432\u043d\u0443\u0442\u0440\u0438 "
+      "\u043e\u0441\u0438\u00bb -- the legal spread ACROSS THE WIDTH of one roll. "
+      "**No Western data sheet in this database publishes one at all** |")
+    w("| `coating_uniformity_d_max` | \u00ab\u0440\u0430\u0432\u043d\u043e\u043c\u0435\u0440\u043d\u043e\u0441\u0442\u044c \u043f\u043e\u043b\u0438\u0432\u0430\u00bb, density units |")
+    w("| `category`, `is_default` | the quality grade. \u0424\u043e\u0442\u043e \u0426\u041d\u041b-65 carries "
+      "TWO records because \u0413\u041e\u0421\u0422 25120-82 \u0442\u0430\u0431\u043b. 6 prints it twice, and the "
+      "grades differ by **27 lin/mm** in resolving power |")
+    w("")
+    w("**Schema v52 added a durability block to the same struct**, because "
+      "four tables of ТУ bounds had reached no profile. They had been parked "
+      "against `AgingSpec`, which holds a **state** -- the damage a roll has "
+      "actually suffered -- where a ТУ prints a **bound**, the worst drift the "
+      "manufacturer will still accept. `ToleranceSpec` is a struct of bounds, "
+      "so the objection lapsed.")
+    w("")
+    w("| field | what it holds |")
+    w("|---|---|")
+    w("| `guarantee_months` | \u00ab\u0413\u0430\u0440\u0430\u043d\u0442\u0438\u0439\u043d\u044b\u0439 \u0441\u0440\u043e\u043a \u0445\u0440\u0430\u043d\u0435\u043d\u0438\u044f\u00bb |")
+    w("| `drift_free_months` | \u26a0 the FLAT period before drift accrues -- a "
+      "separate clause, not an inference. Four \u0422\u0423 state that speed and D_min "
+      "stay inside the release norms \u00ab\u0432 \u0442\u0435\u0447\u0435\u043d\u0438\u0435 \u0434\u0432\u0443\u0445 \u043c\u0435\u0441\u044f\u0446\u0435\u0432\u00bb |")
+    w("| `ageing_speed_loss_frac` | permitted speed loss over the guarantee |")
+    w("| `ageing_density_drift`, `ageing_drift_quantity` | \u26a0 **SIGNED**: a "
+      "negative ages by GAINING D_min, a reversal by LOSING D_max. The sign "
+      "flips with stock kind, which is physically right and is a free "
+      "correctness check -- `G-TOL-AGEING-SIGN` asserts it |")
+    w("| `thermostat_shrinkage_pct_max` | \u00ab\u0442\u0435\u0440\u043c\u043e\u0441\u0442\u0430\u0442\u043d\u0430\u044f \u0443\u0441\u0430\u0434\u043a\u0430 \u043f\u0440\u0438 "
+      "\u0432\u044b\u043f\u0443\u0441\u043a\u0435\u00bb -- an oven test on RAW stock at the factory gate, NOT "
+      "`AgingSpec.shrinkage_pct`, which is post-processing shrinkage |")
+    w("| `red_sensitisation_limit_nm` | \u00ab\u043f\u0440\u0435\u0434\u0435\u043b \u0441\u0435\u043d\u0441\u0438\u0431\u0438\u043b\u0438\u0437\u0430\u0446\u0438\u0438\u00bb, 690 nm on "
+      "\u041b\u041d-8 -- **the only spectral number in 176 sheets of Soviet "
+      "specifications** |")
+    w("")
+    w("And `ProcessingSpec.alternative_regime` (**%d stocks**) carries a "
+      "second, equally official schedule verbatim. \u26a0 It is NOT a "
+      "`ProcessVariant`: that carrier would have put four dead enumerators "
+      "into a control the user selects, for developments whose stored curves "
+      "are the same curves." % _nalt)
+    w("")
+    w("**These bands are no longer inert.** The `batchPosition` control "
+      "(schema v52) renders any point between the two edges: 0 is the curve "
+      "as stored here, +1 the upper acceptance edge, \u22121 the lower. It moves "
+      "per-layer gamma and D_min only as far as that film's own document "
+      "allows, and does nothing at all on the %d stocks with no band. \u26a0 A "
+      "render at its default is bit-identical to a pre-v52 one, which "
+      "`G-BATCH-IDENTITY` asserts by object identity rather than by value."
+      % (len(fp.FILM_PROFILES) - _nb))
+    w("")
     w("## Coverage summary")
     w("")
     w("| Property | Documented values | of | % |")
@@ -1578,15 +1726,103 @@ def main() -> int:
     w("")
     w("## Per-stock detail")
     w("")
+    w("### ⚠⚠ The last column: *Evidence coverage*, and what it is NOT")
+    w("")
+    w("**It is not an accuracy against real film, and no such number exists "
+      "in this project yet.** No render has been compared against a scan of "
+      "the SAME SCENE on the same stock -- the matched comparison that would "
+      "make a fidelity number possible.")
+    w("")
+    w("\u26a0 **THAT IS NOT THE SAME AS SAYING THERE ARE NO REAL SCANS, AND "
+      "THERE ARE.** The owner supplied **854 files, ~1.1 GB** -- 509 genuine "
+      "scanner frames of SVEMA FOTO-64, 37 of ORWO UT18, plus ORWO NC21, "
+      "TASMA FN64 and SVEMA FOTO-250 material -- reviewed in full on "
+      "2026-08-31 and recorded in `SAMPLES_SCAN_REVIEW_2026-08-31.md`. **They "
+      "were measured and they changed this database:** "
+      "`TASMA_FN_64.silver_tone` was **reverted +0.30 -> 0.00** because the "
+      "28 colour-bearing frames gave a cast whose scatter was larger than its "
+      "mean; queue row **D3 was closed** on them; and the 50 frames carrying "
+      "a rebate strip reproduced the documented 0.008-0.028 D base density "
+      "**from the pixels** and added a figure the project did not have -- the "
+      "scanner contributes **\u00b10.005 D of per-frame auto-exposure scatter**, "
+      "which is the noise floor under every density reading from that rig.")
+    w("")
+    w("**Why they still cannot produce a fidelity number, stated once so it "
+      "is not mistaken for indifference to them.** No calibration target "
+      "exists anywhere in the 854 files -- no empty gate, no grey card, no "
+      "step wedge -- and the scanner re-exposes per frame: ONE physical piece "
+      "of film base reads **235.8 to 252.9** across 50 frames, two frames of "
+      "the same base reading 241 and 250. So the densities are not absolute, "
+      "there is no single white point for the batch, and **no later gate "
+      "frame can calibrate it retroactively** -- an earlier note in this "
+      "project claimed it could, and the measurement refuted that. The stable "
+      "Svema colour cast (G-B **+10.46 \u00b1 1.83** across 96 frames) is "
+      "exactly what a real emulsion tone would look like AND exactly what the "
+      "scanner's own white balance would look like; without an empty gate the "
+      "two are not separable, which is why it was not adopted.")
+    w("")
+    w("\u26a0\u26a0 **WHAT WOULD CHANGE THIS COLUMN INTO A FIDELITY NUMBER, and "
+      "it is one scanning session rather than a laboratory.** A fresh pass on "
+      "film that still exists, with a **gate frame taken in the same session**, "
+      "**fixed exposure** if the scanner offers one, and **no greyscale "
+      "conversion**, unblocks queue rows **D1** and **D2**. The review "
+      "document is explicit that such a session is worth more than the 854 "
+      "files already held. Until then this column reports evidence, not "
+      "likeness.")
+    w("")
+    w("**What it does report is narrower and checkable:** the fraction of the "
+      "pixel movement in a render of that stock which comes from a MEASURED "
+      "number rather than from an estimate. It is produced by "
+      "`gen_realism_score.py` and reproduced here so that the per-stock "
+      "figure sits beside the per-stock evidence it is computed from.")
+    w("")
+    w("**The weights are measured, not assigned**, which is what keeps it "
+      "from being an opinion dressed as arithmetic. `realism_ablation.py` "
+      "renders each sample stock twice per axis -- once with the stock's own "
+      "measurement, once with the fallback a stock lacking that measurement "
+      "gets -- and weights the axis by the mean CIE76 dE between the two "
+      "renders. The per-stock term is that stock's own `ParamSource` tier on "
+      "that axis: **tier 1** traced or measured scores 1.0, **tier 2** "
+      "estimated 0.5, **tier 3** assumed 0.1.")
+    w("")
+    w("**How to read a number in this column:**")
+    w("")
+    w("- A **high** score means most of what moves a pixel is traceable to a "
+      "document. It does **not** mean the render looks like the film: a stock "
+      "can score high and still be wrong if the MODEL is wrong.")
+    w("- A **low** score is the stronger statement, and it is a guarantee: "
+      "that stock is **partly invention**, and the report says which parts in "
+      "the columns to its left.")
+    w("- The number is a **floor on honesty, not a ceiling on quality.**")
+    w("")
+    w("⚠ **It will FALL when new axes are evidenced, and that is the "
+      "metric working.** Five axes are excluded from the denominator today "
+      "because no document in this corpus evidences any stock on them. When "
+      "the first record on one of them lands, that axis re-enters and every "
+      "score drops. See `REALISM_SCORE.md`, which prints both figures on "
+      "every run so the headline can never be mistaken for the whole corpus.")
+    w("")
+    w("⚠ **This column is the right place to aim team feedback.** A stock "
+      "that reviewers say looks wrong while scoring HIGH indicts the model, "
+      "and belongs in a defect report. A stock that looks wrong while scoring "
+      "LOW indicts the evidence, and belongs in `DIGITIZATION_QUEUE.md` as an "
+      "acquisition. The two need different work, and this number is what "
+      "separates them before anyone spends a day on the wrong one.")
+    w("")
+    _cov = evidence_coverage()
     hdr = (["Film Name", "Manufacturer", "Production Years", "Film Type",
-            "ISO / ASA"] + [lbl for lbl, _ in PROPS] + ["Reference Documents"])
+            "ISO / ASA"] + [lbl for lbl, _ in PROPS]
+           + ["Reference Documents", "Evidence coverage"])
     w("| " + " | ".join(hdr) + " |")
-    w("|" + "|".join(["---"] * 5 + [":-:"] * len(PROPS) + ["---"]) + "|")
+    w("|" + "|".join(["---"] * 5 + [":-:"] * len(PROPS) + ["---", ":-:"])
+      + "|")
     for p, ev, cite in rows:
+        _c = _cov.get(p.name)
+        _cell = "n/a" if _c is None else "**%.0f %%**" % _c
         cells = [
             official_name(p, ""), manufacturer(p.name), p.era, film_type(p),
             str(p.exposure_index),
-        ] + numeric_cells(p, ev, blocks) + [cite]
+        ] + numeric_cells(p, ev, blocks) + [cite, _cell]
         w("| " + " | ".join(c.replace("|", "/") for c in cells) + " |")
     w("")
     w("## Known limitations of this report")

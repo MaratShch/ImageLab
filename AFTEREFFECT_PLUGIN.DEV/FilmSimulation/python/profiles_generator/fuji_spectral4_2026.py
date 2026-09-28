@@ -65,6 +65,24 @@ SHEETS = {
         # the two rules the 1.0 bracket spans, and the four wavelength rules
         ordinate=(155.454, 206.590),
         abscissa=(351.017, 403.742, 456.087, 508.593)),
+    # ⚠ ADDED 2026-09-24c. PRO 400H was recorded as needing "a Fuji reader or
+    # an extension of the Kodak one" (queue P91) -- and the Fuji reader was
+    # already here, with four sheets in it, and this film draws the same
+    # four-layer panel: its own page 7 section 14-1 is headed «4th Color Layer
+    # Technology». The only thing missing was this entry. Geometry probed off
+    # page 8: the 1.0 bracket's two rules at y 155.83 and 206.96 (51.13 pt per
+    # decade) and the four wavelength rules at 346.87 / 399.32 / 451.96 /
+    # 504.48 for 400 / 500 / 600 / 700 nm.
+    "FUJICOLOR_PRO_400H": dict(
+        pdf="pro_400h_datasheet.pdf", page=7, ref="AF3-176E", section=19,
+        # ⚠ x0 336.0 RATHER THAN THE 341 THE AXIS SUGGESTS: this sheet
+        # draws its three solid records as ONE path whose bounding box
+        # starts at 338.7, two points left of the ordinate rule, so a
+        # frame drawn on the axis excludes the very curves it is meant
+        # to contain and the reader reports "0 solid records".
+        frame=(336.0, 104.3, 520.0, 258.2),
+        ordinate=(155.83, 206.96),
+        abscissa=(346.87, 399.32, 451.96, 504.48)),
     "FUJICOLOR_SUPERIA_XTRA_400": dict(
         pdf="superia_xtra400_datasheet.pdf", page=5, ref="AF3-151E", section=18,
         frame=(339.07, 117.745, 533.614, 288.417),
@@ -119,6 +137,10 @@ NPZ_OVERLAY = dict(hit_pct=98.1, solid_pct=100.0, worst_null_pct=35.0)
 #: picking out the same physical record on every sheet.
 EXPECTED = {
     "FUJICOLOR_PRO_800Z": dict(peaks=(471, 519, 552, 629)),
+    # ⚠ ADDED 2026-09-24c. Cyan 519 is inside the 516-519 the other four give,
+    # which is the cross-sheet check. Red 609 is 19-21 nm left of the other
+    # four and is pinned as READ rather than corrected.
+    "FUJICOLOR_PRO_400H": dict(peaks=(469, 519, 554, 609)),
     "FUJICOLOR_SUPERIA_XTRA_400": dict(peaks=(471, 516, 557, 628)),
     "FUJICOLOR_SUPERIA_XTRA_800": dict(peaks=(463, 517, 534, 630)),
     "FUJICOLOR_SUPERIA_REALA": dict(peaks=(465, 516, 529, 629)),

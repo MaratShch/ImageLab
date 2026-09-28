@@ -161,5 +161,25 @@ inline const film::FilmProfile& AlgoResolveStorageAge
     store.curves.b.gamma = static_cast<float>(
         static_cast<HighPrecType>(base.curves.b.gamma) * (one - fy));
 
+
+    // ⚠⚠ AND THE MEASURED TABLE IS DROPPED (schema v55). A `MeasuredCurve` is
+    // 21 densities read at ONE development; scaling the gamma beside it does
+    // not scale the table, and because the table WINS inside its own range it
+    // would override the very adjustment made above. An adjusted curve is a
+    // MODEL, and the measurement it came from no longer describes it, so it
+    // falls back to the softplus -- which is exactly what the Python
+    // reference's `film_sim._retune` does at the same four sites, guarded by
+    // G-V55-MEAS-DROP. Leaving it attached would make this control a no-op on
+    // any stock carrying a table, silently.
+    film::ToneCurve* const _mc[3] =
+    { &store.curves.r, &store.curves.g, &store.curves.b };
+    for (int32_t _k = 0; _k < 3; _k++)
+    {
+        _mc[_k]->meas_x = nullptr;
+        _mc[_k]->meas_d = nullptr;
+        _mc[_k]->meas_m = nullptr;
+        _mc[_k]->meas_n = 0;
+    }
+
     return store;
 }

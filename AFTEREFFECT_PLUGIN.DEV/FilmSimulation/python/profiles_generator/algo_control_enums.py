@@ -95,7 +95,23 @@ class ProcessVariantCtrl(IntEnum):
     eANSCOCHROME_B_16MIN_EI100 = 19
     eANSCOCHROME_C_19MIN_EI150 = 20
     eANSCOCHROME_D_22MIN_EI200 = 21
-    TOTAL_PROCESSES = 22
+    ePJ400_EI400 = 22
+    ePJ400_EI800_PUSH1 = 23
+    ePJ400_EI1600_PUSH2 = 24
+    eTMZ_TMAX_DEV_6MIN = 25
+    eTMZ_TMAX_DEV_8MIN = 26
+    eTMZ_TMAX_DEV_10MIN = 27
+    eTMZ_TMAX_DEV_12MIN = 28
+    eP30_D76_1_1_5MIN = 29
+    eP30_D76_1_1_8MIN = 30
+    eP30_D76_1_1_11MIN = 31
+    eP30_D76_1_1_16MIN = 32
+    eP30_D76_1_1_23MIN = 33
+    ePJ800_EI800 = 34
+    ePJ800_EI1600_PUSH1 = 35
+    ePJ800_EI3200_PUSH2 = 36
+    eP30_D76_STOCK_8MIN = 37
+    TOTAL_PROCESSES = 38
 
     @property
     def key(self) -> str:
@@ -197,6 +213,22 @@ PROCESS_VARIANT_KEY: dict[int, str] = {
     19: 'ANSCOCHROME_B_16MIN_EI100',
     20: 'ANSCOCHROME_C_19MIN_EI150',
     21: 'ANSCOCHROME_D_22MIN_EI200',
+    22: 'PJ400_EI400',
+    23: 'PJ400_EI800_PUSH1',
+    24: 'PJ400_EI1600_PUSH2',
+    25: 'TMZ_TMAX_DEV_6MIN',
+    26: 'TMZ_TMAX_DEV_8MIN',
+    27: 'TMZ_TMAX_DEV_10MIN',
+    28: 'TMZ_TMAX_DEV_12MIN',
+    29: 'P30_D76_1_1_5MIN',
+    30: 'P30_D76_1_1_8MIN',
+    31: 'P30_D76_1_1_11MIN',
+    32: 'P30_D76_1_1_16MIN',
+    33: 'P30_D76_1_1_23MIN',
+    34: 'PJ800_EI800',
+    35: 'PJ800_EI1600_PUSH1',
+    36: 'PJ800_EI3200_PUSH2',
+    37: 'P30_D76_STOCK_8MIN',
 }
 
 PROCESS_VARIANT_LABEL: dict[int, str] = {
@@ -222,6 +254,22 @@ PROCESS_VARIANT_LABEL: dict[int, str] = {
     19: 'B -- 16 min first developer, EI 100',
     20: 'C -- 19 min first developer, EI 150',
     21: 'D -- 22 min first developer, EI 200',
+    22: 'EI 400 (box speed)',
+    23: 'EI 800 (Push 1)',
+    24: 'EI 1600 (Push 2)',
+    25: 'T-MAX Developer, 6 min at 75 F',
+    26: 'T-MAX Developer, 8 min at 75 F',
+    27: 'T-MAX Developer, 10 min at 75 F',
+    28: 'T-MAX Developer, 12 min at 75 F',
+    29: 'D-76 1+1, 5 min at 20 C',
+    30: 'D-76 1+1, 8 min at 20 C',
+    31: 'D-76 1+1, 11 min at 20 C',
+    32: 'D-76 1+1, 16 min at 20 C',
+    33: 'D-76 1+1, 23 min at 20 C',
+    34: 'EI 800 (box speed)',
+    35: 'EI 1600 (Push 1)',
+    36: 'EI 3200 (Push 2)',
+    37: 'D-76 stock, 8 min at 20 C',
 }
 
 
@@ -233,7 +281,11 @@ PROCESS_VARIANT_LABEL: dict[int, str] = {
 # them -- so they describe where the model is meaningful, not where it is
 # guarded. See the header for which bounds are enforced and at which stage.
 
-ProcessVariantCtrlCount = 22
+ProcessVariantCtrlCount = 38
+BatchPositionMin = -1.0
+BatchPositionMax = 1.0
+BatchPositionDef = 0.0
+BatchPositionStep = 0.05
 ExposureStopsMin = -4.0
 ExposureStopsMax = 4.0
 ExposureStopsDef = 0.0

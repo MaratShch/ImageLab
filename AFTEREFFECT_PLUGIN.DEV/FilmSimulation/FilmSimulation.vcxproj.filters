@@ -267,6 +267,9 @@
     <ClInclude Include="include\AlgoControlAdobe.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoBatchPosition.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -447,6 +450,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\film_profiles_data_28.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_29.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_30.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -819,6 +828,48 @@
       <Filter>python\profiles_generator</Filter>
     </None>
     <None Include="python\profiles_generator\soviet_tu_corpus.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\color_checker.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfaphoto_apf_panels.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\batch_position_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\cinestill_cs2.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\cross_component.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ferrania_p30_alfa_report.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ferrania_p30_best_practices.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ferrania_p30_colour_target.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ferrania_vendor_sheets.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\measured_curve_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\mono_primary_width.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\retro_ru_books.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sehlin_kennel_5294_curve.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sensitisation_class.py">
       <Filter>python\profiles_generator</Filter>
     </None>
   </ItemGroup>

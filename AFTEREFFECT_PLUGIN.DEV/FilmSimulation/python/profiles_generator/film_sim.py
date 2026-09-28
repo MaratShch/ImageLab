@@ -78,6 +78,7 @@ from film_profiles import (
     IDENTITY3,
     Feature,
     FilmProfile,
+    MeasuredCurve,
     PRINT_STOCKS,
     PrintStock,
     ReseauSpec,
@@ -144,12 +145,32 @@ def _softplus(x: np.ndarray, k: float) -> np.ndarray:
     return (k * np.logaddexp(np.float32(0.0), (x / np.float32(k)))).astype(np.float32)
 
 
-def density(log_e: np.ndarray, c: ToneCurve) -> np.ndarray:
-    """Evaluate a characteristic curve: log exposure to optical density.
+#: A MeasuredCurve carrying nothing, for stripping a table off a curve whose
+#: analytic parameters have been altered. One instance, because it is
+#: immutable and is assigned on every frame of a dark-fade or push render.
+_NO_MEASURED = MeasuredCurve()
 
-    Difference of two softplus ramps gives base+fog, toe, straight line,
-    shoulder, Dmax -- the real H&D topology with guaranteed monotonicity.
+
+def _retune(c: ToneCurve, **kw) -> ToneCurve:
+    """`replace()` on a ToneCurve that ALSO DROPS ANY MEASURED TABLE.
+
+    ⚠⚠ EVERY SITE THAT CHANGES gamma OR dmin MUST GO THROUGH THIS. A measured
+    table is 21 densities read at ONE development of ONE emulsion; scaling the
+    gamma beside it does not scale the table, so the pair would then describe
+    two different films and the table -- which wins inside its own range --
+    would silently override the adjustment the caller asked for. Dropping the
+    table makes the adjusted curve fall back to the softplus, which is exactly
+    what an ADJUSTED curve is: a model, not a measurement.
+
+    The four sites are the process-variant gamma_scale/dmin_shift branch, the
+    development-time correction, the dark-fade dye loss and the storage-age
+    curve move. All four are tested by `verify.py` guard G-V55-MEAS-DROP.
     """
+    return replace(c, measured=_NO_MEASURED, **kw)
+
+
+def _softplus_density(log_e: np.ndarray, c: ToneCurve) -> np.ndarray:
+    """The analytic curve alone -- no table, whatever the curve carries."""
     return (
         np.float32(c.dmin)
         + np.float32(c.gamma)
@@ -160,6 +181,67 @@ def density(log_e: np.ndarray, c: ToneCurve) -> np.ndarray:
     ).astype(np.float32)
 
 
+def density(log_e: np.ndarray, c: ToneCurve) -> np.ndarray:
+    """Evaluate a characteristic curve: log exposure to optical density.
+
+    Difference of two softplus ramps gives base+fog, toe, straight line,
+    shoulder, Dmax -- the real H&D topology with guaranteed monotonicity.
+
+    ⚠ AND, WHERE THE SOURCE PRINTED NUMBERS RATHER THAN A PLOT, THE NUMBERS
+    THEMSELVES. `ToneCurve.measured` carries the instrument's own samples for
+    the stocks that have them -- today one, FERRANIA_P30 -- and inside the
+    sampled range this returns a monotone cubic through those samples instead
+    of the fit. Outside the range it returns the fit, OFFSET to meet the table
+    exactly at the boundary, so the function is continuous and the fitted toe
+    and shoulder still govern beyond the darkest and lightest step.
+
+    ⚠ THE SLOPES ARE NOT COMPUTED HERE. They come from
+    `film_profiles._hermite_slopes`, the one Fritsch-Carlson implementation in
+    the project, and the same numbers are emitted into the generated C++
+    tables. Three engines therefore evaluate one interpolant rather than three
+    derivative estimators that happen to agree today.
+    """
+    fit = _softplus_density(log_e, c)
+    mc = c.measured
+    if not mc.log_h:
+        return fit
+
+    xs = np.asarray(mc.log_h, dtype=np.float32)
+    ds = np.asarray(mc.density, dtype=np.float32)
+    ms = np.asarray(mc.slopes, dtype=np.float32)
+
+    x = np.asarray(log_e, dtype=np.float32)
+    out = np.empty_like(fit)
+
+    below = x <= xs[0]
+    above = x >= xs[-1]
+    mid = ~(below | above)
+
+    # Outside: the fit, shifted to meet the table at that end. The shift is a
+    # constant per end, so the shape beyond the data is the fitted shape.
+    if below.any():
+        off = np.float32(ds[0] - _softplus_density(xs[:1], c)[0])
+        out[below] = fit[below] + off
+    if above.any():
+        off = np.float32(ds[-1] - _softplus_density(xs[-1:], c)[0])
+        out[above] = fit[above] + off
+
+    if mid.any():
+        xi = x[mid]
+        i = np.searchsorted(xs, xi, side="right") - 1
+        i = np.clip(i, 0, xs.size - 2)
+        h = (xs[i + 1] - xs[i]).astype(np.float32)
+        t = ((xi - xs[i]) / h).astype(np.float32)
+        t2 = t * t
+        t3 = t2 * t
+        out[mid] = (( np.float32(2.0) * t3 - np.float32(3.0) * t2
+                      + np.float32(1.0)) * ds[i]
+                    + (t3 - np.float32(2.0) * t2 + t) * h * ms[i]
+                    + (np.float32(-2.0) * t3 + np.float32(3.0) * t2) * ds[i + 1]
+                    + (t3 - t2) * h * ms[i + 1])
+    return out.astype(np.float32)
+
+
 def _sp_scalar(x: float, k: float) -> float:
     """Scalar softplus, saturating safely for large arguments."""
     z = x / k
@@ -167,7 +249,15 @@ def _sp_scalar(x: float, k: float) -> float:
 
 
 def density_scalar(log_e: float, c: ToneCurve) -> float:
-    """Scalar version of :func:`density`, used by the anchor solvers."""
+    """Scalar version of :func:`density`, used by the anchor solvers.
+
+    ⚠ IT MUST SEE THE TABLE TOO. The anchor solve places mid grey by inverting
+    this function; if it inverted the fit while the render evaluated the
+    table, mid grey would land 0.01 D off on every measured stock and the
+    error would look like a solver bug rather than a mismatch.
+    """
+    if c.measured.log_h:
+        return float(c.measured.density_at(float(log_e), c))
     return c.dmin + c.gamma * (
         _sp_scalar(log_e - c.toe_x, c.toe_k)
         - _sp_scalar(log_e - c.shoulder_x, c.shoulder_k)
@@ -944,11 +1034,69 @@ def spectral_monochrome_weights(profile) -> tuple[float, ...] | None:
 #: These are NOT the CIE primaries: sRGB primaries are defined by chromaticity,
 #: not by a spectrum, and any RGB triple corresponds to infinitely many spectra.
 #: Gaussian lobes centred on the primaries' dominant wavelengths are the
-#: standard smooth choice, and the choice is declared here rather than buried,
-#: because it is an ASSUMPTION of this path and one of the reasons saturated
-#: colour stays approximate (see the block header).
+#: standard smooth choice.
+#:
+#: ⚠⚠ 15.0 WAS WRONG AND IS WITHDRAWN, 2026-09-27. THE WIDTH IS 34.0 nm AND
+#: IT IS NOW GEOMETRY RATHER THAN A FIT. The 2026-09-26 change (queue M2) set
+#: this to 15.0 by minimising the residual against the twelve FERRANIA P30 /
+#: TRI-X colour-target patches. That fit was CIRCULAR and the module that made
+#: it said so in its own words -- "the curve is rebuilt from the same
+#: measurement and checked to 0.04 decade" -- and then dismissed it. P30's
+#: spectral curve and this width were fitted to the SAME thirteen probes off
+#: the SAME forum frame, so minimising over the second parameter after the
+#: first had already absorbed the data does not measure anything. It measures
+#: how much freedom the second parameter has to cancel the first one's misfit.
+#:
+#: ⚠⚠ AND THE COST WAS PHYSICAL, NOT COSMETIC. Three lobes of sigma 15 nm at
+#: 460 / 540 / 600 cover about +/-30 nm each. Measured over the 45 monochrome
+#: stocks that carry a pan curve, that basis SEES 41 % of the emulsion's own
+#: integrated sensitivity and discards the other 59 %, and inside 400-680 nm
+#: there are wavelengths where it has literally zero weight. A basis with a
+#: hole in it is not integrating the emulsion, it is sampling it at three
+#: points -- and the green point, 540 nm, lands in the sensitisation DIP that
+#: sits between a silver halide's intrinsic blue lobe and its green
+#: sensitiser on most panchromatic films. Consequences, measured:
+#:
+#:     green weight FELL on 29 of the 43 derivable stocks, worst -0.203
+#:     KODAK_COMMERCIAL_1956 reached green 0.0011 -- a film that renders
+#:       green as black
+#:     the owner's AVX2 render of a ColorChecker on FERRANIA P30 put ten of
+#:       twenty-four patches on the clipping ceiling
+#:
+#: ⚠ AND THE «CHECK THAT WAS NOT AN INPUT» WAS NOT A CHECK. The old comment
+#: offered the four orthochromatic stocks' red weights falling to ~0 as
+#: independent confirmation. It is not independent: narrowing ANY lobe reduces
+#: cross-talk, so an ortho red weight falling is an arithmetic consequence of
+#: the change and not evidence for its value. That paragraph argued for the
+#: direction of a change using a quantity guaranteed to move that way.
+#:
+#: ⚠⚠ 34.0 IS DERIVED FROM THE CENTRES AND NOTHING ELSE. For the basis to have
+#: no hole, adjacent lobes must cross at least at half maximum. Two Gaussians
+#: whose centres are d apart cross at half maximum when sigma = d / 2*sqrt(2
+#: ln 2) = d / 2.3548. The binding spacing is the WIDER one, 460 -> 540 nm:
+#: 80 / 2.3548 = 33.98, rounded to 34.0 (FWHM 80.1 nm). The 540 -> 600 pair is
+#: closer and therefore overlaps more, which costs discrimination and never
+#: leaves a gap. No photograph, no forum thread and no fitted residual enters
+#: this number -- only the three centres, which are the primaries' dominant
+#: wavelengths and were never in dispute.
+#:
+#: ⚠ WHAT 34.0 COSTS, STATED RATHER THAN HIDDEN. The basis now sees 65 % of a
+#: typical emulsion instead of 41 %, and the measured orthochromatic stocks'
+#: red weights sit at 0.074-0.120 instead of 0.008-0.035. That residual red on
+#: a red-blind film is the price of a basis with no hole, and it is a property
+#: of the BASIS, not a claim about the film: a broad stand-in for "red" really
+#: does contain light a green-sensitised emulsion can see. The alternative --
+#: a narrow basis that reports a prettier number for ortho films by throwing
+#: away three fifths of every other film's measured curve -- is worse, and the
+#: nine months of stock data in this database are what it would be thrown away
+#: from.
+#:
+#: Asserted, not fitted, by `mono_primary_width.py`; the class consequences are
+#: gated by `sensitisation_class.py`. The same constant lives in
+#: AlgoSpectralSensitivity.hpp as ALGO_SPECTRAL_PRIMARY_WIDTH_NM and the two
+#: must move together -- `spectral_mono_parity.py` is what enforces that.
 _PRIMARY_CENTRES_NM = (600.0, 540.0, 460.0)
-_PRIMARY_WIDTH_NM = 55.0
+_PRIMARY_WIDTH_NM = 34.0
 
 
 def _srgb_primary_spd() -> np.ndarray:
@@ -1376,6 +1524,93 @@ def _cc_filter_shift(text: str) -> tuple[float, float, float]:
     return tuple(out)                  # type: ignore[return-value]
 
 
+def resolve_batch_position(profile, position: float):
+    """The profile as a chosen point on its own ACCEPTANCE BAND renders it.
+
+    Returns `profile` unchanged when the control is off, when the stock carries
+    no band, or when its band moves nothing -- so this is inert by default and
+    on 184 of the 194 stocks at any setting.
+
+    ⚠⚠ WHAT THIS IS, AND WHAT IT IS NOT. Ten stocks in this database are
+    specified by a MANUFACTURING ACCEPTANCE BAND rather than by typical data:
+    the nine Soviet ТУ films and the one ГОСТ film. A «Технические условия» is
+    the contract a factory was inspected against, so «не менее 100» means a
+    roll testing at 99 is rejected and says nothing about what a good roll did.
+    The profile can hold ONE number per layer, so it holds the mid-point of a
+    two-sided band or the WORST LEGAL EXAMPLE where the norm is one-sided, and
+    until this function existed the rest of the band was carried and read by
+    nothing.
+
+    ⚠ IT IS NOT A CONTRAST CONTROL. It moves each layer by a different amount,
+    only as far as that film's own document allows, and not at all on a stock
+    whose manufacturer published typical values and disclaimed being a
+    specification. A generic contrast control would move every stock equally.
+
+    ⚠⚠ THE INTERPOLATION IS ANCHORED ON THE STORED VALUE, NOT THE BAND CENTRE,
+    and the obvious alternative is wrong. Interpolating `gamma_lo` to
+    `gamma_hi` with 0 at the centre would move the curve at position 0 on every
+    stock whose stored gamma is not the centre -- which is all of them where
+    the source printed a one-sided limit, because there the stored value IS an
+    edge. The default render would change, silently, on ten stocks. Anchoring
+    makes 0 mean "as the database holds it" everywhere.
+
+    A consequence worth stating: the two halves are NOT symmetric. On ДС-5М the
+    stored blue gamma is 0.60 in a band of 0.56-0.66, so +1 moves it 0.06 and
+    -1 moves it 0.04 -- because the ТУ prints «+0,06 / -0,04» and this
+    reproduces the document rather than tidying it.
+
+    ⚠ THIS IS THE PYTHON HALF OF A THREE-ENGINE PAIR and must stay identical to
+    `AlgoResolveBatchPosition` in AlgoBatchPosition.hpp, which the scalar and
+    the vector builds share verbatim -- there is no AlgoType in that header and
+    no vector code, so the two C++ engines cannot diverge from each other here.
+    `batch_position_parity.py` asserts Python against both on every build.
+    """
+    if position is None:
+        return profile
+    try:
+        p = float(position)
+    except (TypeError, ValueError):
+        return profile
+    if -1.0e-9 <= p <= 1.0e-9:
+        return profile
+
+    band = None
+    for t in getattr(profile, "tolerance", ()) or ():
+        if t.is_default:
+            band = t
+            break
+    if band is None:
+        return profile
+
+    p = max(-1.0, min(1.0, p))
+    mag = abs(p)
+    cv = (profile.curves.r, profile.curves.g, profile.curves.b)
+    moved = [None, None, None]
+    any_move = False
+
+    for c in range(3):
+        g_lo, g_hi = band.gamma_lo_rgb[c], band.gamma_hi_rgb[c]
+        d_lo, d_hi = band.dmin_min_rgb[c], band.dmin_max_rgb[c]
+        new_gamma, new_dmin = cv[c].gamma, cv[c].dmin
+        if g_lo > 0.0 and g_hi > 0.0 and g_hi > g_lo:
+            edge = g_hi if p > 0.0 else g_lo
+            new_gamma = cv[c].gamma + mag * (edge - cv[c].gamma)
+            any_move = True
+        # Only where the source prints BOTH edges. A one-sided D_min ceiling
+        # leaves the stored value at the ceiling already.
+        if d_lo > 0.0 and d_hi > 0.0 and d_hi > d_lo:
+            edge = d_hi if p > 0.0 else d_lo
+            new_dmin = cv[c].dmin + mag * (edge - cv[c].dmin)
+            any_move = True
+        moved[c] = _retune(cv[c], gamma=new_gamma, dmin=new_dmin)
+
+    if not any_move:
+        return profile
+    return replace(profile,
+                   curves=replace(profile.curves,
+                                  r=moved[0], g=moved[1], b=moved[2]))
+
+
 def resolve_process_variant(profile, variant):
     """The profile as a chosen PROCESS renders it. Returns `profile` unchanged
     when nothing is chosen, so this is inert by default.
@@ -1440,7 +1675,7 @@ def resolve_process_variant(profile, variant):
         # a per cent; where they are not, the variant that cares carries its own
         # curves instead and never reaches this branch.
         curves = RGBCurves(
-            *[replace(c,
+            *[_retune(c,
                       gamma=c.gamma * v.gamma_scale,
                       dmin=c.dmin + v.dmin_shift)
               for c in profile.curves.as_tuple()]
@@ -1670,7 +1905,7 @@ def resolve_development_time(profile, minutes: float, celsius: float = -1.0):
         profile, development_equivalent_minutes(profile, minutes, celsius))
     if k == 1.0:
         return profile
-    curves = RGBCurves(*[replace(c, gamma=c.gamma * k)
+    curves = RGBCurves(*[_retune(c, gamma=c.gamma * k)
                          for c in profile.curves.as_tuple()])
     return replace(profile, curves=curves)
 
@@ -1745,7 +1980,7 @@ def resolve_storage_age(profile, years: float):
         return profile
     cs = profile.curves.as_tuple()
     return replace(profile, curves=RGBCurves(
-        *[replace(c, gamma=c.gamma * (1.0 - fi)) for c, fi in zip(cs, f)]))
+        *[_retune(c, gamma=c.gamma * (1.0 - fi)) for c, fi in zip(cs, f)]))
 
 
 def reciprocity_log_shift(profile, exposure_time_s: float) -> tuple[float, ...]:
@@ -3197,6 +3432,23 @@ class RenderSettings:
     #: accurate, which is why it is not the default.
     mtf_use_kernel: bool = False
 
+    #: Render the MEASURED characteristic curve where a stock carries one,
+    #: instead of the softplus fit alone.
+    #:
+    #: ⚠ ON BY DEFAULT, UNLIKE `mtf_use_kernel` ABOVE, AND FOR THE OPPOSITE
+    #: REASON. That switch makes Python LESS accurate so that it can be
+    #: compared with C++ on the same arithmetic. This one makes all three
+    #: engines MORE accurate: inside the sampled range the density returned is
+    #: the density the instrument read, to the two decimals the report prints,
+    #: rather than a five-parameter model of it that is 0.0065-0.0116 D rms
+    #: away. Turning it off is the A/B -- it renders the fit alone and is what
+    #: the engine did before schema v55.
+    #:
+    #: ⚠ IT AFFECTS EXACTLY THE STOCKS THAT CARRY A TABLE. Today that is
+    #: FERRANIA_P30 and nothing else, so on 199 of 200 profiles this switch is
+    #: a no-op by construction rather than by accident.
+    curve_measured: bool = True
+
 
     #: Accepts FilmFormatCtrl or the bare FORMAT_GEOM key. The enumerator is
     #: the canonical form and matches the C++ control exactly; the string is
@@ -3232,6 +3484,11 @@ class RenderSettings:
     #: `resolve_process_variant`. The other 26 differ only in exposure index,
     #: which no stage reads.
     process_variant: int = int(ProcessVariantCtrl.eAS_SHIPPED)
+    #: Position on the film's own manufacturing acceptance band, -1..+1.
+    #: 0.0 = the curve as the database stores it. Schema v52; inert on the
+    #: 184 stocks whose source publishes typical values. See
+    #: `resolve_batch_position`.
+    batch_position: float = 0.0
     #: Development time in minutes, or < 0 for the sentinel -- "the
     #: development the stored curves represent". See
     #: `resolve_development_time`; inert on every stock with no
@@ -3762,6 +4019,14 @@ def simulate(
     # that replaced them later would leave the solve anchored to a development
     # the frame is not being given. Replacing the profile here means every
     # consumer downstream sees one consistent film.
+    # ⚠ THE MEASURED-TABLE SWITCH IS APPLIED HERE, FIRST, AND NOWHERE ELSE.
+    # Stripping the tables at the top means every later stage -- the anchor
+    # solve, stage 8, the interimage re-evaluation, the grain amplitude, the
+    # dupe chain -- sees one consistent curve set. A switch consulted inside
+    # `density()` would let the solve and the render disagree.
+    if not settings.curve_measured:
+        profile = replace(profile, curves=RGBCurves(
+            *[_retune(c) for c in profile.curves.as_tuple()]))
     profile = resolve_process_variant(profile, settings.process_variant)
     # ⚠ AFTER the variant and before anything reads a curve: a variant
     # IS a different development, so the two are mutually exclusive in
@@ -3772,6 +4037,17 @@ def simulate(
     profile = resolve_development_time(
         profile, getattr(settings, 'development_minutes', -1.0),
         getattr(settings, 'development_celsius', -1.0))
+    # ⚠ FOURTH AND LAST RESOLVER, AND THE ORDER IS THE ARGUMENT. The three
+    # above answer "which development, how long, how old" -- all done to a roll
+    # AFTER it left the factory. This one answers "which roll", decided at the
+    # coating machine before any of them, so it is applied last: the
+    # development and the ageing then land on the roll the user chose rather
+    # than on the nominal one and being overwritten by it.
+    _batch_after = getattr(settings, 'batch_position', 0.0)
+    # ⚠ THE THREE-RESOLVER COMMENT BELOW IS KEPT AS WRITTEN because it is about
+    # the storage-age call it introduces, which is still the last of those
+    # three; the batch resolver runs after all of them, at the end of this
+    # block.
     # ⚠ LAST OF THE THREE PROFILE RESOLVERS, AND THE ORDER IS
     # CHRONOLOGICAL: a variant and a development time both describe how
     # the film was PROCESSED, and storage happens after processing. A
@@ -3779,6 +4055,7 @@ def simulate(
     # ageing before it was developed.
     profile = resolve_storage_age(
         profile, getattr(settings, 'storage_years', 0.0))
+    profile = resolve_batch_position(profile, _batch_after)
 
     h, w = linear_rgb.shape[:2]
     negative_width_mm = FORMATS[film_format_key(settings.film_format)]

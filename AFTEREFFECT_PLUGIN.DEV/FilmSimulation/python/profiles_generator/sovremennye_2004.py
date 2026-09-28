@@ -1805,6 +1805,209 @@ def compare(ladders, mtfs):
 
 
 # ===========================================================================
+# 5b. the dye panels, and why NONE of them is adopted
+#
+# ⚠⚠ QUEUE P53'S CLOSURE LEFT ONE QUESTION OPEN IN ITS OWN WORDS -- "adopting
+# 115 panels into stocks is a separate question this row never posed" -- and
+# the answer, measured on 2026-09-26, is that THERE IS NOTHING TO ADOPT.
+# Fourteen of the 115 dye panels both resolve to a database stock and trace,
+# and ALL FOURTEEN of those stocks already carry a `dye_density` record. Five
+# of them carry THIS BOOK's own reading (pinned above as `ADOPTED_DYES`); the
+# other nine carry a manufacturer's sheet, which outranks a textbook's
+# redrawing of it. So the panels' value is not as data but as a CONTROL, and
+# this function turns them into one.
+#
+# ⚠⚠ AND THE CONTROL SAYS SOMETHING THE READER COULD NOT SAY BEFORE: THE
+# AGREEMENT IS GOVERNED BY WHETHER THE TWO DOCUMENTS ARE CONTEMPORARIES.
+# Kodak's publication E-190 is dated MAY 2003 and this book is 2004. On the
+# four PORTRA NC/VC stocks that pair covers, the book's trace reproduces the
+# vendor's SHAPE to 0.0028-0.0053 D rms -- a Russian textbook's redrawing and
+# Kodak's own page vectors, traced by two unrelated readers, agreeing at the
+# fifth thousandth of a density. The two panels that do NOT agree are exactly
+# the two whose stored sheet is from another era: PORTRA 800 against Kodak
+# Alaris E-4040 of FEBRUARY 2016, twelve years and a change of owner later,
+# and Pro 100T/PRT against E-29 of APRIL 1999, five years earlier.
+#
+# ⚠ THE LEVEL IS A DIFFERENT MATTER FROM THE SHAPE, AND IT IS BIASED. On 15 of
+# the 16 vendor comparisons the book reads HIGH, by +0.009 to +0.023 D on the
+# contemporary set. A redrawn plot inherits the draughtsman's line weight, and
+# a trace follows the middle of a thicker stroke; the bias is recorded here
+# rather than corrected, because nothing in these two documents says which of
+# them carries it.
+# ===========================================================================
+
+#: Shape agreement (each panel's own constant offset removed) that a panel
+#: whose vendor sheet is CONTEMPORARY with the book must reach.
+DYE_SHAPE_CONTEMPORARY_MAX = 0.010
+#: ... and the floor the two non-contemporary panels must stay ABOVE, so that
+#: the finding cannot silently invert into "everything agrees".
+DYE_SHAPE_ERA_MIN = 0.020
+#: Frame-edge samples are dropped before either figure: a traced stroke at the
+#: very edge of a plot frame is the one place the frame itself can be followed.
+DYE_INNER_NM = (420.0, 680.0)
+#: Total variation over range. A midscale-neutral or D-min trace is a smooth
+#: curve with a handful of turns; a panel whose three DYE records have been
+#: read as two traces is a sawtooth. Measured across the thirteen sound
+#: panels and their thirteen stored counterparts the index spans 1.01-2.47.
+DYE_WIGGLE_MAX = 2.60
+
+#: The four stocks whose stored sheet is contemporary with the book, with the
+#: shape rms and the level bias measured on 2026-09-26. Pinned so that a
+#: reader change has to restate the agreement rather than lose it quietly.
+DYE_CONTEMPORARY = {
+    # stock: ((neutral shape rms, neutral bias), (dmin shape rms, dmin bias))
+    'KODAK_PORTRA_160NC': ((0.0052, +0.0155), (0.0033, +0.0208)),
+    'KODAK_PORTRA_160VC': ((0.0052, +0.0087), (0.0028, +0.0119)),
+    'KODAK_PORTRA_400NC': ((0.0045, +0.0137), (0.0034, +0.0164)),
+    'KODAK_PORTRA_400VC': ((0.0053, +0.0232), (0.0030, +0.0201)),
+}
+
+#: The two whose stored sheet is from another era, and the measured size of
+#: the disagreement. These are NOT failures of the trace; they are the control
+#: reporting that two documents thirteen and five years apart describe two
+#: different coatings.
+DYE_OTHER_ERA = {
+    'KODAK_PORTRA_800': ((0.0685, +0.1230), (0.0263, +0.0737)),
+    'KODAK_PRO_100T_PRT': ((0.1048, -0.0134), (0.0224, +0.0748)),
+}
+
+#: ⚠ AND THE TWO KONICA SHEETS CARRY NO DATE, so they can be neither counted
+#: as contemporaries nor blamed on an era, and they are held in their own
+#: table rather than being sorted into whichever group their numbers suit.
+#: They land BETWEEN the two groups -- shape 0.015-0.041 D -- which is what a
+#: pair of undated sheets from a maker who published this film for years
+#: should look like, and is the honest reason to leave them unclassified.
+DYE_UNDATED = {
+    'KONICA_IMPRESA_50': ((0.0170, +0.0192), (0.0145, +0.0161)),
+    'KONICA_VX_100': ((0.0406, +0.0106), (0.0156, +0.0075)),
+}
+
+#: ⚠ REFUSED 2026-09-26, AND THE REASON IS IN THE TRACE ITSELF. The caption on
+#: p281 is the two-trace «Спектральная плотность» form, so `dye_panel` asks for
+#: TWO records -- but FUJICHROME PROVIA 400F is a reversal stock and the figure
+#: draws its THREE dyes. The tracer duly returns two strokes, and the one it
+#: calls the neutral runs 0.507 / 0.903 / 0.751 / 0.557 / 0.878 ... with its
+#: crests near 430, 520 and 640 nm: those are the yellow, magenta and cyan
+#: peaks, not a neutral. The wiggle index makes it a number rather than an
+#: impression -- 4.287 against 1.50-2.32 on the other thirteen book panels and
+#: 1.60-2.47 on their stored vendor counterparts. The stock's own three-dye
+#: record from the Fuji sheet stays, and nothing is taken from this panel.
+#: ⚠ The sum identity cannot adjudicate it either way, and that is worth
+#: stating: the stored dyes are `peak_1.0` normalised, so their per-dye
+#: amplitudes are gone and `Neutral - Dmin = k(C+M+Y)` has no fitted k that
+#: means anything (measured k = 0.523, residual rms 0.220 D).
+DYE_REFUSED_SHAPE = {'FUJI_PROVIA_400F': 4.287}
+
+
+def _dye_wiggle(v):
+    """Total variation over range -- scale-free, and 1.0 for any monotone run."""
+    v = np.asarray(v, float)
+    rng = float(v.max() - v.min())
+    if rng < 1e-9:
+        return float('inf')
+    return float(np.abs(np.diff(v)).sum()) / rng
+
+
+def _dye_shape_bias(book, stored, start_nm, step_nm):
+    """(shape rms with the offset removed, mean offset) over the interior."""
+    stored = np.asarray(stored, float)
+    grid = np.arange(SPECTRAL_MIN_NM, SPECTRAL_MAX_NM + 1, SPECTRAL_GRID_NM)
+    g = start_nm + step_nm * np.arange(len(stored))
+    m = ((grid >= g[0]) & (grid <= g[-1])
+         & (grid >= DYE_INNER_NM[0]) & (grid <= DYE_INNER_NM[1]))
+    if m.sum() < 10:
+        return None
+    e = np.asarray(book, float)[m] - np.interp(grid[m], g, stored)
+    bias = float(e.mean())
+    return float(np.sqrt(((e - bias) ** 2).mean())), bias
+
+
+def dye_corroboration(dyes, by):
+    """The dye panels as a control on the reader. Returns a problem list."""
+    problems = []
+    # (1) NOTHING IS ADOPTABLE, and that is asserted rather than assumed. If a
+    # future harvest ever traces a panel for a stock with no dye record, this
+    # fires and the adoption question is posed for real.
+    for st in sorted(dyes):
+        rec = by.get(st)
+        if rec is None:
+            continue
+        d = rec.dye_density
+        if not (d.has_data or (d.d_neutral and d.d_dmin)):
+            problems.append(
+                "%s now traces a dye panel and holds NO dye_density record -- "
+                "this is the first adoptable panel in this book and needs a "
+                "decision, not a silent pass" % st)
+    # (2) the out-of-family panel, refused by its own oscillation
+    for st, want in DYE_REFUSED_SHAPE.items():
+        got = dyes.get(st)
+        if got is None:
+            problems.append("%s no longer traces; the refusal recorded against "
+                            "it can no longer be checked" % st)
+            continue
+        w = _dye_wiggle(got['d_neutral'])
+        if abs(w - want) > 0.05:
+            problems.append("%s wiggle index moved: %.3f against the recorded "
+                            "%.3f" % (st, w, want))
+        if w <= DYE_WIGGLE_MAX:
+            problems.append("%s wiggle index %.3f is now IN family -- the "
+                            "refusal on p281 rested on it being out" % (st, w))
+    for st, got in sorted(dyes.items()):
+        if st in DYE_REFUSED_SHAPE or got['shape'] != 'neutral_pair':
+            continue
+        for fld in ('d_neutral', 'd_dmin'):
+            w = _dye_wiggle(got[fld])
+            if w > DYE_WIGGLE_MAX:
+                problems.append("%s %s wiggle index %.3f exceeds %.2f"
+                                % (st, fld, w, DYE_WIGGLE_MAX))
+    # (3) the corroboration proper, and the era finding it rests on
+    neg_bias = 0
+    for table, contemporary in ((DYE_CONTEMPORARY, True),
+                                (DYE_OTHER_ERA, False),
+                                (DYE_UNDATED, None)):
+        for st, want in table.items():
+            got = dyes.get(st)
+            if got is None or got['shape'] != 'neutral_pair':
+                problems.append("%s no longer yields a dye pair; the "
+                                "corroboration against its vendor sheet is "
+                                "lost" % st)
+                continue
+            d = by[st].dye_density
+            for fld, w in (('d_neutral', want[0]), ('d_dmin', want[1])):
+                q = _dye_shape_bias(got[fld], getattr(d, fld),
+                                    d.lambda_start_nm, d.lambda_step_nm)
+                if q is None:
+                    problems.append("%s %s: too little overlap to compare"
+                                    % (st, fld))
+                    continue
+                rms, bias = q
+                if bias < 0:
+                    neg_bias += 1
+                if abs(rms - w[0]) > 0.005 or abs(bias - w[1]) > 0.005:
+                    problems.append(
+                        "%s %s moved: shape %.4f bias %+.4f against the "
+                        "recorded %.4f / %+.4f" % (st, fld, rms, bias, w[0], w[1]))
+                if contemporary is True and rms > DYE_SHAPE_CONTEMPORARY_MAX:
+                    problems.append(
+                        "%s %s: the book and its CONTEMPORARY vendor sheet no "
+                        "longer agree on shape (%.4f > %.3f)"
+                        % (st, fld, rms, DYE_SHAPE_CONTEMPORARY_MAX))
+                if (contemporary is False and fld == 'd_neutral'
+                        and rms < DYE_SHAPE_ERA_MIN):
+                    problems.append(
+                        "%s: the other-era disagreement has vanished (%.4f < "
+                        "%.3f) -- the era finding needs re-measuring, not a "
+                        "looser bound" % (st, rms, DYE_SHAPE_ERA_MIN))
+    # ⚠ THE BIAS IS ONE-SIDED AND THE COUNT IS THE EVIDENCE. Sixteen
+    # comparisons, one negative. A reader change that made the bias symmetric
+    # would mean the level offset had stopped being a property of the book.
+    if neg_bias != 1:
+        problems.append("the book's level bias is negative on %d of the 16 "
+                        "vendor comparisons, recorded as 1" % neg_bias)
+    return problems
+
+
+# ===========================================================================
 # 6. report / gate
 # ===========================================================================
 def main(argv):
@@ -1845,6 +2048,29 @@ def main(argv):
               % (len(dyes),
                  sum(1 for d in dyes.values() if d['shape'] == 'neutral_pair'),
                  sum(1 for d in dyes.values() if d['shape'] == 'three_dye')))
+        import film_profiles as _FP
+        _byp = {q.name: q for q in _FP.FILM_PROFILES}
+        for tbl, tag in ((DYE_CONTEMPORARY, 'CONTEMPORARY'),
+                         (DYE_UNDATED, 'UNDATED    '),
+                         (DYE_OTHER_ERA, 'OTHER-ERA  ')):
+            for st in sorted(tbl):
+                got = dyes.get(st)
+                if not got:
+                    continue
+                d = _byp[st].dye_density
+                cells = []
+                for fld in ('d_neutral', 'd_dmin'):
+                    q = _dye_shape_bias(got[fld], getattr(d, fld),
+                                        d.lambda_start_nm, d.lambda_step_nm)
+                    cells.append("-" if q is None
+                                 else "%s %.4f/%+.4f" % (fld[2:8], q[0], q[1]))
+                print("  DYE %s %-26s p%-4d %s" % (tag, st, got['page'],
+                                                   "  ".join(cells)))
+        for st in sorted(DYE_REFUSED_SHAPE):
+            if st in dyes:
+                print("  DYE REFUSED     %-26s p%-4d wiggle %.3f (max %.2f)"
+                      % (st, dyes[st]['page'],
+                         _dye_wiggle(dyes[st]['d_neutral']), DYE_WIGGLE_MAX))
         nfp = sum(len(f['points']) for v in families.values() for f in v)
         print("  development families %d on %d stock(s), %d points"
               % (sum(len(v) for v in families.values()), len(families), nfp))
@@ -2042,6 +2268,7 @@ def main(argv):
                 and got['d_dmin'][0] <= got['d_dmin'][-1]):
             problems.append("%s is a masked negative and its D-min trace does "
                             "not fall from blue to red" % st)
+    problems.extend(dye_corroboration(dyes, _by))
     if n_corr < 6:
         problems.append("only %d corroborations; this reader's own check is that "
                         "its traces reproduce manufacturer data already in the "
@@ -2082,9 +2309,12 @@ def main(argv):
         return 1
     print("[OK] sovremennye_2004.py -- %d figures indexed, %d corroborations, "
           "%d brackets, %d fills, %d development families (%d points), "
-          "%d dye records, %d kinetics panels read and deliberately not stored"
+          "%d dye records (%d corroborate a vendor sheet, 0 adoptable), "
+          "%d kinetics panels read and deliberately not stored"
           % (len(index), n_corr, n_brk, n_fill, len(seen_fam),
-             sum(len(v) for v in seen_fam.values()), len(dyes), len(kinetics)))
+             sum(len(v) for v in seen_fam.values()), len(dyes),
+             len(DYE_CONTEMPORARY) + len(DYE_UNDATED) + len(DYE_OTHER_ERA),
+             len(kinetics)))
     return 0
 
 

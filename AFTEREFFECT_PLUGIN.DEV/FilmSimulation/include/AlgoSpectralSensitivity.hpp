@@ -125,15 +125,52 @@ constexpr int32_t ALGO_SPECTRAL_N =
 //  wavelengths are the conventional smooth choice when a spectrum has to be
 //  reconstructed from three numbers.
 //
-//  This choice is an ASSUMPTION of this path, declared here rather than buried,
-//  and it is one of the reasons saturated colour stays approximate. It is stated
-//  in the header so that a later reader looking for the source of a colour
-//  discrepancy finds the assumption instead of having to infer it.
+//  !!! 15.0 IS WITHDRAWN, 2026-09-27. THE WIDTH IS 34.0 nm AND IT IS NOW
+//  GEOMETRY RATHER THAN A FIT. The 2026-09-26 change (queue M2) set this to
+//  15.0 by minimising the residual against twelve FERRANIA P30 / TRI-X
+//  colour-target patches. That fit was CIRCULAR: P30's spectral curve and
+//  this width were fitted to the SAME thirteen probes off the SAME forum
+//  frame. Minimising over the second parameter, after the first had already
+//  absorbed the data, measures how much freedom the second has to cancel the
+//  first one's misfit - not the width.
+//
+//  !!! AND THE COST WAS PHYSICAL. Three lobes of sigma 15 nm at 460/540/600
+//  cover about +/-30 nm each. Measured over the 45 monochrome stocks that
+//  carry a pan curve, that basis SEES 41 % of the emulsion's own integrated
+//  sensitivity and discards the other 59 %, and inside 400-680 nm there are
+//  wavelengths where it has literally zero weight. A basis with a hole in it
+//  is not integrating the emulsion, it is sampling it at three points - and
+//  540 nm lands in the sensitisation DIP that sits between a silver halide's
+//  intrinsic blue lobe and its green sensitiser on most panchromatic films.
+//  Green weight fell on 29 of the 43 derivable stocks, worst -0.203, and
+//  KODAK_COMMERCIAL_1956 reached green 0.0011 - a film rendering green as
+//  black.
+//
+//  ! THE OLD "INDEPENDENT CHECK" WAS NOT ONE. It offered the orthochromatic
+//  stocks' red weights falling to ~0 as confirmation. Narrowing ANY lobe
+//  reduces cross-talk, so that fall is an arithmetic consequence of the
+//  change, not evidence for its value.
+//
+//  !!! 34.0 IS DERIVED FROM THE CENTRES AND NOTHING ELSE. For the basis to
+//  have no hole, adjacent lobes must cross at least at half maximum. Two
+//  Gaussians whose centres are d apart cross at half maximum when
+//  sigma = d / (2*sqrt(2 ln 2)) = d / 2.3548. The binding spacing is the
+//  wider one, 460 -> 540 nm: 80 / 2.3548 = 33.98, rounded to 34.0 (FWHM
+//  80.1 nm). No photograph and no fitted residual enters this number.
+//
+//  ! WHAT IT COSTS, STATED: the basis now sees 65 % of a typical emulsion
+//  instead of 41 %, and the measured orthochromatic stocks' red weights sit
+//  at 0.074-0.120 instead of 0.008-0.035. That residual is a property of the
+//  BASIS, not a claim about the film: a broad stand-in for "red" really does
+//  contain light a green-sensitised emulsion can see.
+//
+//  Asserted, not fitted, by mono_primary_width.py; the class consequences are
+//  gated by sensitisation_class.py. Both are run by the build.
 // ---------------------------------------------------------------------------
 constexpr HighPrecType ALGO_SPECTRAL_PRIMARY_R_NM = 600.0;
 constexpr HighPrecType ALGO_SPECTRAL_PRIMARY_G_NM = 540.0;
 constexpr HighPrecType ALGO_SPECTRAL_PRIMARY_B_NM = 460.0;
-constexpr HighPrecType ALGO_SPECTRAL_PRIMARY_WIDTH_NM = 55.0;
+constexpr HighPrecType ALGO_SPECTRAL_PRIMARY_WIDTH_NM = 34.0;
 
 
 // ---------------------------------------------------------------------------

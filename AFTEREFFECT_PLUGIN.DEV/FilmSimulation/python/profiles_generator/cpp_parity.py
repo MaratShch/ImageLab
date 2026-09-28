@@ -2633,18 +2633,29 @@ def main() -> int:
                     base_k = ("V", k[1], -1, k[3])
                     if vpy[base_k][0] != want:
                         curve_moved.add(k[1])
-                if stocks_moved != 8:
+                # ⚠ 8 -> 10 AND 5 -> 7 ON 2026-09-24. EKTAPRESS PJ400 gained
+                # the E-116 push ladder (EI 800, EI 1600) and T-MAX P3200 the
+                # F-32 development-time family (8, 10, 12 minutes at 75 F),
+                # both with traced curve sets, both from documents that
+                # entered the corpus that day. This is the C++ side of the
+                # same census verify.py re-baselined in the same edit; the two
+                # must move together or the engines disagree about what a
+                # variant selection renders.
+                # ⚠ 11 -> 12 ON 2026-09-24b with EKTAPRESS PJ800's push ladder.
+                if stocks_moved != 12:
                     print(f"[FAIL] {stocks_moved} stocks resolve to a different "
-                          f"profile; 8 are expected -- 5 that change curves and "
+                          f"profile; 12 are expected -- 9 that change curves and "
                           f"the 3 AGFAPAN stocks whose developer records state "
                           f"their own exposure index")
                     bad += 1
-                if len(curve_moved) != 5:
+                if len(curve_moved) != 9:
                     print(f"[FAIL] {len(curve_moved)} stocks change a CURVE "
-                          f"({sorted(curve_moved)}); 5 are expected -- "
+                          f"({sorted(curve_moved)}); 9 are expected -- "
                           f"KODAK_PORTRA_800, KODAK_ULTRA_COLOR_400UC, "
-                          f"CINESTILL_800T, GEVACHROME_605 and "
-                          f"SUPER_ANSCOCHROME_1957. A change here "
+                          f"CINESTILL_800T, GEVACHROME_605, "
+                          f"SUPER_ANSCOCHROME_1957, KODAK_EKTAPRESS_PJ400, "
+                          f"KODAK_EKTAPRESS_PJ800, "
+                          f"KODAK_TMAX_P3200 and FERRANIA_P30. A change here "
                           f"means a variant gained or lost its measured curve "
                           f"set")
                     bad += 1
