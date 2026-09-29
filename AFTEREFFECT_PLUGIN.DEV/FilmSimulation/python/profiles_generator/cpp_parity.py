@@ -1037,7 +1037,7 @@ STORAGE_CPP = r"""
 #include "film_profiles.hpp"
 #include <cstdio>
 
-struct SRow { const char* name; double years; };
+struct SRow { const char* name; double years; double celsius; };
 
 static const SRow SROWS[] = {
 /*ROWS*/
@@ -1060,15 +1060,15 @@ int main()
 
         film::FilmProfile store;
         const film::FilmProfile& out =
-            AlgoResolveStorageAge(*p, r.years, store);
+            AlgoResolveStorageAge(*p, r.years, r.celsius, store);
 
         const int copied = (&out == p) ? 0 : 1;
 
         const film::ToneCurve* c[3] = { &out.curves.r, &out.curves.g, &out.curves.b };
 
         for (int k = 0; k < 3; ++k)
-            printf("S\t%s\t%.17g\t%d\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%d\n",
-                   r.name, r.years, k,
+            printf("S\t%s\t%.17g\t%.17g\t%d\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%d\n",
+                   r.name, r.years, r.celsius, k,
                    (double)c[k]->dmin, (double)c[k]->gamma,
                    (double)c[k]->toe_x, (double)c[k]->toe_k,
                    (double)c[k]->shoulder_x, (double)c[k]->shoulder_k,
@@ -1085,13 +1085,28 @@ int main()
 #: exercised on each side of each.
 STORAGE_YEARS = (0.0, 0.5, 4.0, 8.0, 15.0, 23.0, 40.0, 100.0)
 
+#: Storage temperatures probed (schema v57). 24 is the load-bearing one -- the
+#: default and every record's reference, where the years must be used as
+#: given -- then every Table 5.3 node, a point strictly inside each of the
+#: nine segments, and one value beyond each end, where the factor is HELD.
+STORAGE_CELSIUS = (24.0, 30.0, 19.0, 13.0, 7.0, 4.0, 0.0, -10.0, -18.0,
+                   -26.0, 26.7, 21.5, 16.0, 10.0, 5.5, 1.7, -5.0, -14.0,
+                   -22.0, 40.0, -40.0)
+
 
 def storage_probe_table():
-    return [(q.name, y) for q in fp.FILM_PROFILES for y in STORAGE_YEARS]
+    """Every stock at every age at 24 degC; the stocks that carry a rate
+    across the whole temperature sweep. A stock with no rate is identity at
+    any temperature, and the per-stock set is asserted separately."""
+    rows = [(q.name, y, 24.0) for q in fp.FILM_PROFILES for y in STORAGE_YEARS]
+    rows += [(q.name, y, c) for q in fp.FILM_PROFILES
+             if q.dye_stability.has_data
+             for y in STORAGE_YEARS for c in STORAGE_CELSIUS if c != 24.0]
+    return rows
 
 
 def storage_build_and_run(tmp: Path, root: Path, rows) -> dict:
-    lines = ['    { "%s", %.17g },' % r for r in rows]
+    lines = ['    { "%s", %.17g, %.17g },' % r for r in rows]
     src = tmp / "storage_parity.cpp"
     src.write_text(STORAGE_CPP.replace("/*ROWS*/", "\n".join(lines)))
     exe = tmp / "storage_parity"
@@ -1112,8 +1127,8 @@ def storage_build_and_run(tmp: Path, root: Path, rows) -> dict:
     out = {}
     for line in r.stdout.splitlines():
         f = line.split("\t")
-        out[(f[0], f[1], float(f[2]), int(f[3]))] = (
-            tuple(float(x) for x in f[4:10]), int(f[10]))
+        out[(f[0], f[1], float(f[2]), float(f[3]), int(f[4]))] = (
+            tuple(float(x) for x in f[5:11]), int(f[11]))
     return out
 
 
@@ -1121,13 +1136,13 @@ def storage_python_side(rows) -> dict:
     import film_sim as fs
     by = {q.name: q for q in fp.FILM_PROFILES}
     out = {}
-    for name, years in rows:
+    for name, years, celsius in rows:
         q = by[name]
-        r = fs.resolve_storage_age(q, years)
+        r = fs.resolve_storage_age(q, years, celsius)
         cs = r.curves.as_tuple()
         for k in range(3):
             c = cs[k]
-            out[("S", name, years, k)] = (
+            out[("S", name, years, celsius, k)] = (
                 (c.dmin, c.gamma, c.toe_x, c.toe_k, c.shoulder_x, c.shoulder_k),
                 0 if r is q else 1)
     return out
@@ -1203,6 +1218,17 @@ def callier_stage_python_side(rows) -> dict:
             out[("CS", nm, i_s, x)] = tuple(float(dens[0, x, c])
                                             for c in range(3))
         ps = None if p.is_reversal else fp.get_print_stock(p.default_print)
+        # ⚠ 2026-09-28: THE PRINT STOCK THE SOLVE SEES MUST BE THE ONE
+        # film_sim.simulate() HANDS IT. For a monochrome negative simulate()
+        # neutralises the print (green curve x 3, identity dye matrix) BEFORE
+        # the anchor solve, and since 2026-09-28 AlgoSolveAnchors does the same.
+        # This probe used to pass the raw colour print stock, which compared
+        # the engine against a solve film_sim never runs.
+        if ps is not None and p.is_monochrome:
+            from dataclasses import replace as _replace
+            ps = _replace(ps, curves=fp.RGBCurves(ps.curves.g, ps.curves.g,
+                                                   ps.curves.g),
+                          dye_matrix=fp.IDENTITY3)
         a = fs.solve_anchors(p, ps, 0.18, 1.0, sp)
         out[("CA", nm, i_s, 0)] = (float(a[0]), float(a[1]), float(a[2]))
     return out
@@ -2746,8 +2772,10 @@ def main() -> int:
                 moved = {k[1] for k, (_c, cp) in spy.items() if cp}
                 print(f"[i] storage age: {len(spy)} probes over "
                       f"{len(fp.FILM_PROFILES)} stocks x {len(STORAGE_YEARS)} "
-                      f"ages; worst curve-parameter disagreement {sw:.2e} at "
-                      f"{sat}; {len(moved)} stock(s) age at all")
+                      f"ages, and {len(STORAGE_CELSIUS)} storage temperatures "
+                      f"on the stocks with a rate; worst curve-parameter "
+                      f"disagreement {sw:.2e} at {sat}; {len(moved)} "
+                      f"stock(s) age at all")
                 if sw > TOL_CALLIER:
                     print(f"[FAIL] the two storage-age resolvers disagree by "
                           f"{sw:.2e} at {sat}")
@@ -2775,10 +2803,10 @@ def main() -> int:
                 _sym = []
                 for k, (got, _cp) in spy.items():
                     _d = _by[k[1]].dye_stability
-                    _rate = (_d.loss_c, _d.loss_m, _d.loss_y)[k[3]]
+                    _rate = (_d.loss_c, _d.loss_m, _d.loss_y)[k[4]]
                     if _rate > 0.0:
                         continue
-                    base = _by[k[1]].curves.as_tuple()[k[3]]
+                    base = _by[k[1]].curves.as_tuple()[k[4]]
                     if abs(got[1] - base.gamma) > 1e-12:
                         _sym.append(k)
                 if _sym:

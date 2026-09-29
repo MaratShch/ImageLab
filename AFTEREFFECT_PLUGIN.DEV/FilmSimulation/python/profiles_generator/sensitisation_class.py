@@ -87,10 +87,14 @@ CLASS = {
     # -- panchromatic -------------------------------------------------------
     "AGFA_APX_25": "pan", "AGFA_APX_100": "pan", "AGFA_APX_400": "pan",
     "AGFA_SCALA_200X": "pan",
+    # 2026-09-29b: «panchromatic up to 750 nm» on its PE0 sheet (extended red,
+    # not an infrared emulsion -- nothing past the visible is drawn).
+    "AGFA_AVIPHOT_PAN_20": "pan",
     "EASTMAN_DOUBLE_X_5222": "pan", "EASTMAN_PLUS_X_5231": "pan",
     "FERRANIA_P30_MK2": "pan", "FERRANIA_P33_160": "pan",
     "FOMAPAN_400_ACTION": "pan",
     "FUJI_NEOPAN_1600": "pan", "FUJI_NEOPAN_ACROS_100": "pan",
+    "FUJI_NEOPAN_400": "pan",   # 2026-09-29b, AF3-207U: «Panchromatic»
     "FUJI_NEOPAN_SS": "pan",
     "ILFORD_DELTA_3200": "pan", "ILFORD_HP5_PLUS_400": "pan",
     "KODAK_BW400CN": "pan", "KODAK_T400CN": "pan",

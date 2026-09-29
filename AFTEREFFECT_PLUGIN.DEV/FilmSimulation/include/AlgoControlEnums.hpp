@@ -609,11 +609,15 @@ constexpr double DevelopmentCelsiusStep = 0.5;
 
 // Years of DARK STORAGE since processing, for image-dye fade. Zero is the OFF
 // sentinel and is fresh film, not a minimum.
-// ⚠ THE CONTROL IS INERT ON 188 OF 191 STOCKS and must hide or disable itself
+// ⚠ THE CONTROL IS INERT ON 187 OF 201 STOCKS and must hide or disable itself
 // there, by the same rule processVariant and developmentMinutes already
 // follow: only a stock carrying a PUBLISHED dark-fade rate in
-// film::DyeStabilitySpec can respond, and today that is KODAK EKTAR 125 (8
-// years to a 10 % yellow loss) and KODAK VERICOLOR III 160 (23 years).
+// film::DyeStabilitySpec can respond. At schema v57 that is 14 stocks: KODAK
+// EKTAR 125 (8 years to a 10 % yellow loss) and VERICOLOR III 160 (23) from
+// Wilhelm Table 19.1, the 1982 EASTMAN 5293 (cyan, 429) from Kennel et al.,
+// seven motion-picture negatives from Wilhelm Tables 9.2 / 9.3, and
+// KODACHROME 64, EKTACHROME 64, 160T and EKTACHROME-X (E-4, cyan, 30) from
+// Table 5.13 (20 % criterion).
 // ⚠ THE UPPER BOUND IS NOT A PHYSICAL LIMIT. It is the span over which a
 // first-order fade from a published 10 %-loss time stays a restatement of that
 // figure rather than an extrapolation of it: at 100 years EKTAR 125's yellow
@@ -623,6 +627,18 @@ constexpr double StorageYearsMin  =   0.0;
 constexpr double StorageYearsMax  = 100.0;
 constexpr double StorageYearsDef  = StorageYearsOff;
 constexpr double StorageYearsStep =   0.5;
+
+// Storage TEMPERATURE for those years, degC (schema v57). The range is exactly
+// the span Wilhelm's Table 5.3 prints (-26 .. +30 degC); the resolver HOLDS the
+// end factors outside it rather than extrapolating. The default 24 degC is the
+// reference temperature of every stored dark-fade record, so it is the
+// identity. ⚠ INERT WHEREVER storageYears IS - it only restates elapsed years -
+// and must hide or disable itself with it. ⚠ 0 IS NOT A SENTINEL: 0 degC is a
+// real storage temperature, 28x slower than room temperature.
+constexpr double StorageCelsiusMin  = -26.0;
+constexpr double StorageCelsiusMax  =  30.0;
+constexpr double StorageCelsiusDef  =  24.0;
+constexpr double StorageCelsiusStep =   0.5;
 
 // -- duplication -----------------------------------------------------------
 
@@ -872,6 +888,7 @@ constexpr double ScannerArtifactsMin  = 0.0;
 constexpr double ScannerArtifactsMax  = 2.0;
 constexpr double ScannerArtifactsDef  = 0.20;
 constexpr double ScannerArtifactsStep = 0.01;
+
 
 // Gate weave amplitude. Floor enforced at stage 15.
 constexpr double SpliceAndTearsEventstMin = 0.0;

@@ -1496,6 +1496,12 @@ struct DyeStabilitySpec {
     float dmin_gain_g;       ///< ... green
     float dmin_gain_b;       ///< ... blue
     std::string source;      ///< full citation, including the censoring note
+    /// v57: the loss the six loss_* years are quoted for, in whole percent of
+    /// the starting density 1.0 -- 10 on the Kodak-sheet and Wilhelm Table
+    /// 19.1 / 9.2 / 9.3 records, 20 on the Table 5.13 slide films. Read by
+    /// AlgoDarkFadeFraction: f = 1 - (1 - L/100)^(t/T). Whole percent because
+    /// 10.0f is exact where 0.1f is not.
+    float loss_percent;
 };
 
 /// Sampled spectral sensitivity curves digitised from manufacturer datasheet
@@ -3200,7 +3206,7 @@ def _dye_stability(s) -> str:
                 s.dmin_gain_b,
             )
         )
-        + f', "{_escape(s.source)}" }}'
+        + f', "{_escape(s.source)}", {_f(s.loss_percent)} }}'
     )
 
 
@@ -3627,7 +3633,23 @@ def _print_block(s: PrintStock) -> str:
 # buys two harvests of room instead of one. ⚠ THE AVERAGE SLOT IS 97 698 BYTES
 # AT 30, so the limit is not close on any slot; the binding constraint is the
 # largest INDIVISIBLE profile block, not the total.
-N_DATA_SLOTS = 30          #: fixed; the .vcxproj lists these files once
+# ⚠⚠ 30 -> 34 ON 2026-09-29b, FOR THE FUJI / AGFA / KODAK HARVEST (201 -> 221
+# stocks). `_distribute` is optimal, so these are the real minima:
+#
+#     slots   high-water   headroom
+#        30     117 285     -5 285   over
+#        32     113 670     -1 670   over
+#        33     110 073     +1 927   fits, one paragraph from failing again
+#        34     105 688     +6 312   chosen
+#
+# 34 for the same reason 30 was chosen over 29: one Visual Studio edit should
+# buy more than one harvest of room.
+#
+# ⚠⚠ OWNER ACTION REQUIRED IN VISUAL STUDIO, 2026-09-29b: ADD
+# `film_profiles_data_31.cpp` ... `film_profiles_data_34.cpp` TO THE .vcxproj.
+# CMake globs `src/*.cpp`; Visual Studio does not. No vector index, enum value
+# or names-file line depends on the slot count.
+N_DATA_SLOTS = 34          #: fixed; the .vcxproj lists these files once
 SLOT_SOURCE_LIMIT = 112_000  #: bytes of emitted source per slot, hard error
 
 

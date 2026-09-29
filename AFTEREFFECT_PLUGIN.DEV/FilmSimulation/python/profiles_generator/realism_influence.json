@@ -1,6 +1,6 @@
 {
-  "schema_version": 49,
-  "model_hash": "92d62a08b1856654",
+  "schema_version": 56,
+  "model_hash": "31225835a52c3f64",
   "scene_px": [
     1536,
     864
@@ -20,22 +20,22 @@
     "KODAK_VISION_500T_5279",
     "AGFA_OPTIMA_100",
     "AGFA_OPTIMA_200",
+    "KODAK_EKTACHROME_100D_5285",
     "AGFA_RSX_II_50",
     "AGFA_RSX_II_100",
-    "AGFA_RSX_II_200",
     "AGFA_APX_25",
     "AGFA_APX_100",
     "AGFA_APX_400",
     "AGFA_SCALA_200X",
+    "EASTMAN_DOUBLE_X_5222",
     "EASTMAN_PLUS_X_5231",
-    "KODAK_BW400CN",
-    "KODAK_TMAX_400"
+    "KODAK_BW400CN"
   ],
   "axes": {
     "tone_curve": {
       "what": "traced characteristic curve",
-      "stocks_measured": 16,
-      "delta_e_median": 15.546070420730402,
+      "stocks_measured": 18,
+      "delta_e_median": 12.393130814826204,
       "delta_e_max": 31.6746128812338,
       "worst_stock": "KODAK_VISION2_50D_5201",
       "render_settings": {}
@@ -43,31 +43,31 @@
     "grain_amplitude": {
       "what": "published rms granularity",
       "stocks_measured": 18,
-      "delta_e_median": 0.5303704413889214,
+      "delta_e_median": 0.5536989975800604,
       "delta_e_max": 2.958496845273928,
       "worst_stock": "EASTMAN_EXR_50D_5245",
       "render_settings": {}
     },
     "grain_shape": {
       "what": "measured sigma(D) shape",
-      "stocks_measured": 6,
-      "delta_e_median": 0.4723666669872144,
-      "delta_e_max": 0.8757275438001626,
-      "worst_stock": "KODAK_VISION_500T_5279",
+      "stocks_measured": 7,
+      "delta_e_median": 0.5623621086581809,
+      "delta_e_max": 1.36664269331503,
+      "worst_stock": "KODAK_EKTACHROME_100D_5285",
       "render_settings": {}
     },
     "sharpness_mtf": {
       "what": "measured MTF",
       "stocks_measured": 17,
-      "delta_e_median": 0.20592615099947614,
-      "delta_e_max": 1.9525560622666343,
-      "worst_stock": "AGFA_RSX_II_200",
+      "delta_e_median": 0.21700153374820452,
+      "delta_e_max": 1.1791264910893926,
+      "worst_stock": "AGFA_RSX_II_50",
       "render_settings": {}
     },
     "edge_effects": {
       "what": "measured adjacency overshoot",
       "stocks_measured": 18,
-      "delta_e_median": 0.3027353173738897,
+      "delta_e_median": 0.35982597474130423,
       "delta_e_max": 1.4158640377826535,
       "worst_stock": "KODAK_VISION_500T_5279",
       "render_settings": {}
@@ -75,9 +75,9 @@
     "spectral_sensitivity": {
       "what": "traced spectral sensitivity",
       "stocks_measured": 18,
-      "delta_e_median": 2.2145406067723066,
-      "delta_e_max": 6.974125688816402,
-      "worst_stock": "AGFA_RSX_II_200",
+      "delta_e_median": 1.726291828518114,
+      "delta_e_max": 5.863200565588026,
+      "worst_stock": "KODAK_EKTACHROME_100D_5285",
       "render_settings": {
         "spectral_balance": true,
         "spectral_mono": true,
@@ -89,16 +89,16 @@
       "what": "traced spectral dye density",
       "stocks_measured": 12,
       "delta_e_median": 1.3759517376051338,
-      "delta_e_max": 4.727553953788457,
-      "worst_stock": "AGFA_RSX_II_100",
+      "delta_e_max": 6.3853055413627136,
+      "worst_stock": "KODAK_EKTACHROME_100D_5285",
       "render_settings": {}
     },
     "dye_matrix": {
       "what": "measured reader/status matrix",
       "stocks_measured": 11,
       "delta_e_median": 1.558225378756601,
-      "delta_e_max": 2.183056616159493,
-      "worst_stock": "AGFA_RSX_II_200",
+      "delta_e_max": 2.1113446688749455,
+      "worst_stock": "AGFA_RSX_II_100",
       "render_settings": {}
     },
     "interimage": {
@@ -111,8 +111,8 @@
     },
     "halation": {
       "what": "halation gain",
-      "stocks_measured": 6,
-      "delta_e_median": 0.7645318470547338,
+      "stocks_measured": 7,
+      "delta_e_median": 0.7546100473986264,
       "delta_e_max": 0.8757448308064202,
       "worst_stock": "KODAK_VISION_500T_5279",
       "render_settings": {}
@@ -120,16 +120,16 @@
     "callier": {
       "what": "measured Callier Q",
       "stocks_measured": 6,
-      "delta_e_median": 5.649742842148058,
-      "delta_e_max": 5.808411273546591,
-      "worst_stock": "EASTMAN_PLUS_X_5231",
+      "delta_e_median": 5.715942865554265,
+      "delta_e_max": 6.045455130979384,
+      "worst_stock": "EASTMAN_DOUBLE_X_5222",
       "render_settings": {}
     },
     "reciprocity": {
       "what": "published reciprocity table",
       "stocks_measured": 18,
-      "delta_e_median": 4.27086554890754,
-      "delta_e_max": 15.290777531452173,
+      "delta_e_median": 4.225104029433979,
+      "delta_e_max": 15.396325581406295,
       "worst_stock": "AGFA_APX_100",
       "render_settings": {
         "exposure_time_s": 8.0

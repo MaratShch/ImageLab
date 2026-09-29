@@ -339,6 +339,19 @@ def audits(root: Path):
          "sheets' vector paths (5285 and 2383 are the validation pair; 7239, "
          "5217 and 5218 were recovered on 2026-08-18 from the FAILED list; "
          "5201 on 2026-08-25 by the ink-based family C)"),
+        ("fuji_pdg_2005.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FUJI" / "ProfessionalFilmDataGuide.pdf",
+         "Fujifilm PROFESSIONAL DATA GUIDE AF3-207U (2005): the seventeen stocks adopted from its "
+         "vector panels on 2026-09-29, the nine shared drawings cross-checked against their own "
+         "data sheets, VELVIA 50's generation argument, and rd046 Fig. 5 re-traced for PROVIA 100F/400F"),
+        ("kodak_2026_09_29b.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "e27.pdf",
+         "KODAK sub-folder harvest 2026-09-29b: E-190 (2006) identity of 160nc.pdf, the PORTRA "
+         "160- and 400-speed spectral panels re-read on every printing, the NC/VC reciprocity bound, "
+         "E-27 (EKTACHROME 100 EPN) curves / spectral / dyes / MTF, the H-1-5219 Revised 3-26 AHU "
+         "generation and its identical bitmaps, and Vitale 2009 Table 4"),
         ("fuji_konica_dye.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "FUJI" / "provia_100f_datasheet.pdf",
@@ -1594,6 +1607,25 @@ def audits(root: Path):
         # the same sizeof(AlgoType), which means the vector tree never shadowed
         # the scalar one and the run proved nothing. A [SKIP] in a green log is
         # how the missing-header defect stayed hidden once already.
+        # ⚠⚠ ADDED 2026-09-28: THE WHOLE CHAIN, PYTHON AGAINST BOTH ENGINES.
+        # Two defects shipped on 2026-09-27 that every per-stage audit passed:
+        # stage 13 re-timed the print against a mid grey the Callier stage had
+        # not corrected, and B&W negatives printed through a colour stock's
+        # three curves. Both were wiring errors BETWEEN correct stages, so only
+        # an end-to-end render could see them. Like stage_parity it FAILS,
+        # rather than skips, when the engine is present and the harness is not.
+        ("chain_parity.py",
+         ["--root", str(eng), "--assert"],
+         eng / "AlgorithmMain.cpp",
+         "EVERY stock rendered through film_sim, the scalar engine and the AVX2 "
+         "engine on a 24-patch ColorChecker at default controls, stochastic "
+         "stages off on both sides; the median of every patch interior on all "
+         "three channels must agree to 2e-3 (Python vs C++) and 5e-4 (scalar "
+         "vs AVX2). Measured floor 2.65e-4 / 5.96e-5 over 200 stocks. Against "
+         "the pre-2026-09-28 engines it fails 65 stocks by up to 0.67 (the "
+         "Callier mid-grey defect) and 41 checks by 0.0155 (the neutral-print "
+         "cast alone). The C++ side is the engine tree's own "
+         "test_chain_dump.cpp; this script holds no C++"),
         ("stage_parity.py",
          ["--root", str(eng), "--assert"],
          eng / "AlgorithmMain.cpp",

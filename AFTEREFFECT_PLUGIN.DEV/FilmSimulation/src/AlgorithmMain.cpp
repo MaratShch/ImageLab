@@ -529,13 +529,17 @@ void Algorithm_Main
     //  AlgoStorageAge.hpp.
     //
     //  INERT AT THE DEFAULT: storageYears is 0 unless the caller moves it, and
-    //  188 of 191 stocks publish no rate and cannot respond at any age.
+    //  187 of 200 stocks publish no rate and cannot respond at any age.
+    //  storageCelsius (schema v57) restates those years at the record's own
+    //  reference temperature through Wilhelm's Table 5.3; at its default 24
+    //  degC - every record's reference - the years are used as given.
     // -----------------------------------------------------------------------
     film::FilmProfile agedStore;
 
     const film::FilmProfile& profileAged =
         AlgoResolveStorageAge(profileDeveloped,
                               algoCtrl.storageYears,
+                              algoCtrl.storageCelsius,
                               agedStore);
 
     // -----------------------------------------------------------------------

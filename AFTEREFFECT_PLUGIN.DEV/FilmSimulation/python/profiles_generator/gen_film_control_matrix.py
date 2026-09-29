@@ -217,7 +217,13 @@ DEVTEMP_Q = ("the temperature rows carry a time and no contrast, so there is "
 
 STORAGE_Q = ("no published dark-fade rate for this stock; the mechanism "
              "applies to every chromogenic film and the corpus has a figure "
-             "for two")
+             "for thirteen")
+
+# ⚠ v57 (2026-09-28b). Storage TEMPERATURE shares storageYears' predicate
+# exactly: it only restates elapsed years at the record's reference
+# temperature, so it acts where and only where a dark-fade rate exists.
+STORAGE_TEMP_Q = ("no published dark-fade rate for this stock, so there are "
+                  "no years for the temperature to restate")
 
 GROUPS: list[tuple[str, list[tuple[str, str, object, str, str]]]] = [
     ("Film Stock", [
@@ -241,6 +247,7 @@ GROUPS: list[tuple[str, list[tuple[str, str, object, str, str]]]] = [
         # SINCE 2026-09-19d. It read "Storage Age" here, which is a second name
         # for one control in two documents the owner reads side by side.
         ("Years of Dark Storage",   "storageYears",       _storage,   "", STORAGE_Q),
+        ("Storage Temperature",     "storageCelsius",     _storage,   "", STORAGE_TEMP_Q),
     ]),
     ("Colour & White Balance", [
         ("Scene Colour Temperature", "sceneKelvin", _colour,
@@ -511,6 +518,20 @@ def _development_appendix(profiles, names) -> list[str]:
       "Both were `0` before. The remaining `?` marks are a corpus gap and not "
       "an engine one, which is the reverse of the situation this appendix was "
       "written to describe.")
+    w("")
+    _fade = [p for p in profiles if p.dye_stability.has_data]
+    _f20 = [p for p in _fade if p.dye_stability.loss_percent == 20.0]
+    w(f"⚠ **2026-09-28b, schema v57: Years of Dark Storage is `V` on "
+      f"{len(_fade)} stocks, and Storage Temperature on the same "
+      f"{len(_fade)}.** The whole Wilhelm book was read, not only Chapter 19: "
+      "Tables 9.2 and 9.3 add seven motion-picture negatives (10 % loss, "
+      f"24 °C, 40 % RH) and Table 5.13 three slide films at a **20 %** "
+      f"criterion ({len(_f20)} records now carry `loss_percent = 20`). "
+      "Storage Temperature reads Wilhelm's Table 5.3 — ten points from −26 "
+      "to +30 °C, one Arrhenius law — and restates the elapsed years at the "
+      "record's own temperature; at its default 24 °C it is the identity. "
+      "Relative humidity and yellowish stain are still not modelled: the "
+      "book prints no room-temperature stain rate for any camera film.")
     w("")
     w("⚠ **Development Temperature is still `?` everywhere, and that is not "
       "an oversight.** The time axis became readable because the families "

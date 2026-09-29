@@ -55,19 +55,37 @@
 //  here loses image dye and keeps its mask, where the real one loses some of
 //  both.
 //
-//  \warning NO TEMPERATURE CONTROL. The figures are quoted at 24 degC and the
-//  source gives factors for two refrigerator temperatures - about 14x longer
-//  at 4.4 degC and 20x at 1.7 degC - but three points do not define a
-//  continuous law and this project does not fit one to invent the values
-//  between them. The factors are in DyeStabilitySpec::source for whoever does.
+//  \warning TEMPERATURE: REFUSED ON 2026-09-17, ADOPTED ON 2026-09-28b
+//  (schema v57). The refusal had Table 19.1's two refrigerator factors -
+//  three points - and would not fit a law to them. Wilhelm's Table 5.3 (p178,
+//  from Bard et al., Eastman Kodak, J. Appl. Photogr. Eng. 6(2), 1980, p44)
+//  prints TEN points from -26 to +30 degC, and in Arrhenius coordinates they
+//  are one law (adjacent-pair activation energy 71-102 kJ/mol, global 85.5).
+//  AlgoStorageTimeFactor reads it: ln F linear in 1/T between printed points,
+//  exact at every printed point, HELD at the end values outside the table -
+//  never extrapolated. It is Kodak's relation for Kodak's dyes, applied here
+//  to every record; for the two Fuji negatives that is a transfer the source
+//  does not make, and the provenance says so.
 //  The published years are also a 40 % RH figure that HALVES at 60 % RH, and
-//  they count dye fading only: the yellowish stain that usually becomes
-//  visible first is not modelled at all.
+//  RELATIVE HUMIDITY IS STILL NOT A CONTROL: Table 5.4 is three points for
+//  Kodak yellow dyes only. They count dye fading only: the yellowish stain
+//  that usually becomes visible first is not modelled at all, because no
+//  source in the corpus gives a room-temperature stain rate for a camera film
+//  (Table 5.9's stain figures are a 62 degC single-temperature ranking, which
+//  the author says does not predict room temperature).
+//
+//  \warning THE LOSS CRITERION IS READ FROM THE RECORD (schema v57).
+//  DyeStabilitySpec::loss_percent is 10 on the Kodak-sheet / Table 19.1 /
+//  Table 9.x records and 20 on the Table 5.13 slide films, and the law is
+//  f(t) = 1 - (1 - L)^(t/T). At L = 10, (100 - 10) / 100 is exactly the 0.9
+//  the pre-v57 law hard-coded, so every older record renders bit for bit.
 //
 //  INERT BY DEFAULT. storageYears <= 0 is fresh film, the base profile is
 //  returned by reference, nothing is copied, and every render made before this
 //  file existed is reproduced bit for bit. A stock with no published rate -
-//  188 of 191 today - takes the same path at any age.
+//  187 of 201 at schema v57 - takes the same path at any age, and so does
+//  storageCelsius at its default 24 degC, the reference temperature of every
+//  stored record: the elapsed years are then used as given, uncomputed.
 //
 //  ONE LAW, TWO LANGUAGES. film_sim.resolve_storage_age() is the reference;
 //  cpp_parity.py drives this resolver over every stock and a sweep of ages and
@@ -89,16 +107,104 @@
 
 
 // ---------------------------------------------------------------------------
+//  Storage temperature: Wilhelm 1993, Table 5.3 (schema v57)
+//
+//  (degC, RELATIVE STORAGE TIME to the same fade, 1 at 75 degF / 24 degC),
+//  warmest first, the Celsius column exactly as printed. The same ten nodes
+//  as film_sim.STORAGE_TEMPERATURE_TABLE; cpp_parity.py compares the two
+//  resolvers over a temperature sweep that includes every node, a point
+//  between each pair and both clamps.
+// ---------------------------------------------------------------------------
+constexpr int32_t ALGO_STORAGE_TEMP_NODES = 10;
+
+constexpr double ALGO_STORAGE_TEMP_C[ALGO_STORAGE_TEMP_NODES] =
+{ 30.0, 24.0, 19.0, 13.0, 7.0, 4.0, 0.0, -10.0, -18.0, -26.0 };
+
+constexpr double ALGO_STORAGE_TIME_REL[ALGO_STORAGE_TEMP_NODES] =
+{ 0.5, 1.0, 2.0, 4.0, 10.0, 16.0, 28.0, 100.0, 340.0, 1000.0 };
+
+
+// ---------------------------------------------------------------------------
+//  AlgoStorageTimeFactor
+//
+//  Relative storage time to the same fade at `celsius`, 1 at 24 degC. ln F is
+//  linear in 1/T between printed points (the Arrhenius axis), exact at every
+//  printed point, and held at the end values outside -26 .. 30 degC.
+// ---------------------------------------------------------------------------
+inline HighPrecType AlgoStorageTimeFactor
+(
+    const HighPrecType celsius
+) noexcept
+{
+    const int32_t last = ALGO_STORAGE_TEMP_NODES - 1;
+
+    if (celsius >= static_cast<HighPrecType>(ALGO_STORAGE_TEMP_C[0]))
+        return static_cast<HighPrecType>(ALGO_STORAGE_TIME_REL[0]);
+    if (celsius <= static_cast<HighPrecType>(ALGO_STORAGE_TEMP_C[last]))
+        return static_cast<HighPrecType>(ALGO_STORAGE_TIME_REL[last]);
+
+    for (int32_t i = 0; i < last; i++)
+    {
+        const HighPrecType t0 = static_cast<HighPrecType>(ALGO_STORAGE_TEMP_C[i]);
+        const HighPrecType t1 = static_cast<HighPrecType>(ALGO_STORAGE_TEMP_C[i + 1]);
+        const HighPrecType f0 = static_cast<HighPrecType>(ALGO_STORAGE_TIME_REL[i]);
+        const HighPrecType f1 = static_cast<HighPrecType>(ALGO_STORAGE_TIME_REL[i + 1]);
+
+        if (celsius == t0)
+            return f0;
+        if (celsius == t1)
+            return f1;
+        if ((celsius < t0) && (celsius > t1))
+        {
+            const HighPrecType k  = static_cast<HighPrecType>(273.15);
+            const HighPrecType on = static_cast<HighPrecType>(1);
+            const HighPrecType x0 = on / (t0 + k);
+            const HighPrecType x1 = on / (t1 + k);
+            const HighPrecType x  = on / (celsius + k);
+            const HighPrecType w  = (x - x0) / (x1 - x0);
+            return std::exp(std::log(f0) + w * (std::log(f1) - std::log(f0)));
+        }
+    }
+
+    return static_cast<HighPrecType>(1);   // unreachable: contiguous table
+}
+
+
+// ---------------------------------------------------------------------------
+//  AlgoStorageEquivalentYears
+//
+//  `years` spent at `celsius`, restated as years at the record's own
+//  reference temperature. Returns `years` itself, uncomputed, when the two
+//  are equal - the default - so the pre-v57 arithmetic is reproduced exactly.
+// ---------------------------------------------------------------------------
+inline HighPrecType AlgoStorageEquivalentYears
+(
+    const HighPrecType years,
+    const HighPrecType celsius,
+    const HighPrecType referenceC
+) noexcept
+{
+    if (celsius == referenceC)
+        return years;
+
+    return years * AlgoStorageTimeFactor(referenceC)
+                 / AlgoStorageTimeFactor(celsius);
+}
+
+
+// ---------------------------------------------------------------------------
 //  AlgoDarkFadeFraction
 //
-//  Fraction of one dye lost after `years`, from a published time to a 10 %
-//  loss. Returns 0 when the source states no time for that dye, which is the
-//  common case and is the whole reason the three are computed separately.
+//  Fraction of one dye lost after `years` (already restated at the record's
+//  reference temperature), from a published time to a `lossPercent` loss.
+//  Returns 0 when the source states no time for that dye, which is the common
+//  case and is the whole reason the three are computed separately.
 // ---------------------------------------------------------------------------
 inline HighPrecType AlgoDarkFadeFraction
 (
     const HighPrecType lossYears,
-    const HighPrecType years
+    const HighPrecType years,
+    const HighPrecType lossPercent
 ) noexcept
 {
     if ((lossYears <= static_cast<HighPrecType>(0))
@@ -107,8 +213,11 @@ inline HighPrecType AlgoDarkFadeFraction
         return static_cast<HighPrecType>(0);
     }
 
+    const HighPrecType hundred = static_cast<HighPrecType>(100);
+    const HighPrecType base    = (hundred - lossPercent) / hundred;
+
     return static_cast<HighPrecType>(1)
-         - std::pow(static_cast<HighPrecType>(0.9), years / lossYears);
+         - std::pow(base, years / lossYears);
 }
 
 
@@ -118,6 +227,8 @@ inline HighPrecType AlgoDarkFadeFraction
 //  base     the stock as the database holds it, or as the two resolvers
 //           before this one left it
 //  years    years of dark storage since processing; <= 0 is fresh
+//  celsius  storage temperature for those years, degC; 24 is the default and
+//           the reference temperature of every stored record (schema v57)
 //  store    scratch the caller owns for the lifetime of the frame; written to
 //           ONLY when at least one dye actually fades
 //
@@ -128,6 +239,7 @@ inline const film::FilmProfile& AlgoResolveStorageAge
 (
     const film::FilmProfile& base,
     const double             years,
+    const double             celsius,
     film::FilmProfile&       store
 ) noexcept
 {
@@ -138,12 +250,21 @@ inline const film::FilmProfile& AlgoResolveStorageAge
 
     const film::DyeStabilitySpec& d = base.dye_stability;
 
+    // Only reached when some record could fade: a stock with no rate returns
+    // zero from all three fractions below whatever the equivalent age is.
+    const HighPrecType te = AlgoStorageEquivalentYears(
+        t,
+        static_cast<HighPrecType>(celsius),
+        static_cast<HighPrecType>(d.reference_temp_c));
+
+    const HighPrecType pct = static_cast<HighPrecType>(d.loss_percent);
+
     const HighPrecType fc =
-        AlgoDarkFadeFraction(static_cast<HighPrecType>(d.loss_c), t);
+        AlgoDarkFadeFraction(static_cast<HighPrecType>(d.loss_c), te, pct);
     const HighPrecType fm =
-        AlgoDarkFadeFraction(static_cast<HighPrecType>(d.loss_m), t);
+        AlgoDarkFadeFraction(static_cast<HighPrecType>(d.loss_m), te, pct);
     const HighPrecType fy =
-        AlgoDarkFadeFraction(static_cast<HighPrecType>(d.loss_y), t);
+        AlgoDarkFadeFraction(static_cast<HighPrecType>(d.loss_y), te, pct);
 
     const HighPrecType zero = static_cast<HighPrecType>(0);
 

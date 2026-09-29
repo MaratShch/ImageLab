@@ -27,6 +27,7 @@ future reader does not have to infer the layout from the zip.
 
 from __future__ import annotations
 
+import os
 import shutil
 import zipfile
 from datetime import date
@@ -34,12 +35,14 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 CPP = Path("/root/work/tst")           # the live, editable engine tree
-OUT = Path("/root/work/deliver22")
+OUT = Path(os.environ.get("FILMSIM_DELIVER_OUT", "/root/work/deliver23"))
 #: ⚠ SUFFIXED. A second delivery was cut on the same day at schema v30,
 #: and two archives named for one date cannot be told apart on disk. 2026-09-17
 #: is the same case again: the 'a' set went out at schema v37 with 186 stocks,
 #: this 'b' set has 191 and the six-archive layout.
-STAMP = date.today().isoformat()
+#: ⚠ 2026-09-28c: overridable, because a third set was cut on 2026-09-28 and the
+#: date alone would have overwritten the first set's names in DELIVERY.
+STAMP = os.environ.get("FILMSIM_STAMP") or date.today().isoformat()
 
 #: Generator sources: everything needed to REGENERATE the database.
 #: ⚠ NOT everything needed to run every audit. Until 2026-09-10d this tuple's
@@ -541,11 +544,40 @@ def main() -> int:
         raise RuntimeError("archive 6 is missing %s" % ", ".join(missing))
     z6 = _zip(f"6_ui_mockup_and_pdf_{STAMP}.zip", ui, ui_files)
 
-    for z in (z1, z2, z3, z4, z5, z6):
+    # ---- 7. C++ test harnesses, optional ------------------------------------
+    # ⚠ ADDED 2026-09-28. Archives 3 and 4 exclude every test_*.cpp by owner
+    # directive, and until today the harnesses therefore reached the owner's
+    # disk in no archive at all -- which is how `test_stage_dump.cpp` and
+    # `test_scratch_guard.cpp` were lost between sessions, and why three verify
+    # guards and stage_parity can no longer run. This archive holds ONLY the C++
+    # harnesses, flat, and nothing else: it changes no other archive's layout
+    # and mixes no Python into C++.
+    tests = sorted(p for p in CPP.iterdir()
+                   if p.is_file() and p.suffix == ".cpp"
+                   and p.name.startswith("test_"))
+    avx_tests = (sorted(p for p in (CPP / "AVX2").iterdir()
+                        if p.is_file() and p.name.startswith("test_"))
+                 if (CPP / "AVX2").is_dir() else [])
+    zips = [z1, z2, z3, z4, z5, z6]
+    if tests or avx_tests:
+        tstage = OUT / "stage" / "cpp_tests"
+        if tstage.exists():
+            shutil.rmtree(tstage)
+        tstage.mkdir(parents=True)
+        for p in tests:
+            shutil.copy(p, tstage / p.name)
+        if avx_tests:
+            (tstage / "AVX2").mkdir()
+            for p in avx_tests:
+                shutil.copy(p, tstage / "AVX2" / p.name)
+        zips.append(_zip(f"7_cpp_tests_{STAMP}.zip", tstage,
+                         [p for p in tstage.rglob("*") if p.is_file()]))
+
+    for z in zips:
         with zipfile.ZipFile(z) as zf:
             print(f"  {z.name:44s} {z.stat().st_size/1024:9.1f} kB  "
                   f"{len(zf.namelist()):4d} files")
-    print(f"[OK] six archives in {OUT}")
+    print(f"[OK] {len(zips)} archives in {OUT}")
     return 0
 
 

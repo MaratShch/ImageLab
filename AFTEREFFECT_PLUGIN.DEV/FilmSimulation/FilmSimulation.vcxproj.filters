@@ -458,6 +458,18 @@
     <ClCompile Include="src\film_profiles_data_30.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\film_profiles_data_31.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_32.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_33.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_34.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FilmSimulation.rc">
@@ -579,9 +591,6 @@
       <Filter>python\profiles_generator</Filter>
     </None>
     <None Include="python\profiles_generator\doc_consistency.py">
-      <Filter>python\profiles_generator</Filter>
-    </None>
-    <None Include="python\profiles_generator\film_ids.lock">
       <Filter>python\profiles_generator</Filter>
     </None>
     <None Include="python\profiles_generator\kodak_1952_curves.py">
@@ -872,6 +881,18 @@
     <None Include="python\profiles_generator\sensitisation_class.py">
       <Filter>python\profiles_generator</Filter>
     </None>
+    <None Include="python\profiles_generator\chain_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_pdg_2005.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\groet_calibration.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_2026_09_29b.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include="python\profiles_generator\Readme!.txt">
@@ -881,15 +902,6 @@
       <Filter>include</Filter>
     </Text>
     <Text Include="python\profiles_generator\MANIFEST.txt">
-      <Filter>python\profiles_generator</Filter>
-    </Text>
-    <Text Include="python\profiles_generator\film_display_order.txt">
-      <Filter>python\profiles_generator</Filter>
-    </Text>
-    <Text Include="python\profiles_generator\film_id_migration.txt">
-      <Filter>python\profiles_generator</Filter>
-    </Text>
-    <Text Include="python\profiles_generator\film_names.txt">
       <Filter>python\profiles_generator</Filter>
     </Text>
     <Text Include="python\profiles_generator\README.txt">

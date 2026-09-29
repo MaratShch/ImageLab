@@ -165,6 +165,7 @@ import numpy as np
 
 import film_profiles as fp
 from film_profiles import FILM_PROFILES, PRINT_STOCKS
+from film_profiles import MEASUREMENT_COPIES as _COPIES
 import iso_5_3_status as iso
 
 #: Integration grid. 1 nm over the union of what the status responses and the
@@ -410,6 +411,16 @@ PRINT_READER = "KODAK_2383_RELEASE"
 #: applied crosstalk already present in the status curves, at several times the
 #: strength of the correction actually owed.
 EXPECTED_STAGE12 = {
+    # 2026-09-29: E-144's own dye panel and Kodak's Ektachrome-X figure.
+    "EKTACHROME_160T": 0.0598,
+    "KODAK_EKTACHROME_100_EPN": 0.0657,   # 2026-09-29b, E-27 p5
+    "EKTACHROME_X": 0.0619,
+    "FUJI_ASTIA_100F": 0.0719,
+    "FUJI_SENSIA_100_2005": 0.0754,
+    "FUJI_SENSIA_200": 0.0827,
+    "FUJI_SENSIA_400": 0.0691,
+    "FUJI_VELVIA_100": 0.0689,
+    "FUJI_VELVIA_100F": 0.0689,
     # ⚠ GEVAERT, 2026-09-02 (queue G2). ONE VALUE FOR TWO STOCKS, because Bild 4
     # draws one dye set for both Typ 6.00 and Typ 6.05 -- the same one-drawing
     # case as RSX II 50 / 100 below. At 0.0903 they are the HIGHEST in this
@@ -645,8 +656,19 @@ def derive(p):
 #: magnitude median did not move at all (0.2232) and the asymmetry median
 #: moved 0.0817 -> 0.0832; `vs_rownorm_max` is still TECHNICOLOR_THREE_STRIP
 #: at 0.1405 and the new set comes nowhere near it.
-EXPECTED_M1A = dict(n=30, positive=30, t_off_median=0.2232,
-                    t_asym_median=0.0832, vs_rownorm_max=0.1405)
+#: ⚠ REPINNED 2026-09-29, 30 -> 32, FOR EKTACHROME_160T (E-144 p5, vector)
+#: and EKTACHROME_X (Kodak's figure via USCIPI #570): 32 of 32 POSITIVE, so
+#: the sign result holds on two more independent panels. Magnitude median
+#: 0.2232 -> 0.2180 and asymmetry median 0.0832 -> 0.0813, both because two
+#: modern-ish Kodak reversal sets sit below the old median.
+#: ⚠ REPINNED 2026-09-29b, 32 -> 38, FOR THE SIX AF3-207U FUJI REVERSAL SETS (VELVIA 100 / 100F,
+#: ASTIA 100F, SENSIA 100 (2005) / 200 / 400): 38 of 38 POSITIVE. Magnitude median 0.2180 -> 0.2111;
+#: asymmetry median and vs_rownorm_max unchanged within tolerance.
+#: ⚠ REPINNED 2026-09-29b, 38 -> 39, FOR KODAK_EKTACHROME_100_EPN (E-27 p5, vector): 39 of 39
+#: POSITIVE. Magnitude median 0.2111 -> 0.2127 (one more set above the old median); asymmetry
+#: median 0.0813 -> 0.0809 and vs_rownorm_max unchanged, both within tolerance.
+EXPECTED_M1A = dict(n=39, positive=39, t_off_median=0.2127,
+                    t_asym_median=0.0813, vs_rownorm_max=0.1405)
 M1A_TOL = 0.002
 
 
@@ -714,6 +736,10 @@ def nonneutral_test():
     rows, bad = [], 0
     for p in FILM_PROFILES:
         if not p.dye_density.has_data or p.is_monochrome:
+            continue
+        # 2026-09-29b: a profile that carries ANOTHER profile's measurement
+        # (film_profiles.MEASUREMENT_COPIES) is one panel, counted once.
+        if p.name in _COPIES:
             continue
         lam, cols = dye_curves(p)
         raw, err = raw_matrix(p, cols)
@@ -822,7 +848,12 @@ def main(argv=None) -> int:
         print("\n" + ("OK" if not _bad else "FAIL"))
         return 1 if (_bad and args.assert_) else 0
 
-    have = [p for p in FILM_PROFILES if p.dye_density.has_data]
+    # ⚠ 2026-09-29b: MEASUREMENT_COPIES are skipped -- the 5219 AHU generation
+    # carries the rem-jet sheet's own dye bitmap, and its matrix IS 5219's (it
+    # inherits 5219's stored dye_matrix), so deriving it again would count one
+    # panel twice and demand a second table entry for the same numbers.
+    have = [p for p in FILM_PROFILES if p.dye_density.has_data
+            and p.name not in _COPIES]
     bad = 0
     done, refused = [], []
 

@@ -309,6 +309,10 @@ StorageYearsMin = 0.0
 StorageYearsMax = 100.0
 StorageYearsDef = StorageYearsOff
 StorageYearsStep = 0.5
+StorageCelsiusMin = -26.0
+StorageCelsiusMax = 30.0
+StorageCelsiusDef = 24.0
+StorageCelsiusStep = 0.5
 GenerationsMin = 0
 GenerationsMax = 4
 GenerationsDef = 0
@@ -443,6 +447,10 @@ ScannerArtifactsMin = 0.0
 ScannerArtifactsMax = 2.0
 ScannerArtifactsDef = 0.2
 ScannerArtifactsStep = 0.01
+SpliceAndTearsEventstMin = 0.0
+SpliceAndTearsEventstMax = 2.0
+SpliceAndTearsEventstDef = 0.2
+SpliceAndTearsEventsttep = 0.01
 
 
 def film_format_key(value) -> str:

@@ -281,6 +281,10 @@
     <ClCompile Include="src\film_profiles_data_28.cpp" />
     <ClCompile Include="src\film_profiles_data_29.cpp" />
     <ClCompile Include="src\film_profiles_data_30.cpp" />
+    <ClCompile Include="src\film_profiles_data_31.cpp" />
+    <ClCompile Include="src\film_profiles_data_32.cpp" />
+    <ClCompile Include="src\film_profiles_data_33.cpp" />
+    <ClCompile Include="src\film_profiles_data_34.cpp" />
     <ClCompile Include="src\ImageLabMemInterface.cpp" />
     <ClCompile Include="src\LoadFilmDataBase.cpp" />
   </ItemGroup>
@@ -335,6 +339,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\bromide_parity.py" />
     <None Include="python\profiles_generator\build.py" />
     <None Include="python\profiles_generator\callier_silberstein_tuttle.py" />
+    <None Include="python\profiles_generator\chain_parity.py" />
     <None Include="python\profiles_generator\cinestill_cs2.py" />
     <None Include="python\profiles_generator\cpp_codegen.py" />
     <None Include="python\profiles_generator\cpp_parity.py" />
@@ -351,12 +356,12 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\ferrania_p30_colour_target.py" />
     <None Include="python\profiles_generator\ferrania_vendor_sheets.py" />
     <None Include="python\profiles_generator\field_coverage.py" />
-    <None Include="python\profiles_generator\film_ids.lock" />
     <None Include="python\profiles_generator\film_profiles.py" />
     <None Include="python\profiles_generator\film_sim.py" />
     <None Include="python\profiles_generator\flueckiger_2018.py" />
     <None Include="python\profiles_generator\fuji_konica_dye.py" />
     <None Include="python\profiles_generator\fuji_neopan_ss.py" />
+    <None Include="python\profiles_generator\fuji_pdg_2005.py" />
     <None Include="python\profiles_generator\fuji_spectral4_2026.py" />
     <None Include="python\profiles_generator\fuji_t3_2026.py" />
     <None Include="python\profiles_generator\gen_active_profiles.py" />
@@ -371,6 +376,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\gevachrome_1968_raster.py" />
     <None Include="python\profiles_generator\gevaert_curves.py" />
     <None Include="python\profiles_generator\granularity_vector.py" />
+    <None Include="python\profiles_generator\groet_calibration.py" />
     <None Include="python\profiles_generator\h24_variations.py" />
     <None Include="python\profiles_generator\holdout_predict.py" />
     <None Include="python\profiles_generator\holdout_predictions.json" />
@@ -386,6 +392,7 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
     <None Include="python\profiles_generator\kodak_1956_spectro.py" />
     <None Include="python\profiles_generator\kodak_1956_trace.py" />
     <None Include="python\profiles_generator\kodak_1957_storage.py" />
+    <None Include="python\profiles_generator\kodak_2026_09_29b.py" />
     <None Include="python\profiles_generator\kodak_5293_1982.py" />
     <None Include="python\profiles_generator\kodak_aim_density.py" />
     <None Include="python\profiles_generator\kodak_databook_fm.py" />
@@ -446,9 +453,6 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   </ItemGroup>
   <ItemGroup>
     <Text Include="include\film_names.txt" />
-    <Text Include="python\profiles_generator\film_display_order.txt" />
-    <Text Include="python\profiles_generator\film_id_migration.txt" />
-    <Text Include="python\profiles_generator\film_names.txt" />
     <Text Include="python\profiles_generator\MANIFEST.txt" />
     <Text Include="python\profiles_generator\Readme!.txt" />
     <Text Include="python\profiles_generator\README.txt" />

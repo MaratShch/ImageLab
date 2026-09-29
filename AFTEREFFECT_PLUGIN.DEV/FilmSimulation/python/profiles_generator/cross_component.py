@@ -417,6 +417,7 @@ def defaults_mirror(problems: list, report: list) -> None:
         'grainScale': 'grain_scale', 'halationScale': 'halation_scale',
         'couplerScale': 'coupler_scale', 'misregScale': 'misreg_scale',
         'coatingScale': 'coating_scale', 'storageYears': 'storage_years',
+        'storageCelsius': 'storage_celsius',
         'scannerSpecular': 'scanner_specular',
         'scannerFixedPattern': 'scanner_fixed_pattern',
         'generations': 'generations',

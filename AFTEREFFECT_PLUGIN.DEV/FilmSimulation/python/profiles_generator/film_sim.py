@@ -1910,7 +1910,87 @@ def resolve_development_time(profile, minutes: float, celsius: float = -1.0):
     return replace(profile, curves=curves)
 
 
-def dark_fade_fractions(profile, years: float) -> tuple[float, float, float]:
+#: Wilhelm 1993, Chapter 5, Table 5.3 (p178), «Effect of Temperature on Dye
+#: Fading Rates at 40% Relative Humidity», derived by Wilhelm from Bard et al.
+#: (Eastman Kodak), «Predicting Long-Term Dark Storage Dye Stability
+#: Characteristics of Color Photographic Products from Short-Term Tests»,
+#: J. Applied Photographic Engineering 6(2), April 1980, p44. (degC, RELATIVE
+#: STORAGE TIME to the same fade, 1 at 75 degF / 24 degC), warmest first, the
+#: Celsius column exactly as printed.
+#:
+#: ⚠ ADOPTED 2026-09-28b AFTER BEING REFUSED ON 2026-09-17, AND THE REFUSAL
+#: WAS RIGHT FOR WHAT IT HAD. It had Table 19.1's two refrigerator factors --
+#: three points -- and would not fit a law to them. This table prints TEN
+#: points from -26 to +30 degC, and they ARE one law: read as ln(time) against
+#: 1/T every adjacent pair gives an Arrhenius activation energy of 71-102
+#: kJ/mol (global fit 85.5), the scatter being the rounding of factors printed
+#: to one or two figures. It also reproduces the per-film rows the book prints
+#: independently -- Vericolor III 16 y at 26.7 degC against 23 at 24 (table
+#: 0.73x, printed 0.70x), Kodak's chapter-9 factors 4.5x at 12.8 degC (4.1x)
+#: and 20x at 1.7 degC (22x), 340x at -18 degC (exact).
+#:
+#: ⚠ HOW IT IS READ: ln F linear in 1/T between adjacent printed points, the
+#: axis the Arrhenius method is defined on; exact at every printed point; and
+#: HELD at the end values outside -26 .. 30 degC rather than extrapolated --
+#: the same rule the reciprocity tables follow. It is Kodak's relation for
+#: Kodak's chromogenic dyes; Wilhelm applies it to every film in Table 9.5 and
+#: in the Chapter 19 storage advice, and it is applied here to every record,
+#: which for the two Fuji negatives is a transfer the source does not make.
+STORAGE_TEMPERATURE_TABLE: tuple[tuple[float, float], ...] = (
+    (30.0, 0.5), (24.0, 1.0), (19.0, 2.0), (13.0, 4.0), (7.0, 10.0),
+    (4.0, 16.0), (0.0, 28.0), (-10.0, 100.0), (-18.0, 340.0),
+    (-26.0, 1000.0),
+)
+STORAGE_CELSIUS_MIN = -26.0
+STORAGE_CELSIUS_MAX = 30.0
+#: The default, and the reference temperature of every stored record: the
+#: identity. Wilhelm's "typical room temperature", 75 degF.
+STORAGE_CELSIUS_DEF = 24.0
+
+
+def storage_time_factor(celsius: float) -> float:
+    """Relative storage time to the same fade at `celsius`, 1.0 at 24 degC.
+
+    Table 5.3 read in Arrhenius coordinates. `AlgoStorageTimeFactor` in
+    AlgoStorageAge.hpp is the same function, node for node.
+    """
+    tab = STORAGE_TEMPERATURE_TABLE
+    t = float(celsius)
+    if t >= tab[0][0]:
+        return tab[0][1]
+    if t <= tab[-1][0]:
+        return tab[-1][1]
+    for (t0, f0), (t1, f1) in zip(tab, tab[1:]):
+        if t == t0:
+            return f0
+        if t == t1:
+            return f1
+        if t1 < t < t0:
+            x0 = 1.0 / (t0 + 273.15)
+            x1 = 1.0 / (t1 + 273.15)
+            x = 1.0 / (t + 273.15)
+            w = (x - x0) / (x1 - x0)
+            return math.exp(math.log(f0) + w * (math.log(f1) - math.log(f0)))
+    return 1.0   # unreachable: the table is contiguous
+
+
+def storage_equivalent_years(years: float, celsius: float,
+                             reference_c: float) -> float:
+    """`years` at `celsius`, restated as years at the record's own temperature.
+
+    Returns `years` itself, unchanged and uncomputed, when the two
+    temperatures are equal -- which is the default -- so the v56 law is
+    reproduced bit for bit.
+    """
+    if float(celsius) == float(reference_c):
+        return float(years)
+    return (float(years) * storage_time_factor(reference_c)
+            / storage_time_factor(celsius))
+
+
+def dark_fade_fractions(profile, years: float,
+                        celsius: float = STORAGE_CELSIUS_DEF
+                        ) -> tuple[float, float, float]:
     """Fraction of each image dye lost to DARK STORAGE after `years`.
 
     Returns (cyan, magenta, yellow), each 0.0 when the record states no rate
@@ -1941,20 +2021,33 @@ def dark_fade_fractions(profile, years: float) -> tuple[float, float, float]:
     three points do not define a continuous law and this project does not fit
     one to invent the values between them. The factors are in the provenance
     string for whoever does.
+
+    ⚠ SUPERSEDED 2026-09-28b (schema v57), both halves:
+      * THE CRITERION IS READ, NOT ASSUMED. The law is f = 1 - (1 - L)^(t/T)
+        with L = `loss_percent` / 100 -- 10 on every pre-v57 record, 20 on
+        the three Table 5.13 slide films. At L = 10 the base is exactly 0.9.
+      * STORAGE TEMPERATURE IS A CONTROL. `celsius` restates the elapsed years
+        at the record's reference temperature through Table 5.3 (see
+        STORAGE_TEMPERATURE_TABLE); at the default 24 degC nothing is computed.
+    Relative humidity is still NOT a control: Table 5.4 is three points for
+    Kodak YELLOW dyes only, and FUJICOLOR_A250 fades cyan.
     """
     spec = getattr(profile, "dye_stability", None)
     if spec is None or not spec.has_data or years is None or years <= 0.0:
         return (0.0, 0.0, 0.0)
+    eq = storage_equivalent_years(years, celsius, spec.reference_temp_c)
+    base = (100.0 - float(spec.loss_percent)) / 100.0
     out = []
     for t in (spec.loss_c, spec.loss_m, spec.loss_y):
         if t <= 0.0:
             out.append(0.0)
         else:
-            out.append(1.0 - 0.9 ** (float(years) / float(t)))
+            out.append(1.0 - base ** (eq / float(t)))
     return tuple(out)
 
 
-def resolve_storage_age(profile, years: float):
+def resolve_storage_age(profile, years: float,
+                        celsius: float = STORAGE_CELSIUS_DEF):
     """The film as `years` of dark storage leave it (queue P64).
 
     Returns `profile` itself when nothing fades, so the identity contract that
@@ -1975,7 +2068,7 @@ def resolve_storage_age(profile, years: float):
     visible consequence is that a faded negative rendered here loses image dye
     and keeps its mask; the real one loses some mask too.
     """
-    f = dark_fade_fractions(profile, years)
+    f = dark_fade_fractions(profile, years, celsius)
     if f == (0.0, 0.0, 0.0):
         return profile
     cs = profile.curves.as_tuple()
@@ -3498,8 +3591,14 @@ class RenderSettings:
     #: Years of DARK STORAGE since processing. 0 = fresh, which is
     #: the default and is inert on every stock. See
     #: `resolve_storage_age`; only stocks carrying a published
-    #: dark-fade rate respond, which is two of 185 today.
+    #: dark-fade rate respond -- 13 of 200 since schema v57.
     storage_years: float = 0.0
+    #: Storage TEMPERATURE for those years, degC (schema v57). The default
+    #: 24 is the reference temperature of every stored record, so it is the
+    #: identity; -26 .. 30 is the span Wilhelm's Table 5.3 prints, and a
+    #: value outside it is held at the end factor. Inert whenever
+    #: storage_years is 0. See STORAGE_TEMPERATURE_TABLE.
+    storage_celsius: float = 24.0
     scene_kelvin: float = 5500.0
     wb_strength: float = 0.0
     grey_target: float = 0.18       # display linear value for 18% scene grey
@@ -4054,7 +4153,8 @@ def simulate(
     # fade applied before a development change would have the film
     # ageing before it was developed.
     profile = resolve_storage_age(
-        profile, getattr(settings, 'storage_years', 0.0))
+        profile, getattr(settings, 'storage_years', 0.0),
+        getattr(settings, 'storage_celsius', STORAGE_CELSIUS_DEF))
     profile = resolve_batch_position(profile, _batch_after)
 
     h, w = linear_rgb.shape[:2]

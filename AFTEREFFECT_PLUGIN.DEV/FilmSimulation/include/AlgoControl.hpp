@@ -899,6 +899,12 @@ struct FilmDamage
 // ===========================================================================
 // Live controls -- 28 fields, 26 consumed by the renderer
 //
+// ⚠ 2026-09-28b (schema v57): storageCelsius added after storageYears, and it
+// IS consumed (AlgoResolveStorageAge). The field count in the heading above
+// was not maintained after 2026-09-09c -- batchPosition, scannerFixedPattern,
+// exposureTimeS and the catalogue enumerators arrived since -- and is kept as
+// the record of that date rather than restated from memory.
+//
 // ⚠ 25 -> 27 ON 2026-09-08: developmentMinutes and developmentCelsius were
 // added and are NOT YET CONSUMED. They are declared now, sentinel-defaulted
 // and required to hide themselves where they cannot act, for the same reason
@@ -1505,7 +1511,7 @@ struct AlgoControls
      *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
      *                    that carries no `tolerance` record -- the same rule
      *                    processVariant follows for an empty variant list.
-     *                    \warning THAT IS 190 OF 200 STOCKS -- the ten that
+     *                    \warning THAT IS 191 OF 201 STOCKS -- the ten that
      *                    DO carry a band are the nine Soviet TU films and the
      *                    one GOST film, and the count is asserted on every
      *                    build by cross_component.py rather than restated
@@ -1847,8 +1853,60 @@ struct AlgoControls
      *   also no storage-temperature control: the source gives factors at two
      *   refrigerator temperatures and three points do not define a continuous
      *   law.
+     *   ⚠ SUPERSEDED 2026-09-28b (schema v57): Wilhelm's Table 5.3 prints ten
+     *   points from -26 to +30 degC that are one Arrhenius law, and the
+     *   temperature is now the separate control storageCelsius below. The
+     *   humidity caveat and the stain caveat above still stand.
      */
     double storageYears;
+
+    /**
+     *  1  NAME           storageCelsius
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider, shown and enabled EXACTLY WHEN storageYears
+     *                    is -- it only restates the elapsed years, so on a
+     *                    stock with no published dark-fade rate, or at 0
+     *                    years, it moves nothing
+     *  4  UNIT           degrees Celsius, the temperature the film was kept at
+     *  5  MIN            -26 -- the coldest point Wilhelm's Table 5.3 prints
+     *  6  MAX            +30 -- the warmest point it prints. The resolver HOLDS
+     *                    the end factors outside the table rather than
+     *                    extrapolating, so a value beyond either end renders
+     *                    as that end
+     *  7  DEFAULT        24 -- 75 degF, the reference temperature of every
+     *                    stored record, so the default is the identity and
+     *                    reproduces pre-field renders bit for bit
+     *  8  STEP           0.5
+     *  9  PURPOSE        Says WHERE the years in storageYears were spent. A
+     *                    film kept in a refrigerator ages far more slowly
+     *                    than one on a shelf; Table 5.3 puts 4 degC at 16x
+     *                    and -18 degC at 340x the room-temperature life.
+     * 10  OUTPUT EFFECT  None by itself. Converts storageYears into the
+     *                    equivalent years at the record's reference
+     *                    temperature -- years * F(ref) / F(celsius), F read
+     *                    from Table 5.3 with ln F linear in 1/T -- before the
+     *                    first-order fade is evaluated. ⚠ IT IS KODAK'S
+     *                    RELATION for Kodak's chromogenic dyes (Bard et al.
+     *                    1980); applying it to the two Fuji negatives with a
+     *                    rate is a transfer the source does not make, and
+     *                    their provenance says so. ⚠ RELATIVE HUMIDITY IS NOT
+     *                    A CONTROL: the only published humidity factor is
+     *                    three points for Kodak yellow dyes.
+     * 11  STAGES         resolved in FRAME SETUP inside AlgoResolveStorageAge,
+     *                    with storageYears
+     * 12  INTERACTIONS   Only with storageYears, and it cannot act without it.
+     * 13  SCALAR/AVX2    External semantics identical; the table and the
+     *                    interpolation live in the shared header
+     *                    AlgoStorageAge.hpp and run once per frame in
+     *                    HighPrecType.
+     * 14  FULL/LITE      Both: frame setup only, no pixel loop.
+     *
+     *   ⚠ 0 IS NOT A SENTINEL. 0 degC is a real storage temperature, 28x
+     *   slower than room temperature, so getAlgoControlsDefault() assigns 24
+     *   explicitly; a zero-initialised AlgoControls would render a
+     *   refrigerated film.
+     */
+    double storageCelsius;
 
     /**
      *  1  NAME           scannerSpecular
