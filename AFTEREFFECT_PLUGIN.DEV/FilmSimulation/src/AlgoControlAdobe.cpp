@@ -35,6 +35,9 @@ AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int
         algoParams.developmentCelsius = get_float_slider_value(params, FilmSimulationCtrl::DEVELOPMENT_TEMPERATURE);
     if (is_control_available(film::eCTRL_BIT_STORAGE_YEARS, filmMask))
         algoParams.storageYears = get_slider_value(params, FilmSimulationCtrl::YEARS_OF_DARK_STORAGE);
+    if (is_control_available(film::eCTRL_BIT_STORAGE_CELSIUS, filmMask))
+        algoParams.storageYears = get_slider_value(params, FilmSimulationCtrl::STORAGE_TEMPERATURE);
+
     if (is_control_available(film::eCTRL_BIT_SCENE_KELVIN, filmMask))
         algoParams.sceneKelvin = get_slider_value(params, FilmSimulationCtrl::SCENE_COLOUR_TEMPERATURE);
     if (is_control_available(film::eCTRL_BIT_PRINT_STOCK, filmMask))
