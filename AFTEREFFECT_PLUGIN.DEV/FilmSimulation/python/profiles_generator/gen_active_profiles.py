@@ -1586,6 +1586,155 @@ def main() -> int:
       "twice.")
     w("")
     # ---------------------------------------------------------------
+    #  v60: third-party laboratory sources. Counted live from the
+    #  database, so the note cannot drift from what is stored.
+    # ---------------------------------------------------------------
+    # ---------------------------------------------------------------
+    #  v61: «Современные фотоматериалы» 2004 harvest (queue P54c, P96i,
+    #  P96k, P96m) and the Фото-250 gamma (P96o). Counted live.
+    # ---------------------------------------------------------------
+    _kin = fp.SOVREMENNYE_2004_KINETICS
+    _kst = sorted({r[0] for r in _kin})
+    _kpt = sum(len(r[-1]) for r in _kin)
+    _gad = fp.SOVREMENNYE_2004_GRID_ADDED
+    _pm = [q for q in fp.FILM_PROFILES if q.printing_matrices]
+    _cm = [q for q in fp.FILM_PROFILES if q.mtf.combined_freqs]
+    w("## «Современные "
+      "фотоматериалы» "
+      "(2004) harvest — schema v61")
+    w("")
+    w("| What | In the database | Reaches a render |")
+    w("|---|---|---|")
+    w("| Held development tables, re-read from their ruled grids (queue P54c) "
+      "| %d cells; %d new `DevelopmentPoint`s on %d stocks (%s) | Development "
+      "Time / Temperature |"
+      % (len(fp.SOVREMENNYE_2004_GRID_POINTS), sum(_gad.values()), len(_gad),
+         ", ".join(sorted(_gad))))
+    w("| «Кривые кинетики "
+      "проявления» panels and "
+      "Табл. 3.151/3.152 (queue P96i) | %d curves / %d contrast "
+      "points on %d stocks, plus %d table cells (Kodak CI and Fuji G-bar in "
+      "`contrast_index`, Agfa gamma in `gamma`) | Development Time; "
+      "contrast-index families only where a stock has no gamma group |"
+      % (len(_kin), _kpt, len(_kst), len(fp.SOVREMENNYE_2004_COMMERCIAL_TABLES)))
+    w("| Dye panels (queue P96k) | %d neutral pairs, %d three-dye sets "
+      "(%s); %d layer-sensitivity sets from the panels captioned as dye "
+      "absorption (P96l) | Print stage: %d negatives carry their own "
+      "`PrintingMatrix` on %s |"
+      % (len(fp._SOVREMENNYE_DYE_NEUTRAL), len(fp._SOVREMENNYE_DYE_THREE),
+         ", ".join(fp._SOVREMENNYE_DYE_THREE), len(fp._SOVREMENNYE_LAYER_SENS),
+         len(_pm), ", ".join(sorted({m.print_stock for q in _pm
+                                     for m in q.printing_matrices}))))
+    w("| Combined (single-curve) MTF panels (queue P96m) | `MTFSpec.combined_*` "
+      "on %d stocks (%s) | MTF stage: per-layer f50 solved to reproduce the "
+      "curve where the f50 were estimates; the two Vitale stocks keep their "
+      "published f50 |" % (len(_cm), ", ".join(q.name for q in _cm)))
+    w("| Гурлев 1986, Рис. 176 (queue P96o) "
+      "| SVEMA_FOTO_250 gamma %.3f at its СТ-2 time, tier 1 traced "
+      "| Tone curve |"
+      % next(q.curves.g.gamma for q in fp.FILM_PROFILES
+             if q.name == "SVEMA_FOTO_250"))
+    _hie = next(q for q in fp.FILM_PROFILES if q.name == "KODAK_HIE")
+    _scl = next(q for q in fp.FILM_PROFILES if q.name == "AGFA_SCALA_200X")
+    _p16 = next(q for q in fp.FILM_PROFILES if q.name == "KODAK_PORTRA_160NC")
+    _corr = fp.SOVREMENNYE_2004_SENS_CORROBORATION
+    w("| §3.5.1 Kodak High-Speed Infrared (queue P96j, 2026-10-01e) | NEW "
+      "STOCK `KODAK_HIE`: D-76 curve, %d development points, %d developer / "
+      "format legs, spectral %d-%d nm, f50 %.1f c/mm, EI %d / %d | All "
+      "stages; grain, halation and RGB weights are class assumptions |"
+      % (len(_hie.processing_family.points), len(_hie.process_variants),
+         int(_hie.spectral.lambda_start_nm),
+         int(_hie.spectral.lambda_start_nm + 10 * (len(_hie.spectral.log_s_pan) - 1)),
+         _hie.mtf.f50_g, _hie.exposure_index, _hie.exposure_index_tungsten))
+    w("| Agfa Scala 200x push / pull, Табл. 3.279 / Рис. 3.358-3.359 (queue "
+      "P96j) | %d process variants, EI %s; Push 1-3 are Agfa's own traced "
+      "curves (1998 p9), Pull 1 is derived (corrected 2026-10-01f) | Process Variant "
+      "control |" % (len(_scl.process_variants),
+                     " / ".join(str(v.exposure_index) for v in _scl.process_variants)))
+    w("| Layer-sensitivity panels as corroboration (queue P96l) | %d stocks "
+      "compared against their makers' own records; Рис. 3.12 = Рис. 3.18 "
+      "(one artwork, two captions), so PRO 100T is not filled | Verify gate |"
+      % len(_corr))
+    w("| Portra 160NC MTF reprint (queue P96n) | blue f50 %.1f (was 60.0, "
+      "below the sheet's own bound) | MTF stage |" % _p16.mtf.f50_b)
+    w("")
+    w("**Stage 8b (2026-10-01f, owner-approved).** On colour negatives the "
+      "interimage coupling is now zero on every neutral: each layer measures a "
+      "donor against the density that donor would have under a neutral "
+      "exposure at the layer's own log E, because the makers' curves are "
+      "white-light curves and already contain that inhibition. The "
+      "coefficients are re-solved and still deliver the published IIE "
+      "percentages. Reversal stocks are unchanged.")
+    w("")
+    w("**Scan balance (2026-10-02, owner-approved).** On colour negatives "
+      "scanned through SCAN_DI the three scan gammas are scaled per negative "
+      "so the neutral system gamma is the same in every channel (each record's "
+      "slope measured over +/-1 stop at mid grey) -- what a lab scanner does "
+      "for every film. Real print stocks, slides and monochrome negatives are "
+      "unchanged. The anchor solve and the print chain's mid grey also follow "
+      "stage 9's sub-pixel gate now, so frames under about 180 px no longer "
+      "render a mid-grey cast.")
+    w("")
+    _f4 = [q.name for q in fp.FILM_PROFILES if q.spectral.log_s_c]
+    w("**Fuji fourth (cyan-sensitive) layer: %d stocks carry the traced curve "
+      "(`log_s_c`), INERT.** No stage reads it: the curve gives which colours "
+      "lose red, not how much, and no surveyed source prints the strength. "
+      "FUJICOLOR_PRO_400H joined on 2026-10-01g." % len(_f4))
+    w("")
+    w("\u26a0 The book is **В. Л. Лихачев, «Современные фотоматериалы и их "
+      "обработка», Москва: СЛОН-ПРЕСС, 2003** (title page). Earlier citations "
+      "to «Шеберстов 2004» were wrong and are corrected (2026-10-01e).")
+    w("")
+    w("**Scanner reference (queue M1b, INERT).** SMPTE ST 2065-2:2012 Annex A "
+      "Table A.1, Academy Printing Density responsivities Π_APD, %d rows "
+      "360-730 nm, and %d per-negative scanner matrices derived from them. "
+      "Stored only: `SCAN_DI` keeps its reader."
+      % (len(fp.ACES_APD_RESPONSIVITY["r"]), len(fp.PER_NEGATIVE_SCANNER_MATRIX_APD)))
+    w("")
+    _sch = [q for q in fp.FILM_PROFILES if q.processing_family.grain_points]
+    _jn = sum(fp.JENSEITS_2024_ADDED.values())
+    w("## Third-party laboratory sources \u2014 schema v60")
+    w("")
+    w("**Bernhard W. Schmidt, film-developer tests** "
+      "([www.bernhard-w-schmidt.de](https://www.bernhard-w-schmidt.de)). "
+      "One experimenter, one method, many film-developer pairs -- which makes "
+      "the site valuable for RATIOS between developers on one film and "
+      "unusable for absolute levels against a maker's figure.")
+    w("")
+    w("| Page | What it holds | In the database | Reaches a render |")
+    w("|---|---|---|---|")
+    w("| [de/methodgrain](https://www.bernhard-w-schmidt.de/de/methodgrain) "
+      "\u2014 RMS table (WEBP, owner-supplied as `PDF/PROFILES/RMSTable.png`) "
+      "| film, developer, ISO, a<sub>k</sub> [\u00b5m], RMS<sub>D</sub>; "
+      "%d rows | `ProcessingFamily.grain_points` on %d stocks (%s) | rms "
+      "\u00d7 RMS<sub>dev</sub>/RMS<sub>D76</sub> via the Developer control; "
+      "a<sub>k</sub> inert until the method text is read |"
+      % (len(fp.SCHMIDT_RMS_TABLE), len(_sch),
+         ", ".join(q.name for q in _sch)))
+    w("| [en/resolution](https://www.bernhard-w-schmidt.de/en/resolution) "
+      "Fig. 4 (owner-supplied `PDF/PROFILES/reso_halo.png`) | development-halo "
+      "width at 8 lp/mm, %d bars | `DeveloperGrainPoint."
+      "development_halo_width_um` | `MTFSpec.adjacency_um` \u00d7 halo ratio "
+      "-- \u26a0 a DEVELOPMENT halo, never halation |"
+      % sum(len(v) for v in fp.SCHMIDT_HALO_PX.values()))
+    w("| en/resolution Fig. 2 | edge sharpness SP = 3H<sub>3</sub> at 8 lp/mm, "
+      "0..1 | field `edge_sharpness` exists, 0 everywhere | not yet -- "
+      "`reso_sharp.png` is not on disk |")
+    w("| [en/methodikreso](https://www.bernhard-w-schmidt.de/en/methodikreso) "
+      "| method: contact-exposed Siemens star, D 1.0-1.3, 100x microscope at "
+      "0.6-0.7 \u00b5m/px | `SCHMIDT_SOURCE` | -- |")
+    w("| `PDF/PROFILES/Jenseits_von_1000_ASA.pdf` (2024) | push and "
+      "high-speed development: time, temperature, gamma, EI-5 | %d "
+      "`DevelopmentPoint`s, edition \"Schmidt 2024\" | Development Time "
+      "axis on ILFORD_DELTA_3200 and KODAK_TMAX_400 |" % _jn)
+    w("")
+    w("\u26a0 Delta 100, Delta 400 and SPUR Ultra R800 are measured on the "
+      "site and have no profile here; their rows stay in the source tables. "
+      "Schmidt's D76 rms against Kodak's 48 \u00b5m figures runs 0.76-1.29 "
+      "across T-MAX 100 / T-MAX 400 / Tri-X, so no single factor converts "
+      "one scale into the other (G-V60-SCHMIDT-SCALE).")
+    w("")
+    # ---------------------------------------------------------------
     #  The v51/v52 carriers. Documented HERE rather than only in
     #  PROGRESS.md because this is the file a reader opens to find out
     #  what the database holds per stock.

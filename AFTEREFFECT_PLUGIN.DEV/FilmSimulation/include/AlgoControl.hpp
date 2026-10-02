@@ -933,6 +933,10 @@ struct FilmDamage
 // that is correct by design, right up to the day a stock is added whose
 // variant[0] is a push.
 //
+// ⚠ +1 ON 2026-10-01 (schema v60): developerIndex added after
+// developmentCelsius, and it IS consumed (AlgoResolveDeveloper). Sentinel -1,
+// assigned explicitly in getAlgoControlsDefault().
+//
 // ⚠ 27 -> 28 ON 2026-09-09c: blackPointStretch added, and it IS consumed
 // (stage 14 plus the anchor solve), so the consumed count moves with it:
 // 25/27 on 2026-09-08, 26/28 now. The two unconsumed fields are still
@@ -1511,11 +1515,17 @@ struct AlgoControls
      *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
      *                    that carries no `tolerance` record -- the same rule
      *                    processVariant follows for an empty variant list.
-     *                    \warning THAT IS 191 OF 201 STOCKS -- the ten that
+     *                    \warning THAT IS 211 OF 221 STOCKS -- the ten that
      *                    DO carry a band are the nine Soviet TU films and the
-     *                    one GOST film, and the count is asserted on every
-     *                    build by cross_component.py rather than restated
-     *                    here by hand. Suggested label
+     *                    one GOST film. The host reads it per film from bit
+     *                    eCTRL_BIT_BATCH_POSITION of kFilmControlAvailability
+     *                    (film_params_mask.hpp; the bit was missing until
+     *                    2026-09-30), and batch_position_headers.py asserts
+     *                    that bit against the resolver on every build.
+     *                    film_enum.hpp repeats this control's range as
+     *                    film::eBATCH_POSITION_{MIN,MAX,DEF,STEP}, copied from
+     *                    AlgoControlEnums.hpp; AlgoControl.cpp static_asserts
+     *                    that the two agree. Suggested label
      *                    "Batch position", with -1 read out as "lower limit",
      *                    0 as "as specified" and +1 as "upper limit".
      *  4  UNIT           a FRACTION of the distance from the stored value to
@@ -1750,9 +1760,16 @@ struct AlgoControls
      *                    collapsing them would discard half the measurement.
      * 10  OUTPUT EFFECT  Selects which time-gamma curve of the family the
      *                    time axis is then read along, and rebuilds the
-     *                    characteristic curve. ⚠ ON 181 OF 191 STOCKS IT IS A
-     *                    DELIBERATE NO-OP, because their family holds one
-     *                    temperature or none. That is the honest behaviour:
+     *                    characteristic curve. ⚠ CORRECTED 2026-10-01: IT ACTS
+     *                    ON 5 STOCKS (PLUS-X 125, T-MAX 400, T-MAX P3200,
+     *                    TRI-X 400TX, VERICHROME PAN) -- those carrying both a fitted
+     *                    ProcessingFamily::temperature_coeff_per_c (schema
+     *                    v39, the stock's OWN rows) and a gamma-bearing time
+     *                    family -- and only together with developmentMinutes.
+     *                    film_params_mask.hpp bit 7 now says so; it read 0
+     *                    everywhere, which hid a live control. On every other
+     *                    stock it is a DELIBERATE NO-OP, because its family
+     *                    holds one temperature or none. That is the honest behaviour:
      *                    time-temperature equivalence charts DO exist for real
      *                    developers, but none has been adopted here, and
      *                    substituting a published chart from another developer
@@ -1795,6 +1812,50 @@ struct AlgoControls
      *   item, not a code one.
      */
     double developmentCelsius;
+
+    /**
+     *  1  NAME           developerIndex
+     *  2  TYPE           int32_t
+     *  3  AE CONTROL     popup listing the selected stock's own developer rows
+     *                    (film::ProcessingFamily::grain_points, by developer
+     *                    name), and it MUST HIDE OR DISABLE ITSELF on a stock
+     *                    with none -- 217 of 221 at schema v60.
+     *  4  UNIT           row index into grain_points
+     *  5  MIN            -1, the sentinel: the developer the stored profile
+     *                    represents (grain_reference_developer)
+     *  6  MAX            the stock's row count - 1; DeveloperIndexMax is the
+     *                    envelope (GRAIN_DEVELOPER_MAX - 1). An index past the
+     *                    stock's rows is treated as the sentinel
+     *  7  DEFAULT        -1. Reproduces every pre-v60 render BIT FOR BIT
+     *  8  STEP           1
+     *  9  PURPOSE        Develops the film in a different developer, from one
+     *                    laboratory's measurements of THAT film in each
+     *                    (Bernhard W. Schmidt: T-MAX 100, T-MAX 400, Tri-X,
+     *                    Pan F).
+     * 10  OUTPUT EFFECT  rms granularity x rms_d[i]/rms_d[ref] (grain_um kept,
+     *                    so the spectrum keeps its shape); MTFSpec::adjacency_um
+     *                    x halo[i]/halo[ref] (the development-halo width at
+     *                    8 lp/mm). RATIOS ONLY: the source's rms scale is not
+     *                    Kodak's 48 um scale. Speed and contrast are NOT moved:
+     *                    the measured speeds are stored, and the Exposure
+     *                    control already owns speed.
+     * 11  STAGES         resolved in FRAME SETUP straight after
+     *                    developmentMinutes (AlgoResolveDeveloper); read by
+     *                    stage 06 (adjacency) and stage 11 (grain)
+     * 12  INTERACTIONS   Composes with developmentMinutes: both scale rms by a
+     *                    factor, and the time's gamma law is the REFERENCE
+     *                    developer's -- an approximation the panel should not
+     *                    hide. Mutually exclusive with processVariant in
+     *                    practice, for that control's reason.
+     * 13  SCALAR/AVX2    External semantics identical; one shared frame-setup
+     *                    resolver in AlgoDevelopmentTime.hpp.
+     * 14  FULL/LITE      Both: one profile copy per frame when a row is chosen.
+     *
+     *   SENTINEL: strictly developerIndex < 0. Zero is a REAL row (the first
+     *   developer by name), so it must be assigned explicitly in
+     *   getAlgoControlsDefault() -- the processVariant trap, not repeated.
+     */
+    int32_t developerIndex;
 
     /**
      *  1  NAME           storageYears

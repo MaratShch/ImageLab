@@ -111,7 +111,18 @@ class ProcessVariantCtrl(IntEnum):
     ePJ800_EI1600_PUSH1 = 35
     ePJ800_EI3200_PUSH2 = 36
     eP30_D76_STOCK_8MIN = 37
-    TOTAL_PROCESSES = 38
+    eSCALA_EI200 = 38
+    eSCALA_EI100_PULL1 = 39
+    eSCALA_EI400_PUSH1 = 40
+    eSCALA_EI800_PUSH2 = 41
+    eSCALA_EI1600_PUSH3 = 42
+    eHIE_D76_SMALL_TANK = 43
+    eHIE_HC110_B_SMALL_TANK = 44
+    eHIE_D19_SMALL_TANK = 45
+    eHIE_SHEET_D76_TRAY = 46
+    eHIE_SHEET_HC110_B_TRAY = 47
+    eHIE_SHEET_D19_TRAY = 48
+    TOTAL_PROCESSES = 49
 
     @property
     def key(self) -> str:
@@ -229,6 +240,17 @@ PROCESS_VARIANT_KEY: dict[int, str] = {
     35: 'PJ800_EI1600_PUSH1',
     36: 'PJ800_EI3200_PUSH2',
     37: 'P30_D76_STOCK_8MIN',
+    38: 'SCALA_EI200',
+    39: 'SCALA_EI100_PULL1',
+    40: 'SCALA_EI400_PUSH1',
+    41: 'SCALA_EI800_PUSH2',
+    42: 'SCALA_EI1600_PUSH3',
+    43: 'HIE_D76_SMALL_TANK',
+    44: 'HIE_HC110_B_SMALL_TANK',
+    45: 'HIE_D19_SMALL_TANK',
+    46: 'HIE_SHEET_D76_TRAY',
+    47: 'HIE_SHEET_HC110_B_TRAY',
+    48: 'HIE_SHEET_D19_TRAY',
 }
 
 PROCESS_VARIANT_LABEL: dict[int, str] = {
@@ -270,6 +292,17 @@ PROCESS_VARIANT_LABEL: dict[int, str] = {
     35: 'EI 1600 (Push 1)',
     36: 'EI 3200 (Push 2)',
     37: 'D-76 stock, 8 min at 20 C',
+    38: 'EI 200 (box speed)',
+    39: 'EI 100 (Pull 1)',
+    40: 'EI 400 (Push 1)',
+    41: 'EI 800 (Push 2)',
+    42: 'EI 1600 (Push 3)',
+    43: '35 mm, small tank: D-76',
+    44: '35 mm, small tank: HC-110 Dil B',
+    45: '35 mm, small tank: D-19',
+    46: 'Sheet, tray: D-76',
+    47: 'Sheet, tray: HC-110 Dil B',
+    48: 'Sheet, tray: D-19',
 }
 
 
@@ -281,7 +314,7 @@ PROCESS_VARIANT_LABEL: dict[int, str] = {
 # them -- so they describe where the model is meaningful, not where it is
 # guarded. See the header for which bounds are enforced and at which stage.
 
-ProcessVariantCtrlCount = 38
+ProcessVariantCtrlCount = 49
 BatchPositionMin = -1.0
 BatchPositionMax = 1.0
 BatchPositionDef = 0.0
@@ -304,6 +337,11 @@ DevelopmentCelsiusMin = 18.0
 DevelopmentCelsiusMax = 24.0
 DevelopmentCelsiusDef = DevelopmentCelsiusSentinel
 DevelopmentCelsiusStep = 0.5
+DeveloperIndexSentinel = -1
+DeveloperIndexMin = -1
+DeveloperIndexMax = 11
+DeveloperIndexDef = DeveloperIndexSentinel
+DeveloperIndexStep = 1
 StorageYearsOff = 0.0
 StorageYearsMin = 0.0
 StorageYearsMax = 100.0

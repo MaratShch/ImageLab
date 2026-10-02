@@ -71,6 +71,31 @@ constexpr AlgoType ALGO_COUPLER_MIN_SIGMA_PX = static_cast<AlgoType>(0.25);
 
 
 // ---------------------------------------------------------------------------
+//  Coupler scale for the NEUTRAL references (anchor solve, print-chain mid grey).
+//
+//  ⚠ ADDED 2026-10-02 (owner-approved). Stage 9 switches its long-range term off
+//  when the diffusion radius is under ALGO_COUPLER_MIN_SIGMA_PX, but
+//  AlgoSolveAnchors and AlgoNeutralMidDensity modelled the flat-field coupling
+//  unconditionally, so frames narrower than about 180 px (35 mm) anchored for a
+//  coupling they never received and rendered mid grey with a cast. Both
+//  references now see the same gate as stage 9. Twin: film_sim.coupler_flat_scale.
+// ---------------------------------------------------------------------------
+inline HighPrecType AlgoCouplerFlatScale
+(
+    const film::FilmProfile& profile,
+    const HighPrecType       couplerScale,
+    const AlgoType           pxPerMm
+) noexcept
+{
+    const AlgoType radiusPx = static_cast<AlgoType>(profile.couplers.radius_um)
+                            * static_cast<AlgoType>(0.001) * pxPerMm;
+
+    return (radiusPx >= ALGO_COUPLER_MIN_SIGMA_PX)
+               ? couplerScale : static_cast<HighPrecType>(0.0);
+}
+
+
+// ---------------------------------------------------------------------------
 //  Stage 9: DIR coupler lateral effects.
 //
 //  pSrcR/G/B     density in

@@ -17,6 +17,25 @@
 #include "AlgoControl.hpp"
 
 
+// ---------------------------------------------------------------------------
+//  The Batch Position range is declared twice and must agree.
+//
+//  AlgoControlEnums.hpp (BatchPositionMin / Max / Def / Step) is the authority;
+//  film_enum.hpp carries the same four values, copied from it by cpp_codegen.py,
+//  for a host that holds only the database headers. AlgoControl.hpp includes
+//  both, so a hand edit to either -- or a film_enum.hpp left stale by a skipped
+//  regeneration -- fails here instead of shipping two different sliders.
+// ---------------------------------------------------------------------------
+static_assert(film::eBATCH_POSITION_MIN  == BatchPositionMin,
+              "film_enum.hpp Batch Position MIN differs from AlgoControlEnums.hpp -- regenerate with cpp_codegen.py");
+static_assert(film::eBATCH_POSITION_MAX  == BatchPositionMax,
+              "film_enum.hpp Batch Position MAX differs from AlgoControlEnums.hpp -- regenerate with cpp_codegen.py");
+static_assert(film::eBATCH_POSITION_DEF  == BatchPositionDef,
+              "film_enum.hpp Batch Position DEF differs from AlgoControlEnums.hpp -- regenerate with cpp_codegen.py");
+static_assert(film::eBATCH_POSITION_STEP == BatchPositionStep,
+              "film_enum.hpp Batch Position STEP differs from AlgoControlEnums.hpp -- regenerate with cpp_codegen.py");
+
+
 namespace {
 
 }  // anonymous namespace
@@ -329,10 +348,18 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     controls.processVariant     = ProcessVariantCtrlDef;
     controls.developmentMinutes = -1.0;
     controls.developmentCelsius = -1.0;
+    //    * developerIndex (schema v60): -1 is the sentinel and 0 is a REAL
+    //      developer row, so zero-init would select one. Assigned explicitly.
+    controls.developerIndex     = -1;     // == DeveloperIndexDef
     //    * storageYears' sentinel is 0 and means FRESH, so the zeroed
     //      default is already correct -- set explicitly all the same, so a
     //      reader of this function sees every control accounted for.
     controls.storageYears       = 0.0;
+    //    * storageCelsius (schema v57) is NOT zero-safe: 0 degC is a real
+    //      storage temperature, 28x slower than room temperature by Table
+    //      5.3. Its default is 24.0, the reference temperature of every
+    //      stored dark-fade record, which is the identity.
+    controls.storageCelsius     = 24.0;   // == StorageCelsiusDef
 
     // film_sim: generations = 0 -- camera negative straight to print.
     controls.generations = 0;

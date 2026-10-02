@@ -554,6 +554,68 @@ def solve_anchors(
     return (offsets[0], offsets[1], offsets[2])
 
 
+def coupler_flat_scale(profile: FilmProfile, coupler_scale: float,
+                       px_per_mm: float) -> float:
+    """The coupler scale the NEUTRAL references must use on this frame.
+
+    ⚠ ADDED 2026-10-02 (owner-approved). `apply_dir_couplers` switches its
+    long-range term off when the diffusion radius is under 0.25 px (the C17
+    sub-pixel gate), but `solve_anchors` and `neutral_mid_density` modelled
+    the flat-field coupling unconditionally. On frames narrower than about
+    180 px (35 mm) the anchors therefore corrected for a coupling the frame
+    never received, and mid grey rendered with a cast. Both references now see
+    the same gate as stage 9. Twin: `AlgoCouplerFlatScale` (AlgoDirCoupler.hpp).
+    """
+    radius_px = (profile.couplers.radius_um / 1000.0) * px_per_mm
+    return coupler_scale if radius_px >= 0.25 else 0.0
+
+
+#: Half-width, in log exposure, of the neutral mid-tone span over which
+#: `scan_balance_curves` measures each record's slope (+/-1 stop).
+SCAN_BALANCE_HALF_SPAN = 0.30103
+
+
+def scan_balance_curves(profile: FilmProfile, print_stock: PrintStock):
+    """SCAN_DI's three curves, re-balanced for THIS negative (fix B).
+
+    ⚠ ADDED 2026-10-02 (owner-approved fix B). SCAN_DI is a scanner, and a
+    scanner -- unlike an optical print -- is set up per film: the lab balances
+    the three channels so a grey scale stays grey. The fixed SCAN_DI gammas
+    (1.72 / 1.75 / 1.78) passed each negative's own channel-gamma mismatch
+    straight into the image, which is a crossover no lab scan shows (Portra 400
+    B/G drift 0.99 stop over -4..+3 stops after fix A).
+
+    Each record's NEUTRAL slope is measured on the negative's own curve over
+    +/-1 stop around its mid-grey exposure; the scan gamma of channel c is then
+    scaled so that slope_c x scan_gamma_c is the same for all three (their
+    mean). Mid grey is re-timed by the print offset solve as before, so only
+    the channel balance away from mid grey changes.
+
+    Applies only to colour negatives on SCAN_DI; returns the stock's own
+    curves otherwise (real print stocks have no per-film channel gamma, and a
+    slide has no print stage). Twin: AlgoScanBalanceCurves (Algo_13_Sim.cpp).
+    """
+    pc = print_stock.curves
+    if (print_stock.name != "SCAN_DI" or profile.is_reversal
+            or profile.is_monochrome):
+        return pc
+    take = profile.taking_matrix
+    cv = profile.curves.as_tuple()
+    hs = SCAN_BALANCE_HALF_SPAN
+    slope = []
+    for k in range(3):
+        x = math.log10(max(sum(take[k][j] for j in range(3)), EPS))
+        slope.append((density_scalar(x + hs, cv[k])
+                      - density_scalar(x - hs, cv[k])) / (2.0 * hs))
+    if min(slope) <= 1e-3:
+        return pc
+    pt = pc.as_tuple()
+    sys_g = [slope[k] * pt[k].gamma for k in range(3)]
+    t = sum(sys_g) / 3.0
+    return RGBCurves(*[replace(pt[k], gamma=pt[k].gamma * t / sys_g[k])
+                       for k in range(3)])
+
+
 def neutral_mid_density(
     profile: FilmProfile, coupler_scale: float = 1.0
 ) -> list[float]:
@@ -1686,6 +1748,19 @@ def resolve_process_variant(profile, variant):
     return replace(profile, curves=curves, exposure_index=ei)
 
 
+def printing_density_matrix_for(profile, print_stock):
+    """The exposure-side printing matrix stage 13 uses (schema v61).
+
+    The negative's own `PrintingMatrix` for this print stock when it carries
+    one (both spectra measured); otherwise the print stock's own
+    `printing_density_matrix` -- the class median, or identity.
+    """
+    for m in getattr(profile, "printing_matrices", ()):
+        if m.print_stock == print_stock.name:
+            return m.matrix
+    return print_stock.printing_density_matrix
+
+
 def development_family(profile):
     """The one coherent (developer, dilution, vessel, edition) group of
     development points this stock's stored curve actually sits on, or None.
@@ -1702,9 +1777,13 @@ def development_family(profile):
     them.
 
     THE GROUP IS CHOSEN, NOT GUESSED:
-      1. only points carrying a real gamma are eligible -- a time-only point
-         states a temperature, not a contrast, and cannot place a curve;
-      2. groups are keyed on all four discriminants;
+      1. only points carrying a real contrast are eligible -- a time-only
+         point states a temperature, not a contrast, and cannot place a curve.
+         Gamma groups first; contrast-index groups (Kodak CI, Fuji G-bar) only
+         when the stock has no gamma group, only rising ones, and only for a
+         developer the record names (2026-10-01d);
+      2. groups are keyed on the measure kind, developer, dilution, vessel,
+         edition, temperature and film format;
       3. a group whose developer matches `profile.processing.developer` wins,
          because that is the developer the STORED CURVE was measured in and
          the whole operation is "move along the axis this curve sits on";
@@ -1715,43 +1794,83 @@ def development_family(profile):
     fam = getattr(profile, "processing_family", None)
     if fam is None or not fam.points:
         return None
+
+    # ⚠⚠ 2026-10-01d: TWO MEASURES, NEVER MIXED, AND TWO MORE DISCRIMINANTS.
+    # (a) A point carries a contrast either as `gamma` or as `contrast_index`
+    #     (Kodak CI, Fuji G-bar). They are different numbers for the same
+    #     development, so the kind is part of the key and a group is one or
+    #     the other. Gamma groups keep absolute priority -- every family
+    #     selected before this change is still selected -- and CI groups are
+    #     consulted only when a stock has no usable gamma group at all.
+    # (b) Temperature and film format join the key. A curve is one
+    #     temperature: рис. 3.256 draws XTOL at 20/21/24/27/29 C in one
+    #     vessel and one edition, and the Agfa tables put the 18/22/24 C
+    #     equal-contrast cells beside the 20 C curve under the same
+    #     developer and vessel -- pooling either reads temperature as time.
+    #     Fuji prints the 135 and 120 curves separately for the same reason.
+    # (c) A CI family is used ONLY when the stock's record names the developer
+    #     its stored curve was measured in (processing.developer, else
+    #     reference_developer). Contrast-index families arrived in bulk with
+    #     the kinetics panels; "the largest group" would pick a developer the
+    #     stored curve has nothing to do with.
+    def norm(x):
+        return (x or "").strip().lower()
+
+    def ndil(x):
+        x = norm(x)
+        return "" if x == "stock" else x     # undiluted is printed both ways
+
     groups: dict[tuple, list] = {}
     for q in fam.points:
-        if q.gamma <= 0.0:
+        if q.gamma > 0.0:
+            kind, v = 0, float(q.gamma)
+        elif q.contrast_index > 0.0:
+            kind, v = 1, float(q.contrast_index)
+        else:
             continue
         groups.setdefault(
-            (q.developer, q.dilution, q.vessel, getattr(q, "edition", "")),
-            []).append((float(q.minutes), float(q.gamma)))
+            (kind, q.developer, q.dilution, q.vessel, getattr(q, "edition", ""),
+             float(q.celsius), getattr(q, "film_format", "")),
+            []).append((float(q.minutes), v))
     groups = {k: v for k, v in groups.items() if len(v) >= 2}
     if not groups:
         return None
-
-    want = (getattr(profile.processing, "developer", "") or "").strip().lower()
-    if want:
-        named = {k: v for k, v in groups.items()
-                 if k[0].strip().lower() == want}
-        if named:
-            groups = named
+    gamma_groups = {k: v for k, v in groups.items() if k[0] == 0}
+    ci_only = not gamma_groups
+    if ci_only:
+        # A development curve RISES with time. A CI group that falls is not
+        # one -- AVIPHOT PAN 20's three G 74 c points are three exposure
+        # indices at three machine settings, not one film developed longer.
+        def rising(v):
+            c = [g for _t, g in sorted(v)]
+            return all(b >= a - 0.01 for a, b in zip(c, c[1:]))
+        groups = {k: v for k, v in groups.items() if rising(v)}
+        if not groups:
+            return None
     else:
-        # ⚠ FAILING THAT, THE FAMILY'S OWN REFERENCE DEVELOPER (schema v36).
-        # `ProcessingSpec.developer` describes the stored curve and is empty on
-        # every 1956-sourced stock, because the stored curve is a later sheet.
-        # `ProcessingFamily.reference_developer` describes the SOURCE's own
-        # characteristic curve, which is the curve these points were drawn
-        # beside, and Kodak prints it in the caption. Without it SUPER-XX PAN
-        # ties seventeen DK-50 points against seventeen DK-60a and refuses.
-        ref = (getattr(fam, "reference_developer", "") or "").strip().lower()
-        rdil = (getattr(fam, "reference_dilution", "") or "").strip().lower()
-        if ref:
-            named = {k: v for k, v in groups.items()
-                     if k[0].strip().lower() == ref
-                     and (not rdil or k[1].strip().lower() == rdil)}
-            if named:
-                groups = named
+        groups = gamma_groups
+
+    want = norm(getattr(profile.processing, "developer", ""))
+    ref = norm(getattr(fam, "reference_developer", ""))
+    rdil_set = bool(norm(getattr(fam, "reference_dilution", "")))
+    rdil = ndil(getattr(fam, "reference_dilution", ""))
+    named = {}
+    if want:
+        named = {k: v for k, v in groups.items() if norm(k[1]) == want}
+    if not named and ref and (ci_only or not want):
+        named = {k: v for k, v in groups.items()
+                 if norm(k[1]) == ref
+                 and (not rdil_set or ndil(k[2]) == rdil)}
+    if named:
+        groups = named
+    elif ci_only:
+        return None
+    red = norm(getattr(fam, "reference_edition", ""))
+    if red:
+        ed = {k: v for k, v in groups.items() if norm(k[4]) == red}
+        if ed:
+            groups = ed
     best = max(groups.values(), key=len)
-    # ⚠ A TIE IS A REFUSAL, NOT A COIN TOSS. Two equally large groups for the
-    # same developer are two measurements of different processes, and picking
-    # one by dictionary order would make the render depend on insertion order.
     if sum(1 for v in groups.values() if len(v) == len(best)) > 1:
         return None
     return tuple(sorted(best))
@@ -1907,7 +2026,94 @@ def resolve_development_time(profile, minutes: float, celsius: float = -1.0):
         return profile
     curves = RGBCurves(*[_retune(c, gamma=c.gamma * k)
                          for c in profile.curves.as_tuple()])
-    return replace(profile, curves=curves)
+    f = development_rms_factor(profile.grain, k)
+    if f == 1.0:
+        return replace(profile, curves=curves)
+    g = profile.grain
+    # schema v59: the measured rms-vs-gamma law. Every rms figure moves by the
+    # same factor; grain_um is left as it is, so the SPECTRUM keeps its shape
+    # and only its level follows the development.
+    # ⚠ grain_um IS PINNED to its pre-development value. Where it is not
+    # stored, `grain_um_rgb()` derives it FROM rms, so scaling rms alone would
+    # silently change the physical diameter in Python while the C++ database
+    # (which emits it resolved) kept the old one.
+    gu = g.grain_um_rgb()
+    grain = replace(g, rms_granularity=g.rms_granularity * f,
+                    rms_r=g.rms_r * f, rms_g=g.rms_g * f, rms_b=g.rms_b * f,
+                    grain_um_r=gu[0], grain_um_g=gu[1], grain_um_b=gu[2])
+    return replace(profile, curves=curves, grain=grain)
+
+
+def developer_factors(profile, index: int) -> tuple[float, float]:
+    """(rms factor, adjacency-scale factor) for developer row `index` (v60).
+
+    Both are RATIOS between rows of ONE film measured by ONE laboratory --
+    `processing_family.grain_points` against its `grain_reference()` row --
+    because the source's absolute scale is not Kodak's (see
+    `DeveloperGrainPoint`). (1.0, 1.0) on every inert path: index < 0, out
+    of range, no rows, the reference row itself, or a quantity missing on
+    either row. AlgoDeveloperFactors in AlgoDevelopmentTime.hpp is the same
+    function.
+    """
+    fam = getattr(profile, "processing_family", None)
+    rows = tuple(getattr(fam, "grain_points", ()) or ()) if fam else ()
+    if index is None or index < 0 or index >= len(rows):
+        return 1.0, 1.0
+    ref = fam.grain_reference()
+    if ref is None:
+        return 1.0, 1.0
+    q = rows[index]
+    f_rms = (q.rms_d / ref.rms_d) if (q.rms_d > 0.0 and ref.rms_d > 0.0) \
+        else 1.0
+    f_adj = (q.development_halo_width_um / ref.development_halo_width_um) \
+        if (q.development_halo_width_um > 0.0
+            and ref.development_halo_width_um > 0.0) else 1.0
+    return f_rms, f_adj
+
+
+def resolve_developer(profile, index: int):
+    """The profile as developer row `index` renders it (schema v60).
+
+    Returns `profile` itself on every inert path. rms moves by the row's rms
+    ratio with `grain_um` PINNED, exactly as `resolve_development_time` does,
+    so the spectrum keeps its shape. `MTFSpec.adjacency_um` -- the spatial
+    scale of the development adjacency effect -- moves by the ratio of the
+    measured development-halo widths; the adjacency STRENGTH is left alone,
+    because the source measures a width and not an overshoot.
+    """
+    f_rms, f_adj = developer_factors(profile, index)
+    if f_rms == 1.0 and f_adj == 1.0:
+        return profile
+    out = profile
+    if f_rms != 1.0:
+        g = profile.grain
+        gu = g.grain_um_rgb()
+        out = replace(out, grain=replace(
+            g, rms_granularity=g.rms_granularity * f_rms,
+            rms_r=g.rms_r * f_rms, rms_g=g.rms_g * f_rms,
+            rms_b=g.rms_b * f_rms,
+            grain_um_r=gu[0], grain_um_g=gu[1], grain_um_b=gu[2]))
+    if f_adj != 1.0:
+        out = replace(out, mtf=replace(
+            profile.mtf, adjacency_um=profile.mtf.adjacency_um * f_adj))
+    return out
+
+
+def development_rms_factor(grain, k: float) -> float:
+    """rms multiplier for a development that scales gamma by `k` (schema v59).
+
+    rms ~ gamma**n (`GrainSpec.rms_gamma_exponent`), with k clamped to
+    [1/span, span] (`rms_gamma_span`): the law is a fit over that span of
+    measured gammas and is held flat beyond it rather than extrapolated.
+    1.0 on every stock without a measured law. AlgoDevelopmentRmsFactor in
+    AlgoDevelopmentTime.hpp is the same function.
+    """
+    n = float(getattr(grain, "rms_gamma_exponent", 0.0))
+    span = float(getattr(grain, "rms_gamma_span", 0.0))
+    if n <= 0.0 or span <= 1.0 or k <= 0.0 or k == 1.0:
+        return 1.0
+    kc = min(max(float(k), 1.0 / span), span)
+    return kc ** n
 
 
 #: Wilhelm 1993, Chapter 5, Table 5.3 (p178), «Effect of Temperature on Dye
@@ -2285,8 +2491,50 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal):
     # measurement; a cap at Dmax is the honest bound available without one,
     # and inventing a saturation constant would have been the other kind of
     # answer. `verify.py` asserts the cap is non-binding across the database.
+    # ---- THE NEUTRAL-PRESERVING REFERENCE, NEGATIVES, 2026-10-01f -----------
+    # ⚠ THE FIXED MID-GREY REFERENCE DOUBLE-COUNTED THE EFFECT ON NEUTRALS.
+    # A maker's characteristic curve is measured under WHITE-LIGHT (neutral)
+    # exposure, so the inter-layer inhibition is already inside it. Referencing
+    # (D_j - d_ref) to the ONE mid-grey density applied the inhibition a second
+    # time to every neutral away from mid-grey: Portra 400's grey ramp drifted
+    # 1.55 stops in B/G over -4..+3 stops (Lomography pilot, 2026-10-01). Owner-
+    # approved fix A: on a negative the reference is RECEIVER-RELATIVE. Layer c
+    # measures donor j against the density j WOULD have if the scene were
+    # neutral at c's own log exposure, density(logE_c, curve_j) -- that much
+    # inhibition is already inside c's white-light curve. (log E is anchored to
+    # 0 on every channel at mid-grey, so equal log E IS neutral.)
+    #
+    #     logE_c' = logE_c + sum_{j != c} a_cj * (D_j - D_j(logE_c))
+    #
+    # Any neutral then has a zero correction identically and renders exactly
+    # on the stored curves; only a departure from neutral is coupled. To first
+    # order this IS the physical law (intrinsic curves under a fixed reference)
+    # rewritten on the white-light curves the makers publish. `_iie_measure`
+    # models the same law, so the solved coefficients still deliver the
+    # published IIE percentages (separation gamma over white-light gamma), now
+    # with the white-light gamma equal to the datasheet's. Reversal is
+    # unchanged (not yet measured). C++ twins: AlgoStage08b_Interimage, scalar
+    # and AVX2.
+    d_ref_px = None
+    if not reversal:
+        # d_ref_px[c][j] = density(logE_c, curve_j), j != c. Fixed across the
+        # iterations: it depends on exposure only.
+        d_ref_px = [[None if j == c or m[c][j] == 0.0 else
+                     density(log_e[:, :, c], curves[j]).astype(np.float32)
+                     for j in range(3)] for c in range(3)]
     delta = None
     for _ in range(int(iie.iterations)):
+        if d_ref_px is not None:
+            snap = [dens[:, :, j].copy() for j in range(3)]
+            for c in range(3):
+                adj = np.zeros((h, w), dtype=np.float32)
+                for j in range(3):
+                    if j == c or m[c][j] == 0.0:
+                        continue
+                    adj += np.float32(m[c][j]) * (snap[j] - d_ref_px[c][j])
+                dens[:, :, c] = density(log_e[:, :, c] + adj, curves[c])
+            del snap
+            continue
         delta = [dens[:, :, j] - np.float32(d_ref[j]) for j in range(3)]
         if dw > 0.0:
             for j in range(3):
@@ -2383,7 +2631,7 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal):
                 )
             else:
                 dens[:, :, c] = density(log_e[:, :, c] + adj, curves[c])
-    del delta
+    del delta, d_ref_px
     return dens
 
 
@@ -2735,6 +2983,15 @@ def temporal_grain_scale(fps: float,
 #: measured sigma(T)/T_bar runs 0.39 to 1.64: the law `sigma_D = 0.648*D^0.665`
 #: fitted from it was WITHDRAWN for that reason (see the ILFORD_HPS provenance
 #: note in film_profiles.py). Takano prints the correction the corpus needed.
+#:
+#: ⚠ INDEPENDENT CONFIRMATION (2026-09-30c). F. R. Catt, «Granularity:
+#: investigating equations that convert sigma(T) to sigma(D)», RIT thesis 1980,
+#: PDF p22, prints Altman 1964's series with the SAME coefficients, 1/12 and
+#: 1/80. Catt tested three published series against measured Tri-X 4164 and
+#: Copy 4125 samples: Altman's was the best predictor in 31 of 52 cases
+#: (Celio 14, Abouelata 7; PDF p54), and "if only an approximation is needed"
+#: the first-order form serves (PDF p62). That agrees with the docstring
+#: below (under 0.4 % below a ratio of 0.2).
 #:
 #: ⚠ NOTHING ON THE RENDER PATH CALLS THIS. It is a derivation helper: readers
 #: and provenance work use it to move a stated sigma(T) into density before it
@@ -3588,6 +3845,10 @@ class RenderSettings:
     #: gamma-bearing development family, which is most of them.
     development_minutes: float = -1.0
     development_celsius: float = -1.0
+    #: Schema v60: which row of `processing_family.grain_points` to develop
+    #: in, or -1 for the developer the stored profile represents. See
+    #: `resolve_developer`; inert on every stock without developer rows.
+    developer_index: int = -1
     #: Years of DARK STORAGE since processing. 0 = fresh, which is
     #: the default and is inert on every stock. See
     #: `resolve_storage_age`; only stocks carrying a published
@@ -4136,6 +4397,9 @@ def simulate(
     profile = resolve_development_time(
         profile, getattr(settings, 'development_minutes', -1.0),
         getattr(settings, 'development_celsius', -1.0))
+    # schema v60, straight after the time: both describe the development, and
+    # the two act on disjoint quantities except rms, where both are factors.
+    profile = resolve_developer(profile, getattr(settings, 'developer_index', -1))
     # ⚠ FOURTH AND LAST RESOLVER, AND THE ORDER IS THE ARGUMENT. The three
     # above answer "which development, how long, how old" -- all done to a roll
     # AFTER it left the factory. This one answers "which roll", decided at the
@@ -4334,7 +4598,9 @@ def simulate(
         # ships at 1.0, so the shared branch is what actually runs; the
         # per-channel branch exists for the day a measured halo width lands.
         shared = hal.radii_are_shared
-        scatter = grid.multi_gaussian(hal.radii_um, hal.weights) if shared else None
+        # schema v59: lobes() carries the subtracted RING lobe, so the kernel
+        # is an annulus rather than a centred blob (see _V59_HALATION_RING).
+        scatter = grid.multi_gaussian(*hal.lobes(1)) if shared else None
         thr = np.float32(2.0**hal.threshold_stops)
         # A loose knee leaks a surprising amount of glow into the mid tones: at
         # CineStill's gain of 1.05 a knee of 0.35*thr lifted an 18% grey card by
@@ -4366,8 +4632,7 @@ def simulate(
             # of the return path -- how deep in the pack the record sits -- so it
             # multiplies all three lobes together rather than reshaping the
             # long-tail mixture, which is a property of the base and is shared.
-            k = scatter if shared else grid.multi_gaussian(
-                hal.radii_for(c), hal.weights)
+            k = scatter if shared else grid.multi_gaussian(*hal.lobes(c))
             exposure[:, :, c] += np.float32(
                 gains[c] * settings.halation_scale
             ) * (apply_transfer(above, k) - above)
@@ -4494,8 +4759,11 @@ def simulate(
 
     curves = profile.curves.as_tuple()
     reversal = profile.is_reversal
+    # ⚠ 2026-10-02: the flat coupling is modelled only when stage 9 will
+    # actually run its long-range term on this frame (see coupler_flat_scale).
+    _cs_flat = coupler_flat_scale(profile, settings.coupler_scale, px_per_mm)
     anchors = solve_anchors(
-        profile, print_stock, settings.grey_target, settings.coupler_scale,
+        profile, print_stock, settings.grey_target, _cs_flat,
         settings.scanner_specular, settings.black_point_stretch,
     )
     dens = np.empty((h, w, 3), dtype=np.float32)
@@ -4766,9 +5034,22 @@ def simulate(
                              / np.sqrt(1.0 + 2.0 * coeff * coeff))
                         field = (z * rms).astype(np.float32)
 
+            # ⚠ MEAN TRANSMITTANCE, NOT MEAN DENSITY (schema v59, queue P96b).
+            # The field is zero-mean in DENSITY, and 10**-D is convex, so a
+            # zero-mean density field BRIGHTENS the negative wherever light
+            # averages it: for Gaussian D, -log10 <T> = <D> - (ln10/2)*s**2,
+            # s the per-pixel sigma. The tone curve is a densitometer reading,
+            # i.e. -log10 of AREA-AVERAGED transmittance, so the grain must
+            # leave that -- not the mean density -- where the curve put it.
+            # Adding (ln10/2)*s**2 does exactly that to second order; s**2 is
+            # (gain*amp)**2 times the plane's own mean square, one reduction.
+            ga = np.float32(settings.grain_scale * temporal_scale) * amp
+            kv = np.float32(fp.GRAIN_MEAN_T_K * float(
+                np.mean(np.square(field.astype(np.float64)))))
             dens[:, :, c] += (
                 np.float32(settings.grain_scale * temporal_scale)
                 * field * amp
+                + kv * ga * ga
             )
         del fields
 
@@ -4798,7 +5079,7 @@ def simulate(
         out = dens
         final_curves = curves
     else:
-        d_mid = neutral_mid_density(profile, settings.coupler_scale)
+        d_mid = neutral_mid_density(profile, _cs_flat)
         # ⚠ AND SO MUST THE PRINT CHAIN'S OWN MID-GREY REFERENCE (C22). This is a
         # SECOND computation of the neutral negative density, used by the dupe
         # generations and the final print, and it has to see the reader's optics
@@ -4890,7 +5171,9 @@ def simulate(
         # scene exposure raises negative density, which lowers print exposure and
         # print density, which brightens the positive. That double inversion is
         # what gives correct rolloff at both ends for free.
-        pcurves = print_stock.curves.as_tuple()
+        # ⚠ 2026-10-02, fix B: a scan is balanced per negative (see
+        # scan_balance_curves). Real print stocks keep their own curves.
+        pcurves = scan_balance_curves(profile, print_stock).as_tuple()
         targets = [
             settings.grey_target / _tint_factor(profile, c) for c in range(3)
         ]
@@ -4913,7 +5196,10 @@ def simulate(
         # to 1.0 by construction, so on a neutral this changes nothing at all
         # and the offsets come out identical -- which is exactly the property
         # that lets it be switched on without re-timing anything.
-        pdm = np.asarray(print_stock.printing_density_matrix, dtype=np.float64)
+        # ⚠ schema v61: THIS NEGATIVE'S OWN MATRIX FOR THIS PRINT, where both
+        # spectra are measured; the print stock's class median otherwise.
+        pdm = np.asarray(printing_density_matrix_for(profile, print_stock),
+                         dtype=np.float64)
         if not np.allclose(pdm, np.eye(3)):
             d_mid = list(pdm @ np.asarray(d_mid, dtype=np.float64))
             dens = np.ascontiguousarray(

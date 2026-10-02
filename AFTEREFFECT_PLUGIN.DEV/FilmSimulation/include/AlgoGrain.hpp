@@ -1614,13 +1614,24 @@ void AlgoMakeGrainField
 //  it in the same commit, and `cpp_parity.py`'s stage probe is what proves the
 //  two still agree, because it drives AlgoAddGrain itself rather than the law.
 // ---------------------------------------------------------------------------
+/// Most knots the sigma(D) evaluator carries: the four anchors, or a measured
+/// table of up to film::GrainSpec's sigma_pts capacity (schema v59). Must be
+/// >= that capacity; a static_assert in AlgoGrainAmpBuild says so.
+#define ALGO_GRAIN_AMP_MAX 16
+
+/// ln(10) / 2 -- the stage-11 mean-transmittance offset (schema v59): a
+/// zero-mean density field of per-pixel sigma s leaves -log10 <T> at
+/// D - (ln10/2) s^2, so AlgoAddGrain adds ALGO_GRAIN_MEAN_T_K * s^2 back.
+/// film_profiles.GRAIN_MEAN_T_K is the same number.
+#define ALGO_GRAIN_MEAN_T_K 1.1512925464970229
+
 struct AlgoGrainAmp
 {
     bool     measured;      ///< false = legacy square-root branch
-    int32_t  n;             ///< anchors in xs[], 3 or 4 (measured only)
-    AlgoType xs[4];         ///< anchor densities, ascending
-    AlgoType slope[4];      ///< segment i covers (xs[i-1], xs[i]]: slope*D+icept
-    AlgoType icept[4];      ///< already divided by the net-1.0 reference
+    int32_t  n;             ///< knots in xs[] (measured only): 3-4 anchors or a table
+    AlgoType xs[ALGO_GRAIN_AMP_MAX];    ///< knot densities, ascending
+    AlgoType slope[ALGO_GRAIN_AMP_MAX]; ///< segment i covers (xs[i-1], xs[i]]: slope*D+icept
+    AlgoType icept[ALGO_GRAIN_AMP_MAX]; ///< already divided by the net-1.0 reference
     AlgoType loY;           ///< held flat below xs[0]
     AlgoType hiY;           ///< held flat above xs[n-1]
     AlgoType dmin;          ///< legacy: this channel's base plus fog
@@ -1648,7 +1659,7 @@ inline AlgoGrainAmp AlgoGrainAmpBuild
     a.hiY      = ALGO_ONE;
     a.dmin     = dminC;
 
-    for (int32_t i = 0; i < 4; i++)
+    for (int32_t i = 0; i < ALGO_GRAIN_AMP_MAX; i++)
     {
         a.xs[i]    = ALGO_ZERO;
         a.slope[i] = ALGO_ZERO;
@@ -1672,54 +1683,88 @@ inline AlgoGrainAmp AlgoGrainAmpBuild
     if (!grain.sigma_shape_measured || !(grain.sigma_shape_mid > 0.0f))
         return a;
 
-    const HighPrecType dToe = (grain.sigma_shape_toe_at > 0.0f)
-        ? static_cast<HighPrecType>(grain.sigma_shape_toe_at)
-        : static_cast<HighPrecType>(dminC);
+    // The net-1.0 reference density, shared by both measured branches.
+    const HighPrecType dRef0 = static_cast<HighPrecType>(dminC)
+                             + static_cast<HighPrecType>(1.0);
 
-    const HighPrecType dTop = (grain.sigma_shape_dmax_at > 0.0f)
-        ? static_cast<HighPrecType>(grain.sigma_shape_dmax_at)
-        : static_cast<HighPrecType>(dmaxC);
-
-    // NET density 1.0. The stored anchors are ratios to the ABSOLUTE 1.0 value
-    // because that is how they were traced, so the reference is recomputed here
-    // rather than baked into the data -- exactly as FilmGrainSigma does it.
-    const HighPrecType dRef = static_cast<HighPrecType>(dminC)
-                            + static_cast<HighPrecType>(1.0);
-
-    if (!(dTop > dToe) || !(dRef < dTop))
-        return a;
-
-    HighPrecType xs[4];
-    HighPrecType ys[4];
+    HighPrecType xs[ALGO_GRAIN_AMP_MAX];
+    HighPrecType ys[ALGO_GRAIN_AMP_MAX];
     int32_t      n = 0;
 
-    xs[n] = dToe;
-    ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_toe);
-    xs[n] = static_cast<HighPrecType>(1.0);
-    ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_mid);
-    xs[n] = dTop;
-    ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_dmax);
-
-    if ((grain.sigma_shape_peak > 0.0f) && (grain.sigma_shape_peak_at > 0.0f))
+    if (grain.sigma_pts_n >= 2)
     {
-        xs[n] = static_cast<HighPrecType>(grain.sigma_shape_peak_at);
-        ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_peak);
-    }
+        // ------------------------------------------------------------------
+        //  schema v59: a MEASURED TABLE replaces the anchors outright. Same
+        //  tests as film_profiles.GrainSpec.sigma_anchors: it spans more than
+        //  one unit of density and the curve's own net-1.0 point lies inside
+        //  it. An unusable table falls to the LEGACY law, never to the anchors.
+        // ------------------------------------------------------------------
+        static_assert(ALGO_GRAIN_AMP_MAX >= static_cast<int>(
+                          sizeof(grain.sigma_pts_d) / sizeof(grain.sigma_pts_d[0])),
+                      "AlgoGrainAmp cannot hold the GrainSpec sigma table");
 
-    for (int32_t i = 1; i < n; i++)
-    {
-        const HighPrecType kx = xs[i];
-        const HighPrecType ky = ys[i];
-        int32_t j = i - 1;
-        while ((j >= 0) && (xs[j] > kx))
+        n = MIN_VALUE(grain.sigma_pts_n, static_cast<int32_t>(ALGO_GRAIN_AMP_MAX));
+
+        for (int32_t i = 0; i < n; i++)
         {
-            xs[j + 1] = xs[j];
-            ys[j + 1] = ys[j];
-            --j;
+            xs[i] = static_cast<HighPrecType>(grain.sigma_pts_d[i]);
+            ys[i] = static_cast<HighPrecType>(grain.sigma_pts_s[i]);
         }
-        xs[j + 1] = kx;
-        ys[j + 1] = ky;
+
+        if (!(xs[n - 1] > xs[0] + static_cast<HighPrecType>(1.0))
+            || !(dRef0 < xs[n - 1]))
+            return a;
     }
+    else
+    {
+        const HighPrecType dToe = (grain.sigma_shape_toe_at > 0.0f)
+            ? static_cast<HighPrecType>(grain.sigma_shape_toe_at)
+            : static_cast<HighPrecType>(dminC);
+
+        const HighPrecType dTop = (grain.sigma_shape_dmax_at > 0.0f)
+            ? static_cast<HighPrecType>(grain.sigma_shape_dmax_at)
+            : static_cast<HighPrecType>(dmaxC);
+
+        // NET density 1.0. The stored anchors are ratios to the ABSOLUTE 1.0 value
+        // because that is how they were traced, so the reference is recomputed here
+        // rather than baked into the data -- exactly as FilmGrainSigma does it.
+        const HighPrecType dRef = static_cast<HighPrecType>(dminC)
+                                + static_cast<HighPrecType>(1.0);
+
+        if (!(dTop > dToe) || !(dRef < dTop))
+            return a;
+
+        xs[n] = dToe;
+        ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_toe);
+        xs[n] = static_cast<HighPrecType>(1.0);
+        ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_mid);
+        xs[n] = dTop;
+        ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_dmax);
+
+        if ((grain.sigma_shape_peak > 0.0f) && (grain.sigma_shape_peak_at > 0.0f))
+        {
+            xs[n] = static_cast<HighPrecType>(grain.sigma_shape_peak_at);
+            ys[n++] = static_cast<HighPrecType>(grain.sigma_shape_peak);
+        }
+
+        for (int32_t i = 1; i < n; i++)
+        {
+            const HighPrecType kx = xs[i];
+            const HighPrecType ky = ys[i];
+            int32_t j = i - 1;
+            while ((j >= 0) && (xs[j] > kx))
+            {
+                xs[j + 1] = xs[j];
+                ys[j + 1] = ys[j];
+                --j;
+            }
+            xs[j + 1] = kx;
+            ys[j + 1] = ky;
+        }
+
+    }   // anchors branch
+
+    const HighPrecType dRef = dRef0;
 
     // The net-1.0 reference value, read off the same piecewise-linear shape.
     HighPrecType mid = ys[n - 1];
@@ -1805,7 +1850,7 @@ inline AlgoGrainAmp AlgoGrainAmpRaw
     a.fog      = MAX_VALUE(fogGrain, ALGO_ZERO);
     a.ampScale = ALGO_ONE;          // deliberately unpinned -- see above
 
-    for (int32_t i = 0; i < 4; i++)
+    for (int32_t i = 0; i < ALGO_GRAIN_AMP_MAX; i++)
     {
         a.xs[i]    = ALGO_ZERO;
         a.slope[i] = ALGO_ZERO;

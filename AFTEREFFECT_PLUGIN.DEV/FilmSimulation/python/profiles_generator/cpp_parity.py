@@ -82,7 +82,12 @@ FIELDS = ("rms_granularity", "clump_um_r", "clump_um_g", "clump_um_b",
           # the float fields, and adding a name the parser cannot see would
           # make the guard fail on every run for no reason.
           "grain_um_r", "grain_um_g", "grain_um_b", "development_gamma_ref",
-          "sigma_sat_droll", "sigma_sat_q", "rho_layers")
+          "sigma_sat_droll", "sigma_sat_q", "rho_layers",
+          # -- schema v59 ----------------------------------------------------
+          # the two scalars of the development law; the sigma(D) TABLE that
+          # follows grain_temporal_class is passed as a literal tail
+          # (`_sigma_tail`) because the parser collects scalar floats only
+          "rms_gamma_exponent", "rms_gamma_span")
 
 CPP_HEAD = r"""
 #include "film_profiles.hpp"
@@ -165,6 +170,8 @@ def build_and_run(tmp: Path, probes) -> dict:
         # numbers and g++ then reports 'unable to find numeric literal operator
         # operator""f' -- a confusing way to be told that a clump diameter happened
         # to be 12.0. Force a decimal point.
+        if isinstance(v, str):
+            return v                 # a pre-rendered literal (the v59 tail)
         if v is True:
             return "true"
         if v is False:
@@ -945,11 +952,14 @@ int main()
         const film::ToneCurve* c[3] = { &out.curves.r, &out.curves.g, &out.curves.b };
 
         for (int k = 0; k < 3; ++k)
-            printf("D\t%s\t%.17g\t%d\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%d\n",
+            // schema v59: the resolved rms travels with the curve, so the
+            // rms-vs-gamma law is compared engine against reference too
+            printf("D\t%s\t%.17g\t%d\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%.17g\t%d\n",
                    r.name, r.minutes, k,
                    (double)c[k]->dmin, (double)c[k]->gamma,
                    (double)c[k]->toe_x, (double)c[k]->toe_k,
                    (double)c[k]->shoulder_x, (double)c[k]->shoulder_k,
+                   (double)out.grain.rms_granularity,
                    copied);
     }
 
@@ -999,7 +1009,7 @@ def devtime_build_and_run(tmp: Path, root: Path, rows) -> dict:
     for line in r.stdout.splitlines():
         f = line.split("\t")
         out[(f[0], f[1], float(f[2]), int(f[3]))] = (
-            tuple(float(x) for x in f[4:10]), int(f[10]))
+            tuple(float(x) for x in f[4:11]), int(f[11]))
     return out
 
 
@@ -1014,8 +1024,165 @@ def devtime_python_side(rows) -> dict:
         for k in range(3):
             c = cs[k]
             out[("D", name, minutes, k)] = (
-                (c.dmin, c.gamma, c.toe_x, c.toe_k, c.shoulder_x, c.shoulder_k),
+                (c.dmin, c.gamma, c.toe_x, c.toe_k, c.shoulder_x, c.shoulder_k,
+                 r.grain.rms_granularity),
                 0 if r is q else 1)
+    return out
+
+
+# ===========================================================================
+#  THE DEVELOPER, RESOLVER LEVEL  (schema v60)
+#
+#  film_sim.resolve_developer against AlgoResolveDeveloper: the resolved rms
+#  (relative, float field) and adjacency_um, plus whether the resolver copied.
+#  Every stock at the sentinel and at index 0 and 99 (inert everywhere but on
+#  the four stocks with rows, and 99 is past every stock's rows), and every
+#  row of each stock that has some -- including the reference row, which must
+#  NOT copy.
+# ===========================================================================
+
+DEVELOPER_CPP = r"""
+#include "AlgoDevelopmentTime.hpp"
+#include "film_profiles.hpp"
+#include <cstdio>
+
+struct VRow { const char* name; int index; };
+
+static const VRow VROWS[] = {
+/*ROWS*/
+};
+
+int main()
+{
+    const auto& db = film::GetFilmDatabase();
+    const int   n  = (int)(sizeof(VROWS)/sizeof(VROWS[0]));
+    for (int i = 0; i < n; ++i)
+    {
+        const VRow& r = VROWS[i];
+        const film::FilmProfile* p = nullptr;
+        for (const auto& q : db)
+            if (q.name == r.name) { p = &q; break; }
+        if (nullptr == p)
+            continue;
+        film::FilmProfile store;
+        const film::FilmProfile& out = AlgoResolveDeveloper(*p, r.index, store);
+        printf("V\t%s\t%d\t%.17g\t%.17g\t%d\n", r.name, r.index,
+               (double)out.grain.rms_granularity, (double)out.mtf.adjacency_um,
+               (&out == p) ? 0 : 1);
+    }
+    return 0;
+}
+"""
+
+
+def developer_probe_table():
+    rows = []
+    for q in fp.FILM_PROFILES:
+        rows += [(q.name, -1), (q.name, 0), (q.name, 99)]
+        n = len(getattr(q.processing_family, "grain_points", ()) or ())
+        rows += [(q.name, i) for i in range(1, n)]
+    return rows
+
+
+def developer_build_and_run(tmp: Path, root: Path, rows) -> dict:
+    lines = ['    { "%s", %d },' % r for r in rows]
+    src = tmp / "developer_parity.cpp"
+    src.write_text(DEVELOPER_CPP.replace("/*ROWS*/", "\n".join(lines)))
+    exe = tmp / "developer_parity"
+    cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+           "-o", str(exe), str(src),
+           str(HERE / "film_profiles.cpp"), str(HERE / "LoadFilmDataBase.cpp")]
+    cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] developer probe compile failed")
+        print(r.stderr[-4000:])
+        raise SystemExit(2)
+    r = subprocess.run([str(exe)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] developer probe crashed")
+        print(r.stderr[-2000:])
+        raise SystemExit(2)
+    out = {}
+    for line in r.stdout.splitlines():
+        f = line.split("\t")
+        out[(f[1], int(f[2]))] = ((float(f[3]), float(f[4])), int(f[5]))
+    return out
+
+
+def developer_python_side(rows) -> dict:
+    import film_sim as fs
+    by = {q.name: q for q in fp.FILM_PROFILES}
+    out = {}
+    for name, idx in rows:
+        q = by[name]
+        r = fs.resolve_developer(q, idx)
+        out[(name, idx)] = ((r.grain.rms_granularity, r.mtf.adjacency_um),
+                            0 if r is q else 1)
+    return out
+
+
+# ===========================================================================
+#  PRINTING MATRIX SELECTION (schema v61, 2026-10-01d)
+#
+#  Every film profile against every print stock: the exposure-side matrix
+#  stage 13 would apply. film::PrintingDensityMatrixFor against
+#  film_sim.printing_density_matrix_for, element for element.
+# ===========================================================================
+PRINTMAT_CPP = r"""
+#include "film_profiles.hpp"
+#include <cstdio>
+
+int main()
+{
+    const auto& db = film::GetFilmDatabase();
+    const auto& ps = film::GetPrintStocks();
+    for (const auto& p : db)
+        for (const auto& s : ps)
+        {
+            const film::Matrix3& m = film::PrintingDensityMatrixFor(p, s);
+            printf("PM\t%s\t%s", p.name.c_str(), s.name.c_str());
+            for (int i = 0; i < 3; ++i)
+                for (int j = 0; j < 3; ++j)
+                    printf("\t%.9g", (double)m[i][j]);
+            printf("\n");
+        }
+    return 0;
+}
+"""
+
+
+def printmat_build_and_run(tmp: Path, root: Path) -> dict:
+    src = tmp / "printmat_parity.cpp"
+    src.write_text(PRINTMAT_CPP)
+    exe = tmp / "printmat_parity"
+    cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+           "-o", str(exe), str(src),
+           str(HERE / "film_profiles.cpp"), str(HERE / "LoadFilmDataBase.cpp")]
+    cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] printing-matrix probe compile failed")
+        print(r.stderr[-4000:])
+        raise SystemExit(2)
+    r = subprocess.run([str(exe)], capture_output=True, text=True)
+    if r.returncode != 0:
+        print("[!] printing-matrix probe crashed")
+        raise SystemExit(2)
+    out = {}
+    for line in r.stdout.splitlines():
+        f = line.split("\t")
+        out[(f[1], f[2])] = tuple(float(v) for v in f[3:12])
+    return out
+
+
+def printmat_python_side() -> dict:
+    import film_sim as fs
+    out = {}
+    for p in fp.FILM_PROFILES:
+        for s in fp.PRINT_STOCKS:
+            m = fs.printing_density_matrix_for(p, s)
+            out[(p.name, s.name)] = tuple(float(v) for r in m for v in r)
     return out
 
 
@@ -1273,6 +1440,7 @@ struct SRow {
     int    measured;
     double toe; double toe_at; double mid; double top; double top_at;
     double peak; double peak_at;
+    int    npts; double pd[16]; double ps[16];   // schema v59 sigma(D) table
 };
 
 static const SRow SROWS[] = {
@@ -1298,6 +1466,11 @@ int main()
         g.sigma_shape_dmax_at   = (float)r.top_at;
         g.sigma_shape_peak      = (float)r.peak;
         g.sigma_shape_peak_at   = (float)r.peak_at;
+        g.sigma_pts_n           = r.npts;
+        for (int q = 0; q < r.npts && q < 16; ++q) {
+            g.sigma_pts_d[q] = (float)r.pd[q];
+            g.sigma_pts_s[q] = (float)r.ps[q];
+        }
 
         // One pixel is enough; four keeps the row loop honest.
         const int W = 4, H = 1, P = 4;
@@ -1305,9 +1478,13 @@ int main()
         const AlgoType D  = (AlgoType)r.D;
         const AlgoType dm[3] = { (AlgoType)r.dmin, (AlgoType)r.dmin, (AlgoType)r.dmin };
         const AlgoType dx[3] = { (AlgoType)r.dmax, (AlgoType)r.dmax, (AlgoType)r.dmax };
+        // ⚠ ALTERNATING +1 / -1 SINCE v59. The stage now also adds the
+        // mean-transmittance term K * (gain*amp)^2 * <F^2>; with F = +-1,
+        // <F^2> = 1 exactly, so out(+1) - out(-1) = 2 amp and
+        // out(+1) + out(-1) - 2D = 2 K amp^2 -- both recovered with no fit.
         for (int x = 0; x < 4; ++x) {
             dR[x] = dG[x] = dB[x] = D;
-            fR[x] = fG[x] = fB[x] = (AlgoType)1.0;   // unit field: amp = out - D
+            fR[x] = fG[x] = fB[x] = (x % 2 == 0) ? (AlgoType)1.0 : (AlgoType)-1.0;
         }
         AlgoAddGrain(dR, dG, dB, fR, fG, fB, W, H, P,
                      dm, dx, g, (AlgoType)1.0);
@@ -1321,8 +1498,10 @@ int main()
         const double law = (double)film::FilmGrainSigma(
             g, (float)r.dmin, (float)r.dmax, (float)r.D);
 
-        printf("S\t%s\t%d\t%d\t%.9g\t%.9g\n", r.name, r.ch, r.k,
-               (double)(plane[0] - D), law);
+        const double ampS = 0.5 * ((double)plane[0] - (double)plane[1]);
+        const double corS = 0.5 * ((double)plane[0] + (double)plane[1]) - (double)D;
+        printf("S\t%s\t%d\t%d\t%.9g\t%.9g\t%.9g\n", r.name, r.ch, r.k,
+               ampS, law, corS);
     }
     return 0;
 }
@@ -1355,14 +1534,22 @@ def grain_stage_probe_table():
                              float(g.sigma_shape_dmax),
                              float(g.sigma_shape_dmax_at),
                              float(g.sigma_shape_peak),
-                             float(g.sigma_shape_peak_at)))
+                             float(g.sigma_shape_peak_at),
+                             tuple(g.sigma_shape_points or ())))
     return rows
 
 
 def grain_stage_build_and_run(tmp: Path, root: Path, rows) -> dict:
-    lines = ['    { "%s", %d, %d, %.17g, %.17g, %.17g, %.17g, %d, '
-             '%.17g, %.17g, %.17g, %.17g, %.17g, %.17g, %.17g },' % r
-             for r in rows]
+    def _row(r):
+        head = ('    { "%s", %d, %d, %.17g, %.17g, %.17g, %.17g, %d, '
+                '%.17g, %.17g, %.17g, %.17g, %.17g, %.17g, %.17g, ' % r[:15])
+        pts = r[15]
+        if not pts:
+            return head + "0, {0}, {0} },"
+        return (head + "%d, { %s }, { %s } }," % (
+            len(pts), ", ".join("%.17g" % d for d, _ in pts),
+            ", ".join("%.17g" % v for _, v in pts)))
+    lines = [_row(r) for r in rows]
     src = tmp / "grain_stage_parity.cpp"
     src.write_text(GRAIN_STAGE_CPP.replace("/*ROWS*/", "\n".join(lines)))
     exe = tmp / "grain_stage_parity"
@@ -1385,8 +1572,8 @@ def grain_stage_build_and_run(tmp: Path, root: Path, rows) -> dict:
         raise SystemExit(2)
     out = {}
     for line in r.stdout.splitlines():
-        fam, nm, c, k, v, law = line.split("\t")
-        out[(fam, nm, int(c), int(k))] = (float(v), float(law))
+        fam, nm, c, k, v, law, cor = line.split("\t")
+        out[(fam, nm, int(c), int(k))] = (float(v), float(law), float(cor))
     return out
 
 
@@ -1758,6 +1945,23 @@ def check_law_reachability(root: Path) -> int:
     return bad
 
 
+def _sigma_tail(g) -> str:
+    """grain_temporal_class, then the v59 sigma(D) table, as C++ literals, in
+    the header's field order. Without it the probe would zero-fill the table
+    and never exercise the measured-table branch of FilmGrainSigma."""
+    def f(v):
+        t = f"{float(v):.9g}"
+        if "." not in t and "e" not in t and "E" not in t:
+            t += ".0"
+        return t + "f"
+    cls = 1 if g.grain_temporal_class == "scanner_fixed_pattern" else 0
+    pts = tuple(g.sigma_shape_points or ())
+    if not pts:
+        return f"{cls}, 0, {{}}, {{}}"
+    return (f"{cls}, {len(pts)}, {{ " + ", ".join(f(d) for d, _ in pts)
+            + " }, { " + ", ".join(f(v) for _, v in pts) + " }")
+
+
 def check_field_order() -> None:
     """The literal initialiser is positional -- verify FIELDS still matches."""
     import re as _re
@@ -1783,7 +1987,7 @@ def probe_table():
     """
     grain, mtf = [], []
     for p in fp.FILM_PROFILES:
-        gspec = tuple(getattr(p.grain, f) for f in FIELDS)
+        gspec = tuple(getattr(p.grain, f) for f in FIELDS) + (_sigma_tail(p.grain),)
         for c, cur in enumerate((p.curves.r, p.curves.g, p.curves.b)):
             dmin, dmax = float(cur.dmin), float(cur.dmax)
             for k, D in enumerate([dmin, dmin + 1.0, 1.0, dmin + 0.1, 0.0,
@@ -2332,8 +2536,13 @@ def main() -> int:
             sworst, sat = 0.0, None          # every branch: must be exact
             hworst, hat = 0.0, None          # measured branch, reported alone
             eworst, eat = 0.0, None          # stage vs the generated law
+            cworst, cat = 0.0, None          # v59 mean-transmittance term
             for k, want in spy.items():
-                got, law = scpp[k]
+                got, law, cor = scpp[k]
+                cwant = fp.GRAIN_MEAN_T_K * want * want
+                cerr = abs(cor - cwant) / max(abs(cwant), 1e-9)
+                if cerr > cworst:
+                    cworst, cat = cerr, k
                 err = abs(got - want) / max(abs(want), 1e-9)
                 if err > sworst:
                     sworst, sat = err, k
@@ -2349,7 +2558,7 @@ def main() -> int:
             # means the number the manufacturer printed. This is the check that
             # would have caught the missing normalisation on day one.
             k_net1 = GRAIN_STAGE_NET.index(1.0)
-            net1 = [v for (fam, nm, c, k), (v, _l) in scpp.items()
+            net1 = [v for (fam, nm, c, k), (v, _l, _c) in scpp.items()
                     if k == k_net1]
             worst_net1 = max(abs(v - 1.0) for v in net1) if net1 else 1.0
             print(f"[i] grain STAGE: {len(spy)} probes over "
@@ -2374,6 +2583,23 @@ def main() -> int:
             # would only weaken it. What replaces it is a COVERAGE check: the
             # measured branch must still be exercised by real stocks, because a
             # probe that stopped reaching it would pass everything.
+            # schema v59: the mean-transmittance term the stage adds beside
+            # the grain, K * (gain*amp)^2 * <F^2>, recovered exactly from the
+            # +1/-1 field and held to the same tolerance as the amplitude.
+            _tabled = {q.name for q in fp.FILM_PROFILES
+                       if q.grain.sigma_shape_points}
+            print(f"[i] grain STAGE: mean-transmittance term K*amp^2 -- worst "
+                  f"relative disagreement {cworst:.2e} at {cat}; "
+                  f"{len(_tabled)} stocks exercise the v59 sigma(D) TABLE")
+            if cworst > TOL:
+                print(f"[FAIL] the stage's mean-transmittance term disagrees "
+                      f"with K*amp^2 by {cworst:.2e} (tolerance {TOL:.0e}) "
+                      f"at {cat}")
+                bad += 1
+            if len(_tabled) < 2:
+                print(f"[FAIL] only {len(_tabled)} stocks carry a sigma(D) "
+                      f"table -- the v59 branch is no longer exercised")
+                bad += 1
             if len(_shaped) < 13:
                 print(f"[FAIL] only {len(_shaped)} stocks carry a measured "
                       f"sigma(D) shape -- the branch this probe must exercise "
@@ -2668,15 +2894,19 @@ def main() -> int:
                 # must move together or the engines disagree about what a
                 # variant selection renders.
                 # ⚠ 11 -> 12 ON 2026-09-24b with EKTAPRESS PJ800's push ladder.
-                if stocks_moved != 12:
+                # ⚠ 12 -> 14 AND 9 -> 11 ON 2026-10-01e (queue P96j): AGFA
+                # SCALA 200x's push / pull ladder and KODAK_HIE's six
+                # developer / format legs, both carrying curves.
+                if stocks_moved != 14:
                     print(f"[FAIL] {stocks_moved} stocks resolve to a different "
-                          f"profile; 12 are expected -- 9 that change curves and "
+                          f"profile; 14 are expected -- 11 that change curves and "
                           f"the 3 AGFAPAN stocks whose developer records state "
                           f"their own exposure index")
                     bad += 1
-                if len(curve_moved) != 9:
+                if len(curve_moved) != 11:
                     print(f"[FAIL] {len(curve_moved)} stocks change a CURVE "
-                          f"({sorted(curve_moved)}); 9 are expected -- "
+                          f"({sorted(curve_moved)}); 11 are expected -- "
+                          f"AGFA_SCALA_200X, KODAK_HIE, "
                           f"KODAK_PORTRA_800, KODAK_ULTRA_COLOR_400UC, "
                           f"CINESTILL_800T, GEVACHROME_605, "
                           f"SUPER_ANSCOCHROME_1957, KODAK_EKTAPRESS_PJ400, "
@@ -2708,7 +2938,10 @@ def main() -> int:
                 dw, dat, dcp = 0.0, None, []
                 for k, (want, wcp) in dpy.items():
                     got, gcp = dcpp[k]
-                    err = max(abs(a - b) for a, b in zip(got, want))
+                    # curve parameters absolute; the v59 rms (7th) RELATIVE,
+                    # because the C++ field is float and the level is ~10-30
+                    err = max(max(abs(a - b) for a, b in zip(got[:6], want[:6])),
+                              abs(got[6] - want[6]) / max(abs(want[6]), 1e-9))
                     if err > dw:
                         dw, dat = err, k
                     if gcp != wcp:
@@ -2744,6 +2977,75 @@ def main() -> int:
                     print(f"[FAIL] only {stocks} stock(s) respond to a "
                           f"development time; 11 carry a usable "
                           f"gamma-bearing family")
+                    bad += 1
+
+        # ------------------------------------------------------------------
+        #  THE PRINTING MATRIX, selection level (schema v61)
+        # ------------------------------------------------------------------
+        with tempfile.TemporaryDirectory() as td:
+            pmc = printmat_build_and_run(Path(td), root)
+        pmp = printmat_python_side()
+        if set(pmc) != set(pmp):
+            print(f"[FAIL] printing-matrix probe sets differ")
+            bad += 1
+        else:
+            pw = max(abs(a - b) for k in pmp for a, b in zip(pmp[k], pmc[k]))
+            own = sum(1 for p in fp.FILM_PROFILES for _m in p.printing_matrices)
+            print(f"[i] printing matrix: {len(pmp)} profile x print probes; "
+                  f"worst disagreement {pw:.2e}; {own} negatives print through "
+                  f"their OWN matrix")
+            if pw > 1e-6:
+                print(f"[FAIL] the two printing-matrix selections disagree "
+                      f"by {pw:.2e}")
+                bad += 1
+            if own != 16:
+                print(f"[FAIL] {own} per-negative printing matrices, expected 16")
+                bad += 1
+
+        # ------------------------------------------------------------------
+        #  THE DEVELOPER, resolver level (schema v60)
+        # ------------------------------------------------------------------
+        if not (root / "AlgoDevelopmentTime.hpp").is_file():
+            print(f"  [SKIP] developer: AlgoDevelopmentTime.hpp not present "
+                  f"under {root}")
+        else:
+            vrows = developer_probe_table()
+            with tempfile.TemporaryDirectory() as td:
+                vcpp = developer_build_and_run(Path(td), root, vrows)
+            vpy = developer_python_side(vrows)
+            if set(vcpp) != set(vpy):
+                print(f"[FAIL] developer probe sets differ: "
+                      f"{len(set(vpy) - set(vcpp))} missing, "
+                      f"{len(set(vcpp) - set(vpy))} extra")
+                bad += 1
+            else:
+                vw, vat, vcp = 0.0, None, []
+                for k, (want, wcp) in vpy.items():
+                    got, gcp = vcpp[k]
+                    # both C++ fields are float: compare RELATIVE
+                    err = max(abs(g - w) / max(abs(w), 1e-9)
+                              for g, w in zip(got, want))
+                    if err > vw:
+                        vw, vat = err, k
+                    if gcp != wcp:
+                        vcp.append(k)
+                moved = sum(1 for _c, cp in vpy.values() if cp)
+                stocks = len({k[0] for k, (_c, cp) in vpy.items() if cp})
+                print(f"[i] developer: {len(vpy)} probes; worst relative "
+                      f"disagreement {vw:.2e} at {vat}; {moved} rows resolve "
+                      f"to a DIFFERENT profile, over {stocks} stock(s)")
+                if vw > 1e-6:
+                    print(f"[FAIL] the two developer resolvers disagree by "
+                          f"{vw:.2e} at {vat}")
+                    bad += 1
+                if vcp:
+                    print(f"[FAIL] the two developer resolvers disagree about "
+                          f"WHETHER a row changes the profile, on {len(vcp)} "
+                          f"probe(s), first {vcp[0]}")
+                    bad += 1
+                if stocks != 4:
+                    print(f"[FAIL] {stocks} stock(s) respond to the Developer "
+                          f"control; 4 carry Schmidt's rows")
                     bad += 1
 
         # ------------------------------------------------------------------

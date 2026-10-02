@@ -29,10 +29,12 @@ WHAT THE NUMBERS SHOULD LOOK LIKE
 The two halves of the band are deliberately ASYMMETRIC on the four masked
 Soviet cine negatives, whose ТУ print «+0,06 / -0,04» on every layer. And one
 cell is one-sided on purpose: Фото ЦНД-32's middle layer reads «0,60 + 0,08»
-in ГОСТ 25120-82 табл. 6 where the cells above and below it read «±», so its
-green gamma does not move at all toward -1 while red and blue do. Both are
-asserted here, because both look like bugs to anyone who has not read the
-documents.
+in ГОСТ 25120-82 табл. 6 where the cells above and below it read «±». Until
+2026-09-30 the stored green sat ON that floor and could not move toward -1;
+since the owner adopted Гурлев 1986's drawn curve (green 0.643) the batch zero
+is the drawn roll, and -1 lands exactly ON the printed floor 0.60 and never
+below it. Both are asserted here, because both look like bugs to anyone who
+has not read the documents.
 """
 from __future__ import annotations
 
@@ -256,12 +258,12 @@ def run(do_assert: bool = True) -> int:
 
     c32 = next(p for p in FP.FILM_PROFILES if p.name == "SVEMA_CND_32")
     lo = FS.resolve_batch_position(c32, -1.0)
-    print("  Фото ЦНД-32 at -1: green gamma %.3f (unmoved -- ГОСТ prints "
-          "«0,60 + 0,08», one-sided), red %.3f and blue %.3f do move"
+    print("  Фото ЦНД-32 at -1: green gamma %.3f (lands ON the floor -- ГОСТ "
+          "prints «0,60 + 0,08», one-sided), red %.3f and blue %.3f move too"
           % (lo.curves.g.gamma, lo.curves.r.gamma, lo.curves.b.gamma))
-    if abs(lo.curves.g.gamma - c32.curves.g.gamma) > 1e-9:
-        fail.append("Фото ЦНД-32's green gamma moved toward -1; the standard "
-                    "prints that cell one-sided and it has no lower edge")
+    if abs(lo.curves.g.gamma - 0.60) > 1e-9:
+        fail.append("Фото ЦНД-32's green gamma at -1 is %.6f, not the printed "
+                    "floor 0.60 of «0,60 + 0,08»" % lo.curves.g.gamma)
     if abs(lo.curves.r.gamma - c32.curves.r.gamma) < 1e-9:
         fail.append("Фото ЦНД-32's red gamma did NOT move toward -1; its cell "
                     "is two-sided and should")

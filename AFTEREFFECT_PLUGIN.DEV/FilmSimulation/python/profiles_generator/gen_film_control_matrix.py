@@ -69,7 +69,46 @@ def _always(p) -> str:
 # that can actually place a curve, which is the same test the resolver makes.
 def _development(p) -> str:
     import film_sim as _fs
-    return V if _fs.development_family(p) is not None else Q
+    return V if (p.is_monochrome and _fs.development_family(p) is not None) else Q
+
+
+# AlgoDevelopmentTime.hpp AlgoResolveDeveloper (schema v60), frame setup in
+# both engine trees, film_sim.resolve_developer as the reference. V exactly
+# where the resolver returns a DIFFERENT profile for at least one row -- the
+# same test the engine makes. Q elsewhere: every film develops differently in
+# different developers, and the corpus has one laboratory's rows for four.
+def _developer(p) -> str:
+    import film_sim as _fs
+    fam = getattr(p, "processing_family", None)
+    rows = getattr(fam, "grain_points", ()) if fam else ()
+    for i in range(len(rows)):
+        if _fs.resolve_developer(p, i) is not p:
+            return V
+    return Q
+
+
+# AlgoBatchPosition.hpp (AlgoResolveBatchPosition, frame setup in both engine
+# trees), with film_sim.resolve_batch_position as the reference. The control
+# moves a stock along its OWN published manufacturing acceptance band, so it
+# acts exactly where the resolver returns a DIFFERENT profile at one of the two
+# band edges -- the same test the engine makes, asked at +1 and at -1 because a
+# one-sided band moves in one direction only.
+#
+#   O  the manufacturer published TYPICAL data and no acceptance band; there
+#      is no band to move along, which is a property of the document, not a
+#      gap. A stock that gains a `tolerance` record flips to V by itself.
+#
+# ⚠ ADDED 2026-09-30 AND ITS ABSENCE WAS A DEFECT. The control has been in
+# AlgoControls, in the engine and in the mockup's Development & Storage group
+# since schema v52, but this list -- which assigns every bit of
+# film_params_mask.hpp -- never carried it, so no host could learn from the
+# mask on which ten stocks it acts.
+def _batch(p) -> str:
+    import film_sim as _fs
+    for pos in (1.0, -1.0):
+        if _fs.resolve_batch_position(p, pos) is not p:
+            return V
+    return O
 
 
 # ⚠ TEMPERATURE IS STILL Q ON EVERY STOCK AND THAT IS NOT AN OVERSIGHT. The
@@ -77,7 +116,30 @@ def _development(p) -> str:
 # time; the temperature rows carry a time against each temperature and no
 # contrast, so there is nothing to place a curve with. ProcessingFamily.temp_q10
 # would close it and is 0.0 on every stock but three.
+#
+# ⚠⚠ CORRECTED 2026-10-01 (owner decision): THE COMMENT ABOVE WAS RIGHT AT v38
+# AND STALE FROM v39. Since schema v39 `ProcessingFamily.temperature_coeff_per_c`
+# is FITTED to each stock's own time-temperature rows, and
+# AlgoDevelopmentEquivalentMinutes / film_sim.development_equivalent_minutes
+# restate a (time, temperature) pair as the equivalent time at the family's
+# reference temperature, which the time-gamma family then reads. So the
+# temperature control DOES move a pixel -- wherever a fitted slope AND a
+# gamma-bearing family coexist -- and a mask that hid it everywhere hid a live
+# control. V is now exactly the stocks where the resolver returns a different
+# profile when only the temperature moves, at the middle of the family's own
+# time range: the same test the engine makes.
 def _dev_temp(p) -> str:
+    import film_sim as _fs
+    fam = _fs.development_family(p)
+    if not fam or p.processing_family.temperature_coeff_per_c >= 0.0:
+        return Q
+    ref = _fs.development_ref_celsius(p)
+    mid = 0.5 * (fam[0][0] + fam[-1][0])
+    base = _fs.resolve_development_time(p, mid, -1.0)
+    for c in (ref - 2.0, ref + 2.0, ref - 1.0, ref + 1.0):
+        r = _fs.resolve_development_time(p, mid, c)
+        if r is not base and (r.curves.g.gamma != base.curves.g.gamma):
+            return V
     return Q
 
 
@@ -212,8 +274,12 @@ _N_FLICKER = sum(1 for _p in FP.FILM_PROFILES if _p.temporal.flicker_pct > 0.0)
 DEV_Q = ("this stock has no group of development points that can place a "
          "curve — see the Development appendix")
 
-DEVTEMP_Q = ("the temperature rows carry a time and no contrast, so there is "
-             "nothing to place a curve with — see the Development appendix")
+DEVTEMP_Q = ("no fitted time-temperature slope beside a gamma-bearing time "
+             "family on this stock — see the Development appendix")
+
+DEVR_Q = ("no same-laboratory measurement of this film in several "
+          "developers; the effect is real on every emulsion and the corpus "
+          "has rows for four")
 
 STORAGE_Q = ("no published dark-fade rate for this stock; the mechanism "
              "applies to every chromogenic film and the corpus has a figure "
@@ -243,11 +309,18 @@ GROUPS: list[tuple[str, list[tuple[str, str, object, str, str]]]] = [
     ("Development", [
         ("Development Time",        "developmentMinutes", _development, "", DEV_Q),
         ("Development Temperature", "developmentCelsius", _dev_temp, "", DEVTEMP_Q),
+        # schema v60: after the temperature so bits 6 and 7 keep their values.
+        ("Developer",               "developerIndex",     _developer, "", DEVR_Q),
         # ⚠ THE PANEL CALLS IT "Years of Dark Storage" AND SO DOES THIS FILE
         # SINCE 2026-09-19d. It read "Storage Age" here, which is a second name
         # for one control in two documents the owner reads side by side.
         ("Years of Dark Storage",   "storageYears",       _storage,   "", STORAGE_Q),
         ("Storage Temperature",     "storageCelsius",     _storage,   "", STORAGE_TEMP_Q),
+        # ⚠ PANEL ORDER, as the mockup draws the Development & Storage group:
+        # Batch Position is its fifth and last row.
+        ("Batch Position",          "batchPosition",      _batch,
+         "the manufacturer published typical data, not an acceptance band — "
+         "there is no band to move along", ""),
     ]),
     ("Colour & White Balance", [
         ("Scene Colour Temperature", "sceneKelvin", _colour,
@@ -533,12 +606,16 @@ def _development_appendix(profiles, names) -> list[str]:
       "Relative humidity and yellowish stain are still not modelled: the "
       "book prints no room-temperature stain rate for any camera film.")
     w("")
-    w("⚠ **Development Temperature is still `?` everywhere, and that is not "
-      "an oversight.** The time axis became readable because the families "
-      "carry a **gamma against each time**; the temperature tables carry a "
-      "**time against each temperature and no contrast**, so there is nothing "
-      "to place a curve with. `ProcessingFamily.temp_q10` would close it and "
-      "is `0.0` on every stock but three.")
+    _dt = [q.name for q in FP.FILM_PROFILES if _dev_temp(q) == V]
+    w("✅ **Development Temperature is live on %d stocks (%s)** — corrected "
+      "2026-10-01. It was `?` everywhere until then, on the reading that the "
+      "temperature tables carry a time and no contrast. That stopped being "
+      "the whole story at schema v39: `ProcessingFamily.temperature_coeff_per_c` "
+      "is fitted to each stock's own time-temperature rows, and the engine "
+      "restates (time, temperature) as the equivalent time at the family's "
+      "reference temperature, which the gamma-bearing time family then reads. "
+      "It acts wherever both exist, and only in combination with Development "
+      "Time." % (len(_dt), ", ".join(_dt)))
     w("")
     w("### What the corpus holds")
     w("")

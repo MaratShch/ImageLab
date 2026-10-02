@@ -515,6 +515,19 @@ void Algorithm_Main
                                    developStore);
 
     // -----------------------------------------------------------------------
+    //  THE DEVELOPER (schema v60), straight after the time: both describe the
+    //  development. Ratios between one laboratory's rows for this film -- see
+    //  AlgoDevelopmentTime.hpp. Inert at -1 and on every stock with no rows;
+    //  `developerStore` is then never written.
+    // -----------------------------------------------------------------------
+    film::FilmProfile developerStore;
+
+    const film::FilmProfile& profileDeveloper =
+        AlgoResolveDeveloper(profileDeveloped,
+                             algoCtrl.developerIndex,
+                             developerStore);
+
+    // -----------------------------------------------------------------------
     //  DARK STORAGE, last of the three profile resolvers.
     //
     //  The order is chronological: a variant and a development time both
@@ -537,7 +550,7 @@ void Algorithm_Main
     film::FilmProfile agedStore;
 
     const film::FilmProfile& profileAged =
-        AlgoResolveStorageAge(profileDeveloped,
+        AlgoResolveStorageAge(profileDeveloper,
                               algoCtrl.storageYears,
                               algoCtrl.storageCelsius,
                               agedStore);
@@ -1062,7 +1075,10 @@ void Algorithm_Main
     ALGO_PROF_MARK("--   anchor solve");
     AlgoSolveAnchors(profile, pPrint,
                      static_cast<HighPrecType>(algoCtrl.greyTarget),
-                     static_cast<HighPrecType>(algoCtrl.couplerScale),
+                     // 2026-10-02: gated like stage 9 (AlgoCouplerFlatScale).
+                     AlgoCouplerFlatScale(profile,
+                         static_cast<HighPrecType>(algoCtrl.couplerScale),
+                         pxPerMm),
                      static_cast<HighPrecType>(algoCtrl.scannerSpecular),
                      static_cast<HighPrecType>(algoCtrl.blackPointStretch),
                      anchor);

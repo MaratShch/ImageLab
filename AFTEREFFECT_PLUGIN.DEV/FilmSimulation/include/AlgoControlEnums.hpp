@@ -306,6 +306,23 @@ enum class ProcessVariantCtrl : int32_t
     //  a different coating; neither set replaces the other.
     eP30_D76_STOCK_8MIN,
 
+    //  Appended 2026-10-01e (queue P96j): Agfa Scala 200x push / pull
+    //  ladder from «Современные фотоматериалы» Табл. 3.279 and
+    //  Рис. 3.358-3.359 (D-max and contrast against EI).
+    eSCALA_EI200,
+    eSCALA_EI100_PULL1,
+    eSCALA_EI400_PUSH1,
+    eSCALA_EI800_PUSH2,
+    eSCALA_EI1600_PUSH3,
+    //  Appended 2026-10-01e (queue P96j): KODAK HIE developer and format
+    //  legs, «Современные фотоматериалы» Рис. 3.362-3.363.
+    eHIE_D76_SMALL_TANK,
+    eHIE_HC110_B_SMALL_TANK,
+    eHIE_D19_SMALL_TANK,
+    eHIE_SHEET_D76_TRAY,
+    eHIE_SHEET_HC110_B_TRAY,
+    eHIE_SHEET_D19_TRAY,
+
     //  \warning APPENDED, NEVER INSERTED. A stored selection is an
     //  integer, so inserting an enumerator in the middle silently
     //  re-points every project saved before the edit. The list is in
@@ -374,7 +391,18 @@ constexpr char ProcessVariantCtrlStr[] =
     "EI 800 (box speed)|"
     "EI 1600 (Push 1)|"
     "EI 3200 (Push 2)|"
-    "D-76 stock, 8 min at 20 C";
+    "D-76 stock, 8 min at 20 C|"
+    "EI 200 (box speed)|"
+    "EI 100 (Pull 1)|"
+    "EI 400 (Push 1)|"
+    "EI 800 (Push 2)|"
+    "EI 1600 (Push 3)|"
+    "35 mm, small tank: D-76|"
+    "35 mm, small tank: HC-110 Dil B|"
+    "35 mm, small tank: D-19|"
+    "Sheet, tray: D-76|"
+    "Sheet, tray: HC-110 Dil B|"
+    "Sheet, tray: D-19";
 
 constexpr const char* const ProcessVariantCtrlNoneStr = "As shipped";
 
@@ -420,6 +448,17 @@ constexpr const char* const ProcessVariantCtrlName[] =
     "EI 1600 (Push 1)",
     "EI 3200 (Push 2)",
     "D-76 stock, 8 min at 20 C",
+    "EI 200 (box speed)",
+    "EI 100 (Pull 1)",
+    "EI 400 (Push 1)",
+    "EI 800 (Push 2)",
+    "EI 1600 (Push 3)",
+    "35 mm, small tank: D-76",
+    "35 mm, small tank: HC-110 Dil B",
+    "35 mm, small tank: D-19",
+    "Sheet, tray: D-76",
+    "Sheet, tray: HC-110 Dil B",
+    "Sheet, tray: D-19",
 };
 
 //  Database keys, index aligned with ProcessVariantCtrl. These are the exact
@@ -469,6 +508,17 @@ constexpr const char* const ProcessVariantCtrlKey[] =
     "PJ800_EI1600_PUSH1",
     "PJ800_EI3200_PUSH2",
     "P30_D76_STOCK_8MIN",
+    "SCALA_EI200",
+    "SCALA_EI100_PULL1",
+    "SCALA_EI400_PUSH1",
+    "SCALA_EI800_PUSH2",
+    "SCALA_EI1600_PUSH3",
+    "HIE_D76_SMALL_TANK",
+    "HIE_HC110_B_SMALL_TANK",
+    "HIE_D19_SMALL_TANK",
+    "HIE_SHEET_D76_TRAY",
+    "HIE_SHEET_HC110_B_TRAY",
+    "HIE_SHEET_D19_TRAY",
 };
 
 static_assert(
@@ -606,6 +656,17 @@ constexpr double DevelopmentCelsiusMin  = 18.0;
 constexpr double DevelopmentCelsiusMax  = 24.0;
 constexpr double DevelopmentCelsiusDef  = DevelopmentCelsiusSentinel;
 constexpr double DevelopmentCelsiusStep = 0.5;
+
+// Developer row (schema v60): an index into the stock's own
+// film::ProcessingFamily::grain_points, -1 = the developer the stored profile
+// represents. The upper bound is the ENVELOPE (GRAIN_DEVELOPER_MAX - 1 in
+// film_profiles.py); a stock's own range is its row count, and an index past
+// it is treated as the sentinel. Four stocks carry rows at schema v60.
+constexpr int32_t DeveloperIndexSentinel = -1;
+constexpr int32_t DeveloperIndexMin  = -1;
+constexpr int32_t DeveloperIndexMax  = 11;
+constexpr int32_t DeveloperIndexDef  = DeveloperIndexSentinel;
+constexpr int32_t DeveloperIndexStep = 1;
 
 // Years of DARK STORAGE since processing, for image-dye fade. Zero is the OFF
 // sentinel and is fresh film, not a minimum.

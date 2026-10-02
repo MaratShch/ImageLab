@@ -116,6 +116,13 @@ INDIRECT: dict[str, tuple[bool, bool, str]] = {
     "sigma_shape_peak_at": (True, True, "fp.grain_sigma() / AlgoGrainAmpBuild"),
     "sigma_shape_toe_at": (True, True, "fp.grain_sigma() / AlgoGrainAmpBuild"),
     "sigma_shape_dmax_at": (True, True, "fp.grain_sigma() / AlgoGrainAmpBuild"),
+    # schema v59: the measured table. Python reaches it inside
+    # GrainSpec.sigma_anchors(), which fp.grain_sigma() calls; the C++ struct
+    # carries it as sigma_pts_n / sigma_pts_d / sigma_pts_s, read by
+    # AlgoGrainAmpBuild (both engines) and FilmGrainSigma.
+    "sigma_shape_points": (True, True,
+                           "fp.grain_sigma() -> GrainSpec.sigma_anchors(); "
+                           "C++ sigma_pts_* in AlgoGrainAmpBuild"),
     "sigma_shape_measured": (True, True,
                              "GrainSpec.sigma_measured_usable(), which "
                              "fp.grain_sigma() calls to pick the law"),
@@ -134,6 +141,11 @@ INDIRECT: dict[str, tuple[bool, bool, str]] = {
     "rms_r": (True, True, "GrainSpec.rms_rgb() at film_sim.py:3048"),
     "rms_g": (True, True, "GrainSpec.rms_rgb() at film_sim.py:3048"),
     "rms_b": (True, True, "GrainSpec.rms_rgb() at film_sim.py:3048"),
+    # schema v59: the subtracted ring lobe, reached through HalationSpec.lobes()
+    # in film_sim's halation stage; C++ reads hal.ring_um / hal.ring_weight in
+    # AlgoStage05 (scalar and AVX2).
+    "ring_um": (True, True, "HalationSpec.lobes() in film_sim stage 5"),
+    "ring_weight": (True, True, "HalationSpec.lobes() in film_sim stage 5"),
     "gain_r": (True, True, "HalationSpec.gains() at film_sim.py:2781"),
     "gain_g": (True, True, "HalationSpec.gains() at film_sim.py:2781"),
     "gain_b": (True, True, "HalationSpec.gains() at film_sim.py:2781"),

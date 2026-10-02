@@ -166,3 +166,63 @@ void AlgoStage13_Duplication
     const uint32_t           seed,
     film::RGBCurves&         finalCurvesOut
 ) noexcept;
+
+
+// ---------------------------------------------------------------------------
+//  SCAN_DI's three curves, re-balanced for THIS negative (fix B, 2026-10-02).
+//
+//  ⚠ OWNER-APPROVED. SCAN_DI is a scanner, and a scanner - unlike an optical
+//  print - is set up per film: the three channels are balanced so a grey scale
+//  stays grey. The fixed SCAN_DI gammas passed each negative's own channel-gamma
+//  mismatch straight into the image (Portra 400 B/G drift 0.99 stop over
+//  -4..+3 stops after fix A; 0.38 with this).
+//
+//  Each record's NEUTRAL slope is measured on the negative's own curve over
+//  +/-1 stop around its mid-grey exposure; scan gamma c is scaled so that
+//  slope_c * gamma_c equals the mean of the three. Mid grey is re-timed by the
+//  print offset solve as before. Colour negatives on SCAN_DI only; any other
+//  case returns the curves unchanged. Twin: film_sim.scan_balance_curves.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_SCAN_BALANCE_HALF_SPAN = 0.30103;
+
+inline void AlgoScanBalanceCurves
+(
+    const film::FilmProfile& profile,
+    const film::PrintStock&  print,
+    film::RGBCurves&         curvesInOut
+) noexcept
+{
+    if ((print.name != "SCAN_DI") || profile.isReversal() || profile.is_monochrome)
+        return;
+
+    const film::ToneCurve* neg[3] = { &profile.curves.r, &profile.curves.g, &profile.curves.b };
+    film::ToneCurve*       scn[3] = { &curvesInOut.r,    &curvesInOut.g,    &curvesInOut.b    };
+
+    const HighPrecType hs = ALGO_SCAN_BALANCE_HALF_SPAN;
+    HighPrecType slope[3];
+
+    for (int32_t k = 0; k < 3; k++)
+    {
+        const HighPrecType rowSum = static_cast<HighPrecType>(profile.taking_matrix[k][0])
+                                  + static_cast<HighPrecType>(profile.taking_matrix[k][1])
+                                  + static_cast<HighPrecType>(profile.taking_matrix[k][2]);
+        const HighPrecType x = std::log10(MAX_VALUE(rowSum, static_cast<HighPrecType>(1e-8)));
+
+        slope[k] = (AlgoDensityScalar(x + hs, *neg[k]) - AlgoDensityScalar(x - hs, *neg[k]))
+                 / (2.0 * hs);
+
+        if (slope[k] <= 1e-3)
+            return;                         // degenerate record: leave the scan alone
+    }
+
+    HighPrecType sysG[3];
+    for (int32_t k = 0; k < 3; k++)
+        sysG[k] = slope[k] * static_cast<HighPrecType>(scn[k]->gamma);
+
+    const HighPrecType t = (sysG[0] + sysG[1] + sysG[2]) / 3.0;
+
+    for (int32_t k = 0; k < 3; k++)
+        scn[k]->gamma = static_cast<float>(static_cast<HighPrecType>(scn[k]->gamma) * t / sysG[k]);
+
+    return;
+}

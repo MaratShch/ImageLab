@@ -37,6 +37,7 @@ Schema version 2 additions (2026-07 domain review):
 Requires Python 3.12+ and numpy (for exact float32 literal formatting).
 """
 
+import importlib.util
 import re
 from pathlib import Path
 
@@ -463,11 +464,25 @@ struct GrainSpec {
     float sigma_sat_droll;  ///< saturating sigma(D) roll-off density; 0 = unused
     float sigma_sat_q;      ///< saturating sigma(D) exponent; 0 = unused
     float rho_layers;       ///< inter-layer grain coherence [HYP]; 0 until EXP-A
+    // -- schema v59 (2026-09-30c) -------------------------------------------
+    /// rms granularity against development gamma: rms ~ gamma**n, applied by
+    /// AlgoResolveDevelopmentTime to the gamma ratio k, with k clamped to
+    /// [1/span, span]. 0 = no measured dependence. DERIVED from J. C. Smith
+    /// 1980 Fig. 2 (see film_profiles.SMITH_1980_FIG2).
+    float rms_gamma_exponent;
+    float rms_gamma_span;   ///< measured gamma span max/min; 0 = unused
     /// 0 = emulsion grain, 1 = scanner fixed pattern. ⚠ A GRAIN-CORRECTNESS
     /// GUARD, NOT A SCANNER MODEL: fixed-pattern noise is nailed to the sensor
     /// and must NOT be re-rolled per frame. Simulating a scanner is out of
     /// scope; refusing to animate one is not.
     uint8_t grain_temporal_class;
+    /// A MEASURED sigma(D) TABLE (schema v59): absolute diffuse density and
+    /// the rms value AS READ, ascending, sigma_pts_n of them (0 = none). When
+    /// present with sigma_shape_measured it REPLACES the four anchors above;
+    /// the level cancels because the result is normalised at net 1.0.
+    int32_t sigma_pts_n;
+    float   sigma_pts_d[@SIGMA_MAX@];
+    float   sigma_pts_s[@SIGMA_MAX@];
 };
 
 /// Grain-sigma multiplier at a given density -- THE ONE DEFINITION (schema v9).
@@ -503,7 +518,45 @@ struct GrainSpec {
 /// not the midtone the datasheet figure is measured at.
 inline float FilmGrainSigma(const GrainSpec& g, float dmin, float dmax, float D)
 {
-    if (g.sigma_shape_measured && g.sigma_shape_mid > 0.0f) {
+    // schema v59: a measured TABLE replaces the anchors outright. Same tests
+    // as film_profiles.GrainSpec.sigma_anchors: at least 2 points, the table
+    // spans more than one unit of density, and the curve's own net-1.0 point
+    // lies inside it.
+    if (g.sigma_shape_measured && g.sigma_shape_mid > 0.0f && g.sigma_pts_n >= 2) {
+        const int n = g.sigma_pts_n;
+        const float* xs = g.sigma_pts_d;
+        const float* ys = g.sigma_pts_s;
+        const float dRef = dmin + 1.0f;
+        if (xs[n-1] > xs[0] + 1.0f && dRef < xs[n-1]) {
+            float v = ys[n-1], mid = ys[n-1];
+            if (D <= xs[0]) { v = ys[0]; }
+            else {
+                for (int i = 1; i < n; ++i) {
+                    if (D <= xs[i]) {
+                        const float t = (xs[i] > xs[i-1])
+                                      ? (D - xs[i-1]) / (xs[i] - xs[i-1]) : 0.0f;
+                        v = ys[i-1] + t * (ys[i] - ys[i-1]);
+                        break;
+                    }
+                }
+            }
+            if (dRef <= xs[0]) { mid = ys[0]; }
+            else {
+                for (int i = 1; i < n; ++i) {
+                    if (dRef <= xs[i]) {
+                        const float t = (xs[i] > xs[i-1])
+                                      ? (dRef - xs[i-1]) / (xs[i] - xs[i-1]) : 0.0f;
+                        mid = ys[i-1] + t * (ys[i] - ys[i-1]);
+                        break;
+                    }
+                }
+            }
+            return (mid > 0.0f) ? (v / mid) : v;
+        }
+        // an unusable table falls through to the legacy law below, exactly as
+        // sigma_anchors returns None -- it never falls back to the anchors
+    }
+    if (g.sigma_pts_n < 2 && g.sigma_shape_measured && g.sigma_shape_mid > 0.0f) {
         const float dToe = (g.sigma_shape_toe_at > 0.0f) ? g.sigma_shape_toe_at : dmin;
         const float dTop = (g.sigma_shape_dmax_at > 0.0f) ? g.sigma_shape_dmax_at : dmax;
         const float dRef = dmin + 1.0f;      // NET density 1.0 -- see the note above
@@ -785,6 +838,15 @@ struct HalationSpec {
     float radius_scale_r;
     float radius_scale_g;
     float radius_scale_b;
+    // -- schema v59 (2026-10-01): THE RING ---------------------------------------
+    /// A SUBTRACTED Gaussian lobe: sigma ring_um, weight ring_weight (>= 0,
+    /// relative to `weights`). The support return is an annulus starting at
+    /// r_c = 2t/sqrt(n^2-1); subtracting this lobe leaves the hole a sum of
+    /// centred Gaussians cannot. Kernel = sum(w_i G_i) - ring_weight G_ring,
+    /// normalised by sum(w_i) - ring_weight; non-negative by construction
+    /// (film_profiles._V59_HALATION_RING). 0 / 0 = no ring.
+    float ring_um;
+    float ring_weight;
 };
 
 /// Development-Inhibitor-Releasing coupler behaviour: raises saturation without
@@ -1162,6 +1224,19 @@ struct AimDensity
     std::string source;
 };
 
+
+// -- schema v61 (2026-10-01d), LIVE ON THE PRINT PATH ------------------------
+/// How ONE print emulsion's three layers see THIS negative's dyes:
+/// rownorm(M_print . M_status^-1) from the negative's own traced three-dye
+/// panel and the print stock's own traced spectral sensitivity. Stage 13 uses
+/// it in place of PrintStock::printing_density_matrix (the class median) when
+/// this negative is printed on `print_stock`. Rows sum to 1.0 (crosstalk only).
+struct PrintingMatrixEntry
+{
+    std::string print_stock;
+    Matrix3     matrix;
+    std::string source;
+};
 
 /// A MANUFACTURING ACCEPTANCE BAND, not a measurement (schema v51, INERT).
 ///
@@ -1858,6 +1933,39 @@ struct DevelopmentLaw {
     }
 };
 
+/// Developer EXHAUSTION: minutes per roll as one bath is re-used (schema
+/// v58, INERT). `minutes[i]` is roll i+1 and the vector ends where the sheet
+/// prints «—», so its size IS the capacity; `table_rolls` is how many columns
+/// the sheet printed. Populated on FUJI_NEOPAN_1600 only (AF3-608E p3).
+/// \warning Read by no stage in either engine; carried so the plugin holds
+/// the published data (owner decision, 2026-09-29d).
+struct DevelopmentCapacity {
+    std::string developer;
+    std::string dilution;
+    int    exposure_index;
+    double celsius;
+    std::string vessel;
+    double solution_ml;
+    std::string film_unit;       ///< e.g. "135-36"
+    std::vector<double> minutes;
+    int    table_rolls;
+};
+
+/// schema v60: one film in several developers, ONE laboratory, ONE method.
+/// Read by AlgoResolveDeveloper as RATIOS to the family's reference row only.
+/// \warning rms_d IS ON THE SOURCE'S OWN SCALE, not Kodak's 48 um diffuse
+/// figure, and must never be written into GrainSpec::rms_granularity.
+/// development_halo_width_um is chemical spreading of exposed stripes at
+/// 8 lp/mm, NOT support halation -- it scales MTFSpec::adjacency_um.
+struct DeveloperGrainPoint {
+    std::string developer;
+    int    exposure_index;            ///< speed measured in this developer; stored, not rendered
+    double rms_d;                     ///< source scale; 0 = not measured
+    double grain_a_k_um;              ///< as printed; INERT (definition not retrieved)
+    double development_halo_width_um; ///< 0 = not measured
+    double edge_sharpness;            ///< SP = 3 H3 at 8 lp/mm, 0..1; 0 = not read
+};
+
 struct ProcessingFamily {
     std::vector<DevelopmentPoint> points;
     /// d ln(time) / d(degrees C) at constant contrast, NEGATIVE. 0.0 = this
@@ -1878,9 +1986,20 @@ struct ProcessingFamily {
     /// second developer's points were added.
     std::string reference_developer;
     std::string reference_dilution;
+    /// schema v59: the DevelopmentPoint::edition the stored curve follows when
+    /// one developer appears in several editions and the groups tie; "" = none.
+    /// AlgoDevelopmentGroup narrows to it after the developer choice.
+    std::string reference_edition;
     // -- schema v41 (queue P52): one law per developer, when the family spans
     // more than one. Empty on 29 of the 30 families, which have one developer.
     std::vector<DevelopmentLaw> laws;
+    // -- schema v58: developer exhaustion tables. Empty on every family but
+    // FUJI_NEOPAN_1600's.
+    std::vector<DevelopmentCapacity> capacity;
+    // -- schema v60: developer rows (Developer control). Empty on all but four.
+    std::vector<DeveloperGrainPoint> grain_points;
+    /// The row the stored profile corresponds to; selecting it is the identity.
+    std::string grain_reference_developer;
     std::string source;
 
     bool hasData() const { return !points.empty(); }
@@ -2202,6 +2321,10 @@ struct FilmProfile {
     /// publishes typical values instead of limits -- which is every
     /// non-Soviet document in the corpus. See struct.
     std::vector<ToleranceSpec>  tolerance;
+    // -- schema v61 (2026-10-01d), LIVE ON THE PRINT PATH --------------------
+    /// Per print stock, how that print emulsion sees THIS negative's dyes.
+    /// Empty unless both spectra are measured. See PrintingMatrixEntry.
+    std::vector<PrintingMatrixEntry> printing_matrices;
 
     bool isReversal() const { return kind == StockKind::Reversal; }
 };
@@ -2330,6 +2453,25 @@ struct PrintStock {
     BaseSpec base;
 
 };
+
+/// schema v61: the exposure-side printing matrix stage 13 applies when
+/// `negative` is printed on `print` -- the negative's own PrintingMatrixEntry
+/// for that print when both spectra are measured, else the print stock's own
+/// printing_density_matrix (its class median, or identity).
+/// film_sim.printing_density_matrix_for is the reference.
+inline const Matrix3& PrintingDensityMatrixFor
+(
+    const FilmProfile& negative,
+    const PrintStock&  print
+) noexcept
+{
+    for (const PrintingMatrixEntry& m : negative.printing_matrices)
+    {
+        if (m.print_stock == print.name)
+            return m.matrix;
+    }
+    return print.printing_density_matrix;
+}
 
 /// Film gauge geometry (schema v2, DM-17). width_mm is the v1 field; grain,
 /// halation, MTF and registration scale from it plus the render width in px.
@@ -2607,9 +2749,19 @@ def _layer_stack(ls) -> str:
 
 
 def _processing_family(pf) -> str:
+    gps = ", ".join(
+        "{ "
+        + f'"{_escape(q.developer)}", {q.exposure_index}, {_d(q.rms_d)}, '
+        + f"{_d(q.grain_a_k_um)}, {_d(q.development_halo_width_um)}, "
+        + f"{_d(q.edge_sharpness)}"
+        + " }"
+        for q in getattr(pf, "grain_points", ()))
+    gref = _escape(getattr(pf, "grain_reference_developer", ""))
     if not pf.points:
-        return '{ {}, 0.0, "", "", {}, "" }'
-    pts = ", ".join(
+        return ('{ {}, 0.0, "", "", "", {}, {}, '
+                + ("{ " + gps + " }, " if gps else "{}, ")
+                + f'"{gref}", "" }}')
+    pt_list = [
         "{ "
         + f'"{_escape(q.developer)}", "{_escape(q.dilution)}", '
         + f"{_d(q.minutes)}, {_d(q.celsius)}, "
@@ -2618,7 +2770,16 @@ def _processing_family(pf) -> str:
         + f'"{_escape(q.edition)}", "{_escape(q.film_format)}", '
         + f'"{_escape(q.print_geometry)}"'
         + " }"
-        for q in pf.points)
+        for q in pf.points]
+    pts = ", ".join(pt_list)
+    # ⚠ schema v61 (2026-10-01d): A PROFILE TOO LARGE FOR ONE FUNCTION. The
+    # development points of the largest families are moved into their own
+    # function in the same slot file (see `_SPLIT_POINTS`), so no single
+    # function -- the unit MSVC's C1060 / C1026 limits apply to -- carries
+    # them together with the rest of the profile.
+    if _SPLIT_POINTS_ACTIVE and len(pts) > POINTS_SPLIT_BYTES:
+        _SPLIT_POINTS.append(pt_list)
+        pts = ""
     laws = ", ".join(
         "{ "
         + f'"{_escape(q.developer)}", "{_escape(q.dilution)}", '
@@ -2627,11 +2788,23 @@ def _processing_family(pf) -> str:
         + f"{_d(q.induction_t0_min)}, {_d(q.fit_rms)}"
         + " }"
         for q in pf.laws)
+    caps = ", ".join(
+        "{ "
+        + f'"{_escape(c.developer)}", "{_escape(c.dilution)}", '
+        + f"{c.exposure_index}, {_d(c.celsius)}, "
+        + f'"{_escape(c.vessel)}", {_d(c.solution_ml)}, '
+        + f'"{_escape(c.film_unit)}", {_dvec(c.minutes)}, {c.table_rolls}'
+        + " }"
+        for c in getattr(pf, "capacity", ()))
     return ("{ { " + pts + " }, "
             + f"{_d(pf.temperature_coeff_per_c)}, "
             + f'"{_escape(pf.reference_developer)}", '
             + f'"{_escape(pf.reference_dilution)}", '
+            + f'"{_escape(getattr(pf, "reference_edition", ""))}", '
             + ("{ " + laws + " }, " if laws else "{}, ")
+            + ("{ " + caps + " }, " if caps else "{}, ")
+            + ("{ " + gps + " }, " if gps else "{}, ")
+            + f'"{gref}", '
             + f'"{_escape(pf.source)}"' + " }")
 
 
@@ -2738,6 +2911,18 @@ def _curve(c: ToneCurve, owner: str = "") -> str:
     base = _register_measured(m, owner or "unnamed curve")
     return ("{ " + head
             + ", %sX, %sD, %sM, %d }" % (base, base, base, len(m.log_h)))
+
+
+def _sigma_table(g) -> str:
+    """The v59 sigma(D) table as `n, {d...}, {s...}`; `0, {}, {}` when empty."""
+    pts = tuple(getattr(g, "sigma_shape_points", ()) or ())
+    if not pts:
+        return "0, {}, {}"
+    if len(pts) > fp.GRAIN_SIGMA_TABLE_MAX:
+        raise RuntimeError("sigma_shape_points exceeds GRAIN_SIGMA_TABLE_MAX")
+    return ("%d, { %s }, { %s }"
+            % (len(pts), ", ".join(_f(d) for d, _ in pts),
+               ", ".join(_f(v) for _, v in pts)))
 
 
 def _curves(c, owner: str = "") -> str:
@@ -2973,6 +3158,15 @@ def _aim_density(seq) -> str:
             + " }"
         )
     return "{ " + ", ".join(items) + " }"
+
+
+def _printing_matrices(seq) -> str:
+    """std::vector<PrintingMatrixEntry> initialiser (schema v61)."""
+    if not seq:
+        return "{}"
+    return "{ " + ", ".join(
+        "{ " + f'"{_escape(m.print_stock)}", {_matrix(m.matrix)}, '
+        f'"{_escape(m.source)}"' + " }" for m in seq) + " }"
 
 
 def _tolerance(seq) -> str:
@@ -3308,9 +3502,9 @@ def _profile_block(p: FilmProfile) -> str:
             {p.exposure_index},
             {p.balance_kelvin},
             {_curves(p.curves, p.name)},
-            {{ {_f(g.rms_granularity)}, {_f(g.clump_um_r)}, {_f(g.clump_um_g)}, {_f(g.clump_um_b)}, {_f(g.clump_gain)}, {_f(g.fog_grain)}, {_f(g.anisotropy)}, {_f(g.rms_r)}, {_f(g.rms_g)}, {_f(g.rms_b)}, {_f(g.sigma_shape_toe)}, {_f(g.sigma_shape_mid)}, {_f(g.sigma_shape_dmax)}, {_f(g.sigma_shape_peak)}, {_f(g.sigma_shape_peak_at)}, {_f(g.sigma_shape_toe_at)}, {_f(g.sigma_shape_dmax_at)}, {"true" if g.sigma_shape_measured else "false"}, {_f(g.size_sigma_log)}, {_f(g.cluster_um)}, {_f(g.dye_cloud_um)}, {_f(g.grain_um_rgb()[0])}, {_f(g.grain_um_rgb()[1])}, {_f(g.grain_um_rgb()[2])}, {_f(g.development_gamma_ref)}, {_f(g.sigma_sat_droll)}, {_f(g.sigma_sat_q)}, {_f(g.rho_layers)}, {1 if g.grain_temporal_class == "scanner_fixed_pattern" else 0} }},
+            {{ {_f(g.rms_granularity)}, {_f(g.clump_um_r)}, {_f(g.clump_um_g)}, {_f(g.clump_um_b)}, {_f(g.clump_gain)}, {_f(g.fog_grain)}, {_f(g.anisotropy)}, {_f(g.rms_r)}, {_f(g.rms_g)}, {_f(g.rms_b)}, {_f(g.sigma_shape_toe)}, {_f(g.sigma_shape_mid)}, {_f(g.sigma_shape_dmax)}, {_f(g.sigma_shape_peak)}, {_f(g.sigma_shape_peak_at)}, {_f(g.sigma_shape_toe_at)}, {_f(g.sigma_shape_dmax_at)}, {"true" if g.sigma_shape_measured else "false"}, {_f(g.size_sigma_log)}, {_f(g.cluster_um)}, {_f(g.dye_cloud_um)}, {_f(g.grain_um_rgb()[0])}, {_f(g.grain_um_rgb()[1])}, {_f(g.grain_um_rgb()[2])}, {_f(g.development_gamma_ref)}, {_f(g.sigma_sat_droll)}, {_f(g.sigma_sat_q)}, {_f(g.rho_layers)}, {_f(g.rms_gamma_exponent)}, {_f(g.rms_gamma_span)}, {1 if g.grain_temporal_class == "scanner_fixed_pattern" else 0}, {_sigma_table(g)} }},
             {{ {_f(m.f50_r)}, {_f(m.f50_g)}, {_f(m.f50_b)}, {_f(m.adjacency)}, {_f(m.adjacency_um)}, {_f(m.resolving_power_lp_mm_lowc)}, {_f(m.resolving_power_lp_mm_highc)}, {_f(m.mtf_rolloff_q)}, {"true" if m.mtf_measured else "false"}, {_f(m.mtf_tail_a)}, {_f(m.mtf_tail_f_exp)}, {_f(m.resolving_power_lp_mm_fuess)}, {_f(m.resolving_power_lp_mm_apo)}, "{_escape(m.resolving_optic)}", "{_escape(m.resolving_target_contrast)}", {_f(m.resolving_density)} }},
-            {{ {_vec3(hal.radii_um)}, {_vec3(hal.weights)}, {_f(hal.gain_r)}, {_f(hal.gain_g)}, {_f(hal.gain_b)}, {_f(hal.threshold_stops)}, {_f(hal.radius_scale_r)}, {_f(hal.radius_scale_g)}, {_f(hal.radius_scale_b)} }},
+            {{ {_vec3(hal.radii_um)}, {_vec3(hal.weights)}, {_f(hal.gain_r)}, {_f(hal.gain_g)}, {_f(hal.gain_b)}, {_f(hal.threshold_stops)}, {_f(hal.radius_scale_r)}, {_f(hal.radius_scale_g)}, {_f(hal.radius_scale_b)}, {_f(hal.ring_um)}, {_f(hal.ring_weight)} }},
             {{ {_f(cp.strength)}, {_f(cp.radius_um)}, {_f(cp.edge_strength)}, {_f(cp.edge_um)} }},
             {_matrix(p.taking_matrix)},
             {_matrix(p.dye_matrix)},
@@ -3359,7 +3553,8 @@ def _profile_block(p: FilmProfile) -> str:
             {_process_variants(p.process_variants, p.name)},
             {_aim_density(p.aim_density)},
             {_base(p.base)},
-            {_tolerance(p.tolerance)}
+            {_tolerance(p.tolerance)},
+            {_printing_matrices(p.printing_matrices)}
         }},
 """
 
@@ -3649,7 +3844,48 @@ def _print_block(s: PrintStock) -> str:
 # `film_profiles_data_31.cpp` ... `film_profiles_data_34.cpp` TO THE .vcxproj.
 # CMake globs `src/*.cpp`; Visual Studio does not. No vector index, enum value
 # or names-file line depends on the slot count.
-N_DATA_SLOTS = 34          #: fixed; the .vcxproj lists these files once
+#
+# ⚠ 34 -> 36 ON 2026-09-30 (queue P98, owner-approved batch): the
+# «Современные» push tables add 340 development points, 149 of them on
+# KODAK_PLUS_X_125 and 148 on KODAK_TRI_X_400TX, and at 34 slots the
+# high-water mark reached 112 270 bytes, 270 over the ceiling.
+#     slots   high-water   headroom
+#        34     112 270       -270   over
+#        35     106 781     +5 219
+#        36     105 340     +6 660   chosen
+# ⚠⚠ OWNER ACTION REQUIRED IN VISUAL STUDIO, 2026-09-30: ADD
+# `film_profiles_data_35.cpp` AND `film_profiles_data_36.cpp` TO THE .vcxproj.
+# ⚠ 36 -> 38 ON 2026-10-01 (queue P98b): «Современные» T-MAX push tables add
+# 1871 development points, 908 of them on KODAK_TMAX_P3200, whose block alone
+# is now 99 075 bytes. At 36 slots the high-water mark plus slot framing
+# crossed the ceiling.
+#     slots   high-water   headroom
+#        36     111 279       +721   (over with the slot framing)
+#        37     111 224       +776
+#        38     106 190     +5 810   chosen
+# ⚠⚠ OWNER ACTION REQUIRED IN VISUAL STUDIO, 2026-10-01: ADD
+# `film_profiles_data_37.cpp` AND `film_profiles_data_38.cpp` TO THE .vcxproj.
+# ⚠ 2026-10-01d (schema v61), AND THE SLOT COUNT DID NOT HAVE TO MOVE. The
+# kinetics harvest took KODAK_TMAX_P3200's block alone to 116 218 bytes, over
+# the per-function ceiling by itself, so no slot count could fit it. The seven
+# largest development families now leave the profile statement and are
+# appended by their own functions (`POINTS_SPLIT_BYTES` chunks, each a
+# separate function in the same slot file): the ceiling is per FUNCTION,
+# which is what MSVC's limits are. At 38 slots the largest AppendProfiles
+# function is 110 001 bytes and the largest file 161 041 (two functions'
+# worth allowed). No .vcxproj edit.
+N_DATA_SLOTS = 38          #: fixed; the .vcxproj lists these files once
+#: schema v61: a profile whose development points emit more than this many
+#: bytes has them appended by a separate function in its slot file. The
+#: per-FUNCTION ceiling below is what the split keeps; the slot FILE may then
+#: hold two functions, so its own ceiling is twice that.
+#: ⚠ 2026-10-01e: 30 000 -> 8 000. KODAK_HIE's arrival pushed one slot's
+#: AppendProfiles to 112 124 bytes; moving the development points of every
+#: family over 8 kB into helpers (16 families, 113 helper functions, none over
+#: 9.1 kB) brings the largest function back to 110 342 at the same 38 slots.
+POINTS_SPLIT_BYTES = 8_000
+_SPLIT_POINTS_ACTIVE = False
+_SPLIT_POINTS: list = []
 SLOT_SOURCE_LIMIT = 112_000  #: bytes of emitted source per slot, hard error
 
 
@@ -3802,7 +4038,7 @@ def _distribute(blocks: list) -> list:
     return [blocks[a:b] for a, b in cuts]
 
 
-def _data_slot_source(nn: int, blocks: list, stamp: str) -> str:
+def _data_slot_source(nn: int, blocks: list, stamp: str, helpers: str = "") -> str:
     head = (
         COPYRIGHT_NOTICE
         + f"// Generated by cpp_codegen.py -- do not edit by hand.\n"
@@ -3813,7 +4049,8 @@ def _data_slot_source(nn: int, blocks: list, stamp: str) -> str:
         f"// see film_profiles_detail.hpp for why the table is split.\n"
         f'#include "film_profiles_detail.hpp"\n\n'
         f"namespace film {{\nnamespace detail {{\n\n"
-        f"void AppendProfiles_{nn:02d}(std::vector<FilmProfile>& v)\n{{\n"
+        + helpers
+        + f"void AppendProfiles_{nn:02d}(std::vector<FilmProfile>& v)\n{{\n"
     )
     if not blocks:
         body = ("    // Empty slot, reserved capacity. The file exists so the\n"
@@ -4200,8 +4437,78 @@ enum class eFILM_PROFILE : int32_t
     eTOTAL_FILMS_PROFILES = @COUNT@
 };
 
+// ---------------------------------------------------------------------------
+// Batch Position (AlgoControls::batchPosition) -- control range.
+//
+// COPIED AT GENERATION TIME FROM AlgoControlEnums.hpp (BatchPositionMin / Max /
+// Def / Step), which is the single authority for every control range; they are
+// repeated here so that code holding only the database headers -- a host that
+// greys controls from film_params_mask.hpp -- can size the slider without
+// pulling in the engine's control header. AlgoControl.cpp static_asserts that
+// the two sets agree, so a hand edit to either fails the compile.
+//
+// The unit is a FRACTION of the distance from the stored value to the edge of
+// the stock's own published acceptance band: -1 the lower edge, 0 as stored,
+// +1 the upper edge. The control acts only on stocks that carry such a band --
+// bit eCTRL_BIT_BATCH_POSITION of kFilmControlAvailability, @BATCH_N@ of @COUNT@
+// stocks in this database -- and must be hidden or disabled on the rest.
+// ---------------------------------------------------------------------------
+constexpr double eBATCH_POSITION_MIN  = @BP_MIN@;
+constexpr double eBATCH_POSITION_MAX  = @BP_MAX@;
+constexpr double eBATCH_POSITION_DEF  = @BP_DEF@;
+constexpr double eBATCH_POSITION_STEP = @BP_STEP@;
+
 }  // namespace film
 """
+
+
+def _control_enums_header() -> Path:
+    """The AlgoControlEnums.hpp the build treats as authoritative.
+
+    The engine copy under FILMSIM_ROOT when that is set and holds one, else the
+    live engine tree gen_control_enums.py reads -- the same file, by the
+    build's own sync. Refuses rather than guesses when neither exists.
+    """
+    import os
+    root = os.environ.get("FILMSIM_ROOT")
+    if root and (Path(root) / "AlgoControlEnums.hpp").is_file():
+        return Path(root) / "AlgoControlEnums.hpp"
+    here = Path(__file__).resolve().parent
+    spec = importlib.util.spec_from_file_location(
+        "_gen_control_enums_for_codegen", here / "gen_control_enums.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    if Path(mod.DEFAULT_HEADER).is_file():
+        return Path(mod.DEFAULT_HEADER)
+    raise FileNotFoundError(
+        "AlgoControlEnums.hpp not found (FILMSIM_ROOT and "
+        f"{mod.DEFAULT_HEADER}); film_enum.hpp carries the Batch Position range "
+        "copied from it and will not be written with invented values")
+
+
+def batch_position_range() -> dict[str, str]:
+    """BatchPosition{Min,Max,Def,Step} as the C++ literals the header declares."""
+    here = Path(__file__).resolve().parent
+    spec = importlib.util.spec_from_file_location(
+        "_gen_control_enums_for_codegen", here / "gen_control_enums.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    src = mod._strip_comments(_control_enums_header().read_text(encoding="utf-8"))
+    consts = {ident: (ctype, lit) for ident, ctype, lit in mod.parse_constants(src)}
+    out = {}
+    for key in ("Min", "Max", "Def", "Step"):
+        ident = "BatchPosition" + key
+        if ident not in consts:
+            raise ValueError(f"AlgoControlEnums.hpp declares no {ident}")
+        ctype, lit = consts[ident]
+        if ctype != "double":
+            raise ValueError(f"{ident} is {ctype}, expected double")
+        float(lit)          # a literal, not an expression: refuse anything else
+        out[key] = lit
+    lo, hi, df, st = (float(out[k]) for k in ("Min", "Max", "Def", "Step"))
+    if not (lo < hi and lo <= df <= hi and 0.0 < st <= hi - lo):
+        raise ValueError(f"inconsistent BatchPosition range {out}")
+    return out
 
 
 def write_film_enum(cpp_path: Path, hpp_path: Path, stamp: str) -> int:
@@ -4216,10 +4523,22 @@ def write_film_enum(cpp_path: Path, hpp_path: Path, stamp: str) -> int:
     for i, n in enumerate(names):
         ident = "e" + n
         lines.append("    %-*s = %d," % (width, ident, i))
+    bp = batch_position_range()
+    # the same predicate the engine and film_params_mask.hpp use
+    import film_sim as _fs
+    by_name = {p.name: p for p in FILM_PROFILES}
+    n_batch = sum(1 for n in names
+                  if any(_fs.resolve_batch_position(by_name[n], v) is not by_name[n]
+                         for v in (1.0, -1.0)))
     hpp_path.write_text(
         ENUM_TEMPLATE.replace("@GENERATED@", stamp)
                      .replace("@SCHEMA_VERSION@", str(SCHEMA_VERSION))
                      .replace("@ENTRIES@", "\n".join(lines))
+                     .replace("@BATCH_N@", str(n_batch))
+                     .replace("@BP_MIN@", bp["Min"])
+                     .replace("@BP_MAX@", bp["Max"])
+                     .replace("@BP_DEF@", bp["Def"])
+                     .replace("@BP_STEP@", bp["Step"])
                      .replace("@COUNT@", str(len(names))),
         encoding="utf-8", newline="\n")
     return len(names)
@@ -4472,15 +4791,70 @@ def generate(outdir: Path | str = ".",
         encoding="utf-8", newline="\n")
 
     # -- the data slots: consecutive, size-balanced slices ------------------
-    blocks = [_wrap_push_back(_profile_block(p)) for p in FILM_PROFILES]
-    slots = _distribute(blocks)
+    global _SPLIT_POINTS_ACTIVE
+    blocks, helpers = [], []
+    _SPLIT_POINTS_ACTIVE = True
+    try:
+        for p in FILM_PROFILES:
+            _SPLIT_POINTS.clear()
+            blk = _wrap_push_back(_profile_block(p))
+            hlp = ""
+            if _SPLIT_POINTS:
+                fn = "DevPoints_" + re.sub(r"[^A-Za-z0-9_]", "_", p.name)
+                pl = _SPLIT_POINTS[0]
+                # chunked so that no helper function exceeds POINTS_SPLIT_BYTES
+                chunks, cur, size = [], [], 0
+                for q in pl:
+                    line = f"    p.push_back(DevelopmentPoint{q});\n"
+                    if cur and size + len(line) > POINTS_SPLIT_BYTES:
+                        chunks.append(cur); cur, size = [], 0
+                    cur.append(line); size += len(line)
+                if cur:
+                    chunks.append(cur)
+                hlp = ""
+                calls = f"        v.back().processing_family.points.reserve({len(pl)});\n"
+                for k, ch in enumerate(chunks, 1):
+                    hlp += (f"// {p.name}: development points, part {k} of "
+                            f"{len(chunks)} ({len(ch)} of {len(pl)})\n"
+                            f"static void {fn}_{k}(std::vector<DevelopmentPoint>& p)\n{{\n"
+                            + "".join(ch) + "}\n\n")
+                    calls += f"        {fn}_{k}(v.back().processing_family.points);\n"
+                blk = blk + calls
+            blocks.append(blk)
+            helpers.append(hlp)
+    finally:
+        _SPLIT_POINTS_ACTIVE = False
+        _SPLIT_POINTS.clear()
+    # Balanced on the AppendProfiles function text only: that is the unit the
+    # per-function ceiling applies to; each split-off point list is its own
+    # function and is checked separately below.
+    # Balanced on the AppendProfiles text PLUS HALF the split-off helpers: the
+    # per-function ceiling binds the first, the file ceiling (two functions'
+    # worth) binds the sum, and the split profiles are alphabetical
+    # neighbours (the T-MAX / Tri-X run), so ignoring helpers stacks them in
+    # one file. `_distribute` sees a stand-in string of the weighted length.
+    _key = {}
+    _proxy = []
+    for i, (b, h) in enumerate(zip(blocks, helpers)):
+        w = len(b.encode("utf-8")) + len(h.encode("utf-8")) // 2
+        k = "%08d|" % i
+        _key[k] = b
+        _proxy.append(k + "x" * max(0, w - len(k)))
+    slots = [[_key[x[:9]] for x in sl] for sl in _distribute(_proxy)]
     slot_paths = []
+    _bh = {b: (b, h) for b, h in zip(blocks, helpers)}
     for i, slot_blocks in enumerate(slots, 1):
-        src = _data_slot_source(i, slot_blocks, stamp)
+        pairs = [_bh[x] for x in slot_blocks]
+        src = _data_slot_source(i, [b for b, _ in pairs], stamp,
+                                "".join(h for _, h in pairs))
         n = len(src.encode("utf-8"))
-        if n > SLOT_SOURCE_LIMIT:
+        fn_sizes = [len("".join(b for b, _ in pairs).encode("utf-8"))] + [
+            len(part.encode("utf-8")) for _, h in pairs if h
+            for part in h.split("\n\n") if part]
+        if max(fn_sizes) > SLOT_SOURCE_LIMIT or n > 2 * SLOT_SOURCE_LIMIT:
             raise RuntimeError(
-                f"data slot {i:02d} is {n} bytes (> {SLOT_SOURCE_LIMIT}). The "
+                f"data slot {i:02d} is {n} bytes, largest function "
+                f"{max(fn_sizes)} (> {SLOT_SOURCE_LIMIT}). The "
                 f"database has outgrown {N_DATA_SLOTS} slots. Raise "
                 f"N_DATA_SLOTS in cpp_codegen.py AND add the new "
                 f"film_profiles_data_NN.cpp file(s) to the VS project -- a "
@@ -4507,6 +4881,7 @@ def generate(outdir: Path | str = ".",
     # right failure, but avoidable by ordering.
     hpp_text = (HPP_TEMPLATE.replace("@GENERATED@", stamp)
                 .replace("@SCHEMA_VERSION@", str(SCHEMA_VERSION))
+                .replace("@SIGMA_MAX@", str(fp.GRAIN_SIGMA_TABLE_MAX))
                 .replace("@MEASURED_DECLS@", _measured_decls()))
     hpp.write_text(hpp_text, encoding="utf-8", newline="\n")
 

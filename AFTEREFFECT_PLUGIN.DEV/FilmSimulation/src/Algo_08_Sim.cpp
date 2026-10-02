@@ -998,8 +998,10 @@ void AlgoStage08_CharacteristicCurve
                 // caller that states no exposure time reproduces every
                 // pre-2026-09-01 render exactly. The scalar twin adds it in the
                 // same place for the same reason.
-                const __m256 logE = _mm256_add_ps(
-                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10), vRecip);
+                // 2026-10-01g: fused. fma(a, b, 0) rounds exactly as a*b does,
+                // so the recip == 0 bit-exactness contract above still holds.
+                const __m256 logE = _mm256_fmadd_ps(
+                    FastCompute::AVX2::Log(e), vInvLn10, vRecip);
 
                 // RETAINED. The interimage stage reads this rather than recovering
                 // it from the density, which is not invertible through the shoulder.
@@ -1033,8 +1035,10 @@ void AlgoStage08_CharacteristicCurve
                 // caller that states no exposure time reproduces every
                 // pre-2026-09-01 render exactly. The scalar twin adds it in the
                 // same place for the same reason.
-                const __m256 logE = _mm256_add_ps(
-                    _mm256_mul_ps(FastCompute::AVX2::Log(e), vInvLn10), vRecip);
+                // 2026-10-01g: fused. fma(a, b, 0) rounds exactly as a*b does,
+                // so the recip == 0 bit-exactness contract above still holds.
+                const __m256 logE = _mm256_fmadd_ps(
+                    FastCompute::AVX2::Log(e), vInvLn10, vRecip);
 
                 _mm256_maskstore_ps(pL + x, vTail, logE);
 
@@ -1258,6 +1262,19 @@ void AlgoStage08b_Interimage
 
     const __m256i vTail = algoTailMask(tailN);
 
+    // ----------------------------------------------------------------------
+    //  Neutral-preserving reference, NEGATIVES, 2026-10-01f (owner-approved).
+    //  Mirror of the scalar unit: on a negative each receiver c measures donor
+    //  j against density_j(logE_c), the donor's density under a neutral
+    //  exposure at c's own log E, read from the donor's own curve table:
+    //
+    //      logE_c' = logE_c + sum_{j != c} a_cj * (D_j - D_j(logE_c))
+    //
+    //  so every neutral renders exactly on the stored white-light curves.
+    //  Reversal keeps the fixed reference and the density weighting.
+    // ----------------------------------------------------------------------
+    const bool neutralRef = (false == reversal);
+
     // Seed the iteration with the densities stage 8 computed.
     AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
 
@@ -1295,7 +1312,19 @@ void AlgoStage08b_Interimage
 
                 int32_t x = 0;
 
-                if (wantWeight)
+                if (neutralRef)
+                {
+                    // Negative: a SNAPSHOT of the current density. The
+                    // reference depends on the receiver, so the difference is
+                    // formed in the receiver loop below.
+                    for (int32_t v = 0; v < vecCount; v++, x += ALGO_AVX2_LANES)
+                        _mm256_storeu_ps(pE + x, _mm256_loadu_ps(pD + x));
+
+                    if (tailN > 0)
+                        _mm256_maskstore_ps(pE + x, vTail,
+                                            _mm256_maskload_ps(pD + x, vTail));
+                }
+                else if (wantWeight)
                 {
                     // Weight rising with the neighbour's own density, and
                     // normalised so that it is exactly one AT the reference. That
@@ -1387,6 +1416,27 @@ void AlgoStage08b_Interimage
 
             const AlgoCurveLut& lutC = lut[c];
 
+            // Negative, 2026-10-01f: inhibition from each coupled donor j,
+            // measured against lut[j] evaluated at THIS layer's log E. Zero
+            // coefficients skip the gather (the diagonal always does).
+            auto negAdj = [&](const __m256 le, const __m256 d0,
+                              const __m256 d1, const __m256 d2) noexcept -> __m256
+            {
+                __m256 a = _mm256_setzero_ps();
+
+                if (m0 != ALGO_ZERO)
+                    a = _mm256_fmadd_ps(vM0,
+                            _mm256_sub_ps(d0, AlgoCurveLutEvalV(le, lut[0])), a);
+                if (m1 != ALGO_ZERO)
+                    a = _mm256_fmadd_ps(vM1,
+                            _mm256_sub_ps(d1, AlgoCurveLutEvalV(le, lut[1])), a);
+                if (m2 != ALGO_ZERO)
+                    a = _mm256_fmadd_ps(vM2,
+                            _mm256_sub_ps(d2, AlgoCurveLutEvalV(le, lut[2])), a);
+
+                return a;
+            };
+
             for (int32_t y = 0; y < sizeY; y++)
             {
                 const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
@@ -1406,11 +1456,24 @@ void AlgoStage08b_Interimage
                     // three FMAs. The diagonal coefficient is zero, so including
                     // all three terms costs one multiply-add and removes a branch
                     // that would otherwise differ per channel.
-                    __m256 adj = _mm256_mul_ps(vM0, _mm256_loadu_ps(r0 + x));
-                    adj = _mm256_fmadd_ps(vM1, _mm256_loadu_ps(r1 + x), adj);
-                    adj = _mm256_fmadd_ps(vM2, _mm256_loadu_ps(r2 + x), adj);
-
                     const __m256 le = _mm256_loadu_ps(rL + x);
+
+                    __m256 adj;
+
+                    if (neutralRef)
+                    {
+                        // Negative, 2026-10-01f: donors against their density
+                        // under a neutral exposure at this layer's log E.
+                        adj = negAdj(le, _mm256_loadu_ps(r0 + x),
+                                         _mm256_loadu_ps(r1 + x),
+                                         _mm256_loadu_ps(r2 + x));
+                    }
+                    else
+                    {
+                        adj = _mm256_mul_ps(vM0, _mm256_loadu_ps(r0 + x));
+                        adj = _mm256_fmadd_ps(vM1, _mm256_loadu_ps(r1 + x), adj);
+                        adj = _mm256_fmadd_ps(vM2, _mm256_loadu_ps(r2 + x), adj);
+                    }
 
                     // Back into the curve. A reversal stock negates the trimmed
                     // log exposure, and the correction is ADDED outside that
@@ -1454,14 +1517,25 @@ void AlgoStage08b_Interimage
 
                 if (tailN > 0)
                 {
-                    __m256 adj = _mm256_mul_ps(vM0,
-                                     _mm256_maskload_ps(r0 + x, vTail));
-                    adj = _mm256_fmadd_ps(vM1,
-                              _mm256_maskload_ps(r1 + x, vTail), adj);
-                    adj = _mm256_fmadd_ps(vM2,
-                              _mm256_maskload_ps(r2 + x, vTail), adj);
-
                     const __m256 le = _mm256_maskload_ps(rL + x, vTail);
+
+                    __m256 adj;
+
+                    if (neutralRef)
+                    {
+                        adj = negAdj(le, _mm256_maskload_ps(r0 + x, vTail),
+                                         _mm256_maskload_ps(r1 + x, vTail),
+                                         _mm256_maskload_ps(r2 + x, vTail));
+                    }
+                    else
+                    {
+                        adj = _mm256_mul_ps(vM0,
+                                  _mm256_maskload_ps(r0 + x, vTail));
+                        adj = _mm256_fmadd_ps(vM1,
+                                  _mm256_maskload_ps(r1 + x, vTail), adj);
+                        adj = _mm256_fmadd_ps(vM2,
+                                  _mm256_maskload_ps(r2 + x, vTail), adj);
+                    }
 
                     // Same sign correction as the main body above, 2026-09-08.
                     const __m256 arg = reversal

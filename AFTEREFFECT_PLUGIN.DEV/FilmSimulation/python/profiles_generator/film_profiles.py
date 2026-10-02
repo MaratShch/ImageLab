@@ -3084,7 +3084,64 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 #   * The companion CONTROL `storageCelsius` (AlgoControls /
 #     RenderSettings.storage_celsius), default 24 degC -- the reference
 #     temperature of every stored record, so the default is the identity.
-SCHEMA_VERSION = 57
+#
+# -- v58 (2026-09-29d): ONE CARRIER, INERT ----------------------------------
+#   * `ProcessingFamily.capacity`, a tuple of `DevelopmentCapacity`: the time
+#     per roll as one bath is re-used, ending at the sheet's «—». Populated
+#     on FUJI_NEOPAN_1600 only (AF3-608E p3, four developers). Read by no
+#     stage, so a v58 render is BIT-IDENTICAL to a v57 one. Emitted to C++
+#     (owner decision, 2026-09-29d) as `film::DevelopmentCapacity` inside
+#     `film::ProcessingFamily`.
+#
+# -- v59 (2026-09-30c): THE RETRO RMS-GRANULARITY HARVEST -------------------
+#   * `GrainSpec.sigma_shape_points` -- a measured sigma(D) TABLE (up to
+#     GRAIN_SIGMA_TABLE_MAX points, values as read) that replaces the four
+#     anchors where present. Populated on KODAK_PANATOMIC_X and
+#     KODAK_TRI_X_400TX from J. C. Smith 1980 Fig. 2. Read by
+#     `grain_sigma` / AlgoGrainAmpBuild in both engines.
+#   * `GrainSpec.rms_gamma_exponent` / `rms_gamma_span` -- rms ~ gamma**n,
+#     applied by the development-time control to the gamma ratio it already
+#     computes, clamped to the measured span. Same two stocks.
+#   * `ProcessingFamily.reference_edition` -- which `DevelopmentPoint.edition`
+#     the stored curve follows when one developer's groups tie. Set on
+#     KODAK_TRI_X_400TX to "1956 35mm" by owner decision (queue P96c), which
+#     makes the development control live there (23 -> 24 stocks).
+#   * Stage 11 now preserves MEAN TRANSMITTANCE, not mean density: the
+#     zero-mean density field is offset by (ln 10 / 2) * sigma_px^2 per pixel
+#     (queue P96b). ⚠ A v59 render is NOT bit-identical to a v58 one on any
+#     stock with grain on.
+#   * `HalationSpec.ring_um` / `ring_weight` (2026-10-01, owner options 1+2):
+#     a SUBTRACTED ring lobe, so the kernel is an annulus outside the critical
+#     radius rather than a centred blob, and the r^-4 tail on the one stock
+#     with no antihalation layer (CINESTILL_800T). Blur pyramid MAX_K 8 -> 64.
+#
+# -- v60 (2026-10-01): THE DEVELOPER, A DYED BASE, AND A PUSH STUDY ---------
+#   * `DeveloperGrainPoint` + `ProcessingFamily.grain_points` /
+#     `grain_reference_developer`: one film in several developers, one
+#     laboratory (Bernhard W. Schmidt; T-MAX 100, T-MAX 400, Tri-X 400TX, Pan
+#     F). Read by the new Developer control (RenderSettings.developer_index /
+#     AlgoControls::developerIndex): rms and MTFSpec.adjacency_um move by
+#     ratios to the D-76 row. Default -1 is the identity.
+#   * The first Tier-B antihalation density: ГОСТ 24876-81 §2.4 tinted base
+#     OD 0.25 on the four Фото stocks, read by the halation SHAPE
+#     (`_V60_HALATION_DYED_BASE`). ⚠ Those four render differently.
+#   * 21 DevelopmentPoints from «Jenseits von 1000 ASA» (edition "Schmidt
+#     2024"): Development Time reaches ILFORD_DELTA_3200 and KODAK_TMAX_400.
+#
+# -- v61 (2026-10-01d): KINETICS, A NEGATIVE'S OWN PRINT MATRIX, ONE MTF -----
+#   * «Современные» development-kinetics panels: 1139 contrast points
+#     (Kodak CI / Fuji G-bar in `contrast_index`, Agfa in `gamma`); the
+#     development family is keyed on measure kind, temperature and format,
+#     and CI families answer only where no gamma group exists and the record
+#     names the developer (both engines). Temperature law keyed on contrast.
+#     DevelopmentPoint vessel vocabulary gains "small tank, drum".
+#   * `PrintingMatrix` + `FilmProfile.printing_matrices`: how a print
+#     emulsion sees THIS negative's dyes; stage 13 uses it in place of the
+#     print stock's class median (C++ `film::PrintingDensityMatrixFor`).
+#   * `MTFSpec.combined_freqs / combined_response / combined_source` (INERT,
+#     not emitted): a single combined MTF curve, with the per-layer f50
+#     solved from it on seven formerly estimated stocks.
+SCHEMA_VERSION = 61
 
 
 # -- v43 (2026-09-18c, queues P12 / P39 / P13 / P40 / P41 / M1a): SIX ROWS
@@ -3830,6 +3887,17 @@ class RGBCurves:
 # ---------------------------------------------------------------------------
 # Grain
 # ---------------------------------------------------------------------------
+#: Largest measured sigma(D) table the C++ struct can carry (schema v59).
+GRAIN_SIGMA_TABLE_MAX: int = 16
+
+#: ln(10) / 2: the second-order offset that keeps -log10 of the mean
+#: transmittance equal to the curve density under a zero-mean density field of
+#: per-pixel sigma s, -log10 <10**-(D + s z)> = D - (ln10/2) s**2 for Gaussian z.
+#: Stage 11 adds GRAIN_MEAN_T_K * s**2 (schema v59). ALGO_GRAIN_MEAN_T_K in
+#: AlgoGrain.hpp is the same number.
+GRAIN_MEAN_T_K: float = 1.1512925464970229
+
+
 @dataclass(frozen=True, slots=True)
 class GrainSpec:
     """Silver-halide grain description.
@@ -4148,13 +4216,15 @@ class GrainSpec:
     #     G = sigma_D * sqrt(a)          (Selwyn, via Glafkides §246)
     #     G' = sigma_D * sqrt(2 * A)     (Goetz-Gould, area form)
     #
-    # so sigma_D itself scales as 1/sqrt(aperture area). Kodak publish rms
-    # through a 48 um circular aperture and the whole schema was written to
-    # that convention -- the field docstring says so. Konica's patents in this
-    # harvest state 25 um. Reading a Konica number as if it were a Kodak
-    # number overstates the grain by sqrt(48/25) = 1.386, i.e. by 39 %, which
-    # is larger than the entire spread between a modern 100-speed and
-    # 400-speed stock.
+    # so sigma_D itself scales as 1/sqrt(aperture area), i.e. as 1/d for a
+    # circular aperture of diameter d. Kodak publish rms through a 48 um
+    # circular aperture and the whole schema was written to that convention
+    # -- the field docstring says so. Konica's patents in this harvest state
+    # 25 um. Reading a Konica number as if it were a Kodak number overstates
+    # the grain by 48/25 = 1.92, i.e. by 92 %, which is larger than the
+    # entire spread between a modern 100-speed and 400-speed stock.
+    # ⚠ CORRECTED 2026-09-30 (queue P96): this note and rms_at_aperture used
+    # sqrt(48/25) = 1.386, treating the diameter ratio as an area ratio.
     #
     # ⚠ THE DEFAULT IS 48.0 AND NOT 0.0, DELIBERATELY. Zero would mean "not
     # stated" and force every consumer to branch; but there is no such thing
@@ -4232,6 +4302,30 @@ class GrainSpec:
     # independent, but nothing in this corpus says by how much, so the field
     # exists to hold the answer rather than to assert one.
     rho_layers: float = 0.0
+    # -- schema v59 (2026-09-30c) ------------------------------------------
+    # A MEASURED sigma(D) TABLE, as (absolute diffuse density, rms value as
+    # read). () = none. When present and `sigma_shape_measured` is True it
+    # REPLACES the four anchors: J. C. Smith 1980's Tri-X 7-min curve rises
+    # 0.54 -> 0.83 of its net-1.0 value in the first 0.13 D above fog, and the
+    # toe/mid/peak/dmax anchors put 0.65 there, a 22 % error in the shadows.
+    # The values are stored AS READ (rms x 1000 through the source's
+    # aperture), never as ratios: `grain_sigma` normalises at net 1.0 itself,
+    # so the level cancels and the printed numbers stay in the database.
+    # Ascending in density, 2..GRAIN_SIGMA_TABLE_MAX points. Emitted to C++ as
+    # fixed arrays and read by AlgoGrainAmpBuild in both engines.
+    sigma_shape_points: tuple[tuple[float, float], ...] = ()
+    # rms granularity against DEVELOPMENT GAMMA, rms ~ gamma**n at a fixed
+    # net density. 0.0 = no measured dependence (every stock but two), and
+    # then development moves contrast only, as before. DERIVED -- fitted to a
+    # measured time-of-development series held beside the profile
+    # (`SMITH_1980_FIG2`) -- and applied by `resolve_development_time` /
+    # AlgoResolveDevelopmentTime to the gamma ratio k the development control
+    # already computes.
+    rms_gamma_exponent: float = 0.0
+    # The measured series' own gamma span, max/min. k is clamped to
+    # [1/span, span] before the power law is applied: the law is a fit over
+    # that span and is not extrapolated past it. 0.0 = unused.
+    rms_gamma_span: float = 0.0
 
     def grain_um_rgb(self) -> tuple[float, float, float]:
         """Physical grain diameter per channel, deriving where not stored.
@@ -4269,7 +4363,11 @@ class GrainSpec:
             raise ValueError("aperture must be positive")
         if abs(aperture_um - src) < 1e-9:
             return self.rms_granularity
-        return self.rms_granularity * (src / float(aperture_um)) ** 0.5
+        # ⚠ EXPONENT 1, NOT 0.5 (queue P96, fixed 2026-09-30, owner decision).
+        # Selwyn: sigma * sqrt(A) = const with A = pi d^2 / 4 for a circular
+        # aperture of DIAMETER d, so sigma scales as 1 / d. The earlier square
+        # root treated the diameter ratio as an area ratio.
+        return self.rms_granularity * (src / float(aperture_um))
 
     def validate_v29(self, label: str = "") -> None:
         """The schema-v29 field checks only.
@@ -4291,6 +4389,37 @@ class GrainSpec:
                 f"{self.rms_aperture_um} um is outside 1-1000 um; the "
                 "published conventions in this corpus are 48 um (Kodak) and "
                 "25 um (Konica), so this is a units error")
+
+    def validate_v59(self, label: str = "") -> None:
+        """Schema-v59 field checks: the sigma(D) table and the gamma law."""
+        pts = self.sigma_shape_points
+        if pts:
+            if not self.sigma_shape_measured:
+                raise ValueError(
+                    f"{label}: sigma_shape_points is set but "
+                    "sigma_shape_measured is False; a table is by definition a "
+                    "measurement, and an unmeasured one must not be stored")
+            if not (2 <= len(pts) <= GRAIN_SIGMA_TABLE_MAX):
+                raise ValueError(
+                    f"{label}: sigma_shape_points has {len(pts)} points; "
+                    f"2..{GRAIN_SIGMA_TABLE_MAX} are representable in C++")
+            ds = [float(d) for d, _ in pts]
+            if any(b <= a for a, b in zip(ds, ds[1:])):
+                raise ValueError(
+                    f"{label}: sigma_shape_points densities must ascend "
+                    "strictly (the C++ evaluator walks them in order)")
+            if any(float(v) <= 0.0 for _, v in pts):
+                raise ValueError(f"{label}: sigma_shape_points values must be "
+                                 "positive")
+        if self.rms_gamma_exponent != 0.0:
+            if not (0.0 < self.rms_gamma_exponent <= 3.0):
+                raise ValueError(
+                    f"{label}: rms_gamma_exponent {self.rms_gamma_exponent} "
+                    "outside (0, 3]")
+            if not (self.rms_gamma_span > 1.0):
+                raise ValueError(
+                    f"{label}: rms_gamma_exponent needs the measured span "
+                    "(rms_gamma_span > 1) it was fitted over")
 
     def clumps(self) -> tuple[float, float, float]:
         return (self.clump_um_r, self.clump_um_g, self.clump_um_b)
@@ -4325,6 +4454,19 @@ class GrainSpec:
         # both makes the shape self-contained and independent of whatever dmin
         # and dmax a caller happens to have; the arguments are used only as a
         # fallback for a shape that predates these fields.
+        if self.sigma_shape_points:
+            # schema v59: the measured table replaces the anchors outright.
+            pts = sorted((float(d), float(s))
+                         for d, s in self.sigma_shape_points)
+            if not (pts[-1][0] > pts[0][0]):
+                return None
+            if not self.sigma_measured_usable(pts[0][0], pts[-1][0]):
+                return None
+            # the curve's own net-1.0 point must lie inside the table, which
+            # is the test AlgoGrainAmpBuild makes (dRef < dTop)
+            if not (float(dmin) + 1.0 < pts[-1][0]):
+                return None
+            return pts
         d_toe = self.sigma_shape_toe_at or float(dmin)
         d_top = self.sigma_shape_dmax_at or float(dmax)
         if not (d_top > d_toe):
@@ -4543,6 +4685,17 @@ class MTFSpec:
     #: change the sharpness of the mid-scale, which is where every published
     #: f50 is read.
     turbidity_ref_log_e: float = 0.0
+    # -- schema v61 (2026-10-01d), INERT, NOT EMITTED -------------------------
+    #: A publisher's SINGLE combined MTF curve for a colour film, as traced:
+    #: frequencies (cycles/mm) and response (fraction, 1.0 = 100 %, adjacency
+    #: hump included). Where a stock's per-layer f50 were estimates, they are
+    #: now SOLVED to reproduce this curve (`combined_mtf.py`: luminance-weighted
+    #: sum of the three layer MTFs, corpus-measured layer ratios, blue sharpest
+    #: and red softest). Stored so the curve the f50 answer to travels with
+    #: them; nothing on the render path reads it -- the f50 do that.
+    combined_freqs: tuple[float, ...] = ()
+    combined_response: tuple[float, ...] = ()
+    combined_source: str = ""
 
     def f50s(self) -> tuple[float, float, float]:
         return (self.f50_r, self.f50_g, self.f50_b)
@@ -5023,9 +5176,10 @@ _OOUE_1961_GEOMETRY: dict[str, tuple[float, float]] = {
 #: lines/mm, ordinate R(u) 0-1.
 #:
 #: ⚠⚠ RESOLUTION FALLS WITH LAYER DEPTH, AND THIS IS THE ONLY PLACE THE
-#: DATABASE CAN SEE IT. `MTFSpec.f50_r/g/b` are EQUAL on every one of the 191
-#: stocks; the yellow layer is on top, the cyan at the bottom, and Fuji
-#: measured them 1.8x apart.
+#: DATABASE CAN SEE IT. When this was written `MTFSpec.f50_r/g/b` were EQUAL
+#: on every one of the 191 stocks; ⚠ by 2026-10-01 they differ on 134 of the 141
+#: colour stocks, so this figure is now a CHECK of the ordering (blue sharpest,
+#: red softest), not the only evidence for it. Fuji measured them 1.8x apart.
 #:
 #: ⚠ READ BY EYE OFF A 600 dpi RENDER AND LABELLED AS SUCH. These are NOT a
 #: tracer's output: the frequency at R = 0.5 is read against the printed tick
@@ -6885,6 +7039,18 @@ class HalationSpec:
     radius_scale_r: float = 1.0
     radius_scale_g: float = 1.0
     radius_scale_b: float = 1.0
+    # -- schema v59 (2026-10-01, owner decision): THE RING ---------------------
+    # A SUBTRACTED Gaussian lobe of sigma `ring_um` and weight `ring_weight`
+    # (>= 0, relative to `weights`). The return from the support is an ANNULUS
+    # starting at r_c = 2t/sqrt(n^2-1): no totally-reflected light can land
+    # inside it, only the few per cent Fresnel reflects below the critical
+    # angle. A sum of centred Gaussians cannot leave a hole; subtracting a
+    # narrower one can, and with the weight bounded (see `_V59_HALATION_RING`)
+    # the kernel stays non-negative everywhere. 0.0 / 0.0 = no ring, the v58
+    # kernel. The kernel is sum(w_i G_i) - ring_weight G_ring, normalised by
+    # sum(w_i) - ring_weight.
+    ring_um: float = 0.0
+    ring_weight: float = 0.0
 
     def gains(self) -> tuple[float, float, float]:
         return (self.gain_r, self.gain_g, self.gain_b)
@@ -6908,6 +7074,16 @@ class HalationSpec:
         """The three sigmas in micrometres for channel c (0/1/2 = r/g/b)."""
         k = self.radius_scales()[c]
         return (self.radii_um[0] * k, self.radii_um[1] * k, self.radii_um[2] * k)
+
+    def lobes(self, c: int = 1) -> tuple[tuple[float, ...], tuple[float, ...]]:
+        """(sigmas, SIGNED weights) of the full kernel for channel c, ring
+        included as a negative lobe (schema v59). What film_sim blurs with."""
+        radii = self.radii_for(c)
+        if self.ring_um > 0.0 and self.ring_weight > 0.0:
+            k = self.radius_scales()[c]
+            return (radii + (self.ring_um * k,),
+                    tuple(self.weights) + (-self.ring_weight,))
+        return (radii, tuple(self.weights))
 
     @property
     def active(self) -> bool:
@@ -7781,6 +7957,38 @@ class BaseSpec:
 # ---------------------------------------------------------------------------
 # Manufacturing acceptance bands (schema v51, 2026-09-23c)
 # ---------------------------------------------------------------------------
+@dataclass(frozen=True, slots=True)
+class PrintingMatrix:
+    """How ONE print emulsion's three layers see THIS negative's dyes (v61).
+
+    rownorm(M_print . M_status^-1), derived by `dye_matrix_from_spectra`
+    from this negative's own traced three-dye panel and the print stock's own
+    traced spectral sensitivity -- the per-negative version of
+    `PrintStock.printing_density_matrix`, which is a MEDIAN over the seven
+    VISION-family negatives and so says nothing about any one of them
+    (5218's red<-magenta term is 0.108 against the median's 0.023).
+
+    ⚠ ROWS SUM TO 1.0, for the reason the print-stock field states: the raw
+    product also carries a per-channel GAIN, which the printer lights set and
+    the anchor solve reproduces; only the CROSSTALK is the spectra's to state.
+    ⚠ ONLY WHERE BOTH SPECTRA ARE MEASURED. No entry exists for a print stock
+    without a traced sensitivity or a negative without a three-dye panel, and
+    none may be invented: the print falls back to its own class matrix.
+    """
+    print_stock: str = ""
+    matrix: Matrix3 = IDENTITY3
+    source: str = ""
+
+    def validate(self, label: str = "") -> None:
+        if not self.print_stock:
+            raise ValueError(f"{label}: PrintingMatrix names no print stock")
+        for row in self.matrix:
+            if abs(sum(row) - 1.0) > 5e-4:
+                raise ValueError(f"{label}: PrintingMatrix rows must sum to 1")
+        if not all(0.80 <= self.matrix[i][i] <= 1.20 for i in range(3)):
+            raise ValueError(f"{label}: PrintingMatrix diagonal outside 0.8-1.2")
+
+
 #: Quality grades a record may be filed under. Empty = the source prints one
 #: unlabelled set of norms, which is the usual case.
 _TOLERANCE_CATEGORIES = frozenset({
@@ -9221,7 +9429,10 @@ class DevelopmentPoint:
         # each other -- exactly the failure the field's own docstring above says
         # it was added to prevent.
         if self.vessel not in ("", "drum", "small tank, tray", "tank",
-                               "small tank", "large tank", "tray"):
+                               "small tank", "large tank", "tray",
+                               # 2026-10-01d: «малый бак или роторно-барабанный
+                               # процессор», рис. 3.318's own caption pairing
+                               "small tank, drum"):
             raise ValueError(
                 f"{label}: vessel {self.vessel!r} is not one of '', 'drum', "
                 f"'small tank, tray', 'tank', 'small tank', 'large tank', "
@@ -9335,6 +9546,140 @@ class DevelopmentLaw:
             raise ValueError(f"{label}: a DevelopmentLaw must name its "
                              "developer -- an unnamed law is the family law "
                              "and belongs in ProcessingFamily")
+
+
+@dataclass(frozen=True, slots=True)
+class DevelopmentCapacity:
+    """Developer EXHAUSTION: the time per roll as one bath is re-used (schema v58).
+
+    ⚠ A DIFFERENT AXIS FROM EVERY OTHER FIELD IN THE FAMILY. A
+    `DevelopmentPoint` is one condition in FRESH developer; this is one
+    developer, one temperature and one volume carried through successive rolls,
+    each roll wanting a little longer because the bath is partly spent. Fuji's
+    AF3-608E (NEOPAN 1600) p3 «Processing Capacities and Times (Small Tank
+    Development, 20°C/68°F)» prints it for four developers: SPD 1 l 4 1/4 min
+    for rolls 1-4 rising to 5 min at rolls 9-10; Fujidol E 1 l 6 1/2 -> 9 min
+    over 12 rolls; Microfine 600 ml 8 -> 9 1/2 over 4 rolls; D-76 1 l 7 1/2 ->
+    9 over 10 rolls. No field could hold that before v58.
+
+    ⚠ `minutes[i]` IS ROLL i+1, AND THE TUPLE ENDS WHERE THE SHEET PRINTS «—».
+    A dash is the maker saying the bath is exhausted, so it is the capacity
+    itself, not a missing value, and the tuple's length is that capacity.
+    `table_rolls` is how many columns the sheet printed: where the tuple is as
+    long as the table (Fujidol E, 12 of 12) the true capacity is AT LEAST that
+    and not known beyond it.
+
+    INERT: no stage of either engine reads it. Emitted to C++ by the owner's
+    decision of 2026-09-29d, so the plugin carries the published data.
+    """
+
+    developer: str = ""
+    dilution: str = ""
+    exposure_index: int = 0
+    celsius: float = 0.0
+    #: As `DevelopmentPoint.vessel` spells it.
+    vessel: str = ""
+    #: Bath volume the table is for, millilitres.
+    solution_ml: float = 0.0
+    #: What one "roll" is, as the sheet states it, e.g. "135-36".
+    film_unit: str = ""
+    #: Minutes for roll 1, 2, ... in the same bath; ends at the first «—».
+    minutes: tuple[float, ...] = ()
+    #: Columns the sheet printed (the table's own horizon).
+    table_rolls: int = 0
+
+    @property
+    def capacity_rolls(self) -> int:
+        return len(self.minutes)
+
+    def validate(self, label: str = "") -> None:
+        if not self.developer:
+            raise ValueError(f"{label}: DevelopmentCapacity names no developer")
+        if not self.minutes:
+            raise ValueError(f"{label}: DevelopmentCapacity has no times")
+        if any(m <= 0.0 for m in self.minutes):
+            raise ValueError(f"{label}: DevelopmentCapacity time must be > 0 "
+                             "-- the tuple ends at the sheet's dash")
+        if any(b < a for a, b in zip(self.minutes, self.minutes[1:])):
+            raise ValueError(f"{label}: DevelopmentCapacity time FALLS as the "
+                             "bath is used -- an exhausting developer can only "
+                             "need longer")
+        if self.solution_ml <= 0.0 or not self.film_unit:
+            raise ValueError(f"{label}: DevelopmentCapacity needs its volume "
+                             "and its unit of film")
+        if self.table_rolls < len(self.minutes):
+            raise ValueError(f"{label}: DevelopmentCapacity longer than the "
+                             "table it was read from")
+        if self.vessel not in ("", "small tank", "large tank", "tray", "drum",
+                               "tank", "small tank, tray"):
+            raise ValueError(f"{label}: DevelopmentCapacity vessel "
+                             f"{self.vessel!r} is not in the vocabulary")
+
+
+#: Most developer rows one stock may carry: the Developer control's range is
+#: -1 (as stored) .. GRAIN_DEVELOPER_MAX - 1, the same bound in both engines
+#: (`DeveloperIndexMax` in AlgoControlEnums.hpp).
+GRAIN_DEVELOPER_MAX = 12
+
+
+@dataclass(frozen=True, slots=True)
+class DeveloperGrainPoint:
+    """One FILM-DEVELOPER row of a same-laboratory comparison (schema v60).
+
+    What one experimenter measured on ONE film in SEVERAL developers, each at
+    that developer's own normal development, under ONE method. Read by the
+    Developer control (`resolve_developer` / `AlgoResolveDeveloper`), which
+    uses RATIOS between rows of the same film only.
+
+    ⚠⚠ `rms_d` IS ON THE SOURCE'S OWN SCALE AND MUST NEVER BE WRITTEN INTO
+    `GrainSpec.rms_granularity`. Bernhard W. Schmidt's D-76 rows read 7.9 /
+    12.9 / 13.0 for T-MAX 100 / T-MAX 400 / Tri-X where Kodak's 48 um diffuse
+    figures are 8 / 10 / 17 -- ratios of 0.99, 1.29 and 0.76, so no single
+    factor maps one scale onto the other. Within one film the instrument
+    cancels, which is why only the ratio reaches a render.
+
+    ⚠ `development_halo_width_um` IS NOT HALATION. Schmidt measures how far
+    the exposed (dark) stripes of a contact-printed Siemens star at 8 lp/mm
+    spread into the unexposed ones, from the n = 2 harmonic, and it moves
+    with the DEVELOPER by up to 3x on one film (Tri-X: 2.6 um Wehner/Alpha,
+    8.1 um FX39). That is chemical spreading -- the adjacency / infectious-
+    development family -- not light reflected from the support, which is
+    `HalationSpec` and is a property of the base. Owner instruction
+    2026-10-01: keep it out of every halation field.
+
+    Attributes:
+        developer: As the source prints it.
+        exposure_index: The speed the source MEASURED in this developer
+            (Schmidt's "ISO" column). 0 = not stated. Stored, not rendered.
+        rms_d: rms granularity as printed, source scale. 0 = not measured.
+        grain_a_k_um: Schmidt's a_k column, micrometres, as printed.
+            ⚠ INERT: its definition is on the method page (methodgrain),
+            which did not load (HTTP 429), and a number whose meaning is not
+            known has no defensible consumer yet.
+        development_halo_width_um: Width of the development halo at 8 lp/mm,
+            micrometres, as read off the bar chart. 0 = not measured.
+        edge_sharpness: Schmidt's SP = 3 H3 at 8 lp/mm, 0..1. 0 = not read
+            (Fig. 2, reso_sharp.png, is not on disk yet).
+    """
+
+    developer: str = ""
+    exposure_index: int = 0
+    rms_d: float = 0.0
+    grain_a_k_um: float = 0.0
+    development_halo_width_um: float = 0.0
+    edge_sharpness: float = 0.0
+
+    def validate(self, label: str = "") -> None:
+        if not self.developer:
+            raise ValueError(f"{label}: DeveloperGrainPoint needs a developer")
+        if self.rms_d < 0.0 or self.grain_a_k_um < 0.0 \
+                or self.development_halo_width_um < 0.0:
+            raise ValueError(f"{label}: DeveloperGrainPoint {self.developer!r}"
+                             " has a negative measurement")
+        if not 0.0 <= self.edge_sharpness <= 1.0:
+            raise ValueError(f"{label}: DeveloperGrainPoint edge_sharpness "
+                             f"{self.edge_sharpness} outside 0..1 -- SP = 1 "
+                             "is the ideal edge by the source's definition")
 
 
 @dataclass(frozen=True, slots=True)
@@ -9467,13 +9812,35 @@ class ProcessingFamily:
     reference_developer: str = ""
     #: Dilution of `reference_developer`, in the source's own words.
     reference_dilution: str = ""
+    #: Schema v59: the `DevelopmentPoint.edition` the stored curve follows,
+    #: when a family holds the SAME developer in more than one edition and the
+    #: groups tie. "" = not chosen. An OWNER decision where the sources do not
+    #: say: KODAK_TRI_X_400TX follows "1956 35mm" (2026-09-30c, queue P96c).
+    reference_edition: str = ""
     #: -- schema v41 (queue P52): ONE LAW PER DEVELOPER inside the family.
     #: ⚠ The family-level `gamma_infinity` / `dev_rate_k` above stay, and stay
     #: FIRST: they are the law when a family has one developer, which is 29 of
     #: the 30. These are for the family that does not, and a point is checked
     #: against the law that MATCHES it before the family law is tried.
     laws: tuple["DevelopmentLaw", ...] = ()
+    #: Schema v58: developer exhaustion tables -- see `DevelopmentCapacity`.
+    capacity: tuple["DevelopmentCapacity", ...] = ()
+    #: Schema v60: one film in several developers, one laboratory -- see
+    #: `DeveloperGrainPoint`. Read by the Developer control.
+    grain_points: tuple["DeveloperGrainPoint", ...] = ()
+    #: The row the STORED profile corresponds to, by developer name: the
+    #: Developer control scales by ratios to this row, so selecting it is the
+    #: identity. Must name a row of `grain_points` when they are present.
+    grain_reference_developer: str = ""
     source: str = ""
+
+    def grain_reference(self):
+        """The `grain_points` row the stored profile corresponds to, or None."""
+        want = (self.grain_reference_developer or "").strip().lower()
+        for q in self.grain_points:
+            if q.developer.strip().lower() == want:
+                return q
+        return None
 
     def law_for(self, developer: str, vessel: str = ""):
         """The DevelopmentLaw governing a point, or None to use the family."""
@@ -9609,6 +9976,27 @@ class ProcessingFamily:
         # -- without this it would sit in the database looking authoritative.
         for i, law in enumerate(self.laws):
             law.validate(f"{label} development law {i}")
+        for i, cap in enumerate(self.capacity):
+            cap.validate(f"{label} development capacity {i}")
+        for i, gp in enumerate(self.grain_points):
+            gp.validate(f"{label} developer grain point {i}")
+        if self.grain_points:
+            if len({q.developer for q in self.grain_points}) \
+                    != len(self.grain_points):
+                raise ValueError(f"{label}: grain_points name a developer "
+                                 "twice -- the Developer control selects by "
+                                 "row and two rows for one developer are two "
+                                 "answers to one question")
+            ref = self.grain_reference()
+            if ref is None or ref.rms_d <= 0.0:
+                raise ValueError(f"{label}: grain_reference_developer "
+                                 f"{self.grain_reference_developer!r} does not "
+                                 "name a measured row; every ratio the control "
+                                 "applies is taken to that row")
+            if len(self.grain_points) > GRAIN_DEVELOPER_MAX:
+                raise ValueError(f"{label}: {len(self.grain_points)} developer "
+                                 f"rows exceed GRAIN_DEVELOPER_MAX "
+                                 f"({GRAIN_DEVELOPER_MAX})")
         # ⚠ A POINT IS CHECKED AGAINST THE LAW THAT GOVERNS IT (queue P52). A
         # family spanning two developers has one law each, and checking a
         # T-MAX RS point against the T-MAX constants is what refused this
@@ -9631,6 +10019,13 @@ class ProcessingFamily:
                 if g <= 0.0 or pt.minutes <= 0.0:
                     continue
                 if self.law_for(pt.developer, pt.vessel) is not None:
+                    continue
+                # ⚠ 2026-10-01d: WHERE PER-DEVELOPER LAWS EXIST, THE FAMILY
+                # LAW IS ONE OF THEM AND GOVERNS ONLY ITS OWN DEVELOPER's
+                # points -- a T-MAX kinetics curve on NEOPAN 400 is not
+                # predicted by constants fitted to D-76, and checking it
+                # against them would refuse real data for being real.
+                if self.laws:
                     continue
                 pred = self.gamma_at(pt.minutes)
                 # 12 % is deliberately loose. The points in one family can
@@ -10060,6 +10455,22 @@ _PROCESS_VARIANT_IDS: tuple[tuple[str, str], ...] = (
     # enumerator value, so this goes at the end and nowhere else.
     # TOTAL_PROCESSES moves 36 -> 37.
     ("P30_D76_STOCK_8MIN",         "D-76 stock, 8 min at 20 C"),
+    # -- AGFA SCALA 200x, «Современные» Табл. 3.279 / Рис. 3.358-3.359 -------
+    # Appended 2026-10-01e (queue P96j). Index k IS the enumerator value, so
+    # this goes at the end and nowhere else. TOTAL_PROCESSES moves 37 -> 42.
+    ("SCALA_EI200",                "EI 200 (box speed)"),
+    ("SCALA_EI100_PULL1",          "EI 100 (Pull 1)"),
+    ("SCALA_EI400_PUSH1",          "EI 400 (Push 1)"),
+    ("SCALA_EI800_PUSH2",          "EI 800 (Push 2)"),
+    ("SCALA_EI1600_PUSH3",         "EI 1600 (Push 3)"),
+    # -- KODAK HIE, «Современные» Рис. 3.362-3.363 (2026-10-01e, queue P96j) --
+    # Appended; TOTAL_PROCESSES moves 42 -> 48.
+    ('HIE_D76_SMALL_TANK'          , '35 mm, small tank: D-76'),
+    ('HIE_HC110_B_SMALL_TANK'      , '35 mm, small tank: HC-110 Dil B'),
+    ('HIE_D19_SMALL_TANK'          , '35 mm, small tank: D-19'),
+    ('HIE_SHEET_D76_TRAY'          , 'Sheet, tray: D-76'),
+    ('HIE_SHEET_HC110_B_TRAY'      , 'Sheet, tray: HC-110 Dil B'),
+    ('HIE_SHEET_D19_TRAY'          , 'Sheet, tray: D-19'),
 )
 
 _PROCESS_VARIANT_IDS_SET = frozenset(k for k, _d in _PROCESS_VARIANT_IDS)
@@ -11758,7 +12169,7 @@ class MeasuredEndpoints:
     method: str = "traced_raster"
     #: Evidence tier, on the corpus's own scale.
     tier: str = "T2"
-    source: str = ("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+    source: str = ("В. Л. Лихачев, «Современные фотоматериалы и их "
                    "обработка» -- «Характеристические кривые», traced from the "
                    "embedded bitmap and re-derived on every build by "
                    "sovremennye_2004.py")
@@ -12232,6 +12643,11 @@ class FilmProfile:
     #: the corpus. See `ToleranceSpec` for why a band is not a measurement and
     #: why this is a vector.
     tolerance: tuple[ToleranceSpec, ...] = ()
+    # -- schema v61 (2026-10-01d), LIVE ON THE PRINT PATH ----------------------
+    #: Per print stock, how that print emulsion sees THIS negative's dyes. Read
+    #: by stage 13 in place of `PrintStock.printing_density_matrix` when the
+    #: negative is printed on that stock. See `PrintingMatrix`.
+    printing_matrices: tuple[PrintingMatrix, ...] = ()
 
     def source_for(self, param: str) -> ParamSource | None:
         """Per-parameter provenance, or None if only the profile tier applies.
@@ -12260,6 +12676,16 @@ class FilmProfile:
         # -- schema v51 ------------------------------------------------------
         for _t in self.tolerance:
             _t.validate(self.name)
+        # -- schema v61 ------------------------------------------------------
+        _pm_names = [_m.print_stock for _m in self.printing_matrices]
+        if len(set(_pm_names)) != len(_pm_names):
+            raise ValueError(f"{self.name}: two PrintingMatrix records for one print stock")
+        for _m in self.printing_matrices:
+            _m.validate(self.name)
+        if self.printing_matrices and (self.is_monochrome or self.is_reversal
+                                       or not self.dye_density.has_data):
+            raise ValueError(f"{self.name}: a PrintingMatrix needs a colour "
+                             "negative with a traced three-dye panel")
         _defaults = [_t for _t in self.tolerance if _t.is_default]
         if self.tolerance and len(_defaults) != 1:
             raise ValueError(
@@ -12315,6 +12741,7 @@ class FilmProfile:
         # -- storable for twenty-eight versions. Verified: all 184 stocks pass.
         self.reciprocity.validate(self.name)
         self.grain.validate_v29(self.name)
+        self.grain.validate_v59(self.name)
         # -- schema v29: the two new FilmProfile scalars ---------------------
         if self.gamma_criterion and self.gamma_criterion not in _GAMMA_CRITERIA:
             raise ValueError(
@@ -19787,7 +20214,9 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # triples describe nearly the same curve -- so gamma 1.030 here should be
         # read together with toe_x -0.880 and shoulder_x 1.000, not on its own.
         curves=_mono(ToneCurve(0.211, 1.030, -0.880, 0.240, 1.000, 0.480)),
-        grain=GrainSpec(17.2, 7.097, 7.097, 7.097, clump_gain=1.50, fog_grain=0.30),
+        # ✅ [T2] rms 16 STATED 2026-09-29c (was the 17.2 estimate): Popular Photography 2003
+        # «28 B&W Films Compared!», manufacturer data; AF3-608E prints none.
+        grain=GrainSpec(16.0, 7.097, 7.097, 7.097, clump_gain=1.50, fog_grain=0.30),
         mtf=MTFSpec(34.0, 34.0, 34.0, adjacency=0.04, adjacency_um=22.0),
         spectral_weights=(0.27, 0.55, 0.18),
         misregistration_um=0.0,
@@ -20433,7 +20862,7 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
                 DevelopmentPoint(developer="Perceptol", dilution="stock", minutes=8.00, celsius=24.0, exposure_index=100, vessel="small tank", film_format="120"),
                 DevelopmentPoint(developer="Perceptol", dilution="stock", minutes=6.50, celsius=26.0, exposure_index=100, vessel="small tank", film_format="120"),
             ),
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», pp.412 -- «Проявление фотопленки Neopan 100 "
                     "Acros», developer x EI x temperature. TIME ONLY.  ||  "
                     "Fuji Photo Film U.S.A., «FUJIFILM PROFESSIONAL DATA GUIDE», Ref. No. AF3-207U (2005), PDF p37 «3-2. PROCESSING BLACK-AND-WHITE FILMS» (developer x EI x 18-26 C, "
@@ -23088,9 +23517,28 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # already says "true speed nearer 1000"; this is the citation for it.
         exposure_index=3200,
         balance_kelvin=5500,
-        # Curve stays an estimate. Harman prints a characteristic curve as an
-        # IMAGE only and publishes no numeric gamma, D-min or D-max.
-        curves=_mono(ToneCurve(0.18, 0.600, -1.56, 0.36, 2.10, 0.60)),
+        # ✅ [T1] CURVE TRACED 2026-09-29f. The 2018 and 2025 sheets print the
+        # curves as rasters, but the September 2002 FACT SHEET p6 draws both
+        # families as VECTOR paths: ILFOTEC DD-X 1+4 and MICROPHEN stock, each
+        # «for 7, 9, 12 and 16 minutes at 20°C/68°F with intermittent
+        # agitation». The stored curve is MICROPHEN stock 9 min -- the sheet's
+        # own 20 C time for the EI 3200 meter setting it is sold at, so the
+        # curve and `processing` describe one condition. Gridline calibration
+        # (41.14 pt per log E, 40.57 pt per density); x is RELATIVE log
+        # exposure, RE-ORIGINED by -2.24 log E (ILFORD_CURVE_X_SHIFT) so that
+        # the fog + 0.10 point sits at x = -1.60, the median of the 64 other
+        # monochrome negatives: the renderer places metered mid-grey at x = 0
+        # (speed_point_x), and the sheet's own origin put mid-grey on the
+        # base-plus-fog shelf. Gamma, Dmax, fog and every spacing are
+        # invariant under the shift. Fit rms 0.018 D (max 0.029), constrained
+        # so the float32 slope never falls below -4e-6 D per 0.002 log E
+        # (verify's monotonic gate allows -1e-5); the free fit in
+        # ILFORD_SHEET_CURVE_FITS (sheet axis) reaches rms 0.014 D but dips
+        # 0.009 D past the shoulder. Ilford G-bar 0.626, equal to the 2002
+        # contrast-time graph's 0.626 at 9 min. All eight free fits are in
+        # ILFORD_SHEET_CURVE_FITS, and every one agrees with the sheet's own
+        # CONTRAST-TIME graph to 0.04 G.
+        curves=_mono(ToneCurve(0.2685, 0.6963, -1.7047, 0.1405, 1.0709, 0.6749)),
         # !! rms 16.0 IS NOT A PUBLISHED FIGURE. Harman/ILFORD publish no
         # diffuse RMS granularity, no resolving power and no MTF for any of
         # their films -- verified across all 18 ILFORD datasheets on file (20
@@ -23224,16 +23672,33 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # as EI 400/27 to EI 3200/36 and notes that this EI range "is based on
         # a practical evaluation of film speed and is not based on foot speed,
         # as is the ISO standard" -- so 400 here is the true ISO speed, not a
-        # marketing number (contrast with DELTA 3200 above).
+        # marketing number (contrast with DELTA 3200 above). The July 2004
+        # sheet adds how it was measured: «The ISO speed rating was measured
+        # using ILFORD ID-11 developer at 20°C/68°F with intermittent agitation
+        # in a spiral tank.»
         exposure_index=400,
         balance_kelvin=5500,
-        # Curve stays an estimate. The datasheet's characteristic curve is an
-        # IMAGE with no numeric gamma / D-min / D-max; its caption does pin the
-        # processing it represents: "developed in ILFORD ILFOTEC HC (1+31)
-        # stock for 6 1/2 minutes at 20C/68F with intermittent agitation"
-        # (HP5-Plus_201811.pdf p5) -- the condition any future digitisation of
-        # this curve must be labelled with.
-        curves=_mono(ToneCurve(0.12, 0.640, -1.62, 0.34, 2.30, 0.60)),
+        # ✅ [T1] CURVE TRACED 2026-09-29f from ILFORD's own sheet. The Nov 2018
+        # edition prints the characteristic curve as a raster, but the July 2004
+        # FACT SHEET (ILFORD Imaging UK, 95042.GB) p5 draws the same panel as a
+        # VECTOR path: «HP5 Plus 35mm film developed in ILFORD ILFOTEC HC (1+31)
+        # for 6 1/2 minutes at 20°C/68°F with intermittent agitation. This curve
+        # is also representative of the rollfilm and sheet film formats.»
+        # Axes calibrated on the drawn gridlines and tick marks (relative log
+        # exposure 1-4 at 41.10 pt per unit, density 1.0 / 2.0 at 40.20 pt);
+        # x is the plot's own RELATIVE log exposure, RE-ORIGINED by -2.69 log E
+        # (ILFORD_CURVE_X_SHIFT) so that the fog + 0.10 point sits at x =
+        # -1.60, the median of the 64 other monochrome negatives: the renderer
+        # places metered mid-grey at x = 0 (speed_point_x), and the sheet's own
+        # origin put mid-grey on the base-plus-fog shelf. Gamma, fog and every
+        # spacing are invariant under the shift. Six-parameter fit rms 0.0038 D
+        # (max 0.0090) over 120 samples, constrained so the float32 slope never
+        # falls below -4e-6 D per 0.002 log E (verify's monotonic gate allows
+        # -1e-5). The drawn curve runs 0.17 -> 2.16 D and is still straight at
+        # its end (x 1.43 here), so the fitted shoulder (4.17) is extrapolated,
+        # not measured. Its Ilford G-bar (0.10 over fog, 1.5 log E) is 0.606;
+        # the unconstrained fit in ILFORD_SHEET_CURVE_FITS gives 0.609.
+        curves=_mono(ToneCurve(0.1695, 0.6864, -1.6099, 0.2187, 4.1744, 1.3114)),
         # !! rms 9.0 IS NOT A PUBLISHED FIGURE, and is implausibly fine for a
         # cubic-grain ISO 400 emulsion (Agfa's published figure for APX 400 is
         # 14.0). Harman/ILFORD publish no granularity, resolving power or MTF
@@ -25772,8 +26237,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "Cine designation FN-64 kept in the aliases. Also sold as still film "
             "'SVEMA FOTO-65' (S 65 GOST); Gurlev 1986 prints for Foto-65: "
             "gamma_rec 0.8 (CT-2), D0 0.05, latitude 1.5 logH, R 110 lin/mm, "
-            "sensitization limit 665 nm -- consistent with the measured "
-            "profile below."
+            "sensitization limit 665 nm. ⚠ Stored gamma 0.66 since 2026-09-30 "
+            "(owner decision): the same book's Рис. 176 draws Фото-65 flat at "
+            "0.59-0.66 in CT-2 and the confirmed 67-frame scans estimate 0.677; "
+            "the table's 0.8 is the recommended aim."
         ),
         era="1980s-1990s",
         is_monochrome=True,
@@ -25828,7 +26295,13 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # measurement. 0.830 is kept because it is the value nearest Gurlev
         # inside that bracket. A +-4 EV grey-card bracket with --wedge would
         # replace the whole bracket with one MEASURED gamma.
-        curves=_mono(ToneCurve(0.16, 0.830, -1.18, 0.24, 1.52, 0.34)),
+        # ✅ 2026-09-30, OWNER DECISION: gamma 0.83 -> 0.66. Гурлев 1986 Рис. 176
+        # DRAWS Фото-65's gamma in СТ-2 as 0.59-0.66 and flat (0.66 from 8 min
+        # on; GURLEV_1986_FOTO_KINETICS, and the СТ-2 law G∞ 0.657), and the
+        # confirmed 67-frame scan subset estimated 0.677: two of the three
+        # measurements agree. The p296 table's γ_рек 0.8 is the recommended
+        # AIM and stays recorded in the description and NotFound.md.
+        curves=_mono(ToneCurve(0.16, 0.660, -1.18, 0.24, 1.52, 0.34)),
         # Grain [see PROVENANCE CORRECTION above]:
         #   rms 11.5 kept: still [T1] (fitted through the full pipeline), and
         #   both scan runs' native-res mid sigma agree with the 0.030 that fit
@@ -25989,7 +26462,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         aliases=("foto250", "foto-250", "svema foto 250", "svema fn250",
                  "fn250", "svema 250"),
         description=(
-            "[T3] Svema's fast B&W, the high-speed sibling of FN-64. Note on "
+            "[T2] Svema's fast B&W, the high-speed sibling of FN-64. Note on "
             "naming: Svema's FN line was cine negative and the Foto- line was "
             "still film; both names are in circulation for the fast stock and "
             "both resolve to this entry. Compared with FN-64: about two stops "
@@ -26015,7 +26488,17 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # memory may reflect development practice rather than the emulsion,
         # and expired stock loses contrast besides. 26 frames is thin
         # evidence, so the adoption rounds toward the old value, not past it.
-        curves=_mono(ToneCurve(0.19, 0.850, -1.24, 0.26, 1.46, 0.36)),
+        # ✅ 2026-10-01d, OWNER DECISION: gamma 0.85 -> 0.795. Гурлев 1986
+        # Рис. 176 DRAWS Фото-250's gamma in СТ-2 at 0.77 (10 min) and 0.82
+        # (12 min), so 0.795 at the stored 11 min (ProcessingSpec, Иофис 1977
+        # p318 midpoint) -- and the same book's p296 table prints γ 0.8 (СТ-2)
+        # for the Фото-250 column, so drawing and table agree to 0.005. Same
+        # decision as Фото-65 on 2026-09-30. ⚠ The 26-frame v2 batch estimate
+        # 0.844 is 6 % higher: in this family that is ~13 min of СТ-2, inside
+        # amateur development practice; recorded, not adopted. Toe, shoulder
+        # and D-min unchanged (p296 D0 0.08 + base; no curve SHAPE is drawn
+        # anywhere in the corpus), so the shape stays a secondary-source build.
+        curves=_mono(ToneCurve(0.19, 0.795, -1.24, 0.26, 1.46, 0.36)),
         # rms_granularity is [T1] -- FITTED TO MEASUREMENT, not estimated.
         # Flat-region sigma over 3 supplied scans at matched mid density gave
         # FN250 0.0502 against SVEMA_FOTO_65's 0.0299, a ratio of 1.68x.
@@ -26464,6 +26947,187 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         features=Feature.NONE,
     ),
     FilmProfile(
+        name="KODAK_HIE",
+        aliases=("hie", "kodak hie", "high-speed infrared", "kodak high speed infrared",
+                 "kodak professional high-speed infrared"),
+        description=(
+            "[T2] Kodak Professional High-Speed Infrared (HIE) -- the classic "
+            "black-and-white infrared film, sensitive out to about 900 nm, "
+            "medium contrast and medium grain; shot through a No. 25 red "
+            "filter for the infrared look, or an 87 / 87C / 89B for infrared "
+            "only. Least sensitive to green, as the book states. 35 mm only by "
+            "2004 (sheet discontinued). SOURCE: «Современные фотоматериалы» "
+            "2004 §3.5.1 -- characteristic curves (35 mm small tank and sheet "
+            "tray, D-76 / HC-110 / D-19), development tables 3.283-3.285 with "
+            "contrast index, T-MAX kinetics, spectral sensitivity 280-920 nm, "
+            "MTF, EI table 3.280. Grain, halation and the RGB weights are "
+            "CLASS ASSUMPTIONS: the book prints no granularity number."
+        ),
+        era="-2004 (35 mm)",
+        is_monochrome=True,
+        exposure_index=80,
+        exposure_index_daylight=80,
+        balance_kelvin=5500,
+        # TRACED 2026-10-01e (queue P96j) from Рис. 3.362, D-76, small tank,
+        # 20 C, daylight exposure: the red-drawn curve, 173 columns over
+        # log H -2.18..0.58, robust 6-parameter softplus fit rms 0.0058 D,
+        # worst 0.022. Table 3.283 puts this development at CI 0.70, 8 1/2 min.
+        curves=_mono(ToneCurve(0.0849, 1.2131, -1.1495, 0.4298, 0.3054, 0.3856)),
+        # [T3] CLASS ASSUMPTION: KONICA_INFRARED_750's grain. The book says
+        # «среднее зерно» and prints no number.
+        grain=GrainSpec(13.0, 5.161, 5.161, 5.161, clump_gain=1.20, fog_grain=0.22),
+        # Рис. 3.366, tungsten, D-76 10 min 20 C: the drawn curve crosses
+        # 50 % at 24.7 c/mm. ⚠ ITS LOW-FREQUENCY PLATEAU IS 77-79 %, not
+        # ~100 %: about a fifth of the modulation is already gone at 3 c/mm,
+        # which is what a wide-radius spread (halation) does. The curve is in
+        # `HIE_MTF_CURVE`.
+        mtf=MTFSpec(24.7, 24.7, 24.7, adjacency=0.0),
+        # [T3] CLASS ASSUMPTION (infrared monochrome, red-dominant): the
+        # infrared response cannot be reached by three visible primaries,
+        # so the derivation from the curve is refused by design.
+        spectral_weights=(0.55, 0.15, 0.30),
+        # [T3] CLASS ASSUMPTION, KONICA_INFRARED_750's halation; see the MTF
+        # note for the evidence that HIE's own halo is wider.
+        halation=HalationSpec(radii_um=(15.0, 90.0, 350.0),
+                              weights=(0.30, 0.50, 0.20),
+                              gain_r=0.05, gain_g=0.04, gain_b=0.03),
+        misregistration_um=0.0,
+        spectral=SpectralSensitivity(
+            lambda_start_nm=280.0, lambda_step_nm=10.0,
+            log_s_pan=(-0.08, -0.09, -0.14, -0.09, -0.05, -0.03, -0.01, -0.01, 0.0, 0.0, 0.0, -0.02, -0.04, -0.09, -0.11, -0.14, -0.22, -0.3, -0.41, -0.56, -0.74, -1.06, -1.34, -1.53, -1.55, -1.46, -1.34, -1.24, -1.19, -1.14, -1.12, -1.11, -1.07, -1.05, -1.04, -1.03, -1.02, -0.97, -0.97, -0.94, -0.92, -0.89, -0.86, -0.84, -0.82, -0.8, -0.79, -0.78, -0.77, -0.77, -0.76, -0.75, -0.74, -0.75, -0.75, -0.75, -0.77, -0.77, -0.79, -0.81, -0.84, -0.95, -1.15, -1.43, -1.7),  # 280..920 nm
+            criterion="log_sensitivity_book_D0.3_above_dmin",
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их обработка» (Москва: СЛОН-ПРЕСС, 2003), §3.5.1 pp433-440, p439 рис. 3.365 «Спектральная плотность» -- "
+                    "exposure 1.4 s, D-76 8 min 20 C; the D = 0.3 + D-min "
+                    "curve, traced 2026-10-01e, peak-normalised (the book "
+                    "also draws D = 0.6 + D-min, 0.2-0.35 log lower)."),
+        ),
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=6.5, celsius=18.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=5.5, celsius=20.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=5.0, celsius=21.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=4.0, celsius=24.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=7.25, celsius=18.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=6.0, celsius=20.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=5.5, celsius=21.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=4.5, celsius=24.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=8.0, celsius=18.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=6.75, celsius=20.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=6.0, celsius=21.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=5.0, celsius=24.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=9.25, celsius=18.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=7.75, celsius=20.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=7.0, celsius=21.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=5.75, celsius=24.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=10.5, celsius=18.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=9.0, celsius=20.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=8.0, celsius=21.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=6.5, celsius=24.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=8.0, celsius=20.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=7.5, celsius=21.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=6.25, celsius=24.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=8.75, celsius=20.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=8.25, celsius=21.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=7.0, celsius=24.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=9.75, celsius=20.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=9.0, celsius=21.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=7.5, celsius=24.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=10.75, celsius=20.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=10.0, celsius=21.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=8.5, celsius=24.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=12.5, celsius=20.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='1:1', minutes=11.5, celsius=21.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=9.5, celsius=18.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=8.5, celsius=20.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=7.5, celsius=21.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=7.0, celsius=22.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=6.0, celsius=24.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=6.0, celsius=18.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=5.0, celsius=20.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=5.0, celsius=21.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=4.5, celsius=22.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=4.0, celsius=24.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=7.0, celsius=18.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=6.0, celsius=20.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=5.5, celsius=21.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=5.0, celsius=22.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=4.0, celsius=24.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=4.0, celsius=24.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=5.0, celsius=24.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=6.0, celsius=24.0, contrast_index=0.91, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=7.0, celsius=24.0, contrast_index=1.03, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=8.0, celsius=24.0, contrast_index=1.15, exposure_index=80, contrast_criterion='kodak_ci', vessel='small tank', film_format='', edition='Современные 2004, Табл. 3.283'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=8.5, celsius=18.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=6.75, celsius=20.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=6.0, celsius=21.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=4.75, celsius=24.0, contrast_index=0.52, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=10.0, celsius=18.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=8.0, celsius=20.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=7.0, celsius=21.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=5.5, celsius=24.0, contrast_index=0.58, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=11.5, celsius=18.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=9.0, celsius=20.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=8.0, celsius=21.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=6.25, celsius=24.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=13.0, celsius=18.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=10.25, celsius=20.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=9.0, celsius=21.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=7.0, celsius=24.0, contrast_index=0.75, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=14.5, celsius=18.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=11.5, celsius=20.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=10.0, celsius=21.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='XTOL', dilution='', minutes=7.75, celsius=24.0, contrast_index=0.85, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=10.0, celsius=18.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=9.0, celsius=20.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=8.0, celsius=21.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=7.5, celsius=22.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=6.5, celsius=24.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=6.5, celsius=18.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=5.5, celsius=20.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=5.5, celsius=21.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=5.0, celsius=22.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=4.5, celsius=24.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=8.5, celsius=18.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=7.5, celsius=20.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=6.5, celsius=21.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=6.0, celsius=22.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=5.0, celsius=24.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=3.0, celsius=24.0, contrast_index=0.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=4.0, celsius=24.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=5.0, celsius=24.0, contrast_index=0.91, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=6.0, celsius=24.0, contrast_index=1.03, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='T-MAX', dilution='', minutes=7.0, celsius=24.0, contrast_index=1.15, exposure_index=80, contrast_criterion='kodak_ci', vessel='large tank', film_format='', edition='Современные 2004, Табл. 3.284'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=11.0, celsius=18.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=9.5, celsius=20.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=8.5, celsius=21.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=7.5, celsius=22.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='D-76', dilution='', minutes=6.5, celsius=24.0, contrast_index=0.7, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=5.0, celsius=18.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=4.5, celsius=20.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=4.5, celsius=21.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=4.25, celsius=22.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='HC-110', dilution='Dil B', minutes=4.0, celsius=24.0, contrast_index=0.8, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=5.5, celsius=18.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=5.0, celsius=20.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=5.0, celsius=21.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=4.5, celsius=22.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+                DevelopmentPoint(developer='D-19', dilution='', minutes=4.0, celsius=24.0, contrast_index=1.65, exposure_index=80, contrast_criterion='kodak_ci', vessel='tray', film_format='sheet', edition='Современные 2004, Табл. 3.285'),
+            ),
+            reference_developer="D-76",
+            reference_dilution="",
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их обработка» (Москва: СЛОН-ПРЕСС, 2003), §3.5.1 pp433-440, Табл. 3.283 (small tank), 3.284 (large tank), "
+                    "3.285 (sheet, tray): developer, contrast index, minutes "
+                    "at 18/20/21/22/24 C, as printed. ⚠ Табл. 3.283's XTOL 1:1 "
+                    "CI 0.85 row prints 9 1/4 and 7 1/2 under 22 and 24 C, "
+                    "SHORTER than the CI 0.75 row at 24 C (8 1/2): a column "
+                    "shift, so only its 20 and 21 C cells are stored. "
+                    "Рис. 3.364 (T-MAX, 24 C) reproduces the T-MAX rows to "
+                    "<= 0.03 CI. T-MAX rows also print D-max 1.50 / 1.76 / "
+                    "2.00 / 2.36 / 2.44."),
+        ),
+        features=Feature.NONE,
+    ),
+    FilmProfile(
         name="KONICA_IMPRESA_50",
         aliases=("impresa", "impresa 50", "konica 50"),
         description=(
@@ -26716,7 +27380,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             1.2562, 1.1069, 0.9234, 0.7582, 0.6735, 0.6537, 0.6801, 0.7241,
             0.7733, 0.8225, 0.8717, 0.9107, 0.9404, 0.9502, 0.9436),
             normalisation="as_printed_status_m",
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», p.94, «Спектральная плотность красителей» -- "
                     "traced from the embedded bitmap and re-derived on every "
                     "build by sovremennye_2004.py"),
@@ -29028,7 +29692,11 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "1.2 logH, Dmax 2.0, contrast balance 0.12, D0 0.25 per "
             "spectral zone, R 63 lin/mm. No coupler mask -> no orange base, "
             "muddy inter-layer colour like the ORWOCOLOR line; development "
-            "5-8 min. Curves/densities datasheet-grounded, grain and dye "
+            "5-8 min. Curves [T1] traced from Гурлев 1986 Рис. 197 (the ТУ-74 "
+            "edition, slopes 0.83-0.85), adopted 2026-09-30 on the owner's "
+            "decision over the ТУ-84 per-layer aims 0.60 / 0.70 / 0.70; D-min "
+            "held at the ТУ-84 fog ceiling 0.28. "
+            "Densities datasheet-grounded, grain and dye "
             "impurity [T3] class estimates."
         ),
         era="1970s-1980s",
@@ -29056,10 +29724,21 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # Unmasked, so the three channels sit together rather than on an
         # orange ladder -- the equal-across-zones fog ceiling confirms it.
         # Straight-line span sized to the documented L >= 1.2 logH.
+        # ✅ ADOPTED 2026-09-30 (owner decision) FROM Гурлев 1986 p354 Рис. 197,
+        # traced 2026-09-29g (GURLEV_1986_CURVE_FITS, rms <= 0.010 D). ⚠ The figure
+        # draws the ТУ 6-17-622-74 edition: slopes 0.81-0.84, above the -84
+        # edition's per-layer development aims 0.60 / 0.70 / 0.70 that were
+        # stored until now (the comment above). The owner chose the drawn curve
+        # over the aims; ДС-4 carries no acceptance band, so no control moves.
+        # ⚠ D-MIN HELD AT THE ТУ-84 FOG CEILING 0.28 ON ALL THREE LAYERS (the
+        # LN-8 / ЦО-32Д precedent): the figure's toe ends at 0.29 / 0.36 / 0.52
+        # at lg H -2.1, a ladder an unmasked film cannot have as fog and one
+        # Gurlev's own text (D0 0.25 per zone) does not print; the fit meets
+        # fog below the drawn range (rms 0.011 / 0.008 / 0.018 D).
         curves=RGBCurves(
-            r=_neg(0.25, 0.600, toe_x=-1.30, toe_k=0.32, shoulder_x=1.30),
-            g=_neg(0.25, 0.700, toe_x=-1.28, toe_k=0.32, shoulder_x=1.28),
-            b=_neg(0.26, 0.700, toe_x=-1.26, toe_k=0.32, shoulder_x=1.26),
+            r=ToneCurve(0.2800, 0.8439, -1.3698, 0.3287, 1.2640, 0.2296),
+            g=ToneCurve(0.2800, 0.9755, -1.3718, 0.4708, 0.9857, 0.4018),
+            b=ToneCurve(0.2800, 0.9191, -1.6445, 0.5244, 0.9776, 0.3308),
         ),
         # Grain [T3]: slow (EI 45) 1970s colour negative, Soviet coating:
         # coarser than western contemporaries of the same speed.
@@ -29111,8 +29790,9 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "(blue) layer 0.1-0.2 higher, narrow latitude 0.9 logH, Dmax "
             "2.5, coupler-mask densities behind blue/green/red filters "
             "0.75-1.1 / 0.25-0.5 / 0.3 (a Kodak-style orange dmin ladder), "
-            "R 58 lin/mm. Curves/mask densities datasheet-grounded; grain "
-            "and dye impurity [T3] class estimates."
+            "R 58 lin/mm. Curves traced 2026-09-29g from Гурлев 1986 p354 "
+            "Рис. 197 (all three layers); grain and dye impurity [T3] class "
+            "estimates."
         ),
         era="1970s-1980s",
         exposure_index=32,
@@ -29123,10 +29803,29 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # sized to the documented narrow L 0.9 logH; Dmax_g = 0.38 +
         # 0.70*2.0 = 1.78 on the green record against the documented
         # overall 2.5 upper limit (Б_ч is a not-more-than figure).
+        # ✅ [T1] SUPERSEDED 2026-09-29g BY THE TRACED CURVES. The numbers
+        # above were a construction from printed scalars; Гурлев 1986 p354
+        # Рис. 197 «Характеристические кривые цветных негативных фотопленок»
+        # DRAWS all three layers of ЦНЛ-32 (ТУ 6-17-441-78, the TU this
+        # profile cites) on an absolute lg H axis (lux s), and they are
+        # traced here: raster, 300 dpi scan, gridline-calibrated (88 px per
+        # lg H and per D), column-and-row ranked so the three layers never
+        # swap, six-parameter softplus fits constrained monotone and
+        # non-degenerate (knee spacing >= 5 x softness, so gamma IS the
+        # straight-line slope). rms 0.014 / 0.008 / 0.010 D r/g/b.
+        # ⚠ THE PRINTED x LABELS ARE MISPRINTED: «-3,5 -2,5 -1,5 -0,5 0 0,5»
+        # under six equally spaced gridlines. The spacing is 1.0 lg H (the
+        # four panels of Рис. 197 share one scale, and 0.5 per grid would
+        # make gamma 1.5 against the book's own 0.7 +/- 0.1), so the last two
+        # labels are read as 0,5 and 1,5.
+        # Gamma 0.75 / 0.76 / 0.82 (maximum slope 0.70 / 0.75 / 0.82) --
+        # inside the book's 0.7 +/- 0.1 with the top (blue) layer steeper, as
+        # its footnote says. Mask ladder at the
+        # drawn toe 0.27 / 0.43 / 0.80.
         curves=RGBCurves(
-            r=_neg(0.30, 0.700, toe_x=-0.90, toe_k=0.34, shoulder_x=1.10),
-            g=_neg(0.38, 0.700, toe_x=-0.92, toe_k=0.34, shoulder_x=1.10),
-            b=_neg(0.92, 0.850, toe_x=-0.86, toe_k=0.32, shoulder_x=1.06),
+            r=ToneCurve(0.2665, 0.7485, -1.5599, 0.2313, 0.9824, 0.5133),
+            g=ToneCurve(0.4343, 0.7560, -1.4821, 0.2977, 1.5432, 0.3045),
+            b=ToneCurve(0.7955, 0.8244, -1.4010, 0.2026, 1.5743, 0.2573),
         ),
         # Grain [T3]: EI 32 masked tungsten stock, Soviet coating.
         grain=GrainSpec(15.0, 4.194, 4.516, 5.484, clump_gain=1.30, fog_grain=0.28,
@@ -29329,7 +30028,12 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "green and <= 21 red, MTF >= 0.30 green and >= 0.15 red, yellow "
             "filter-layer efficiency >= 1.0, RED-LAYER SENSITISATION LIMIT <= 690 nm, "
             "any single layer >= 80 GOST. Real stock sat inside these limits, so the "
-            "rendered film is the worst permitted example of itself."
+            "rendered film is the worst permitted example of itself wherever "
+            "only a limit is known. ⚠ THE CURVE SHAPE IS NOT ANALOGY SINCE "
+            "2026-09-29g: no ТУ prints a curve, but Гурлев 1986 p356 Рис. 199 "
+            "draws ЛН-8 (ТУ 6-17-1109-80) in all three layers, and the stored "
+            "curves are its trace -- gamma 0.55 / 0.60 / 0.62, inside the -88 "
+            "edition's mean-gradient bands."
         ),
         era="1988-1991",
         exposure_index=100,
@@ -29376,10 +30080,25 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # CURVE SHAPE IS NOT IN THE DOCUMENT: toe_x/toe_k/shoulder_* are [T3]
         # and follow the DS-5M family shape, because the TU specifies three
         # scalars and says nothing about the curve.
+        # ✅ [T1] THE SHAPE IS NO LONGER ANALOGY (2026-09-29g). No ТУ prints a
+        # curve, but Гурлев 1986 p356 Рис. 199 «Характеристические кривые
+        # цветных негативных кинопленок» DRAWS ЛН-8 (ТУ 6-17-1109-80, the
+        # earlier edition of this profile's -88) in all three layers on an
+        # absolute lg H axis. Traced from the 300 dpi raster (117.6 px per
+        # lg H, 119.3 per D), layers ranked, fits constrained monotone and
+        # non-degenerate: rms 0.010 / 0.006 / 0.006 D r/g/b. Gamma 0.55 /
+        # 0.60 / 0.62 (maximum slope 0.53 / 0.59 / 0.60) -- inside the -88
+        # edition's mean-gradient bands
+        # (0.46-0.56 / 0.50-0.60 / 0.56-0.66) and Гурлев's own ḡ 0.55-0.65.
+        # Drawn toe 0.31 / 0.54 / 1.12. ⚠ THE RED ASYMPTOTE IS HELD AT THE
+        # -88 CEILING 0.25: the drawn red curve never gets below 0.31 inside
+        # the plotted range, so its asymptote is not measured, and the free
+        # fit's 0.29 would put the stored film outside its own acceptance
+        # band. Holding it costs 0.0002 D of rms.
         curves=RGBCurves(
-            r=_neg(0.25, 0.500, toe_x=-1.30, toe_k=0.32, shoulder_x=1.45),
-            g=_neg(0.42, 0.540, toe_x=-1.32, toe_k=0.32, shoulder_x=1.45),
-            b=_neg(0.88, 0.600, toe_x=-1.28, toe_k=0.30, shoulder_x=1.42),
+            r=ToneCurve(0.2500, 0.5542, -2.4669, 0.1978, 0.7936, 0.6559),
+            g=ToneCurve(0.4963, 0.5985, -2.3994, 0.2087, 0.5555, 0.4107),
+            b=ToneCurve(1.0195, 0.6232, -2.2352, 0.1758, 0.2539, 0.4396),
         ),
         # [T1-limit] RMS ceilings 19 green / 21 red (table 2 item 9). Blue is
         # NOT specified, so it takes the pooled fallback rather than a guess.
@@ -29746,8 +30465,11 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "<= 0.25 in every layer; useful exposure interval >= 1.2 measured between "
             "densities 0.3 and 2.1; resolving power >= 68 lin/mm. Its colloidal-silver "
             "antihalation layer is specified to DECOLOURISE during processing. Note "
-            "the contrast figures are RANGES 0.4 wide, so the stored gammas are "
-            "range midpoints -- a coarser commitment than the negative stocks above."
+            "the contrast figures are RANGES 0.4 wide. ⚠ SINCE 2026-09-29g THE "
+            "STORED CURVES ARE NOT THE RANGE MIDPOINTS but the trace of Гурлев "
+            "1986 p355 Рис. 198 (ЦО-32Д, ТУ 6-17-912-77): gamma 2.13 / 2.11 / "
+            "2.44, red and green inside 1.8-2.2 and blue inside 2.2-2.6 (maximum "
+            "slopes 1.89 / 1.82 / 2.13)."
         ),
         era="1987-1991",
         exposure_index=32,
@@ -29790,10 +30512,28 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # into midtones and shadows. A lab balancing at mid-grey instead would
         # get yellow shadows PLUS cool highlights -- a cross rather than a
         # cast. The early blue clipping is gamma-driven and happens either way.
+        # ✅ [T1] THE SHAPE IS TRACED (2026-09-29g), and it confirms the
+        # direction argued above. Гурлев 1986 p355 Рис. 198 «Характеристические
+        # кривые цветных обращаемых фотопленок» draws ЦО-32Д (ТУ 6-17-912-77,
+        # the earlier edition of this profile's -87) in all three layers.
+        # Traced from the 300 dpi raster (117 px per lg H, 118 per D), with
+        # column AND row sampling because the straight section is steep, and
+        # the «ЦО-32Д» label (which sits on the high-exposure tail) masked out.
+        # x = -lg H, re-origined by -0.54 so the green layer reaches D 1.20 at
+        # x = 0 (the database's reversal convention). Fits constrained
+        # monotone and non-degenerate: rms 0.028 / 0.021 / 0.033 D r/g/b.
+        # Gamma 2.13 / 2.11 / 2.44 -- red and green inside 1.8-2.2 and blue
+        # inside 2.2-2.6, i.e. the drawn film has the steep yellow layer item
+        # 4 specifies. ⚠ The model's maximum slopes are lower, 1.89 / 1.82 /
+        # 2.13 (knee spacing held at ~5 x softness, not wider, or the steep
+        # straight section cannot be followed): read as a straight-line
+        # slope, the blue layer sits 0.07 under its 2.2 floor. ⚠ The blue asymptote is held at the 0.25
+        # ceiling: the label hides the drawn blue tail below D 0.26, and the
+        # free fit's 0.30 would sit outside the band.
         curves=RGBCurves(
-            r=_rev(0.25, 2.000, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
-            g=_rev(0.25, 2.000, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
-            b=_rev(0.25, 2.400, toe_x=-0.74, toe_k=0.17, shoulder_x=0.86),
+            r=ToneCurve(0.1166, 2.1255, -0.3120, 0.2470, 0.8728, 0.1726),
+            g=ToneCurve(0.1778, 2.1088, -0.4496, 0.2571, 0.8072, 0.2248),
+            b=ToneCurve(0.2500, 2.4388, -0.4680, 0.2344, 0.6369, 0.1766),
         ),
         # [T3] The TU specifies NO granularity and NO MTF for this film --
         # unlike every negative TU in the batch. Grain is a class estimate for
@@ -30017,7 +30757,11 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "its stored R of 63 lin/mm identifies: табл. 6 prints this mark "
             "TWICE and the высшая grade's floor is 90. Both grades' full "
             "acceptance bands are carried in `_TOLERANCE`, which is why "
-            "`tolerance` is a vector."
+            "`tolerance` is a vector. "
+            "⚠ 2026-09-30, OWNER DECISION: the stored curves are now Гурлев "
+            "1986 Рис. 197's trace (gamma 0.74 / 0.69 / 0.84), ABOVE the "
+            "standard's bands on all three layers; the bands are kept as the "
+            "batch-position range, so the control moves each layer into them."
         ),
         era="1970s-1980s",
         exposure_index=65,
@@ -30026,30 +30770,19 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # printed ranges; green sits higher than on TsNL-32). gamma [T1]
         # 0.70, top layer b 0.85. Straight section sized to the documented
         # L 1.5 logH -- notably wider than TsNL-32.
+        # ✅ ADOPTED 2026-09-30 (owner decision) FROM Гурлев 1986 p354 Рис. 197,
+        # traced 2026-09-29g (GURLEV_1986_CURVE_FITS, rms <= 0.009 D on its trace).
+        # ⚠ THE DRAWN CURVE SITS ABOVE ГОСТ 25120-82's BAND, AND THE BAND IS KEPT:
+        # gamma 0.74 / 0.69 / 0.84 against 0.47-0.63 / 0.52-0.68 / 0.57-0.73. The
+        # batch-position zero is therefore the drawn roll, not a legal one, and
+        # the control moves every layer INTO the band at both ends (+1 -> the
+        # upper edge, which is below the stored gamma; -1 -> the lower edge).
+        # The comment inside the old literal (the 2026-09-23c correction to the
+        # standard's recommended values) is superseded but kept in the history.
         curves=RGBCurves(
-            # ⚠⚠ GAMMAS CORRECTED 2026-09-23c FROM 0,70 / 0,70 / 0,85 TO THE
-            # STATE STANDARD'S OWN RECOMMENDED VALUES, AND THE OLD ONES WERE
-            # OUTSIDE THIS FILM'S LEGAL ACCEPTANCE BAND. ГОСТ 25120-82 табл. 6,
-            # столбец «Фото ЦНЛ-65, первая категория качества», пп. 4-5:
-            # рекомендуемый коэффициент контрастности нижнего слоя 0,55 ± 0,08,
-            # среднего 0,60 ± 0,08, верхнего 0,65 ± 0,08, at the 5-8 min
-            # development п. 6 prints for them. Stored 0,70 / 0,70 / 0,85 sat
-            # ABOVE the upper edge of all three bands -- 0,63 / 0,68 / 0,73 --
-            # so the profile was rendering a roll its own specification would
-            # have rejected. `soviet_tu_corpus.py` found it the first time it
-            # ran, which is the whole argument for storing the bands.
-            # ⚠ THE CONFLICT IS REAL AND IS NOT BEING HIDDEN. The old numbers
-            # come from Gurlev 1986 pp. 354-355, «gamma 0,7 ± 0,1 with the top
-            # layer 0,1-0,2 higher» -- a handbook reporting TYPICAL values at
-            # an unstated development, against a state specification that
-            # prints its contrast beside the time that produces it. The two
-            # AGREE ON SHAPE (top layer steepest, bottom shallowest, 0,10
-            # apart) and disagree on LEVEL by about 0,12. The standard wins on
-            # provenance; Gurlev's figures stay in the description as the
-            # discrepancy they are rather than being quietly deleted.
-            r=_neg(0.30, 0.550, toe_x=-1.20, toe_k=0.34, shoulder_x=1.40),
-            g=_neg(0.50, 0.600, toe_x=-1.22, toe_k=0.34, shoulder_x=1.40),
-            b=_neg(0.92, 0.650, toe_x=-1.16, toe_k=0.32, shoulder_x=1.36),
+            r=ToneCurve(0.2056, 0.7364, -1.5064, 0.3970, 1.0758, 0.3951),
+            g=ToneCurve(0.5222, 0.6920, -1.8004, 0.2637, 0.9129, 0.5412),
+            b=ToneCurve(1.0111, 0.8423, -1.5908, 0.3353, 0.5320, 0.4247),
         ),
         # Grain [T3]: one GOST step faster than TsNL-32.
         grain=GrainSpec(17.0, 4.516, 4.839, 5.806, clump_gain=1.35, fog_grain=0.30,
@@ -30134,8 +30867,8 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "latitude 1.05 logH, Dmax 1.9, Dmin 0.08, S behind yellow "
             "filter 16 GOST. Iofis 1980 p146: medium-speed reversal class, "
             "R >= 100 mm^-1, sensitized to 680 nm, bluish-tinted triacetate "
-            "base. Curve numbers datasheet-grounded; grain [T3] class "
-            "estimate."
+            "base. Curve traced 2026-09-29g from Гурлев 1986 p298 Рис. 178 "
+            "(12 min first development); grain [T3] class estimate."
         ),
         era="1970s-1980s",
         kind=StockKind.REVERSAL,
@@ -30149,7 +30882,23 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # 0.08, Chibisov 0.06 -- 0.08 kept (conservative, and the newer
         # source). Dmax 1.9 [T1] printed; span set so dmin + gamma*span
         # = 1.9 exactly (span 1.21, matching the documented L 1.05 logH).
-        curves=_mono(ToneCurve(0.08, 1.500, -0.55, 0.18, 0.66, 0.25)),
+        # ✅ [T1] TRACED 2026-09-29g, replacing the construction above.
+        # Гурлев 1986 p298 Рис. 178 «Характеристические кривые и график
+        # кинетики для первого проявления фотопленок ОЧ-45 и ОЧ-180» draws
+        # ОЧ-45 (ТУ 6-17-646-74, this profile's TU) at first-development times
+        # 4 / 8 / 12 / 16 min; the stored curve is the 12 min one, the time
+        # p298's own table prints for t_пр первого. Traced from the 300 dpi
+        # raster (116.8 px per lg H, 117.5 per D), the four curves ranked so
+        # they never swap, the «4 / 8 / 12 / 16» labels excluded. x = -lg H,
+        # re-origined by -1.29 so D 1.20 sits at x = 0. Fit constrained
+        # monotone and non-degenerate, rms 0.011 D (max 0.11 at one
+        # label-contaminated point); slope 1.33, inside γ_рек 1.1-1.6, and
+        # gamma 1.50 -- the value the construction had chosen. ⚠ dmin is
+        # bounded to 0.06-0.10 around the table's printed D_мин 0.08 and the
+        # fit takes 0.10: the drawn 12 min tail is hidden where the four
+        # curves converge, so the asymptote is not measured. The other three times are in
+        # GURLEV_1986_CURVE_FITS.
+        curves=_mono(ToneCurve(0.1000, 1.4990, -0.7511, 0.2228, 0.7149, 0.2941)),
         # Grain [T3]: medium-speed Soviet reversal; second development
         # dissolves the coarse first-image silver, so finer than the
         # negative stocks of the same speed but coarser than western
@@ -31781,11 +32530,13 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # PDF p38 table. x = log H (lux-s); six-parameter fit rms 0.0085 D. The 8 3/4 and 12 min curves are
         # the G-bar points in processing_family below.
         curves=_mono(ToneCurve(0.2394, 0.6443, -2.6608, 0.2405, 0.4298, 0.9045)),
-        # ⚠ rms 11.0 IS AN ESTIMATE [T3]. Neither AF3-207U nor the 1998 data sheet AF3-706E on disk
-        # (PDF/PROFILES/FUJI/Neopan400.pdf, checked page by page 2026-09-29) prints a granularity for
-        # this film. 11.0 is the geometric mean of the two Fuji siblings' printed values (ACROS 7 at ISO
-        # 100, NEOPAN 1600 17.2), i.e. the value on a straight log-speed line two stops from each.
-        grain=GrainSpec(11.0, 4.0, 4.0, 4.0, clump_gain=0.60, fog_grain=0.20),
+        # ✅ [T2] rms 10 STATED, 2026-09-29c: Silber & Kolonia, «28 B&W Films Compared!», Popular
+        # Photography 2003, p2 chart, «RMS (GRANULARITY)» column, data «from the film manufacturers».
+        # Neither AF3-207U nor AF3-706E prints a granularity; the previous 11.0 was a log-speed
+        # interpolation between ACROS 7 and NEOPAN 1600. ⚠ Classic Camera B&W N.92 (2014) prints 9
+        # and resolving power 140 for the same film, source unstated; the maker-sourced 10 is kept
+        # (owner decision 2026-09-29c). Clump sizes are unchanged: only the level moved.
+        grain=GrainSpec(10.0, 4.0, 4.0, 4.0, clump_gain=0.60, fog_grain=0.20),
         # [T3] MTF by analogy (AF3-207U prints no MTF for its B&W films); f50 set between ACROS (95) and
         # NEOPAN 1600 (34) on the same log-speed rule.
         mtf=MTFSpec(57.0, 57.0, 57.0),
@@ -33990,7 +34741,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                 DevelopmentPoint(developer='XTOL', dilution='1:1',
                                  minutes=7.25, celsius=24.0, vessel='large tank'),
             ),
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», pp.306, 307, 325, 326 -- «Режимы проявления». TIME ONLY: the "
                     "tables print no contrast."),
         ),
@@ -34016,17 +34767,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # points, so the decimated array was shifted by log_s_pan +0.01 to satisfy the
         # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
         # above before converting back to absolute sensitivity.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (f4016_TMax_100.pdf p8): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 1.5 nm / 0.013 log off the lines they name.
+        # Largest change 0.15 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-4.00, -4.00, 0.00, -0.05, -0.12, -0.18, -0.23,
-                     -0.29, -0.34, -0.40, -0.47, -0.52, -0.52, -0.48,
-                     -0.43, -0.39, -0.39, -0.39, -0.39, -0.31, -0.34,
-                     -0.38, -0.44, -0.50, -0.52, -0.50, -0.60, -1.13,
-                     -1.81, -2.15, -2.54, -2.95, -4.00),
+            log_s_pan=(-4.00, -4.00, 0.00, -0.05, -0.12, -0.18, -0.23, -0.28, -0.35, -0.41, -0.47, -0.51, -0.52, -0.49, -0.45, -0.41, -0.40, -0.40, -0.39, -0.36, -0.35, -0.38, -0.44, -0.50, -0.53, -0.51, -0.60, -1.07, -1.66, -2.10, -2.51, -2.92, -3.25),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
                 "Eastman Kodak Company, publication F-4016, Spectral"
-                "Sensitivity Curves, p8; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p8; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         features=Feature.TABULAR_GRAIN,
     ),
@@ -34373,7 +35125,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                 DevelopmentPoint(developer='XTOL', dilution='1:1',
                                  minutes=6.00, celsius=24.0, vessel='large tank'),
             ),
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», pp.306, 307, 325, 326 -- «Режимы проявления». TIME ONLY: the "
                     "tables print no contrast."),
         ),
@@ -34398,17 +35150,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # Absolute ordinate: peak log sensitivity 3.111 at 571 nm; add it back to
         # recover the sheet's erg/cm2 scale. -4.00 means the sheet does not plot
         # the curve there (measured span 380-650 nm on this grid).
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (f4043_TMax_400.pdf p7): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 1.9 nm / 0.038 log off the lines they name.
+        # Largest change 0.10 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-0.16, -0.17, -0.18, -0.21, -0.22, -0.23, -0.26,
-                     -0.27, -0.30, -0.34, -0.39, -0.38, -0.34, -0.28,
-                     -0.19, -0.15, -0.21, -0.15, -0.12, 0.00, -0.05, -0.17,
-                     -0.31, -0.39, -0.36, -0.33, -0.75, -1.52, -4.00,
-                     -4.00, -4.00, -4.00, -4.00),
+            log_s_pan=(-0.15, -0.16, -0.17, -0.20, -0.21, -0.22, -0.25, -0.26, -0.28, -0.32, -0.37, -0.37, -0.33, -0.28, -0.19, -0.14, -0.20, -0.14, -0.13, 0.00, -0.04, -0.15, -0.29, -0.37, -0.36, -0.30, -0.65, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_dmin",
             source=(
                 "Eastman Kodak Company, publication F-4043"
-                "Spectral-Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16"),
+                "Spectral-Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         features=Feature.TABULAR_GRAIN,
     ),
@@ -34610,7 +35363,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             # anyway. ⚠ THE MEASUREMENTS WIN: a fit can be recomputed from the
             # points at any time and the points cannot be recomputed from the
             # fit. Making the law developer-scoped is DIGITIZATION_QUEUE P52.
-            source=('В. И. Шеберстов et al., «Современные фотоматериалы и их '
+            source=('В. Л. Лихачев, «Современные фотоматериалы и их '
                     'обработка», pp. 341-342 -- «Характеристические кривые '
                     'фотопленки Kodak Professional T-MAX P3200», two panels, '
                     'four and five curves, traced and re-derived on every '
@@ -34634,17 +35387,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # extraction report).
         # The sheet plots two density criteria (D = 0.3 and D = 1.0 above
         # base+fog); the stored curve is the speed-defining D = 0.3 one.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (f4001-P3200TMZ-2019.pdf p7): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 0.7 nm / 0.014 log off the lines they name.
+        # Largest change 0.06 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-4.00, -4.00, -4.00, -4.00, -0.00, -0.02, -0.05,
-                     -0.09, -0.14, -0.22, -0.28, -0.29, -0.30, -0.29,
-                     -0.25, -0.21, -0.19, -0.21, -0.22, -0.18, -0.14,
-                     -0.18, -0.25, -0.32, -0.35, -0.36, -0.37, -0.71,
-                     -1.39, -1.80, -2.21, -2.68, -4.00),
+            log_s_pan=(-4.00, -4.00, -4.00, -4.00, 0.00, -0.02, -0.05, -0.09, -0.15, -0.20, -0.25, -0.29, -0.30, -0.28, -0.25, -0.21, -0.20, -0.21, -0.22, -0.18, -0.15, -0.18, -0.25, -0.32, -0.35, -0.36, -0.41, -0.70, -1.33, -1.78, -2.19, -2.66, -3.20),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
                 "Eastman Kodak Company, publication F-4001, Spectral"
-                "Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         # [NON-EVIDENCE] -- this comment DESCRIBES a source that was
         # evaluated and rejected for every parameter but one. The sentinel
@@ -34912,7 +35666,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                 DevelopmentPoint(developer='T-MAX RS', dilution='stock',
                                  minutes=3.00, celsius=24.0, vessel='tray'),
             ),
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», pp.388 -- «Режимы проявления». TIME ONLY: the "
                     "tables print no contrast."),
         ),
@@ -35207,7 +35961,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                 DevelopmentPoint(developer='XTOL', dilution='1:1',
                                  minutes=8.00, celsius=24.0, vessel='small tank'),
             ),
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», pp.392, 395 -- «Режимы проявления». TIME ONLY: the "
                     "tables print no contrast."),
         ),
@@ -35229,17 +35983,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # extraction report).
         # The sheet plots two density criteria (D = 0.3 and D = 1.0 above
         # base+fog); the stored curve is the speed-defining D = 0.3 one.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (f4017_TriX.pdf p7): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 1.6 nm / 0.040 log off the lines they name.
+        # Largest change 0.13 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-0.00, -0.01, -0.02, -0.03, -0.04, -0.07, -0.11,
-                     -0.15, -0.19, -0.29, -0.37, -0.45, -0.51, -0.50,
-                     -0.44, -0.40, -0.35, -0.31, -0.28, -0.27, -0.27,
-                     -0.31, -0.37, -0.32, -0.31, -0.42, -0.84, -1.81,
-                     -2.46, -4.00, -4.00, -4.00, -4.00),
+            log_s_pan=(0.00, 0.00, -0.01, -0.02, -0.04, -0.06, -0.10, -0.14, -0.19, -0.27, -0.35, -0.43, -0.48, -0.48, -0.44, -0.39, -0.35, -0.31, -0.28, -0.26, -0.27, -0.31, -0.34, -0.32, -0.30, -0.39, -0.79, -1.68, -2.35, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
                 "Eastman Kodak Company, publication F-4017, Spectral"
-                "Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         # [NON-EVIDENCE] -- this comment DESCRIBES a source that was
         # evaluated and rejected for every parameter but one. The sentinel
@@ -35799,7 +36554,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                 DevelopmentPoint(developer='XTOL', dilution='1:1',
                                  minutes=10.50, celsius=24.0, vessel='drum'),
             ),
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», pp.393, 394 -- «Режимы проявления». TIME ONLY: the "
                     "tables print no contrast."),
         ),
@@ -36094,7 +36849,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                 DevelopmentPoint(developer='XTOL', dilution='1:1',
                                  minutes=10.50, celsius=24.0, vessel='drum'),
             ),
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», pp.349, 350, 380, 381, 382 -- «Режимы проявления». TIME ONLY: the "
                     "tables print no contrast."),
         ),
@@ -36117,17 +36872,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # points, so the decimated array was shifted by log_s_pan +0.01 to satisfy the
         # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
         # above before converting back to absolute sensitivity.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (f4018-125PX-2007.pdf p9): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 1.5 nm / 0.038 log off the lines they name.
+        # Largest change 0.17 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-2.24, -0.84, -0.11, 0.00, -0.06, -0.11, -0.19,
-                     -0.29, -0.37, -0.45, -0.54, -0.64, -0.72, -0.78,
-                     -0.79, -0.75, -0.71, -0.69, -0.64, -0.60, -0.60,
-                     -0.64, -0.69, -0.71, -0.69, -0.71, -0.96, -1.47,
-                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_pan=(-4.00, -1.01, -0.17, 0.00, -0.06, -0.11, -0.18, -0.28, -0.36, -0.44, -0.53, -0.63, -0.70, -0.77, -0.79, -0.75, -0.72, -0.69, -0.64, -0.60, -0.60, -0.63, -0.68, -0.70, -0.69, -0.69, -0.91, -1.38, -2.07, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
                 "Eastman Kodak Company, publication F-4018, Spectral"
-                "Sensitivity Curves, p9; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p9; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         features=Feature.NONE,
     ),
@@ -36182,7 +36938,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             1.2087, 1.0743, 0.9411, 0.8628, 0.8468, 0.8848, 0.9452, 1.0288,
             1.1161, 1.2014, 1.2730, 1.3338, 1.3724, 1.3856, 1.3789),
             normalisation="as_printed_status_m",
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», p.407, «Спектральная плотность красителей» -- "
                     "traced from the embedded bitmap and re-derived on every "
                     "build by sovremennye_2004.py"),
@@ -36202,17 +36958,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # there. Measured spans: 400-640 nm.
         # The sheet plots two density criteria (D = 0.3 and D = 1.0 above
         # base+fog); the stored curve is the speed-defining D = 0.3 one.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (f2350-T400CN.pdf p6): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 1.6 nm / 0.034 log off the lines they name.
+        # Largest change 0.15 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-4.00, -4.00, -1.13, -0.56, -0.42, -0.42, -0.49,
-                     -0.52, -0.55, -0.58, -0.56, -0.50, -0.47, -0.38,
-                     -0.24, -0.21, -0.25, -0.19, -0.15, -0.00, -0.05,
-                     -0.17, -0.29, -0.33, -0.29, -0.30, -0.89, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_pan=(-4.00, -4.00, -1.22, -0.59, -0.41, -0.40, -0.47, -0.50, -0.53, -0.56, -0.55, -0.49, -0.46, -0.38, -0.25, -0.19, -0.24, -0.18, -0.15, 0.00, -0.03, -0.14, -0.27, -0.31, -0.28, -0.27, -0.74, -1.75, -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
                 "Eastman Kodak Company, publication F-2350, Spectral"
-                "Sensitivity Curves, p6; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p6; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         features=Feature.TABULAR_GRAIN | Feature.STRONG_DIR_COUPLERS,
     ),
@@ -36299,7 +37056,7 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             1.5888, 1.4991, 1.3623, 1.1917, 1.0476, 0.9692, 0.9317, 0.9314,
             0.9582, 1.0039, 1.0564, 1.1122, 1.1579, 1.1901, 1.2053),
             normalisation="as_printed_status_m",
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», p.410, «Спектральная плотность красителей» -- "
                     "traced from the embedded bitmap and re-derived on every "
                     "build by sovremennye_2004.py"),
@@ -36323,17 +37080,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # points, so the decimated array was shifted by log_s_pan +0.01 to satisfy the
         # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
         # above before converting back to absolute sensitivity.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (f4036-BW400CN.pdf p5): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 4.3 nm / 0.053 log off the lines they name.
+        # Largest change 0.09 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_pan=(-4.00, -1.71, -1.15, -0.56, -0.41, -0.41, -0.48,
-                     -0.51, -0.53, -0.56, -0.55, -0.49, -0.45, -0.38,
-                     -0.25, -0.19, -0.25, -0.18, -0.15, 0.00, -0.03, -0.13,
-                     -0.27, -0.31, -0.28, -0.27, -0.80, -1.74, -4.00,
-                     -4.00, -4.00, -4.00, -4.00),
+            log_s_pan=(-4.00, -1.78, -1.24, -0.60, -0.42, -0.41, -0.47, -0.51, -0.52, -0.56, -0.56, -0.49, -0.46, -0.39, -0.25, -0.19, -0.25, -0.18, -0.16, 0.00, -0.03, -0.13, -0.27, -0.31, -0.28, -0.27, -0.80, -1.74, -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.3_above_fog",
             source=(
                 "Eastman Kodak Company, publication F-4036, Spectral"
-                "Sensitivity Curves, p5; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p5; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         features=Feature.TABULAR_GRAIN | Feature.STRONG_DIR_COUPLERS,
     ),
@@ -36606,27 +37364,20 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2426, adjacency_um=18.81,
         # points, so the decimated array was shifted by log_s_b +0.05, log_s_g +0.03 to satisfy the
         # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
         # above before converting back to absolute sensitivity.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (e4046_ektar_100.pdf p4): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 2.6 nm / 0.013 log off the lines they name.
+        # Largest change 0.20 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -1.73, -1.61, -0.82,
-                     -0.50, -0.35, -0.30, -0.27, -0.20, -0.09, -0.00,
-                     -0.12, -0.75, -1.07, -1.56, -4.00),
-            log_s_g=(-4.00, -4.00, -0.85, -0.88, -0.97, -1.06, -1.21,
-                     -1.21, -1.21, -1.20, -0.92, -0.56, -0.42, -0.34,
-                     -0.23, -0.09, 0.00, -0.02, -0.04, -0.15, -0.50, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.98, -0.49, -0.15, -0.09, -0.12, -0.09, -0.06,
-                     -0.14, -0.06, 0.00, -0.41, -1.54, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00),
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.75, -1.69, -1.00, -0.54, -0.37, -0.28, -0.27, -0.21, -0.10, 0.00, -0.09, -0.59, -1.00, -1.36, -4.00),
+            log_s_g=(-4.00, -4.00, -0.88, -0.87, -0.95, -1.04, -1.17, -1.20, -1.21, -1.21, -0.98, -0.61, -0.44, -0.36, -0.26, -0.12, -0.03, 0.00, -0.04, -0.16, -0.44, -1.45, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.06, -0.61, -0.21, -0.11, -0.14, -0.11, -0.07, -0.13, -0.09, 0.00, -0.37, -1.36, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
                 "Eastman Kodak Company, publication E-4046, Spectral"
-                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         # [NON-EVIDENCE] -- this comment DESCRIBES a source that was
         # evaluated and rejected for every parameter but one. The sentinel
@@ -36750,27 +37501,20 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2426, adjacency_um=18.81,
         # points, so the decimated array was shifted by log_s_b +0.06, log_s_r +0.04 to satisfy the
         # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
         # above before converting back to absolute sensitivity.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (e4051_portra_160.pdf p4): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 2.3 nm / 0.036 log off the lines they name.
+        # Largest change 0.12 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -1.94, -1.89, -1.78,
-                     -1.69, -1.67, -1.68, -1.55, -1.31, -1.07, -0.63,
-                     -0.36, -0.19, -0.07, -0.01, 0.00, -0.23, -0.86, -1.08,
-                     -4.00, -4.00, -4.00, -4.00),
-            log_s_g=(-4.00, -1.13, -0.79, -0.86, -0.90, -1.01, -1.02,
-                     -1.08, -1.05, -1.00, -0.80, -0.63, -0.48, -0.41,
-                     -0.32, -0.22, -0.09, -0.00, -0.11, -0.25, -0.63,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.93, -0.51, -0.10, -0.11, -0.10, -0.13, -0.07,
-                     -0.13, -0.04, 0.00, -0.42, -1.29, -1.73, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00),
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -1.94, -1.90, -1.79, -1.69, -1.67, -1.68, -1.57, -1.35, -1.13, -0.71, -0.41, -0.23, -0.10, -0.03, 0.00, -0.17, -0.78, -0.99, -1.63, -4.00, -4.00, -4.00),
+            log_s_g=(-4.00, -1.17, -0.81, -0.84, -0.87, -0.99, -1.00, -1.06, -1.04, -1.00, -0.82, -0.64, -0.49, -0.41, -0.33, -0.23, -0.11, 0.00, -0.09, -0.20, -0.52, -1.24, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.00, -0.59, -0.15, -0.13, -0.11, -0.15, -0.09, -0.14, -0.07, 0.00, -0.33, -1.17, -1.65, -2.03, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
                 "Eastman Kodak Company, publication E-4051, Spectral"
-                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         features=Feature.STRONG_DIR_COUPLERS | Feature.TABULAR_GRAIN,
     ),
@@ -36799,7 +37543,7 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2426, adjacency_um=18.81,
         ),
         grain=GrainSpec(3.8, 2, 2.194, 2.645, clump_gain=0.2, fog_grain=0.16),
         # [T1] f50 TRACED from E-190 p9's own Modulation Transfer Function
-        # panel, log-log, by kodak_still_curves.py. R 49.1 and G 73.3 cycles/mm are read; ⚠ BLUE IS CENSORED -- its curve is still at 55 % where the plot stops at 80 cycles/mm, so 60.0 is an ESTIMATE and the sheet gives only a lower bound of 80.
+        # panel, log-log, by kodak_still_curves.py. R 49.1 and G 73.3 cycles/mm are read; ⚠ BLUE IS CENSORED -- its curve is still at 55 % where the plot stops at 80 cycles/mm, so 60.0 is an ESTIMATE and the sheet gives only a lower bound of 80. ⚠ 2026-10-01e (queue P96n): 60.0 contradicted that bound; `_apply_combined_mtf` replaces it with 94.0, a log-log fit of the last drawn points.
         # adjacency 0.135 is the MEASURED low-frequency overshoot of the green
         # record (1.135 at 7.3 cycles/mm), not a class estimate.
         mtf=MTFSpec(49.1, 73.3, 60.0, adjacency=0.135, adjacency_um=17.0),
@@ -37095,27 +37839,20 @@ grain=GrainSpec(11.0, 2.387, 2.581, 3.032, clump_gain=0.26, fog_grain=0.18),
         # points, so the decimated array was shifted by log_s_g +0.01, log_s_r +0.05 to satisfy the
         # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
         # above before converting back to absolute sensitivity.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (e4040_portra_800.pdf p4): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 2.0 nm / 0.036 log off the lines they name.
+        # Largest change 0.18 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -2.64, -2.52, -2.32,
-                     -2.16, -2.13, -2.11, -1.98, -1.74, -1.57, -0.97,
-                     -0.57, -0.43, -0.35, -0.28, -0.19, -0.06, 0.00, -0.03,
-                     -0.54, -0.94, -1.41, -2.43),
-            log_s_g=(-4.00, -1.80, -1.46, -1.48, -1.54, -1.58, -1.66,
-                     -1.63, -1.56, -1.57, -1.07, -0.68, -0.49, -0.41,
-                     -0.31, -0.17, -0.04, 0.00, -0.06, -0.22, -0.48, -1.32,
-                     -2.39, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.99, -0.50, -0.06, -0.00, -0.06, -0.08, -0.14,
-                     -0.17, -0.13, -0.04, -0.36, -0.88, -1.46, -2.09,
-                     -2.56, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.67, -2.55, -2.36, -2.18, -2.14, -2.12, -2.03, -1.80, -1.65, -1.09, -0.63, -0.48, -0.39, -0.32, -0.25, -0.12, -0.03, 0.00, -0.51, -0.90, -1.31, -2.28),
+            log_s_g=(-4.00, -1.90, -1.47, -1.45, -1.51, -1.55, -1.64, -1.63, -1.55, -1.56, -1.21, -0.71, -0.50, -0.43, -0.33, -0.20, -0.07, 0.00, -0.05, -0.22, -0.40, -1.14, -2.21, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.05, -0.60, -0.10, 0.00, -0.06, -0.07, -0.12, -0.18, -0.15, -0.05, -0.27, -0.79, -1.32, -1.97, -2.44, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
                 "Eastman Kodak Company, publication E-4040, Spectral"
-                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         # [NON-EVIDENCE] -- this comment DESCRIBES a source that was
         # evaluated and rejected for every parameter but one. The sentinel
@@ -37743,27 +38480,20 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # ordinate is preserved as b=2.726  g=2.719  r=2.742 -- add it back for erg/cm2 sensitivity.
         # -4.00 entries are NOT measurements: the sheet does not plot the curve
         # there. Measured spans: b 380-520, g 390-590, r 490-690 nm.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (E7023-Ultra_Max_400.pdf p4): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 1.6 nm / 0.042 log off the lines they name.
+        # Largest change 0.18 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -2.44, -2.30, -2.13,
-                     -1.98, -1.93, -1.90, -1.78, -1.56, -1.42, -0.98,
-                     -0.69, -0.58, -0.48, -0.37, -0.27, -0.10, -0.00,
-                     -0.11, -0.57, -1.01, -1.43, -4.00),
-            log_s_g=(-4.00, -1.86, -1.56, -1.61, -1.68, -1.76, -1.84,
-                     -1.82, -1.77, -1.73, -1.30, -0.79, -0.58, -0.48,
-                     -0.35, -0.20, -0.06, -0.00, -0.08, -0.26, -0.56,
-                     -1.54, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.92, -0.51, -0.10, -0.02, -0.06, -0.06, -0.05,
-                     -0.13, -0.11, -0.00, -0.38, -1.01, -1.67, -2.14,
-                     -2.58, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.42, -2.28, -2.12, -1.95, -1.90, -1.87, -1.77, -1.56, -1.43, -1.01, -0.69, -0.58, -0.47, -0.37, -0.28, -0.11, 0.00, -0.07, -0.50, -0.94, -1.33, -2.22),
+            log_s_g=(-4.00, -1.90, -1.56, -1.57, -1.65, -1.72, -1.80, -1.80, -1.75, -1.71, -1.37, -0.82, -0.59, -0.49, -0.36, -0.21, -0.08, 0.00, -0.07, -0.25, -0.48, -1.36, -2.42, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-0.95, -0.58, -0.13, -0.02, -0.06, -0.05, -0.04, -0.12, -0.12, 0.00, -0.28, -0.91, -1.56, -2.05, -2.49, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
                 "Eastman Kodak Company, publication E-7023, Spectral"
-                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p4; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         # [NON-EVIDENCE] -- this comment DESCRIBES a source that was
         # evaluated and rejected for every parameter but one. The sentinel
@@ -37886,27 +38616,20 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # points, so the decimated array was shifted by log_s_g +0.01, log_s_r +0.05 to satisfy the
         # schema's peak = 0.0 rule. Subtract that shift from peak_abs_logS
         # above before converting back to absolute sensitivity.
+        # ⚠ RE-READ 2026-09-30 (queue P95, owner decision) AGAINST THE DRAWN GRIDLINES by
+        # `kodak_spectral_regrid.py` (E7024-Ultra_Max_800.pdf p3): the 08-16 arrays were calibrated to the
+        # printed tick labels, which sit up to 2.3 nm / 0.039 log off the lines they name.
+        # Largest change 0.23 log; the 'absolute ordinate' and 'grid renormalisation'
+        # notes above describe the 08-16 reading.
         spectral=SpectralSensitivity(
             lambda_start_nm=380.0, lambda_step_nm=10.0,
-            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -2.63, -2.51, -2.31,
-                     -2.15, -2.13, -2.11, -1.97, -1.73, -1.54, -0.94,
-                     -0.57, -0.42, -0.35, -0.27, -0.18, -0.05, 0.00, -0.08,
-                     -0.56, -0.96, -1.46, -2.47),
-            log_s_g=(-4.00, -1.78, -1.45, -1.48, -1.54, -1.58, -1.66,
-                     -1.63, -1.56, -1.56, -1.03, -0.67, -0.48, -0.41,
-                     -0.31, -0.17, -0.03, 0.00, -0.07, -0.22, -0.50, -1.38,
-                     -2.40, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00),
-            log_s_b=(-0.99, -0.49, -0.06, -0.00, -0.06, -0.08, -0.14,
-                     -0.17, -0.13, -0.04, -0.38, -0.89, -1.48, -2.09,
-                     -2.56, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
-                     -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_r=(-4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -2.66, -2.54, -2.36, -2.17, -2.13, -2.11, -2.02, -1.79, -1.65, -1.08, -0.63, -0.48, -0.38, -0.32, -0.25, -0.11, -0.02, 0.00, -0.51, -0.90, -1.32, -2.28),
+            log_s_g=(-4.00, -1.89, -1.46, -1.45, -1.51, -1.55, -1.64, -1.62, -1.55, -1.56, -1.20, -0.71, -0.50, -0.43, -0.33, -0.20, -0.07, 0.00, -0.05, -0.22, -0.40, -1.15, -2.22, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
+            log_s_b=(-1.04, -0.59, -0.10, 0.00, -0.06, -0.07, -0.12, -0.18, -0.15, -0.05, -0.28, -0.80, -1.33, -1.98, -2.45, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00),
             criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
             source=(
                 "Eastman Kodak Company, publication E-7024, Spectral"
-                "Sensitivity Curves, p3; PDF vector-path extraction 2026-08-16"),
+                "Sensitivity Curves, p3; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)"),
         ),
         features=Feature.STRONG_DIR_COUPLERS,
         dye_density=SpectralDyeDensity(
@@ -38008,7 +38731,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             1.5040, 1.4168, 1.2511, 1.0833, 0.9564, 0.9013, 0.8921, 0.9188,
             0.9571, 1.0090, 1.0677, 1.1095, 1.1503, 1.1639, 1.1571),
             normalisation="as_printed_status_m",
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», p.184, «Спектральная плотность красителей» -- "
                     "traced from the embedded bitmap and re-derived on every "
                     "build by sovremennye_2004.py"),
@@ -38121,7 +38844,7 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             1.4905, 1.3619, 1.1976, 1.0032, 0.8731, 0.8436, 0.8770, 0.9433,
             1.0169, 1.0942, 1.1649, 1.2217, 1.2633, 1.2790, 1.2790),
             normalisation="as_printed_status_m",
-            source=("В. И. Шеберстов et al., «Современные фотоматериалы и их "
+            source=("В. Л. Лихачев, «Современные фотоматериалы и их "
                     "обработка», p.141, «Спектральная плотность красителей» -- "
                     "traced from the embedded bitmap and re-derived on every "
                     "build by sovremennye_2004.py"),
@@ -38608,15 +39331,24 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # point, 0.13 apart where the EAFS ratio 22/16 is 0.14) and «Gr» (contrast) 2.26 / 2.11 / 1.93 --
         # ⚠ CONTRAST FALLING WITH LONGER DEVELOPMENT as printed, consistent with the sheet's own
         # «contrast is high and quite independent from the processing parameters»; recorded, not corrected.
-        curves=_mono(ToneCurve(0.0930, 3.0000, 1.8932, 0.1822, 2.7932, 0.1741)),
+        # ✅ RE-ORIGINED 2026-09-30 (owner-approved; the 2026-09-29f defect): the trace on the sheet's
+        # relative axis put fog + 0.10 at x = +1.60, i.e. metered grey on the base-plus-fog shelf and a
+        # flat frame. Shifted by AVIPHOT_CURVE_X_SHIFT = -3.20 log E, exactly as the Ilford traces were,
+        # so fog + 0.10 sits at -1.60 (the monochrome median). Trace as fitted: toe_x 1.8932,
+        # shoulder_x 2.7932. Cross-check: placing the EAFS criterion instead (fog + 0.30 at 1.5 / S, 0.27
+        # log above the ISO 0.8 / S point) gives fog + 0.10 at -1.57, the same within 0.03.
+        # ⚠ A gamma-3.0 aerial curve spans only 0.9 log E toe to shoulder, so at this origin metered
+        # grey sits at the shoulder (D 2.79 at x = 0): tones above grey compress. That is the stock's
+        # latitude, not a placement error; recorded in NotFound.md.
+        curves=_mono(ToneCurve(0.0930, 3.0000, -1.3068, 0.1822, -0.4068, 0.1741)),
         # ✅ rms 8 PRINTED «at a density of 1.0 above fog», but through a 50 um SPOT, not this database's
         # 48 um convention. ⚠ STORED CONVERTED, NOT AS PRINTED, because the renderer reads
         # rms_granularity as a 48 um figure and G-V29-APERTURE holds every stock to that one
-        # convention: 8.0 x (50/48)^0.5 = 8.16 by `GrainSpec.rms_at_aperture`'s own law (whose
-        # exponent is queue P96: Selwyn gives 1, i.e. 8.33). The printed 8 at 50 um is in the
+        # convention: 8.0 x (50/48) = 8.33 by `GrainSpec.rms_at_aperture`'s own law (Selwyn,
+        # sigma ~ 1/d; 8.16 until 2026-09-30, queue P96 fixed the exponent). The printed 8 at 50 um is in the
         # grain ParamSource. ⚠ The clump triple and clump_gain are [T3]
         # analogy with KODAK_TECHNICAL_PAN (1.29 um, 0.85), the triple scaled by sqrt(8/5).
-        grain=GrainSpec(8.16, 1.632, 1.632, 1.632, clump_gain=0.85, fog_grain=0.10),
+        grain=GrainSpec(8.33, 1.632, 1.632, 1.632, clump_gain=0.85, fog_grain=0.10),
         # ⚠ f50 235 c/mm IS AN ESTIMATE [T3]: the sheet prints no MTF, only resolving power (800 lp/mm at
         # 1000:1, 250 at 1.6:1, USAF 1951 target). 235 = 0.94 x 250, the MEDIAN f50 / low-contrast resolving
         # power ratio over the 47 stocks here that carry both a measured MTF and that figure (10-90 % band
@@ -41739,7 +42471,11 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             "buying film for intercutting would insist on. "
             "⚠ THE RED LAYER MUST BE THE SLOWEST AND THE BLUE AT LEAST AS "
             "FAST AS THE GREEN (clause 1.2.3), an ordering the ТУ states in "
-            "words and which the stored curves respect. "
+            "words. ⚠ The stored curves, Гурлев 1986 Рис. 200 re-traced and "
+            "adopted 2026-09-30 (gamma 1.45 / 1.42 / 1.53, inside 1.4-1.6), "
+            "draw the OPPOSITE: red reaches D 1.20 0.18 lg H before green and "
+            "blue 0.22 after it. The per-channel anchor trims absorb the offset, "
+            "so only the shapes render; the conflict is in NotFound.md. "
             "⚠ AGEING IS SPECIFIED, NOT LEFT OPEN: clause 1.2.4 permits, "
             "after not less than three months from release, a drop of up to "
             "30 % in overall sensitivity and up to 0.2 B in maximum density. "
@@ -41765,10 +42501,20 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # different clauses and did not have to be.
         # Toe, shoulder and their softnesses are [T3] and follow
         # SVEMA_CO_90L, the nearest documented Soviet reversal stock.
+        # ✅ ADOPTED 2026-09-30 (owner decision) FROM Гурлев 1986 p358 Рис. 200,
+        # RE-TRACED 2026-09-30 with the figure's title masked and row ranking on
+        # (the 29g record fit had mis-ranked the converging toe: blue ran 0.19 D
+        # high at lg H +0.65). Fit rms 0.024-0.029 D, D_min held <= the ТУ's
+        # 0.25 per layer, knee spacing >= 5x softness, constrained monotone;
+        # x = -lg H re-origined by 1.0215 so green reaches D 1.20 at x = 0.
+        # gamma 1.45 / 1.42 / 1.53: INSIDE the 1.4-1.6 band on all three layers,
+        # so the 29g reason for recording it only (blue 1.76) does not survive
+        # the re-trace. The curve constructed above from Dmax and latitude is
+        # superseded.
         curves=RGBCurves(
-            r=_rev(0.25, 1.500, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
-            g=_rev(0.25, 1.500, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
-            b=_rev(0.25, 1.500, toe_x=-0.78, toe_k=0.18, shoulder_x=0.90),
+            r=ToneCurve(0.1874, 1.4480, -0.4926, 0.2989, 1.0020, 0.1768),
+            g=ToneCurve(0.2206, 1.4233, -0.6512, 0.3153, 0.9251, 0.1681),
+            b=ToneCurve(0.2500, 1.5288, -0.7986, 0.2995, 0.6989, 0.1417),
         ),
         # [T1-limit] «Среднеквадратическая гранулярность (sigma_D * 1000) --
         # не более 25» (table 2 item 8). ONE figure for the whole film: the
@@ -41945,8 +42691,11 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             "a documented tier-1 spec limit in its own right, and the f50 is "
             "an era-and-class estimate from SVEMA_CNL_32, which Gurlev 1986 "
             "publishes at the same 58 лин/мм. "
-            "⚠ NOT ONE PLOTTED CURVE exists in the document; the curve shape "
-            "is analogy on ЦНД-64. ADDED 2026-09-23c."
+            "⚠ NOT ONE PLOTTED CURVE exists in the standard; the stored curves "
+            "are Гурлев 1986 Рис. 197's, traced 2026-09-29g and ADOPTED "
+            "2026-09-30 on the owner's decision (gamma 0.61 / 0.64 / 0.65, inside "
+            "all three табл. 6 bands; the batch-position zero is the drawn roll). "
+            "ADDED 2026-09-23c."
         ),
         era="1983-1990",
         exposure_index=32,
@@ -41964,10 +42713,24 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # Straight section sized to the specified latitude >= 1,05 lg H, which
         # is the NARROWEST in the Soviet set -- ЦНЛ-65's first grade gets
         # 1,50 and its top grade 1,65 out of the same table.
+        # ⚠ A TRACE EXISTS AND IS NOT ADOPTED (2026-09-29g). Гурлев 1986 p354
+        # Рис. 197 draws ЦНД-32's three layers and the trace lands inside all
+        # three табл. 6 bands (gamma 0.61 / 0.64 / 0.65, fog + mask 0.19 /
+        # 0.36 / 0.85; GURLEV_1986_CURVE_FITS). It is not stored because this
+        # profile's batch-position zero IS the standard's nominal: the green
+        # cell is printed one-sided, «0,60 + 0,08», and a stored 0.64 would
+        # let the control move the layer below a value the standard forbids
+        # it to go under. Stored: the standard's recommended values.
+        # ✅ ADOPTED 2026-09-30 (owner decision) FROM Гурлев 1986 p354 Рис. 197
+        # (GURLEV_1986_CURVE_FITS, rms <= 0.010 D): gamma 0.61 / 0.64 / 0.65,
+        # inside all three табл. 6 bands. The band is kept; the batch-position
+        # zero is now the drawn roll, so the one-sided green cell «0,60 + 0,08»
+        # CAN move down, to 0.60 at -1 and never below it. The note above
+        # («A TRACE EXISTS AND IS NOT ADOPTED») is superseded.
         curves=RGBCurves(
-            r=_neg(0.30, 0.550, toe_x=-1.10, toe_k=0.34, shoulder_x=1.20),
-            g=_neg(0.45, 0.600, toe_x=-1.12, toe_k=0.34, shoulder_x=1.20),
-            b=_neg(1.10, 0.650, toe_x=-1.08, toe_k=0.32, shoulder_x=1.18),
+            r=ToneCurve(0.1860, 0.6068, -1.4010, 0.4239, 0.7133, 0.2654),
+            g=ToneCurve(0.3604, 0.6432, -1.5635, 0.4020, 0.7724, 0.4684),
+            b=ToneCurve(0.8486, 0.6529, -2.1494, 0.3087, 1.0206, 0.3825),
         ),
         # [T3] CLASS ESTIMATE. The standard specifies no granularity at all --
         # «гранулярность» does not occur in its 15 sheets -- so this is
@@ -42574,7 +43337,7 @@ _NO_DATASHEET: tuple[str, ...] = (
 #:
 #: See NotFound.md for the per-stock list of parameters still missing.
 _SOVREMENNYE_2004 = (
-    "В. И. Шеберстов et al., «Современные фотоматериалы и их обработка», "
+    "В. Л. Лихачев, «Современные фотоматериалы и их обработка», "
     "717 pp. -- a plot atlas of the late-film-era catalogue. [T2] "
     "DOCUMENTED REFERENCE DATA, NOT A MANUFACTURER SHEET, so it fills a "
     "field the vendor sheet leaves empty and never displaces a vendor "
@@ -43350,6 +44113,18 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "Gaussian. ⚠ Still NOT obtainable from this sheet: a dye triple -- p3 left draws two NEUTRAL spectra "
         "(minimum and midscale), not three separated dye curves -- and any per-layer MTF, since the sheet prints one "
         "visual-filter curve",),
+    "KODAK_HIE": (
+        "В. Л. Лихачев, «Современные фотоматериалы и их обработка» (Москва: СЛОН-ПРЕСС, 2003), §3.5.1 "
+        "«Фотопленка Kodak Professional High-Speed Infrared», pp433-440: text (IR to 900 nm, medium "
+        "contrast, medium grain, least green sensitivity, storage at 13 C or below, 35 mm only), "
+        "Табл. 3.280 (EI 80 daylight / 200 tungsten unfiltered; No. 25/29/89B 50 / 125 TTL, 200 / 500 "
+        "non-TTL; No. 87 25 / 64; No. 87C 10 / 25; D-76), Табл. 3.281 (exposure guide), "
+        "Табл. 3.283-3.285 (development tables with contrast index), Рис. 3.361 (filter "
+        "transmission), 3.362-3.363 (characteristic curves), 3.364 (T-MAX kinetics), 3.365 "
+        "(spectral sensitivity 280-920 nm), 3.366 (MTF). ⚠ Табл. 3.282 (reciprocity) is CAPTIONED "
+        "«Plus-X 125 / 125PX» inside the HIE section and is NOT adopted: the attribution is "
+        "ambiguous. Reprints of the maker's panels; no Kodak HIE sheet is in the corpus.",
+    ),
     "KONICA_INFRARED_750": (
         "Konica Infrared 750 Black & White film, PUB. No. TDSB-701 (undated)"
         "(identical copy. SPECTRAL: IR band 640-820 nm with PEAK AT 750 nm plus intrinsic AgBr"
@@ -43657,7 +44432,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "0.95/0.95/0.95 at onset 1.0 s is the generic monochrome heuristic from _reciprocity_for(), not a "
         "Fuji figure, and nothing on this sheet confirms even the onset. "
         "ALSO CONFIRMED unchanged: 'El* 1600/33 deg' = the stored EI 1600. STILL NOT PRINTED: rms "
-        "granularity (stored 17.2 is an estimate), resolving power (stored 0.0/0.0 is correct), Dmin, Dmax",
+        "granularity and resolving power (stored rms 16 and RP 100 at 1000:1 are Popular Photography 2003's manufacturer-sourced figures, adopted 2026-09-29c), Dmin, Dmax",
     ),
     "FUJI_NEOPAN_SS": (
         "FUJIFILM DATA SHEET \"NEOPAN SS (135)\", Ref. No. AF3-411E(N) "
@@ -49447,14 +50222,14 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             param='curves.g.dmin', tier=1, status='traced',
             unit='density',
             conditions='green record, base+fog',
-            source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N) (EIGI-99.1-HB8-14). p1: EI 1600/33 deg, panchromatic, usable EI range 400-1600, 135 format, GREY-TINTED cellulose triacetate base 0.122 mm; filter factors (Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25) daylight 1.0/2.0/4.0/8.0 and tungsten 1.0/1.5/3.0/6.0. p2: safelight Fuji SLG4 dark green 20 W at >=1 m; 16-developer x 5-temperature x EI development matrix spanning EI 250-3200 at 18-26 C. p3: stop bath 1.5 % acetic 20-30 s, Fujifix 10 min / Super Fujifix 3-5 min at 15-25 C, wash 20-30 min, Driwel 1:200; automatic-processor conditions (Kodak Versamat, FP260); SPECTRAL SENSITIVITY CURVE 'Spectrogram to Daylight (5400K)'. p4: CHARACTERISTIC CURVES in SPD [Super Prodol] at 20 C for 2 3/4, 4 1/4 and 6 1/4 min with printed average gradients Gbar 0.58 / 0.77 / 0.90, and TIME-Gbar CURVES for Super Prodol, Fujidol E, Microfine and D-76. Both curve sets are 300 dpi RASTERS, not vector; each was traced and validated against the sheet's own printed numbers -- characteristic fit RMS 0.040 density over 487 points with Gbar 0.769 against the printed 0.77, spectral agreeing with the independent 2026-08-02 trace to 0.016 log. ⚠ RE-VERIFIED 2026-08-18 (queue item E0). Two clarifications, no value changed. (1) THE GREY-TINTED BASE IS NOT A base_tint VALUE, and a re-verification pass flagged the identity base_tint as a conflict with the printed 'Gray-tinted... Triacetate 0.122 mm'. It is not one. base_tint models a COLOUR cast, and a grey tint is by definition NEUTRAL -- it belongs in the density, where it already is: the stored dmin 0.211 is high for a B&W negative precisely because this base is tinted. Setting base_tint to some (k, k, k) would require a density for the tint, and the sheet prints none. Left at identity deliberately. (2) THE STORED RECIPROCITY HAS NO BASIS IN THIS SHEET AT ALL: AF3-608E contains no reciprocity section, no long-exposure adjustment table and no Schwarzschild statement anywhere. The stored 0.95/0.95/0.95 at onset 1.0 s is the generic monochrome heuristic from _reciprocity_for, not a Fuji figure, and nothing on this sheet confirms even the onset. ALSO CONFIRMED unchanged: 'El* 1600/33 deg' = the stored EI 1600. STILL NOT PRINTED: rms granularity (stored 17.2 is an estimate), resolving power (stored 0.0/0.0 is correct), Dmin, Dmax",
+            source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N) (EIGI-99.1-HB8-14). p1: EI 1600/33 deg, panchromatic, usable EI range 400-1600, 135 format, GREY-TINTED cellulose triacetate base 0.122 mm; filter factors (Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25) daylight 1.0/2.0/4.0/8.0 and tungsten 1.0/1.5/3.0/6.0. p2: safelight Fuji SLG4 dark green 20 W at >=1 m; 16-developer x 5-temperature x EI development matrix spanning EI 250-3200 at 18-26 C. p3: stop bath 1.5 % acetic 20-30 s, Fujifix 10 min / Super Fujifix 3-5 min at 15-25 C, wash 20-30 min, Driwel 1:200; automatic-processor conditions (Kodak Versamat, FP260); SPECTRAL SENSITIVITY CURVE 'Spectrogram to Daylight (5400K)'. p4: CHARACTERISTIC CURVES in SPD [Super Prodol] at 20 C for 2 3/4, 4 1/4 and 6 1/4 min with printed average gradients Gbar 0.58 / 0.77 / 0.90, and TIME-Gbar CURVES for Super Prodol, Fujidol E, Microfine and D-76. Both curve sets are 300 dpi RASTERS, not vector; each was traced and validated against the sheet's own printed numbers -- characteristic fit RMS 0.040 density over 487 points with Gbar 0.769 against the printed 0.77, spectral agreeing with the independent 2026-08-02 trace to 0.016 log. ⚠ RE-VERIFIED 2026-08-18 (queue item E0). Two clarifications, no value changed. (1) THE GREY-TINTED BASE IS NOT A base_tint VALUE, and a re-verification pass flagged the identity base_tint as a conflict with the printed 'Gray-tinted... Triacetate 0.122 mm'. It is not one. base_tint models a COLOUR cast, and a grey tint is by definition NEUTRAL -- it belongs in the density, where it already is: the stored dmin 0.211 is high for a B&W negative precisely because this base is tinted. Setting base_tint to some (k, k, k) would require a density for the tint, and the sheet prints none. Left at identity deliberately. (2) THE STORED RECIPROCITY HAS NO BASIS IN THIS SHEET AT ALL: AF3-608E contains no reciprocity section, no long-exposure adjustment table and no Schwarzschild statement anywhere. The stored 0.95/0.95/0.95 at onset 1.0 s is the generic monochrome heuristic from _reciprocity_for, not a Fuji figure, and nothing on this sheet confirms even the onset. ALSO CONFIRMED unchanged: 'El* 1600/33 deg' = the stored EI 1600. STILL NOT PRINTED ON THIS SHEET: rms granularity and resolving power (the stored rms 16 and 1000:1 resolving power 100 lines/mm are Popular Photography 2003's manufacturer-sourced figures, adopted 2026-09-29c), Dmin, Dmax",
             confidence='medium',
             note="provenance.fitted_from is 'datasheet_curve': the softplus parameters were fitted to a published characteristic curve."),
         ParamSource(
             param='curves.g.gamma', tier=1, status='traced',
             unit='dimensionless',
             conditions='green record, softplus fit; see ToneCurve.is_degenerate before reading gamma as a slope',
-            source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N) (EIGI-99.1-HB8-14). p1: EI 1600/33 deg, panchromatic, usable EI range 400-1600, 135 format, GREY-TINTED cellulose triacetate base 0.122 mm; filter factors (Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25) daylight 1.0/2.0/4.0/8.0 and tungsten 1.0/1.5/3.0/6.0. p2: safelight Fuji SLG4 dark green 20 W at >=1 m; 16-developer x 5-temperature x EI development matrix spanning EI 250-3200 at 18-26 C. p3: stop bath 1.5 % acetic 20-30 s, Fujifix 10 min / Super Fujifix 3-5 min at 15-25 C, wash 20-30 min, Driwel 1:200; automatic-processor conditions (Kodak Versamat, FP260); SPECTRAL SENSITIVITY CURVE 'Spectrogram to Daylight (5400K)'. p4: CHARACTERISTIC CURVES in SPD [Super Prodol] at 20 C for 2 3/4, 4 1/4 and 6 1/4 min with printed average gradients Gbar 0.58 / 0.77 / 0.90, and TIME-Gbar CURVES for Super Prodol, Fujidol E, Microfine and D-76. Both curve sets are 300 dpi RASTERS, not vector; each was traced and validated against the sheet's own printed numbers -- characteristic fit RMS 0.040 density over 487 points with Gbar 0.769 against the printed 0.77, spectral agreeing with the independent 2026-08-02 trace to 0.016 log. ⚠ RE-VERIFIED 2026-08-18 (queue item E0). Two clarifications, no value changed. (1) THE GREY-TINTED BASE IS NOT A base_tint VALUE, and a re-verification pass flagged the identity base_tint as a conflict with the printed 'Gray-tinted... Triacetate 0.122 mm'. It is not one. base_tint models a COLOUR cast, and a grey tint is by definition NEUTRAL -- it belongs in the density, where it already is: the stored dmin 0.211 is high for a B&W negative precisely because this base is tinted. Setting base_tint to some (k, k, k) would require a density for the tint, and the sheet prints none. Left at identity deliberately. (2) THE STORED RECIPROCITY HAS NO BASIS IN THIS SHEET AT ALL: AF3-608E contains no reciprocity section, no long-exposure adjustment table and no Schwarzschild statement anywhere. The stored 0.95/0.95/0.95 at onset 1.0 s is the generic monochrome heuristic from _reciprocity_for, not a Fuji figure, and nothing on this sheet confirms even the onset. ALSO CONFIRMED unchanged: 'El* 1600/33 deg' = the stored EI 1600. STILL NOT PRINTED: rms granularity (stored 17.2 is an estimate), resolving power (stored 0.0/0.0 is correct), Dmin, Dmax",
+            source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N) (EIGI-99.1-HB8-14). p1: EI 1600/33 deg, panchromatic, usable EI range 400-1600, 135 format, GREY-TINTED cellulose triacetate base 0.122 mm; filter factors (Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25) daylight 1.0/2.0/4.0/8.0 and tungsten 1.0/1.5/3.0/6.0. p2: safelight Fuji SLG4 dark green 20 W at >=1 m; 16-developer x 5-temperature x EI development matrix spanning EI 250-3200 at 18-26 C. p3: stop bath 1.5 % acetic 20-30 s, Fujifix 10 min / Super Fujifix 3-5 min at 15-25 C, wash 20-30 min, Driwel 1:200; automatic-processor conditions (Kodak Versamat, FP260); SPECTRAL SENSITIVITY CURVE 'Spectrogram to Daylight (5400K)'. p4: CHARACTERISTIC CURVES in SPD [Super Prodol] at 20 C for 2 3/4, 4 1/4 and 6 1/4 min with printed average gradients Gbar 0.58 / 0.77 / 0.90, and TIME-Gbar CURVES for Super Prodol, Fujidol E, Microfine and D-76. Both curve sets are 300 dpi RASTERS, not vector; each was traced and validated against the sheet's own printed numbers -- characteristic fit RMS 0.040 density over 487 points with Gbar 0.769 against the printed 0.77, spectral agreeing with the independent 2026-08-02 trace to 0.016 log. ⚠ RE-VERIFIED 2026-08-18 (queue item E0). Two clarifications, no value changed. (1) THE GREY-TINTED BASE IS NOT A base_tint VALUE, and a re-verification pass flagged the identity base_tint as a conflict with the printed 'Gray-tinted... Triacetate 0.122 mm'. It is not one. base_tint models a COLOUR cast, and a grey tint is by definition NEUTRAL -- it belongs in the density, where it already is: the stored dmin 0.211 is high for a B&W negative precisely because this base is tinted. Setting base_tint to some (k, k, k) would require a density for the tint, and the sheet prints none. Left at identity deliberately. (2) THE STORED RECIPROCITY HAS NO BASIS IN THIS SHEET AT ALL: AF3-608E contains no reciprocity section, no long-exposure adjustment table and no Schwarzschild statement anywhere. The stored 0.95/0.95/0.95 at onset 1.0 s is the generic monochrome heuristic from _reciprocity_for, not a Fuji figure, and nothing on this sheet confirms even the onset. ALSO CONFIRMED unchanged: 'El* 1600/33 deg' = the stored EI 1600. STILL NOT PRINTED ON THIS SHEET: rms granularity and resolving power (the stored rms 16 and 1000:1 resolving power 100 lines/mm are Popular Photography 2003's manufacturer-sourced figures, adopted 2026-09-29c), Dmin, Dmax",
             confidence='medium',
             note="provenance.fitted_from is 'datasheet_curve': the softplus parameters were fitted to a published characteristic curve. ⚠ gamma is a MODEL COEFFICIENT. Where (shoulder_x - toe_x) < 2.5*max(toe_k, shoulder_k) it is not a slope at all -- use ToneCurve.mid_slope."),
         ParamSource(
@@ -49491,7 +50266,7 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             param='processing.developer', tier=1, status='stated',
             unit='',
             conditions='developer named by the source for the published curves',
-            source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N) (EIGI-99.1-HB8-14). p1: EI 1600/33 deg, panchromatic, usable EI range 400-1600, 135 format, GREY-TINTED cellulose triacetate base 0.122 mm; filter factors (Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25) daylight 1.0/2.0/4.0/8.0 and tungsten 1.0/1.5/3.0/6.0. p2: safelight Fuji SLG4 dark green 20 W at >=1 m; 16-developer x 5-temperature x EI development matrix spanning EI 250-3200 at 18-26 C. p3: stop bath 1.5 % acetic 20-30 s, Fujifix 10 min / Super Fujifix 3-5 min at 15-25 C, wash 20-30 min, Driwel 1:200; automatic-processor conditions (Kodak Versamat, FP260); SPECTRAL SENSITIVITY CURVE 'Spectrogram to Daylight (5400K)'. p4: CHARACTERISTIC CURVES in SPD [Super Prodol] at 20 C for 2 3/4, 4 1/4 and 6 1/4 min with printed average gradients Gbar 0.58 / 0.77 / 0.90, and TIME-Gbar CURVES for Super Prodol, Fujidol E, Microfine and D-76. Both curve sets are 300 dpi RASTERS, not vector; each was traced and validated against the sheet's own printed numbers -- characteristic fit RMS 0.040 density over 487 points with Gbar 0.769 against the printed 0.77, spectral agreeing with the independent 2026-08-02 trace to 0.016 log. ⚠ RE-VERIFIED 2026-08-18 (queue item E0). Two clarifications, no value changed. (1) THE GREY-TINTED BASE IS NOT A base_tint VALUE, and a re-verification pass flagged the identity base_tint as a conflict with the printed 'Gray-tinted... Triacetate 0.122 mm'. It is not one. base_tint models a COLOUR cast, and a grey tint is by definition NEUTRAL -- it belongs in the density, where it already is: the stored dmin 0.211 is high for a B&W negative precisely because this base is tinted. Setting base_tint to some (k, k, k) would require a density for the tint, and the sheet prints none. Left at identity deliberately. (2) THE STORED RECIPROCITY HAS NO BASIS IN THIS SHEET AT ALL: AF3-608E contains no reciprocity section, no long-exposure adjustment table and no Schwarzschild statement anywhere. The stored 0.95/0.95/0.95 at onset 1.0 s is the generic monochrome heuristic from _reciprocity_for, not a Fuji figure, and nothing on this sheet confirms even the onset. ALSO CONFIRMED unchanged: 'El* 1600/33 deg' = the stored EI 1600. STILL NOT PRINTED: rms granularity (stored 17.2 is an estimate), resolving power (stored 0.0/0.0 is correct), Dmin, Dmax",
+            source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N) (EIGI-99.1-HB8-14). p1: EI 1600/33 deg, panchromatic, usable EI range 400-1600, 135 format, GREY-TINTED cellulose triacetate base 0.122 mm; filter factors (Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25) daylight 1.0/2.0/4.0/8.0 and tungsten 1.0/1.5/3.0/6.0. p2: safelight Fuji SLG4 dark green 20 W at >=1 m; 16-developer x 5-temperature x EI development matrix spanning EI 250-3200 at 18-26 C. p3: stop bath 1.5 % acetic 20-30 s, Fujifix 10 min / Super Fujifix 3-5 min at 15-25 C, wash 20-30 min, Driwel 1:200; automatic-processor conditions (Kodak Versamat, FP260); SPECTRAL SENSITIVITY CURVE 'Spectrogram to Daylight (5400K)'. p4: CHARACTERISTIC CURVES in SPD [Super Prodol] at 20 C for 2 3/4, 4 1/4 and 6 1/4 min with printed average gradients Gbar 0.58 / 0.77 / 0.90, and TIME-Gbar CURVES for Super Prodol, Fujidol E, Microfine and D-76. Both curve sets are 300 dpi RASTERS, not vector; each was traced and validated against the sheet's own printed numbers -- characteristic fit RMS 0.040 density over 487 points with Gbar 0.769 against the printed 0.77, spectral agreeing with the independent 2026-08-02 trace to 0.016 log. ⚠ RE-VERIFIED 2026-08-18 (queue item E0). Two clarifications, no value changed. (1) THE GREY-TINTED BASE IS NOT A base_tint VALUE, and a re-verification pass flagged the identity base_tint as a conflict with the printed 'Gray-tinted... Triacetate 0.122 mm'. It is not one. base_tint models a COLOUR cast, and a grey tint is by definition NEUTRAL -- it belongs in the density, where it already is: the stored dmin 0.211 is high for a B&W negative precisely because this base is tinted. Setting base_tint to some (k, k, k) would require a density for the tint, and the sheet prints none. Left at identity deliberately. (2) THE STORED RECIPROCITY HAS NO BASIS IN THIS SHEET AT ALL: AF3-608E contains no reciprocity section, no long-exposure adjustment table and no Schwarzschild statement anywhere. The stored 0.95/0.95/0.95 at onset 1.0 s is the generic monochrome heuristic from _reciprocity_for, not a Fuji figure, and nothing on this sheet confirms even the onset. ALSO CONFIRMED unchanged: 'El* 1600/33 deg' = the stored EI 1600. STILL NOT PRINTED ON THIS SHEET: rms granularity and resolving power (the stored rms 16 and 1000:1 resolving power 100 lines/mm are Popular Photography 2003's manufacturer-sourced figures, adopted 2026-09-29c), Dmin, Dmax",
             confidence='high',
             note="The developer is a NAME printed by the source, not a measured number -- hence status 'stated'. It matters because development progress type is a property of the DEVELOPER, not the emulsion (Tani gets both types from one emulsion with CP-20 and D72)."),
         ParamSource(
@@ -51096,9 +51871,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
-            source='Eastman Kodak Company, publication F-4036, SpectralSensitivity Curves, p5; PDF vector-path extraction 2026-08-16',
+            source='Eastman Kodak Company, publication F-4036, SpectralSensitivity Curves, p5; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.380, 0.406, 0.215), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.380, 0.405, 0.214), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_EKTACHROME_100D_5285': (
         ParamSource(
@@ -51841,9 +52616,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
-            source='Eastman Kodak Company, publication F-4018, SpectralSensitivity Curves, p9; PDF vector-path extraction 2026-08-16',
+            source='Eastman Kodak Company, publication F-4018, SpectralSensitivity Curves, p9; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.221, 0.246, 0.532), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.224, 0.245, 0.531), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_PORTRA_100T': (
         ParamSource(
@@ -52457,9 +53232,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
-            source='Eastman Kodak Company, publication F-2350, SpectralSensitivity Curves, p6; PDF vector-path extraction 2026-08-16',
+            source='Eastman Kodak Company, publication F-2350, SpectralSensitivity Curves, p6; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.374, 0.410, 0.216), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.379, 0.406, 0.215), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TECHNICAL_PAN': (
         ParamSource(
@@ -52616,9 +53391,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
-            source='Eastman Kodak Company, publication F-4016, SpectralSensitivity Curves, p8; PDF vector-path extraction 2026-08-16',
+            source='Eastman Kodak Company, publication F-4016, SpectralSensitivity Curves, p8; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.283, 0.325, 0.392), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.282, 0.321, 0.397), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TMAX_400': (
         ParamSource(
@@ -52731,9 +53506,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
-            source='Eastman Kodak Company, publication F-4043Spectral-Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16',
+            source='Eastman Kodak Company, publication F-4043Spectral-Sensitivity Curves, p7; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.314, 0.384, 0.302), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.315, 0.381, 0.304), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TMAX_P3200': (
         ParamSource(
@@ -52839,9 +53614,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
-            source='Eastman Kodak Company, publication F-4001, SpectralSensitivity Curves, p7; PDF vector-path extraction 2026-08-16',
+            source='Eastman Kodak Company, publication F-4001, SpectralSensitivity Curves, p7; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.299, 0.344, 0.357), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.297, 0.344, 0.360), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TRI_X_320TXP': (
         ParamSource(
@@ -52958,9 +53733,9 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
             param='spectral_weights', tier=1, status='derived',
             unit='normalised weights',
             conditions='pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1',
-            source='Eastman Kodak Company, publication F-4017, SpectralSensitivity Curves, p7; PDF vector-path extraction 2026-08-16',
+            source='Eastman Kodak Company, publication F-4017, SpectralSensitivity Curves, p7; PDF vector-path extraction 2026-08-16, re-read 2026-09-30 against the drawn gridlines (queue P95)',
             confidence='high',
-            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.280, 0.301, 0.419), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
+            note="⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS VALUE AND IS NOT READ. Stored: (0.300, 0.590, 0.110), a class default. This cell prints (0.281, 0.299, 0.420), which both engines compute at run time from this stock's own traced pan curve -- Python via RenderSettings.spectral_mono (ON since 2026-08-29), C++ via AlgoSpectralMonoWeights(), which has never had a flag and has always derived. The stored triple survives only as the fallback for stocks with no curve. ⚠ The lobe WIDTH (55 nm) is an assumption, not a measurement: the derivation is exact given the basis and the basis is a convention. A scene spectral model would remove that assumption; reprojecting the data the database already holds does not."),
     ),
     'KODAK_TRI_X_REVERSAL_200': (
         ParamSource(
@@ -56060,11 +56835,11 @@ _PARAM_SOURCES_DERIVED: dict[str, tuple[ParamSource, ...]] = {
     ),
     'SVEMA_FOTO_250': (
         ParamSource(
-            param='curves.g.dmin', tier=3, status='assumed',
+            param='curves.g.dmin', tier=2, status='estimated',
             unit='density',
             conditions='green record, base+fog',
             confidence='low',
-            note="provenance.fitted_from is 'analogy': the curve was taken from a comparable stock. ⚠ Nothing about this curve is a measurement of THIS film."),
+            note="provenance.fitted_from is 'secondary_sources': the curve shape comes from books or trade literature, not from a manufacturer plot. (2026-10-01d: was 'analogy'; the curve now stands on Гурлев 1986 p296 -- γ 0.8, D0 0.08, latitude 1.5 -- and the Рис. 176 traced gamma.)"),
         ParamSource(
             param='curves.g.gamma', tier=3, status='assumed',
             unit='dimensionless',
@@ -58680,6 +59455,23 @@ _P30_ALFA_REPORT_SRC = (
     "than computed. ⚠ PRE-PRODUCTION ALPHA STOCK: «Pellicola di "
     "pre-produzione, stage alfa, difettata»")
 
+#: queue P96j (2026-10-01e): KODAK_HIE developer and format legs.
+_HIE_VARIANT_SRC = (
+    'В. Л. Лихачев, «Современные фотоматериалы и их обработка» (Москва: СЛОН-ПРЕСС, 2003), §3.5.1 p438 Рис. 3.362 (35 mm, small tank, 20 C, daylight) / Рис. 3.363 (sheet, tray, 20 C): curves traced by colour 2026-10-01e and fitted with a robust six-parameter softplus (queue P96j). Times from Табл. 3.283 / 3.285.')
+
+
+#: queue P96j (2026-10-01e): Agfa Scala 200x push / pull ladder.
+_SCALA_PUSH_SRC = (
+    "Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 1st edition 09/1998, p9 "
+    "characteristic-curve panel (the five steps traced in `_AGFA_SCALA_PUSH_CURVES`), and "
+    "F-PF-D4 07/2003 / F-PF-E4 08/2004 p9 contrast and D-max boxes (Pull 1 0.796 / 3.095, "
+    "Standard 1.395 / 2.994, Push 1 1.695 / 2.744, Push 2 1.795 / 2.494, Push 3 1.845 / 2.245). "
+    "Corroborated by the reprint in В. Л. Лихачев, «Современные фотоматериалы» (СЛОН-ПРЕСС, 2003), "
+    "Табл. 3.279 and Рис. 3.358 / 3.359, read 2026-10-01e to within 0.01 of Agfa's values. "
+    "queue P96j; corrected 2026-10-01f to use the maker's traced curves rather than curves "
+    "derived from the reprint.")
+
+
 _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
     # -- ЦО-Т-90ЛМ AND ЦО-90Л: TWO SANCTIONED REGIMES, AND DELIBERATELY NOT
     # -- RECORDED HERE, 2026-09-23 -------------------------------------------
@@ -59966,6 +60758,105 @@ _PROCESS_VARIANTS: dict[str, tuple[ProcessVariant, ...]] = {
                     "claim."),
         ),
     ),
+    "KODAK_HIE": (
+        ProcessVariant(
+            name='35 mm, small tank: D-76, 8 1/2 min',
+            process="BW-negative",
+            is_default=True,
+            exposure_index=80,
+            push_stops=0,
+            curves=RGBCurves(r=ToneCurve(0.0849, 1.2131, -1.1495, 0.4298, 0.3054, 0.3856), g=ToneCurve(0.0849, 1.2131, -1.1495, 0.4298, 0.3054, 0.3856), b=ToneCurve(0.0849, 1.2131, -1.1495, 0.4298, 0.3054, 0.3856)),
+            processing=ProcessingSpec(developer='D-76', dilution='stock', minutes=8.5, celsius=20.0, contrast_index=0.7),
+            source=_HIE_VARIANT_SRC + " Fit rms 0.0058 D.",
+        ),
+        ProcessVariant(
+            name='35 mm, small tank: HC-110 Dil B, 5 min',
+            process="BW-negative",
+            exposure_index=80,
+            push_stops=0,
+            curves=RGBCurves(r=ToneCurve(0.0629, 1.0505, -1.2922, 0.2648, 0.2054, 0.2282), g=ToneCurve(0.0629, 1.0505, -1.2922, 0.2648, 0.2054, 0.2282), b=ToneCurve(0.0629, 1.0505, -1.2922, 0.2648, 0.2054, 0.2282)),
+            processing=ProcessingSpec(developer='HC-110', dilution='Dil B', minutes=5.0, celsius=20.0, contrast_index=0.8),
+            source=_HIE_VARIANT_SRC + " Fit rms 0.0040 D.",
+        ),
+        ProcessVariant(
+            name='35 mm, small tank: D-19, 6 min',
+            process="BW-negative",
+            exposure_index=80,
+            push_stops=0,
+            curves=RGBCurves(r=ToneCurve(0.0438, 3.0, -1.3207, 0.2461, -0.5183, 0.305), g=ToneCurve(0.0438, 3.0, -1.3207, 0.2461, -0.5183, 0.305), b=ToneCurve(0.0438, 3.0, -1.3207, 0.2461, -0.5183, 0.305)),
+            processing=ProcessingSpec(developer='D-19', dilution='stock', minutes=6.0, celsius=20.0, contrast_index=1.65),
+            source=_HIE_VARIANT_SRC + " Fit rms 0.0082 D.",
+        ),
+        ProcessVariant(
+            name='Sheet, tray: D-76, 9 1/2 min',
+            process="BW-negative",
+            exposure_index=80,
+            push_stops=0,
+            curves=RGBCurves(r=ToneCurve(0.0417, 3.0, -0.9807, 0.3881, -0.4641, 0.3881), g=ToneCurve(0.0417, 3.0, -0.9807, 0.3881, -0.4641, 0.3881), b=ToneCurve(0.0417, 3.0, -0.9807, 0.3881, -0.4641, 0.3881)),
+            processing=ProcessingSpec(developer='D-76', dilution='stock', minutes=9.5, celsius=20.0, contrast_index=0.7),
+            source=_HIE_VARIANT_SRC + " Fit rms 0.0091 D.",
+        ),
+        ProcessVariant(
+            name='Sheet, tray: HC-110 Dil B, 4 1/2 min',
+            process="BW-negative",
+            exposure_index=80,
+            push_stops=0,
+            curves=RGBCurves(r=ToneCurve(0.0539, 1.0477, -1.4721, 0.2446, 0.3447, 0.4291), g=ToneCurve(0.0539, 1.0477, -1.4721, 0.2446, 0.3447, 0.4291), b=ToneCurve(0.0539, 1.0477, -1.4721, 0.2446, 0.3447, 0.4291)),
+            processing=ProcessingSpec(developer='HC-110', dilution='Dil B', minutes=4.5, celsius=20.0, contrast_index=0.8),
+            source=_HIE_VARIANT_SRC + " Fit rms 0.0122 D.",
+        ),
+        ProcessVariant(
+            name='Sheet, tray: D-19, 5 min',
+            process="BW-negative",
+            exposure_index=80,
+            push_stops=0,
+            curves=RGBCurves(r=ToneCurve(0.0192, 3.0, -1.2551, 0.2936, -0.4111, 0.1737), g=ToneCurve(0.0192, 3.0, -1.2551, 0.2936, -0.4111, 0.1737), b=ToneCurve(0.0192, 3.0, -1.2551, 0.2936, -0.4111, 0.1737)),
+            processing=ProcessingSpec(developer='D-19', dilution='stock', minutes=5.0, celsius=20.0, contrast_index=1.65),
+            source=_HIE_VARIANT_SRC + " Fit rms 0.0085 D.",
+        ),
+    ),
+    "AGFA_SCALA_200X": (
+        ProcessVariant(
+            name="EI 200, box speed, SCALA process",
+            process="BW-reversal",
+            is_default=True,
+            exposure_index=200,
+            push_stops=0,
+            source=_SCALA_PUSH_SRC + " The default leg: the profile's own stored curves (Agfa 1998 p9 'Standard' trace).",
+        ),
+        ProcessVariant(
+            name='EI 100 (Pull 1)',
+            process="BW-reversal",
+            push_stops=-1,
+            exposure_index=100,
+            curves=RGBCurves(r=ToneCurve(0.0822, 1.3761, -1.0765, 0.1653, 1.1536, 0.1653), g=ToneCurve(0.0822, 1.3761, -1.0765, 0.1653, 1.1536, 0.1653), b=ToneCurve(0.0822, 1.3761, -1.0765, 0.1653, 1.1536, 0.1653)),
+            source=_SCALA_PUSH_SRC + " Pull 1 is DERIVED: Agfa's own tied fit of this step is degenerate (gamma 29.6, refused in _AGFA_SCALA_PUSH_CURVES), so gamma = stored gamma x 0.796 / 1.395 and D-max scaled to 3.095 / 2.994, Agfa F-PF-E4 2004 p9's own contrast and D-max boxes.",
+        ),
+        ProcessVariant(
+            name='EI 400 (Push 1)',
+            process="BW-reversal",
+            push_stops=1,
+            exposure_index=400,
+            curves=RGBCurves(r=ToneCurve(0.0698, 3.5539, -0.1392, 0.1863, 0.625, 0.1863), g=ToneCurve(0.0698, 3.5539, -0.1392, 0.1863, 0.625, 0.1863), b=ToneCurve(0.0698, 3.5539, -0.1392, 0.1863, 0.625, 0.1863)),
+            source=_SCALA_PUSH_SRC + " Push 1: Agfa 1998 p9 traced curve (_AGFA_SCALA_PUSH_CURVES, fit rms 0.0091).",
+        ),
+        ProcessVariant(
+            name='EI 800 (Push 2)',
+            process="BW-reversal",
+            push_stops=2,
+            exposure_index=800,
+            curves=RGBCurves(r=ToneCurve(0.0639, 2.5815, -0.1429, 0.1183, 0.8014, 0.1183), g=ToneCurve(0.0639, 2.5815, -0.1429, 0.1183, 0.8014, 0.1183), b=ToneCurve(0.0639, 2.5815, -0.1429, 0.1183, 0.8014, 0.1183)),
+            source=_SCALA_PUSH_SRC + " Push 2: Agfa 1998 p9 traced curve (fit rms 0.0093).",
+        ),
+        ProcessVariant(
+            name='EI 1600 (Push 3)',
+            process="BW-reversal",
+            push_stops=3,
+            exposure_index=1600,
+            curves=RGBCurves(r=ToneCurve(0.0662, 2.5183, -0.0022, 0.1104, 0.8525, 0.1104), g=ToneCurve(0.0662, 2.5183, -0.0022, 0.1104, 0.8525, 0.1104), b=ToneCurve(0.0662, 2.5183, -0.0022, 0.1104, 0.8525, 0.1104)),
+            source=_SCALA_PUSH_SRC + " Push 3: Agfa 1998 p9 traced curve (fit rms 0.0093).",
+        ),
+    ),
     "KODAK_EKTAPRESS_PJ800": (
         ProcessVariant(
             name="EI 800, box speed, C-41 3:15",
@@ -60211,6 +61102,14 @@ def _provenance_for(p: FilmProfile) -> Provenance:
     # against AF3-036E page by page; seven text facts stored, no value moved.
     if p.name in _REVIEWED_2026_09_28:
         reviewed = "2026-09-28"
+    # ⚠ TWELFTH USE, 2026-10-01e (queue P96j): profiles CREATED from the
+    # «Современные» 2004 reprints of the maker's own panels. The curves are
+    # traced from a published characteristic curve, so "datasheet_curve";
+    # the tier tag stays [T2] because the book is a compilation and grain,
+    # halation and RGB weights are class assumptions.
+    if p.name in _SOVREMENNYE_CREATED_2026_10_01:
+        fitted = "datasheet_curve"
+        reviewed = "2026-10-01"
     return Provenance(
         tier=tier,
         sources=srcs,
@@ -60225,6 +61124,10 @@ def _provenance_for(p: FilmProfile) -> Provenance:
 #: instead of growing a second branch. See the eighth-use note in
 #: `_provenance_for`.
 _5293_REVIEW_2026_09_17 = frozenset({"EASTMAN_5293_250T_1982"})
+
+
+#: Twelfth-use hook in `_provenance_for` (2026-10-01e, queue P96j).
+_SOVREMENNYE_CREATED_2026_10_01 = frozenset({"KODAK_HIE"})
 
 
 #: Profiles whose characteristic curves were replaced by traced ones in the
@@ -60478,6 +61381,18 @@ _DMIN_LADDER = {
 #: Everything else stays 0.0 = "not published / not verified" -- do not
 #: invent values here.
 _RESOLVING_POWER: dict[str, tuple[float, float]] = {
+    # ---- 2026-09-29c: Popular Photography 2003, «28 B&W Films Compared!»
+    # (Silber & Kolonia), «RESOLUTION (LINES/MM)» column, data «from the film
+    # manufacturers». The chart does not name a test-object contrast, and it
+    # does not need to: on all NINE stocks where this dict already holds a
+    # sheet figure (APX 100 / 400, ACROS, PLUS-X, T-MAX 100 / 400 / P3200,
+    # TRI-X 400, SCALA) the chart's number equals the stored 1000:1 figure
+    # exactly, so its column IS the high-contrast one. Low-contrast slots stay
+    # 0.0: the chart prints one figure.
+    "FUJI_NEOPAN_400":      (0.0, 125.0),
+    "FUJI_NEOPAN_1600":     (0.0, 100.0),
+    "KODAK_TECHNICAL_PAN":  (0.0, 320.0),
+    "KODAK_TRI_X_320TXP":   (0.0, 100.0),
     # ---- queue T3, 2026-09-02e: printed at both test-object contrasts on the
     # three Fuji sheets, in the same (low, high) shape this dict wants.
     "FUJI_PROVIA_100F": (60.0, 140.0),
@@ -60733,6 +61648,9 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
 # Every figure below is [C1], read from the page cited.
 # ---------------------------------------------------------------------------
 _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
+    # «Современные» 2004 Табл. 3.280, WITHOUT a filter: daylight or flash EI 80,
+    # tungsten EI 200 (TTL metering, D-76). queue P96j, 2026-10-01e.
+    "KODAK_HIE": 200,
     # ⚠⚠ TWO ENTRIES ADDED 2026-09-06c BECAUSE THEIR PROFILE LITERALS WERE
     # BEING DISCARDED. `_apply_schema_v2` sets this field from THIS DICT ONLY
     # (`_EXPOSURE_INDEX_TUNGSTEN.get(p.name, 0)`), so a literal
@@ -60834,6 +61752,46 @@ _EXPOSURE_INDEX_TUNGSTEN: dict[str, int] = {
 # exists to expose rather than to paper over.
 # ---------------------------------------------------------------------------
 _PROCESSING: dict[str, ProcessingSpec] = {
+    # -- ILFORD, 2026-09-29f: the condition each traced curve was drawn at ----
+    # 2026-09-29g: Гурлев 1986 p296 п. 247 «Сенситометрические характеристики
+    # фотопленок типа «Фото» для проявителя СТ-2» prints t_пр 6-10 min
+    # (Фото-32, -65) and 8-14 min (Фото-130, -250) with γ_рек 0.8 -- the
+    # condition the stored gammas describe; midpoints stored. The same
+    # developer is «Проявитель № 2 (ГОСТ 10691.2-73)» at 20 C with the same
+    # two ranges in Иофис «Справочник фотолюбителя» (1977) p318 and Иофис
+    # «Техника фотографии» табл. 13.
+    "SVEMA_FOTO_32": ProcessingSpec(developer="СТ-2", dilution="", minutes=8.0, celsius=20.0,
+        agitation="printed range 6-10 min (time on the package), midpoint stored"),
+    "SVEMA_FOTO_65": ProcessingSpec(developer="СТ-2", dilution="", minutes=8.0, celsius=20.0,
+        agitation="printed range 6-10 min (time on the package), midpoint stored"),
+    "SVEMA_FOTO_130": ProcessingSpec(developer="СТ-2", dilution="", minutes=11.0, celsius=20.0,
+        agitation="printed range 8-14 min (time on the package), midpoint stored"),
+    "SVEMA_FOTO_250": ProcessingSpec(developer="СТ-2", dilution="", minutes=11.0, celsius=20.0,
+        agitation="printed range 8-14 min (time on the package), midpoint stored"),
+    # Гурлев 1986 p298: t_пр первого 12 min -- the time of the stored traced
+    # curve (Рис. 178, 12 min); p287 prints the first developer (метол 2,
+    # сульфит 75, гидрохинон 15, сода 31, едкий натр 8, роданид 6, сульфат 15,
+    # KBr 1,8 g/l) at 20 +/- 0.5 C with a 6-12 min window.
+    "TASMA_OCH_45": ProcessingSpec(
+        developer="первый проявитель ОЧ-45 (Гурлев 1986, с. 287)",
+        dilution="working strength", minutes=12.0, celsius=20.0,
+        agitation="printed window 6-12 min; the curve is drawn at 12"),
+    # Гурлев 1986 p288 п. 239 «Обработка цветных негативных материалов типа
+    # ДС, ЛН, ЦНД, ЦНЛ (ГОСТ 5554-70)»: проявление 5-8 min at 20 +/- 0.3 C,
+    # ЦПВ-1 2.3 g/l; the stored ЦНЛ-32 curve is the same book's Рис. 197.
+    "SVEMA_CNL_32": ProcessingSpec(
+        developer="цветной проявитель ГОСТ 5554-70",
+        dilution="working strength (ЦПВ-1 2.3 g/l, sulfite 2, hydroxylamine 1.2, potash 60, KBr 2, Trilon B 1 g/l)",
+        minutes=6.5, celsius=20.0,
+        agitation="printed range 5-8 min, midpoint stored (Гурлев 1986 p288)"),
+    "ILFORD_DELTA_3200": ProcessingSpec(
+        developer="Microphen", dilution="stock", minutes=9.0, celsius=20.0,
+        agitation="intermittent: invert four times in the first 10 s, then "
+                  "four times in the first 10 s of each minute"),
+    "ILFORD_HP5_PLUS_400": ProcessingSpec(
+        developer="Ilfotec HC", dilution="1+31", minutes=6.5, celsius=20.0,
+        agitation="intermittent: invert four times in the first 10 s, then "
+                  "four times in the first 10 s of each minute"),
     # -- EASTMAN SUPER-XX Type 1232, 2026-09-22d -----------------------------
     # «Eastman Motion Picture Films for Professional Use» (Kodak, 1942),
     # printed page 45: "Speed and Recommended Exposure Meter Settings: For
@@ -61015,6 +61973,13 @@ _PROCESSING: dict[str, ProcessingSpec] = {
     # why DP is the row stored: it is the only one of the three whose
     # equivalent this database already models.
     # contrast_index stays 0.0: the sheet prints curves, never an index.
+    # «Современные» 2004 Табл. 3.283 (small tank, agitation every 30 s): D-76
+    # at CI 0.70, 8 1/2 min at 20 C -- the development Рис. 3.362's D-76
+    # curve is drawn at. queue P96j, 2026-10-01e.
+    "KODAK_HIE": ProcessingSpec(
+        developer="D-76", dilution="stock", minutes=8.5, celsius=20.0,
+        agitation="small tank: 5-7 inversions in the first 5 s, then every 30 s",
+        contrast_index=0.70),
     "KONICA_INFRARED_750": ProcessingSpec(
         developer="Konicadol DP (Kodak D-76 equivalent, per the sheet's own "
                   "footnote)", dilution="stock", minutes=6.0, celsius=20.0,
@@ -63083,6 +64048,15 @@ _RECIPROCITY_TABLES: dict[str, ReciprocityTable] = {
         stops_correction=(0.0, 0.0),
         source='Eastman Kodak Company, KODAK PROFESSIONAL PORTRA 160NC, 160VC, 400NC, 400VC, and 800 Films, publication E-190 (May 2003 p5 and October 2006 p3, identical sentence), «Adjustments for Long and Short Exposures»: «No filter correction or exposure compensation is required for PORTRA 160NC, 160VC, 400NC, or 400VC Films for exposures from 1/10,000 second to 10 seconds. For PORTRA 800 Film, no adjustments are required for exposures from 1/10,000 second to 1 second. For critical applications with longer exposure times, make tests under your conditions.» CONFIRMED by the KODAK PROFESSIONAL Photographic Catalog L-9 (2003), whose four entries print «Film speed: ISO 160 [400] for exposure times of 1/10,000 second to 10 seconds». ONSET ONLY: no ladder past 10 s is printed and none is extrapolated; the 10 s bound replaces a class onset of 1 s that was ten times too early.',
     ),
+    # 2026-09-29c: NEOPAN 400 PRESTO (120) is NEOPAN 400 in 120 -- its vector
+    # D-76 curves, spectral curve and time-G curve match AF3-207U p41's NEOPAN
+    # 400 [120 Size] traces to 0.01 D / 0.025 log / 0.013 G -- so its
+    # reciprocity section is this stock's. The table was EMPTY before.
+    "FUJI_NEOPAN_400": ReciprocityTable(
+        times_s=(0.5, 1.0, 10.0, 100.0),
+        stops_correction=(0.0, 0.5, 1.0, 2.0),
+        source="Fuji Photo Film Co., Ltd. / FUJIFILM Imaging, «ネオパン 400 PRESTO（120） NEOPAN 400 PRESTO (120)», FUJIFILM PRODUCT INFORMATION BULLETIN, Ref. No. 163AR0121A (神Q-07-7-FP), 2007, 4 pp, Japanese p1 «相反則不軌特性»: «シャッター速度が1/2秒より短い場合は補正の必要はありませんが，1 秒以上の場合は以下の補正をしてください» -- no correction shorter than 1/2 s; 1 s: open 1/2 stop, 10 s: 1 stop, 100 s: 2 stops. ⚠ CONFLICT RECORDED, NOT RESOLVED BY AVERAGING: Popular Photography 2003 («28 B&W Films Compared!») prints a no-compensation range of «10 sec and faster» for NEOPAN 400; the maker's own 2007 sheet is the primary source and is what is stored.",
+    ),
     # =======================================================================
     #  THE 2026-09-22 RECIPROCITY HARVEST -- six tables read out of documents
     #  THE CORPUS ALREADY HELD. Nothing was searched for: each profile named
@@ -64879,6 +65853,10 @@ def _iie_measure(curves, coef, iterations: int,
     # coefficient sets, and their rendered output with them, for no reported
     # defect. `reversal` selects the sourced reference; negatives keep
     # d_ref at logE 0 exactly as before, bit for bit.
+    # ⚠ SUPERSEDED FOR NEGATIVES 2026-10-01f: a defect WAS then reported (grey
+    # ramp colour crossover, Lomography pilot), and the negative reference is
+    # now per exposure -- see `dens()` below. The coefficients of all colour
+    # negatives move with it; the IIE percentages they deliver do not.
     if reversal:
         ref_lg = [_iie_ref_log_e(curves[c]) for c in range(3)]
     else:
@@ -64892,7 +65870,20 @@ def _iie_measure(curves, coef, iterations: int,
 
     def dens(lg):
         d = [_curve(lg[c], c) for c in range(3)]
+        # ⚠ 2026-10-01f, owner-approved fix A: on a NEGATIVE the reference is
+        # RECEIVER-RELATIVE, exactly as film_sim.apply_interimage now renders
+        # it: receiver c measures donor j against the density j would have
+        # under a NEUTRAL exposure at c's own log E. A white-light ramp
+        # therefore measures the stored curve's own gamma, and the separation
+        # ramp carries the published IIE percentage. Reversal keeps the fixed
+        # mid-grey reference.
         for _ in range(max(iterations, 1)):
+            if not reversal:
+                adj = [sum(m[c][j] * (d[j] - _curve(lg[c], j))
+                           for j in range(3) if j != c) for c in range(3)]
+                d = [_iie_density_at(lg[c] + adj[c], curves[c])
+                     for c in range(3)]
+                continue
             delta = [d[j] - d_ref[j] for j in range(3)]
             if dw > 0.0:
                 # The renderer's weight, cap included: (1-dw) + dw*D_j/D_ref,
@@ -67926,6 +68917,17 @@ FILM_PROFILES = tuple(
 #: Unit row sums are preserved -- see `_dye()` for why that contract matters,
 #: and `dye_matrix_from_spectra` for why normalising rows loses no colour.
 _MEASURED_DYE_MATRIX: dict[str, Matrix3] = {
+    # -- 2026-10-01d: the book's three-dye panels (рис. 3.173 / 3.141), same derivation.
+    "KODACHROME_64": (
+        (+0.862158, +0.126524, +0.011318),
+        (+0.037281, +0.904837, +0.057882),
+        (+0.047407, +0.191875, +0.760718),
+    ),
+    "EKTACHROME_64": (
+        (+0.856627, +0.107649, +0.035724),
+        (+0.129855, +0.814959, +0.055186),
+        (+0.045069, +0.144647, +0.810284),
+    ),
     # -- 2026-09-29: the six AF3-207U reversal dye sets (vector traces), same derivation.
     "FUJI_ASTIA_100F": (
         (+0.900235, +0.089489, +0.010276),
@@ -68270,6 +69272,202 @@ _MEASURED_DYE_MATRIX_ADOPTED = True
 
 
 
+# ---------------------------------------------------------------------------
+# 2026-10-01d (owner-approved batch, item 3): THE BOOK'S DYE AND LAYER PANELS.
+#
+# ⚠⚠ THE 115 «Спектральное поглощение красителями (оптическая плотность)»
+# PANELS ARE NOT DYE PANELS. Their own in-panel captions read «Экспозиция:
+# 1/50 с / Проявление: процесс C-41 / Плотность: 1,2 + D-min» and label the
+# curves «Желто-образующий слой», «Пурпурно-образующий слой», «Сине-образующий
+# слой» -- the layers, not the dyes -- which is the Kodak SPECTRAL-SENSITIVITY
+# caption (effective exposure, process, criterion density). That is why queue
+# P53's 23 banded panels all failed the vendor dye window with "cyan" at
+# 594-650 nm: those are red-LAYER sensitivity peaks, where every vendor sheet
+# in this database puts them. The ordinate «D» is the book's mislabel of log
+# sensitivity. The «Спектральная плотность красителей» panels ARE dye panels
+# (D-nom / D-min pairs on negatives, three dyes + visual neutral on reversal).
+#
+# STORED here only where the profile had NOTHING: four neutral pairs, two
+# three-dye sets (both reversal), and three layer-sensitivity sets. Every
+# other mapped panel duplicates a maker's sheet already stored and is a
+# corroboration (sovremennye_2004.py), not a second measurement.
+# ⚠ HOW THEY WERE READ: neutral pairs by column tracking on the ruled frame
+# (dtrace); the three-dye sets by per-column intensity minima, the curves
+# being printed in four grey levels (Kodachrome) -- checked by the sum
+# identity, visual neutral = cyan + magenta + yellow, which holds to 0.036 D
+# (Kodachrome 64) and 0.055 D (Ektachrome 64) at every 10 nm; sensitivities
+# from 2.0-2.4x gridded zooms, +-0.05 log, peak-normalised as the schema asks.
+# ---------------------------------------------------------------------------
+_SOVREMENNYE_DYE_NEUTRAL = {
+    'AGFA_VISTA_200': (72, 11, (1.297, 1.438, 1.549, 1.617, 1.648, 1.643, 1.58, 1.48, 1.344, 1.291, 1.291, 1.297, 1.312, 1.318, 1.286, 1.197, 1.071, 0.945, 0.761, 0.646, 0.609, 0.63, 0.672, 0.73, 0.777, 0.829, 0.871, 0.903, 0.924, 0.913),
+        (0.908, 0.934, 0.966, 0.971, 0.971, 0.955, 0.924, 0.892, 0.861, 0.832, 0.814, 0.803, 0.787, 0.756, 0.73, 0.719, 0.703, 0.635, 0.493, 0.333, 0.262, 0.236, 0.231, 0.231, 0.236, 0.247, 0.257, 0.257, 0.257, 0.257)),
+    'KODAK_PORTRA_100T': (159, 31, (1.565, 1.412, 1.477, 1.548, 1.571, 1.543, 1.466, 1.361, 1.278, 1.241, 1.247, 1.264, 1.281, 1.31, 1.31, 1.233, 1.08, 0.901, 0.741, 0.652, 0.628, 0.651, 0.69, 0.747, 0.81, 0.866, 0.926, 0.969, 0.991, 0.999),
+        (1.043, 0.81, 0.815, 0.844, 0.855, 0.838, 0.801, 0.759, 0.713, 0.69, 0.69, 0.668, 0.634, 0.622, 0.628, 0.634, 0.588, 0.497, 0.375, 0.288, 0.244, 0.224, 0.213, 0.219, 0.224, 0.23, 0.241, 0.25, 0.259, 0.259)),
+    'KODAK_ULTRA_COLOR_400UC': (169, 51, (1.671, 1.703, 1.801, 1.829, 1.805, 1.744, 1.659, 1.553, 1.459, 1.459, 1.508, 1.52, 1.537, 1.569, 1.549, 1.415, 1.191, 0.959, 0.809, 0.74, 0.744, 0.801, 0.874, 0.947, 1.028, 1.102, 1.167, 1.224, 1.252, 1.252),
+        (1.089, 1.049, 1.057, 1.049, 1.016, 0.98, 0.939, 0.89, 0.85, 0.846, 0.841, 0.785, 0.711, 0.683, 0.667, 0.659, 0.585, 0.451, 0.337, 0.28, 0.268, 0.268, 0.276, 0.289, 0.305, 0.321, 0.333, 0.341, 0.35, 0.341)),
+    'KODAK_PROFOTO_100': (187, 77, (1.823, 1.796, 1.946, 1.997, 1.989, 1.929, 1.826, 1.696, 1.575, 1.514, 1.519, 1.552, 1.59, 1.63, 1.617, 1.505, 1.318, 1.095, 0.899, 0.783, 0.764, 0.815, 0.883, 0.967, 1.06, 1.149, 1.236, 1.304, 1.351, 1.374),
+        (1.114, 0.959, 0.965, 0.965, 0.948, 0.909, 0.864, 0.818, 0.776, 0.753, 0.747, 0.726, 0.696, 0.682, 0.671, 0.666, 0.625, 0.529, 0.402, 0.307, 0.258, 0.242, 0.247, 0.258, 0.274, 0.296, 0.307, 0.318, 0.329, 0.334)),
+}
+_SOVREMENNYE_DYE_THREE = {
+    'KODACHROME_64': (264, 173, 'visual neutral under a 3200 K viewing source, as printed',
+        (0.25, 0.207, 0.157, 0.11, 0.073, 0.047, 0.03, 0.023, 0.02, 0.02, 0.02, 0.02, 0.023, 0.03, 0.043, 0.067, 0.103, 0.15, 0.22, 0.34, 0.517, 0.747, 0.998, 1.211, 1.305, 1.271, 1.161, 1.001, 0.851, 0.724, 0.63),
+        (0.4, 0.374, 0.334, 0.29, 0.26, 0.24, 0.244, 0.294, 0.404, 0.534, 0.681, 0.841, 0.981, 1.068, 1.098, 1.061, 0.971, 0.834, 0.667, 0.504, 0.364, 0.26, 0.184, 0.137, 0.1, 0.08, 0.063, 0.053, 0.04, 0.03, 0.023),
+        (0.498, 0.567, 0.661, 0.754, 0.794, 0.788, 0.731, 0.641, 0.497, 0.357, 0.247, 0.154, 0.093, 0.053, 0.03, 0.02, 0.02, 0.02, 0.015, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01),
+        (1.112, 1.138, 1.158, 1.148, 1.128, 1.081, 1.014, 0.954, 0.918, 0.921, 0.954, 1.024, 1.101, 1.161, 1.178, 1.148, 1.078, 0.978, 0.884, 0.844, 0.888, 1.034, 1.208, 1.352, 1.412, 1.362, 1.228, 1.058, 0.901, 0.764, 0.65)),
+    'EKTACHROME_64': (238, 141, 'visual neutral, as printed (Process E-6)',
+        (0.13, 0.095, 0.07, 0.055, 0.047, 0.04, 0.034, 0.03, 0.03, 0.037, 0.047, 0.057, 0.075, 0.1, 0.14, 0.19, 0.25, 0.33, 0.41, 0.49, 0.6, 0.69, 0.77, 0.83, 0.875, 0.9, 0.89, 0.855, 0.79, 0.74, 0.685),
+        (0.08, 0.1, 0.115, 0.13, 0.142, 0.142, 0.17, 0.2, 0.25, 0.33, 0.48, 0.6, 0.71, 0.81, 0.89, 0.915, 0.875, 0.79, 0.63, 0.49, 0.32, 0.21, 0.13, 0.08, 0.055, 0.045, 0.04, 0.035, 0.03, 0.03, 0.03),
+        (0.64, 0.75, 0.83, 0.89, 0.9, 0.88, 0.81, 0.7, 0.56, 0.43, 0.29, 0.18, 0.11, 0.06, 0.04, 0.027, 0.025, 0.02, 0.02, 0.02, 0.02, 0.025, 0.03, 0.035, 0.045, 0.055, 0.06, 0.055, 0.05, 0.045, 0.04),
+        (0.85, 0.93, 1.0, 1.05, 1.1, 1.09, 1.01, 0.94, 0.875, 0.82, 0.81, 0.835, 0.915, 1.0, 1.08, 1.125, 1.14, 1.105, 1.01, 0.945, 0.915, 0.915, 0.935, 0.955, 0.97, 0.98, 0.965, 0.93, 0.875, 0.815, 0.74)),
+}
+_SOVREMENNYE_LAYER_SENS = {
+    'KODAK_ULTRA_COLOR_400UC': (169, 50, '1/50 s, C-41, D 1.2 + D-min (caption as printed)', 380,
+        (-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -2.33, -2.19, -1.9, -1.77, -1.77, -1.75, -1.5, -1.31, -1.21, -0.52, -0.25, -0.09, 0.0, -0.02, -0.15, -0.35, -0.58, -0.78, -0.94, -1.04, -1.43),
+        (-4.0, -4.0, -1.52, -1.36, -1.34, -1.42, -1.56, -1.5, -1.5, -1.46, -0.95, -0.54, -0.41, -0.31, -0.21, -0.08, 0.0, -0.04, -0.14, -0.34, -0.87, -1.72, -2.31, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0),
+        (-1.69, -1.09, -0.29, -0.16, -0.09, -0.02, -0.06, -0.09, -0.02, 0.0, -0.59, -1.28, -1.88, -2.27, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0)),
+    'KODAK_VERICOLOR_III_160': (184, 72, '1.4 s, C-41, D 2.0 + D-min (caption as printed)', 400,
+        (-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -2.0, -1.72, -1.69, -1.74, -1.42, -1.12, -0.7, -0.27, -0.14, -0.1, -0.09, -0.05, -0.02, 0.0, -0.04, -0.37, -1.17, -1.87),
+        (-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -2.4, -1.6, -1.45, -1.2, -0.88, -0.63, -0.5, -0.35, -0.2, 0.0, -0.03, -0.17, -0.47, -1.05, -1.8, -2.43, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0),
+        (-2.48, -0.03, 0.0, -0.02, -0.05, -0.08, -0.1, -0.13, -0.35, -0.83, -1.13, -1.63, -2.51, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0)),
+    'KODAK_PROFOTO_100': (187, 76, '1/50 s, C-41, D 1.2 + D-min (caption as printed)', 370,
+        (-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -1.72, -1.67, -1.57, -1.4, -1.05, -0.65, -0.3, -0.13, -0.05, 0.0, -0.02, -0.2, -0.85, -1.6),
+        (-4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -1.72, -1.62, -1.55, -1.48, -1.15, -0.78, -0.58, -0.45, -0.32, -0.1, 0.0, -0.02, -0.15, -0.25, -0.8, -1.58, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0),
+        (-1.64, -1.55, -1.38, -0.93, -0.33, -0.12, -0.03, -0.03, -0.08, -0.05, 0.0, -0.53, -1.38, -1.88, -2.16, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0, -4.0)),
+}
+
+#: queue P96l (2026-10-01e): THE BOOK'S LAYER-SENSITIVITY PANELS AS A
+#: CORROBORATION SET against records that come from each maker's own sheet.
+#: (figure, page, stock, book peak nm for the yellow-, magenta- and
+#: cyan-forming layers). The stored curve is peak-normalised per layer, so
+#: agreement is judged by the stored value AT the book's peak: >= -0.20 log
+#: (a peak, or a plateau the peak sits on). Nothing here overwrites a
+#: maker's sheet -- the sheet outranks a reprint. 27 of 28 agree.
+#: ⚠ Рис. 3.12 (EKTAPRESS PJ800) AND Рис. 3.18 (PRO 100T / PRT) ARE THE SAME
+#: ARTWORK pixel for pixel (Jaccard 0.87 at 128x96; every traced column
+#: identical). PJ800's own E-116 panel disagrees with it in blue (-0.24 at
+#: 445 nm), so the book reprinted one film's panel under the other's
+#: caption at least once and neither page can be attributed. PRO 100T,
+#: which has NO sensitivity record, is therefore NOT filled from Рис. 3.18.
+SOVREMENNYE_2004_SENS_CORROBORATION: tuple[tuple[str, int, str, tuple[int, int, int]], ...] = (
+    ('2.10', 71, 'AGFA_VISTA_200', (465, 550, 620)),
+    ('2.30', 80, 'AGFA_OPTIMA_100', (470, 550, 620)),
+    ('2.34', 82, 'AGFA_OPTIMA_200', (465, 550, 620)),
+    ('2.38', 83, 'AGFA_OPTIMA_400', (470, 550, 620)),
+    ('2.42', 85, 'AGFA_PORTRAIT_160', (420, 550, 650)),
+    ('2.54', 93, 'KONICA_CENTURIA_SUPER_400', (465, 545, 625)),
+    ('2.66', 102, 'KONICA_CENTURIA_SUPER_1600', (430, 540, 650)),
+    ('2.70', 105, 'KONICA_VX_100', (420, 550, 635)),
+    ('2.98', 125, 'AGFA_RSX_II_100', (420, 560, 645)),
+    ('2.102', 126, 'AGFA_RSX_II_200', (410, 565, 650)),
+    ('3.2', 139, 'KODAK_EKTAPRESS_PJ100', (455, 545, 650)),
+    ('3.7', 141, 'KODAK_EKTAPRESS_PJ400', (470, 545, 650)),
+    ('3.12', 143, 'KODAK_EKTAPRESS_PJ800', (445, 545, 650)),
+    ('3.30', 159, 'KODAK_PORTRA_100T', (470, 545, 615)),
+    ('3.33', 160, 'KODAK_PORTRA_160NC', (470, 545, 620)),
+    ('3.37', 162, 'KODAK_PORTRA_160VC', (470, 550, 620)),
+    ('3.41', 164, 'KODAK_PORTRA_400NC', (470, 550, 615)),
+    ('3.45', 166, 'KODAK_PORTRA_400VC', (470, 550, 620)),
+    ('3.56', 172, 'KODAK_PORTRA_800', (445, 545, 650)),
+    ('3.99', 201, 'FUJICOLOR_NPL_160', (475, 545, 625)),
+    ('3.115', 215, 'KONICA_IMPRESA_50', (450, 555, 625)),
+    ('3.123', 221, 'KODAK_EKTACHROME_100_EPN', (440, 550, 645)),
+    ('3.140', 237, 'EKTACHROME_64', (415, 550, 650)),
+    ('3.148', 244, 'EKTACHROME_160T', (420, 560, 650)),
+    ('3.172', 264, 'KODACHROME_64', (420, 550, 650)),
+    ('3.180', 269, 'FUJICHROME_64T_II', (400, 550, 645)),
+    ('3.188', 277, 'FUJI_PROVIA_100F', (455, 545, 640)),
+    ('3.196', 284, 'KONICA_CHROME_R100', (430, 570, 650)),
+)
+#: queue P96j (2026-10-01e): KODAK_HIE's drawn MTF, «Современные» p440
+#: Рис. 3.366 (tungsten, D-76 10 min 20 C), traced from the red curve on the
+#: log-log grid (x 143 px/decade, y 133 px/decade): (c/mm, response %). The
+#: 50 % crossing, 24.7 c/mm, is `MTFSpec.f50`; the 77-79 % plateau below
+#: 6 c/mm is the evidence of a wide spread recorded in the queue.
+HIE_MTF_CURVE: tuple[tuple[float, float], ...] = (
+    (3.0, 77.6), (4.0, 79.0), (5.0, 77.4), (6.0, 77.1), (8.0, 74.5), (10.0, 72.0),
+    (12.0, 68.9), (15.0, 63.8), (20.0, 56.0), (25.0, 49.6), (30.0, 42.6),
+    (40.0, 30.2), (50.0, 25.0))
+#: Табл. 3.280, EI per taking filter (daylight / tungsten, TTL metering, D-76).
+HIE_FILTER_EI: tuple[tuple[str, int, int], ...] = (
+    ("No. 25, 29 or 89B", 50, 125), ("No. 87", 25, 64), ("No. 87C", 10, 25),
+    ("none", 80, 200))
+SOVREMENNYE_2004_SENS_DUPLICATE_ART = (("3.12", 143, "KODAK_EKTAPRESS_PJ800"), ("3.18", 149, "KODAK_PRO_100T_PRT"))
+
+_SOVREMENNYE_DYE_SRC = "В. Л. Лихачев, «Современные фотоматериалы и их обработка» (Москва: СЛОН-ПРЕСС, 2003)"
+
+
+def _apply_sovremennye_dyes(p: "FilmProfile") -> "FilmProfile":
+    if p.name in _SOVREMENNYE_DYE_NEUTRAL:
+        pg, num, n, m = _SOVREMENNYE_DYE_NEUTRAL[p.name]
+        assert not p.dye_density.has_data and not p.dye_density.has_neutral_pair, p.name
+        p = replace(p, dye_density=SpectralDyeDensity(
+            lambda_start_nm=410.0, lambda_step_nm=10.0, d_neutral=n, d_dmin=m,
+            normalisation="as_printed_diffuse_spectral_density",
+            source=(_SOVREMENNYE_DYE_SRC + ", p%d рис. %s «Спектральная "
+                    "плотность красителей» (D-nom / D-min), traced from the "
+                    "embedded bitmap 2026-10-01d" % (pg, "3.%d" % num if pg > 140 else "2.%d" % num))))
+    if p.name in _SOVREMENNYE_DYE_THREE:
+        pg, num, norm, c, m, y, n = _SOVREMENNYE_DYE_THREE[p.name]
+        assert not p.dye_density.has_data and not p.dye_density.has_neutral_pair, p.name
+        p = replace(p, dye_density=SpectralDyeDensity(
+            lambda_start_nm=400.0, lambda_step_nm=10.0, d_cyan=c, d_magenta=m,
+            d_yellow=y, d_neutral=n, normalisation=norm,
+            source=(_SOVREMENNYE_DYE_SRC + ", p%d рис. 3.%d «Спектральная "
+                    "плотность красителей» (three dyes + visual neutral), "
+                    "read 2026-10-01d; sum identity holds to <= 0.055 D" % (pg, num))))
+    if p.name in _SOVREMENNYE_LAYER_SENS:
+        pg, num, crit, lo, r, g, b = _SOVREMENNYE_LAYER_SENS[p.name]
+        assert not p.spectral.has_data, p.name
+        p = replace(p, spectral=replace(
+            p.spectral, lambda_start_nm=float(lo), lambda_step_nm=10.0,
+            log_s_r=r, log_s_g=g, log_s_b=b,
+            criterion=("log_sensitivity_book_D%s_above_dmin"
+                       % crit.split("D ")[1].split(" +")[0]),
+            source=(_SOVREMENNYE_DYE_SRC + ", p%d рис. 3.%d -- captioned "
+                    "«Спектральное поглощение красителями» but drawn and "
+                    "labelled as LAYER spectral sensitivity (%s); read "
+                    "2026-10-01d, peak-normalised, -4.0 outside the drawn "
+                    "span" % (pg, num, crit))))
+    return p
+
+
+FILM_PROFILES = tuple(_apply_sovremennye_dyes(_p) for _p in FILM_PROFILES)
+for _film in _SOVREMENNYE_DYE_NEUTRAL:
+    _replace_param_source(_film, ParamSource(
+        param="dye_density", tier=1, status="traced", unit="diffuse density",
+        conditions="D-nom (midscale neutral) and D-min, 410-700 nm",
+        source=_SOVREMENNYE_DYE_SRC, confidence="medium",
+        note="Book reproduction of the maker's panel; the profile had none. 2026-10-01d."))
+for _film in _SOVREMENNYE_DYE_THREE:
+    _replace_param_source(_film, ParamSource(
+        param="dye_density", tier=1, status="traced", unit="density",
+        conditions="three dyes + visual neutral, 400-700 nm",
+        source=_SOVREMENNYE_DYE_SRC, confidence="medium",
+        note="Book reproduction of the maker's panel; neutral = C + M + Y to <= 0.055 D. 2026-10-01d."))
+for _film in _SOVREMENNYE_LAYER_SENS:
+    _replace_param_source(_film, ParamSource(
+        param="spectral", tier=1, status="traced", unit="log relative sensitivity",
+        conditions="peak-normalised per layer",
+        source=_SOVREMENNYE_DYE_SRC, confidence="medium",
+        note="From a panel the book captions as dye absorption; its own legend says layer sensitivity. 2026-10-01d."))
+del _film
+for _param, _tier, _status, _unit, _cond, _conf, _note in (
+        ('curves.g.gamma', 1, 'traced', 'density/log H', 'Рис. 3.362, D-76, small tank, 20 C, CI 0.70 (Табл. 3.283)', 'medium', 'Robust six-parameter softplus fit to 173 traced columns, rms 0.0058 D. 2026-10-01e.'),
+        ('curves.g.dmin', 1, 'traced', 'density', 'Рис. 3.362, base+fog of the D-76 curve', 'medium', 'Fit dmin 0.085. 2026-10-01e.'),
+        ('spectral', 1, 'traced', 'log relative sensitivity', 'Рис. 3.365, D 0.3 + D-min, 280-920 nm, peak-normalised', 'medium', "Book reproduction of the maker's panel. 2026-10-01e."),
+        ('mtf.f50_g', 1, 'traced', 'cycles/mm', 'Рис. 3.366, tungsten, D-76 10 min 20 C: 50 % crossing of the drawn curve', 'medium', 'HIE_MTF_CURVE holds the curve; its low-frequency plateau is 77-79 %. 2026-10-01e.'),
+        ('grain.rms_granularity', 3, 'assumed', 'rms x 1000', 'class value (KONICA_INFRARED_750)', 'low', 'The book prints «среднее зерно» and no number (queue P96r).'),
+        ('spectral_weights', 3, 'assumed', 'weight', 'infrared monochrome class value', 'low', 'The derivation from the curve is refused for an infrared emulsion by design.'),
+        ('halation.gain_r', 3, 'assumed', 'gain', 'class value (KONICA_INFRARED_750)', 'low', 'Queue P96r: the MTF plateau suggests a wider halo.'),
+        ('processing.developer', 1, 'stated', 'name', 'Табл. 3.283, small tank, 20 C', 'high', 'D-76 at CI 0.70, 8 1/2 min.'),
+) :
+    _replace_param_source("KODAK_HIE", ParamSource(
+        param=_param, tier=_tier, status=_status, unit=_unit, conditions=_cond,
+        source='В. Л. Лихачев, «Современные фотоматериалы и их обработка» (Москва: СЛОН-ПРЕСС, 2003), §3.5.1', confidence=_conf, note=_note))
+del _param, _tier, _status, _unit, _cond, _conf, _note
+
+
+
 #: `M_reader . M_status^-1` per stock -- THE QUANTITY STAGE 12 MAY LEGITIMATELY
 #: HOLD, generated by `dye_matrix_from_spectra.stage12_matrix` and pinned there
 #: by `EXPECTED_STAGE12`.
@@ -68308,6 +69506,18 @@ _MEASURED_DYE_MATRIX_ADOPTED = True
 #: responsivity -- refused on three grounds. When M1b closes, this table is
 #: regenerated with the real reader and nothing else about the wiring changes.
 _STAGE12_DYE_MATRIX: dict[str, Matrix3] = {
+    # 2026-10-01d (batch item 3): the book's three-dye panels, the first dye
+    # data either stock has had -- «Современные» рис. 3.173 / 3.141.
+    "KODACHROME_64": (   # max|M - I| = 0.0983
+        (1.001335, -0.039677, 0.004806),
+        (0.014805, 0.986213, 0.046048),
+        (-0.001582, 0.098331, 0.993731),
+    ),
+    "EKTACHROME_64": (   # max|M - I| = 0.0695
+        (1.004347, -0.035844, 0.024536),
+        (0.016144, 0.989763, 0.045982),
+        (-0.009408, 0.069525, 0.995684),
+    ),
     # 2026-09-29, the six AF3-207U reversal dye sets.
     "FUJI_ASTIA_100F": (   # max|M - I| = 0.0719
         (1.003931, -0.036744, 0.003187),
@@ -68539,6 +69749,99 @@ if _MEASURED_DYE_MATRIX_ADOPTED:                      # pragma: no cover
         if _p.name in _STAGE12_DYE_MATRIX else _p
         for _p in FILM_PROFILES
     )
+
+
+# ---- schema v61 (2026-10-01d, batch item 3): PER-NEGATIVE PRINTING MATRICES ---
+#: How each print emulsion with a traced spectral sensitivity sees each colour
+#: negative with a traced three-dye panel: rownorm(M_print . M_status^-1),
+#: derived by `dye_matrix_from_spectra.per_negative_printing()` and asserted
+#: equal to this literal by its --assert on every build. Today one print stock
+#: qualifies (KODAK_2383_RELEASE, the only print emulsion with three traced
+#: layer sensitivities) and sixteen negatives. ⚠ THE PRINT STOCK'S OWN MATRIX
+#: IS THE MEDIAN OF SEVEN OF THESE and stays the fallback for every negative
+#: that has no panel; with its own entry, a negative printed on 2383 is now
+#: printed through ITS dyes: 5218 r<-m 0.108, 5279 0.011, the median 0.023.
+#: ⚠ THE SCANNER HALF IS NOT HERE, AND THAT IS DATA, NOT A GAP IN THE CODE:
+#: no scanner spectral responsivity exists in the corpus (queue M1b), so the
+#: default SCAN_DI path keeps the stage-12 matrices above.
+#: queue M1b (2026-10-01e, owner: "search, store inert"). ACADEMY PRINTING
+#: DENSITY spectral responsivities, SMPTE ST 2065-2:2012 «Academy Printing
+#: Density (APD) -- Spectral Responsivities, Reference Measurement Device and
+#: Spectral Calculation», Annex A Table A.1 «Pi_APD (Normative)», 360-730 nm
+#: every 2 nm, as printed (peak-normalised; Figure 1 «Peak Normalized»; §5.2.3
+#: integral-normalises them for the density calculation). The 2020 revision
+#: moves the same table into st2065-2a-2020.csv. "The reference measurement
+#: device shall have spectral responsivities equal to Pi_APD", in ISO 5-2
+#: diffuse geometry -- the reader ACES film scanners are calibrated to (ADX,
+#: ST 2065-3). Transcribed from pub.smpte.org; a second independent read of
+#: 15 rows agreed digit for digit.
+#: ⚠ 2026-10-01e: the owner's copy of the 2020 companion CSV
+#: (PDF/st2065-2a-2020.csv, 186 rows, 4 decimals) matches all 744 values
+#: exactly.
+#: ⚠ INERT. It is a STANDARD reader, not a measurement of one scanner, and
+#: `SCAN_DI` keeps its reader: `dye_matrix_from_spectra.per_negative_scanner_apd`
+#: derives the per-negative matrices below from it, and nothing renders them.
+ACES_APD_RESPONSIVITY = dict(
+    lambda_start_nm=360.0, lambda_step_nm=2.0,
+    r=(0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0002, 0.0005, 0.0009, 0.0013, 0.0013, 0.0010, 0.0006, 0.0002, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0023, 0.0075, 0.0133, 0.0177, 0.0197, 0.0194, 0.0181, 0.0163, 0.0146, 0.0135, 0.0128, 0.0125, 0.0125, 0.0128, 0.0134, 0.0149, 0.0176, 0.0214, 0.0262, 0.0318, 0.0383, 0.0461, 0.0553, 0.0655, 0.0766, 0.0890, 0.1028, 0.1175, 0.1323, 0.1464, 0.1597, 0.1724, 0.1843, 0.1947, 0.2033, 0.2094, 0.2138, 0.2174, 0.2215, 0.2275, 0.2348, 0.2432, 0.2544, 0.2702, 0.2923, 0.3213, 0.3560, 0.3954, 0.4386, 0.4845, 0.5337, 0.5867, 0.6418, 0.6977, 0.7527, 0.8112, 0.8727, 0.9289, 0.9721, 0.9950, 1.0000, 0.9928, 0.9714, 0.9336, 0.8776, 0.7997, 0.7045, 0.6028, 0.5049, 0.4203, 0.3498, 0.2876, 0.2324, 0.1834, 0.1396, 0.0984, 0.0603, 0.0289, 0.0077, 0.0000),
+    g=(0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0001, 0.0001, 0.0002, 0.0002, 0.0002, 0.0002, 0.0001, 0.0001, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0003, 0.0010, 0.0020, 0.0030, 0.0039, 0.0046, 0.0052, 0.0058, 0.0064, 0.0071, 0.0079, 0.0089, 0.0099, 0.0108, 0.0117, 0.0126, 0.0134, 0.0142, 0.0150, 0.0158, 0.0163, 0.0165, 0.0166, 0.0167, 0.0174, 0.0184, 0.0196, 0.0211, 0.0230, 0.0256, 0.0296, 0.0356, 0.0430, 0.0514, 0.0600, 0.0690, 0.0787, 0.0888, 0.0990, 0.1095, 0.1201, 0.1310, 0.1427, 0.1556, 0.1704, 0.1829, 0.1944, 0.2151, 0.2556, 0.3269, 0.4552, 0.6303, 0.8082, 0.9457, 1.0000, 0.9408, 0.7932, 0.5983, 0.4023, 0.2559, 0.1744, 0.1285, 0.1051, 0.0907, 0.0718, 0.0496, 0.0330, 0.0211, 0.0129, 0.0071, 0.0033, 0.0013, 0.0003, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000),
+    b=(0.0000, 0.0000, 0.0000, 0.0000, 0.0001, 0.0001, 0.0003, 0.0005, 0.0007, 0.0010, 0.0012, 0.0013, 0.0013, 0.0014, 0.0016, 0.0020, 0.0028, 0.0037, 0.0050, 0.0065, 0.0083, 0.0107, 0.0138, 0.0175, 0.0219, 0.0268, 0.0325, 0.0392, 0.0471, 0.0562, 0.0667, 0.0790, 0.0935, 0.1095, 0.1265, 0.1434, 0.1591, 0.1738, 0.1891, 0.2068, 0.2290, 0.2557, 0.2866, 0.3231, 0.3670, 0.4204, 0.4863, 0.5635, 0.6478, 0.7344, 0.8174, 0.8952, 0.9611, 1.0000, 0.9959, 0.9339, 0.8125, 0.6538, 0.4825, 0.3240, 0.2028, 0.1230, 0.0710, 0.0407, 0.0243, 0.0150, 0.0087, 0.0051, 0.0033, 0.0025, 0.0020, 0.0014, 0.0009, 0.0004, 0.0001, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000),
+    source="SMPTE ST 2065-2:2012, Annex A, Table A.1 (Pi_APD, normative); https://pub.smpte.org/doc/st2065-2/20120312-pub/st2065-2-2012.pdf")
+
+#: queue M1b, INERT: rownorm(M_APD . M_status^-1) per colour negative with a
+#: traced three-dye panel -- `dye_matrix_from_spectra.per_negative_scanner_apd`
+#: reproduces it exactly (`--assert`). Not on the profiles, not emitted to C++.
+PER_NEGATIVE_SCANNER_MATRIX_APD: dict[str, Matrix3] = {
+    'EASTMAN_5293_250T_1982': ((1.036399, -0.050638, 0.014239), (-0.006786, 0.99808, 0.008707), (-0.00055, 0.027663, 0.972887)),
+    'EASTMAN_EXR_200T_5293': ((0.997984, -0.005157, 0.007173), (-0.00291, 0.996804, 0.006106), (-0.012071, 0.025046, 0.987025)),
+    'EASTMAN_EXR_50D_5245': ((1.015071, -0.015876, 0.000805), (0.00435, 0.991491, 0.004159), (-0.015345, 0.024293, 0.991052)),
+    'GEVACOLOR_NEG_682': ((1.026347, -0.029371, 0.003024), (-0.017027, 1.020342, -0.003315), (-0.022051, 0.049134, 0.972917)),
+    'KODAK_VISION2_200T_5217': ((1.017176, -0.018104, 0.000928), (-0.003889, 1.003796, 9.4e-05), (-0.014162, 0.034179, 0.979983)),
+    'KODAK_VISION2_250D_5205': ((1.019249, -0.015955, -0.003294), (-0.002946, 1.001969, 0.000977), (-0.012257, 0.038968, 0.973288)),
+    'KODAK_VISION2_500T_5218': ((0.991559, 0.017745, -0.009304), (0.000344, 0.989326, 0.010331), (-0.013518, 0.041041, 0.972478)),
+    'KODAK_VISION2_50D_5201': ((1.030779, -0.02674, -0.004039), (-0.005612, 1.00526, 0.000352), (-0.017285, 0.032629, 0.984656)),
+    'KODAK_VISION3_200T_5213': ((1.015375, -0.016418, 0.001042), (-0.003217, 1.002037, 0.00118), (-0.015753, 0.038555, 0.977198)),
+    'KODAK_VISION3_250D_5207': ((1.012349, -0.012909, 0.000561), (-0.002949, 1.000997, 0.001952), (-0.017245, 0.035244, 0.982001)),
+    'KODAK_VISION3_500T_5219': ((1.017608, -0.019925, 0.002317), (-0.001737, 0.999415, 0.002322), (-0.013408, 0.033612, 0.979797)),
+    'KODAK_VISION3_500T_5219_AHU': ((1.017608, -0.019925, 0.002317), (-0.001737, 0.999415, 0.002322), (-0.013408, 0.033612, 0.979797)),
+    'KODAK_VISION3_50D_5203': ((1.019021, -0.015838, -0.003183), (-0.006046, 1.005406, 0.00064), (-0.020201, 0.02562, 0.994581)),
+    'KODAK_VISION_200T_5274': ((1.012847, -0.013544, 0.000696), (-0.004155, 1.004712, -0.000557), (-0.015229, 0.0294, 0.985829)),
+    'KODAK_VISION_500T_5279': ((1.104907, -0.118205, 0.013298), (0.002136, 1.010145, -0.01228), (-0.017187, 0.050198, 0.966989)),
+    'TECHNICOLOR_THREE_STRIP': ((0.9441, 0.014267, 0.041633), (0.020781, 0.988755, -0.009536), (0.000759, 0.028414, 0.970827)),
+}
+
+_PER_NEGATIVE_PRINTING_MATRIX: dict[tuple[str, str], Matrix3] = {
+    ("EASTMAN_5293_250T_1982", "KODAK_2383_RELEASE"): ((0.962861, 0.038364, -0.001225), (-0.003561, 0.937765, 0.065796), (-0.000666, 0.033454, 0.967212)),
+    ("EASTMAN_EXR_200T_5293", "KODAK_2383_RELEASE"): ((0.936174, 0.064248, -0.000422), (-0.006924, 0.951567, 0.055357), (0.010296, 0.043263, 0.946441)),
+    ("EASTMAN_EXR_50D_5245", "KODAK_2383_RELEASE"): ((0.932952, 0.072853, -0.005805), (-0.000406, 0.934344, 0.066063), (0.014566, 0.027319, 0.958116)),
+    ("GEVACOLOR_NEG_682", "KODAK_2383_RELEASE"): ((0.986631, 0.014865, -0.001496), (-0.015443, 0.966994, 0.048449), (0.005238, 0.033052, 0.96171)),
+    ("KODAK_VISION2_200T_5217", "KODAK_2383_RELEASE"): ((0.972849, 0.028463, -0.001312), (-0.008807, 0.959735, 0.049072), (0.008288, 0.041294, 0.950418)),
+    ("KODAK_VISION2_250D_5205", "KODAK_2383_RELEASE"): ((0.981768, 0.022291, -0.004059), (-0.0065, 0.959968, 0.046532), (0.00835, 0.040765, 0.950885)),
+    ("KODAK_VISION2_500T_5218", "KODAK_2383_RELEASE"): ((0.915884, 0.107723, -0.023606), (-0.006839, 0.942742, 0.064097), (0.007946, 0.037846, 0.954208)),
+    ("KODAK_VISION2_50D_5201", "KODAK_2383_RELEASE"): ((0.981465, 0.022517, -0.003982), (-0.006071, 0.956887, 0.049185), (-0.002062, 0.042326, 0.959735)),
+    ("KODAK_VISION3_200T_5213", "KODAK_2383_RELEASE"): ((0.979329, 0.021451, -0.00078), (-0.007551, 0.959328, 0.048223), (0.00929, 0.038204, 0.952506)),
+    ("KODAK_VISION3_250D_5207", "KODAK_2383_RELEASE"): ((0.963278, 0.039852, -0.00313), (-0.005645, 0.957441, 0.048204), (0.008033, 0.032222, 0.959745)),
+    ("KODAK_VISION3_500T_5219", "KODAK_2383_RELEASE"): ((0.983646, 0.016932, -0.000578), (-0.006386, 0.956367, 0.05002), (0.011701, 0.035168, 0.953131)),
+    ("KODAK_VISION3_500T_5219_AHU", "KODAK_2383_RELEASE"): ((0.983646, 0.016932, -0.000578), (-0.006386, 0.956367, 0.05002), (0.011701, 0.035168, 0.953131)),
+    ("KODAK_VISION3_50D_5203", "KODAK_2383_RELEASE"): ((0.965348, 0.03671, -0.002057), (-0.006638, 0.957437, 0.049202), (0.008813, 0.027783, 0.963405)),
+    ("KODAK_VISION_200T_5274", "KODAK_2383_RELEASE"): ((0.925581, 0.078759, -0.00434), (-0.006599, 0.95693, 0.049669), (0.009804, 0.03825, 0.951947)),
+    ("KODAK_VISION_500T_5279", "KODAK_2383_RELEASE"): ((0.988906, 0.01136, -0.000266), (-0.005689, 0.955962, 0.049727), (0.00718, 0.043418, 0.949403)),
+    ("TECHNICOLOR_THREE_STRIP", "KODAK_2383_RELEASE"): ((0.937591, 0.047675, 0.014734), (-0.020427, 0.951867, 0.068559), (-0.009259, 0.066566, 0.942694)),
+}
+_PRINTING_MATRIX_SOURCE = (
+    "rownorm(M_print . M_status^-1): this negative's own traced three-dye "
+    "panel (SpectralDyeDensity), the print stock's own traced spectral "
+    "sensitivity, ISO 5-3 status response of the negative's density_metric; "
+    "dye_matrix_from_spectra.per_negative_printing(), 2026-10-01d")
+FILM_PROFILES = tuple(
+    replace(_p, printing_matrices=tuple(
+        PrintingMatrix(print_stock=_ps, matrix=_m,
+                       source=_PRINTING_MATRIX_SOURCE)
+        for (_n, _ps), _m in sorted(_PER_NEGATIVE_PRINTING_MATRIX.items())
+        if _n == _p.name))
+    if any(_n == _p.name for (_n, _ps) in _PER_NEGATIVE_PRINTING_MATRIX) else _p
+    for _p in FILM_PROFILES
+)
 
 # ---- schema v18 (2026-08-27): three passes, all additive and all AFTER v2 ---
 # Order matters and is not cosmetic:
@@ -69582,6 +70885,19 @@ RECIPROCITY_HARVEST_0929B_ROWS = _recip_rows_0929b
 RECIPROCITY_HARVEST_0929B_STOCKS = _RECIP_SWEEP_2026_09_29B
 del _recip_rows_0929b
 
+#: 2026-09-29c: the NEOPAN 400 PRESTO (120) sheet's ladder, the first
+#: reciprocity data this stock has had.
+_tbl = _RECIPROCITY_TABLES["FUJI_NEOPAN_400"]
+_replace_param_source("FUJI_NEOPAN_400", ParamSource(
+    param="reciprocity_table", tier=1, status="stated",
+    unit="stops of lens opening against exposure time in seconds",
+    conditions="the sheet's own reciprocity section (120 format)",
+    source=_tbl.source, confidence="high",
+    note=("Printed by the PRESTO (120) bulletin; carried onto NEOPAN 400 because the "
+          "two sheets print the same curves (same emulsion, see "
+          "NEOPAN_400_PRESTO_SOURCE).")))
+del _tbl
+
 del _curve_retraced, _keep
 
 _curve_upgraded = 0
@@ -70044,9 +71360,11 @@ _replace_param_source("AGFA_AVIPHOT_PAN_20", ParamSource(
     conditions="D 1.0 above fog; printed at a 50 um aperture",
     source="Agfa-Gevaert N.V., «AVIPHOT PAN 20 PE0» technical data sheet, January 2009, p1: RMS granularity 8 at a density of 1.0 above fog, 50 um aperture",
     confidence="high",
-    note=("Printed 8 at 50 um; stored 8.16 = 8 x (50/48)^0.5, the aperture law "
-          "GrainSpec.rms_at_aperture applies, so the renderer's 48 um reading "
-          "and G-V29-APERTURE's single convention both hold.")))
+    note=("Printed 8 at 50 um; stored 8.33 = 8 x (50/48), Selwyn's law for a "
+          "circular aperture (sigma ~ 1/d) as GrainSpec.rms_at_aperture applies "
+          "it since 2026-09-30 (queue P96; 8.16 under the old square root), so "
+          "the renderer's 48 um reading and G-V29-APERTURE's single convention "
+          "both hold.")))
 
 _replace_param_source("FUJI_VELVIA_50", ParamSource(
     param="interimage.density_weighting", tier=3, status="estimated",
@@ -70368,6 +71686,133 @@ _replace_param_source('FUJI_VELVIA_50', ParamSource(
     source='AF3-0221E2 p2; AF3-207U PDF p15',
     confidence='high', note='corrected 2026-09-29: the sheet prints a ladder'))
 
+
+
+# ---- 2026-09-29c: Popular Photography 2003, «28 B&W Films Compared!» --------
+# Owner-approved. rms moves on NEOPAN 400 (11 -> 10) and NEOPAN 1600
+# (17.2 -> 16); on TECHNICAL PAN, TRI-X 320 and T400 CN the chart equals the
+# stored estimate, so only the record changes. PLUS-X 125 is NOT touched: the
+# chart's 10 disagrees with the stored tier-1 9.51 and is logged as a conflict
+# in NotFound.md, not written over a better source.
+POPPHOTO_2003_SOURCE = (
+    "Julia Silber and Peter Kolonia, «28 B&W Films Compared!», Popular "
+    "Photography, 2003, pp1-3: chart columns ISO RATING, RESOLUTION "
+    "(LINES/MM), RMS (GRANULARITY), RECIPROCITY RANGE, PUSHABILITY; «all data "
+    "presented in the following charts came from the film manufacturers»")
+POPPHOTO_2003_RMS: dict[str, float] = {
+    "FUJI_NEOPAN_1600": 16.0,
+    "FUJI_NEOPAN_400": 10.0,
+    "KODAK_T400CN": 9.0,
+    "KODAK_TECHNICAL_PAN": 5.0,
+    "KODAK_TRI_X_320TXP": 16.0,
+}
+POPPHOTO_2003_RP: dict[str, float] = {
+    "FUJI_NEOPAN_1600": 100.0,
+    "FUJI_NEOPAN_400": 125.0,
+    "KODAK_TECHNICAL_PAN": 320.0,
+    "KODAK_TRI_X_320TXP": 100.0,
+}
+for _film, _v in POPPHOTO_2003_RMS.items():
+    _replace_param_source(_film, ParamSource(
+        param="grain.rms_granularity", tier=2, status="stated",
+        unit="rms diffuse density x 1000",
+        conditions="aperture and density not printed by the chart",
+        source=POPPHOTO_2003_SOURCE, confidence="medium",
+        note=("Chart prints %g. A secondary compilation of maker data, so a "
+              "maker sheet printing its own figure outranks it; none in this "
+              "corpus does for this film. Stored on the 48 um convention as "
+              "the other maker figures are." % _v)))
+for _film, _v in POPPHOTO_2003_RP.items():
+    _replace_param_source(_film, ParamSource(
+        param="mtf.resolving_power_lp_mm_highc", tier=2, status="stated",
+        unit="lines/mm", conditions="test-object contrast not printed; "
+        "read as 1000:1 (the chart matches every stored 1000:1 figure)",
+        source=POPPHOTO_2003_SOURCE, confidence="medium",
+        note="Chart prints %g lines/mm." % _v))
+del _film, _v
+
+
+# ---- 2026-09-29f: ILFORD HP5 PLUS / DELTA 3200, the sheets' own records ---
+_ILF_CURVE = {
+    "ILFORD_HP5_PLUS_400": ("ILFORD Imaging UK Limited, «HP5 Plus» FACT SHEET, July 2004 (95042.GB), p5 «CHARACTERISTIC CURVES», VECTOR: ILFOTEC HC (1+31) 6 1/2 min 20 C, intermittent agitation; the Nov 2018 HARMAN sheet p5 prints the same panel and caption as a raster", "fit rms 0.0038 D over the drawn 0.17-2.16 D, constrained monotone; the shoulder lies beyond the drawn curve and is not measured; the sheet's relative log exposure re-origined by -2.69 so fog + 0.10 sits at x = -1.60 (the monochrome-negative median)"),
+    "ILFORD_DELTA_3200": ("ILFORD Imaging UK Limited, «DELTA 3200 PROFESSIONAL» FACT SHEET, September 2002, p6 «CHARACTERISTIC CURVES», VECTOR: MICROPHEN stock 9 min 20 C (of 7 / 9 / 12 / 16 min, and the same four in ILFOTEC DD-X 1+4); the 2018 and 2025 HARMAN sheets print the same panels as rasters", "fit rms 0.018 D, constrained monotone (free fit 0.014 D); the sheet's relative log exposure re-origined by -2.24 so fog + 0.10 sits at x = -1.60 (the monochrome-negative median); the curve drawn at the sheet's own EI 3200 Microphen time"),
+}
+_GUR_CURVE = {
+    "SVEMA_CNL_32": ("p354 Рис. 197", ("r", "g", "b")),
+    "SVEMA_LN_8": ("p356 Рис. 199", ("r", "g", "b")),
+    "SVEMA_CO_32D": ("p355 Рис. 198", ("r", "g", "b")),
+    "TASMA_OCH_45": ("p298 Рис. 178, 12 min", ("g",)),
+}
+for _film, (_fig, _chs) in _GUR_CURVE.items():
+    for _ch in _chs:
+        for _prm in ("curves.%s.gamma" % _ch, "curves.%s.dmin" % _ch):
+            _replace_param_source(_film, ParamSource(
+                param=_prm, tier=1, status="traced",
+                unit="density" if _prm.endswith("dmin") else "dimensionless",
+                conditions="Гурлев 1986 %s, raster, 300 dpi, gridline-calibrated; softplus fit constrained monotone and non-degenerate (see GURLEV_1986_CURVE_FITS)" % _fig,
+                source="Гурлев Д. С., «Справочник по фотографии (светотехника и материалы)», Киев: Техніка, 1986, " + _fig,
+                confidence="medium",
+                note="Replaces a curve constructed from printed scalars. Traced 2026-09-29g."))
+# 2026-09-30: four more Гурлев curves adopted on the owner's decision.
+_GUR_CURVE_0930 = {
+    "SVEMA_DS_4": ("p354 Рис. 197", "Replaces ТУ 6-17-622-84's per-layer development aims (the figure draws the ТУ-74 edition). Adopted 2026-09-30, owner decision."),
+    "SVEMA_CNL_65": ("p354 Рис. 197", "Replaces ГОСТ 25120-82's recommended values; the drawn gammas sit above the standard's bands, which are kept as the batch-position range. Adopted 2026-09-30, owner decision."),
+    "SVEMA_CND_32": ("p354 Рис. 197", "Replaces an analogy on ЦНД-64; inside all three табл. 6 bands. Adopted 2026-09-30, owner decision."),
+    "SVEMA_CO_T_90LM": ("p358 Рис. 200, re-traced 2026-09-30", "Replaces a curve constructed from Dmax and latitude; x = -lg H re-origined by 1.0215 (green D 1.20 at 0). Adopted 2026-09-30, owner decision."),
+}
+for _film, (_fig, _nt) in _GUR_CURVE_0930.items():
+    for _ch in ("r", "g", "b"):
+        for _prm in ("curves.%s.gamma" % _ch, "curves.%s.dmin" % _ch):
+            _replace_param_source(_film, ParamSource(
+                param=_prm, tier=1, status="traced",
+                unit="density" if _prm.endswith("dmin") else "dimensionless",
+                conditions="Гурлев 1986 %s, raster, 300 dpi, gridline-calibrated; softplus fit constrained monotone and non-degenerate (see GURLEV_1986_CURVE_FITS)" % _fig,
+                source="Гурлев Д. С., «Справочник по фотографии (светотехника и материалы)», Киев: Техніка, 1986, " + _fig,
+                confidence="medium", note=_nt))
+del _nt
+_replace_param_source("SVEMA_FOTO_65", ParamSource(
+    param="curves.g.gamma", tier=1, status="traced", unit="dimensionless",
+    conditions="СТ-2, 20 C, 8-16 min (the drawn gamma is flat from 8 min)",
+    source="Гурлев Д. С., «Справочник по фотографии (светотехника и материалы)», Киев: Техніка, 1986, p294 Рис. 176 (development kinetics)",
+    confidence="medium",
+    note=("0.66, owner decision 2026-09-30. Replaces 0.83 (nearest the p296 "
+          "table's γ_рек 0.8); the confirmed 67-frame scan subset estimated 0.677.")))
+_replace_param_source("SVEMA_FOTO_250", ParamSource(
+    param="curves.g.gamma", tier=1, status="traced", unit="dimensionless",
+    conditions="СТ-2, 20 C, 11 min (interpolated between the drawn 0.77 at 10 min and 0.82 at 12)",
+    source="Гурлев Д. С., «Справочник по фотографии (светотехника и материалы)», Киев: Техніка, 1986, p294 Рис. 176 (development kinetics); p296 table γ 0.8 (СТ-2) agrees",
+    confidence="medium",
+    note=("0.795, owner decision 2026-10-01d. Replaces 0.85, an analogy on "
+          "FN-64 rounded toward the 26-frame batch estimate 0.844.")))
+for _film in ("SVEMA_FOTO_32", "SVEMA_FOTO_65", "SVEMA_FOTO_130", "SVEMA_FOTO_250", "TASMA_OCH_45", "SVEMA_CNL_32"):
+    _replace_param_source(_film, ParamSource(
+        param="processing.developer", tier=2, status="stated", unit="",
+        conditions="the condition of the stored gamma / curve",
+        source="Гурлев Д. С., «Справочник по фотографии (светотехника и материалы)», Киев: Техніка, 1986, pp287-298",
+        confidence="medium",
+        note="Filled 2026-09-29g; the field was empty."))
+del _fig, _chs, _ch
+for _film, (_src, _cond) in _ILF_CURVE.items():
+    for _prm in ("curves.g.gamma", "curves.g.dmin"):
+        _replace_param_source(_film, ParamSource(
+            param=_prm, tier=1, status="traced", unit="density" if _prm.endswith("dmin") else "dimensionless",
+            conditions=_cond, source=_src, confidence="high",
+            note="Replaces the 2026-07 estimate. Traced 2026-09-29f from the vector drawing."))
+    _replace_param_source(_film, ParamSource(
+        param="processing.developer", tier=1, status="stated", unit="",
+        conditions="the condition the stored curve was drawn at",
+        source=_src, confidence="high",
+        note="The sheet's own caption for the stored curve."))
+for _film, _p, _src in (
+        ("ILFORD_HP5_PLUS_400", 1.31, "HARMAN technology Limited, «HP5 PLUS -- Technical Information», Nov 2018, p2 «MAKING LONG EXPOSURES»: «For exposures between 1/2 and 1/10 000 second, no adjustments are needed for reciprocity law failure» and «The graph is based on the formulae Ta = Tm^1.31»; the same statement and graph in the July 2004 FACT SHEET p2"),
+        ("ILFORD_DELTA_3200", 1.33, "HARMAN technology Limited, «DELTA 3200 PROFESSIONAL -- Technical Information», Nov 2018 / Jun 2025, p2: «between 1/2 and 1/10 000 second, no adjustments» and «Ta = Tm^1.33»; the September 2002 FACT SHEET p2 prints the graph with the 1/2 s onset")):
+    _replace_param_source(_film, ParamSource(
+        param="reciprocity", tier=1, status="stated",
+        unit="Schwarzschild exponent = 1/p of Ilford's Ta = Tm^p",
+        conditions="no correction from 1/10000 to 1/2 s",
+        source=_src, confidence="high",
+        note="Stored exponent %.4f = 1/%.2f at onset 0.5 s; unchanged, now recorded." % (1.0 / _p, _p)))
+del _film, _src, _cond, _prm, _p
 
 
 FILM_PROFILES = tuple(
@@ -71548,6 +72993,80 @@ _V29_RATE_LAW: dict[str, tuple[float, float, float, float, str]] = {
 #: database. The traced law measures the asymptote the three AF3-608E points
 #: could not, and it still reproduces them to 7.6 / 9.3 / 0.8 % of CI.
 _V41_PER_DEVELOPER_LAWS: dict[str, tuple["DevelopmentLaw", ...]] = {
+    "SVEMA_FOTO_32": (
+        # 2026-09-29g, Гурлев 1986 p294 Рис. 176 «Кривые кинетики проявления
+        # фотопленок типов «Фото» и «Фото-Т»», the gamma curve in СТ-2
+        # (the book's standard developer for black-and-white negative film,
+        # p285 табл. 235) traced from the 300 dpi raster on its hand-drawn log
+        # axis (piecewise between the labelled lines) over 2.2-24.5 min.
+        DevelopmentLaw(developer="СТ-2", dilution="", vessel="",
+                       gamma_infinity=1.2737, dev_rate_k=0.1396,
+                       induction_t0_min=-1.1492, fit_rms=0.0105),
+    ),
+    "SVEMA_FOTO_65": (
+        # 2026-09-29g, Гурлев 1986 p294 Рис. 176 «Кривые кинетики проявления
+        # фотопленок типов «Фото» и «Фото-Т»», the gamma curve in СТ-2
+        # (the book's standard developer for black-and-white negative film,
+        # p285 табл. 235) traced from the 300 dpi raster on its hand-drawn log
+        # axis (piecewise between the labelled lines) over 3.3-16.9 min.
+        DevelopmentLaw(developer="СТ-2", dilution="", vessel="",
+                       gamma_infinity=0.6572, dev_rate_k=0.7392,
+                       induction_t0_min=0.8577, fit_rms=0.0055),
+    ),
+    "SVEMA_FOTO_130": (
+        # 2026-09-29g, Гурлев 1986 p294 Рис. 176 «Кривые кинетики проявления
+        # фотопленок типов «Фото» и «Фото-Т»», the gamma curve in СТ-2
+        # (the book's standard developer for black-and-white negative film,
+        # p285 табл. 235) traced from the 300 dpi raster on its hand-drawn log
+        # axis (piecewise between the labelled lines) over 3.6-24.0 min.
+        DevelopmentLaw(developer="СТ-2", dilution="", vessel="",
+                       gamma_infinity=1.0380, dev_rate_k=0.1530,
+                       induction_t0_min=1.7882, fit_rms=0.0139),
+    ),
+    "SVEMA_FOTO_250": (
+        # 2026-09-29g, Гурлев 1986 p294 Рис. 176 «Кривые кинетики проявления
+        # фотопленок типов «Фото» и «Фото-Т»», the gamma curve in СТ-2
+        # (the book's standard developer for black-and-white negative film,
+        # p285 табл. 235) traced from the 300 dpi raster on its hand-drawn log
+        # axis (piecewise between the labelled lines) over 4.5-21.9 min.
+        DevelopmentLaw(developer="СТ-2", dilution="", vessel="",
+                       gamma_infinity=1.1106, dev_rate_k=0.0848,
+                       induction_t0_min=-3.6401, fit_rms=0.0055),
+    ),
+    "ILFORD_DELTA_3200": (
+        # 2026-09-29f, ILFORD DELTA 3200 FACT SHEET (September 2002) p5
+        # «CONTRAST - TIME GRAPHS», 20 degC, VECTOR paths sampled at 25 times
+        # across each drawn span (DD-X 3.1-27.9 min, Microphen 3.1-16.1 min).
+        # ⚠ DD-X's drawn curve flattens to a plateau near G 0.91 after 21 min,
+        # which the saturating exponential follows only to 0.016 rms.
+        DevelopmentLaw(developer="Ilfotec DD-X", dilution="1+4",
+                       vessel="small tank", gamma_infinity=0.9838,
+                       dev_rate_k=0.1118, induction_t0_min=0.1111,
+                       fit_rms=0.0157),
+        DevelopmentLaw(developer="Microphen", dilution="stock",
+                       vessel="small tank", gamma_infinity=0.9383,
+                       dev_rate_k=0.1236, induction_t0_min=0.0,
+                       fit_rms=0.0034),
+    ),
+    "FUJI_NEOPAN_400": (
+        # 2026-09-29c, NEOPAN 400 PRESTO (120) p4 «現像時間－G 曲線», small round
+        # tank 20 degC, VECTOR paths sampled at 25 times across each drawn
+        # span and fitted; the p3 printed G-bar labels are the check:
+        #   SPD       4.25 / 5.75 / 9.0 min -> 0.53 / 0.65 / 0.82, law 0.524 / 0.643 / 0.826
+        #   Microfine 7.0 / 8.5 / 11.0 min  -> 0.41 / 0.53 / 0.64, law 0.414 / 0.518 / 0.673
+        # ⚠ Microfine's 11 min label sits 0.03 below Fuji's own drawn curve;
+        # the law follows the curve. Its large gamma_infinity is an
+        # extrapolation artefact of a curve drawn only to 13 min and is not
+        # a claim about the asymptote.
+        DevelopmentLaw(developer="SPD [Super Prodol]", dilution="stock",
+                       vessel="small tank", gamma_infinity=1.1252,
+                       dev_rate_k=0.1473, induction_t0_min=0.0,
+                       fit_rms=0.0048),
+        DevelopmentLaw(developer="Microfine", dilution="stock",
+                       vessel="small tank", gamma_infinity=1.6961,
+                       dev_rate_k=0.0563, induction_t0_min=2.0265,
+                       fit_rms=0.0031),
+    ),
     "FUJI_NEOPAN_1600": (
         # «FUJIFILM DATA SHEET -- NEOPAN 1600 Professional», Ref. AF3-608E(N),
         # processing table, 20 degC small tank, EI 1600:
@@ -71558,10 +73077,15 @@ _V41_PER_DEVELOPER_LAWS: dict[str, tuple["DevelopmentLaw", ...]] = {
                        vessel="small tank", gamma_infinity=1.600,
                        dev_rate_k=0.1000, induction_t0_min=0.50,
                        fit_rms=0.0100),
+        # ⚠ REFITTED 2026-10-01d. The three table cells fix three constants
+        # exactly and say nothing outside 4.5-6.5 min; «Современные» рис.
+        # 3.351 draws the same Fuji curve from 3.6 to 9 min (0.484 at 3.6, where
+        # the old constants predicted 0.389). Fitted to all eight points:
+        # rms 0.012, worst 0.029 -- the table cells move by at most 0.02.
         DevelopmentLaw(developer="Fujidol E", dilution="stock",
-                       vessel="small tank", gamma_infinity=1.000,
-                       dev_rate_k=0.3280, induction_t0_min=2.10,
-                       fit_rms=0.0051),
+                       vessel="small tank", gamma_infinity=1.6066,
+                       dev_rate_k=0.0989, induction_t0_min=0.0792,
+                       fit_rms=0.0118),
         DevelopmentLaw(developer="Microfine", dilution="stock",
                        vessel="small tank", gamma_infinity=1.120,
                        dev_rate_k=0.1420, induction_t0_min=1.10,
@@ -72169,6 +73693,236 @@ FILM_PROFILES = tuple(_apply_v34_halation_geometry(_p) for _p in FILM_PROFILES)
 
 
 # ---------------------------------------------------------------------------
+# v59 (2026-10-01, owner decision) -- THE RING AND THE TAIL
+# ---------------------------------------------------------------------------
+# The v34 pass above fits three CENTRED Gaussians to the cumulative energy of
+# the support return profile S(r) ~ R(theta) cos^4(theta), r = 2t tan(theta).
+# Two things that fit cannot do, and both are visible on film:
+#
+#  1. A HOLE. Total internal reflection starts at r_c = 2t/sqrt(n^2-1) (233 um
+#     on a 127 um acetate base); inside it only the Fresnel reflection below
+#     the critical angle returns, 7.0 % of the energy. The v34 triple puts
+#     20.3 % there, because a centred Gaussian peaks at the centre. The halo
+#     should sit DETACHED from the highlight, as a ring.
+#  2. THE TAIL. The profile's r^-4 tail holds 6.6 % of the energy beyond 10 t
+#     (1.3 mm at 127 um). v34 shipped it at zero weight because absorption in
+#     an anti-halation layer, which suppresses grazing rays most, is unknown
+#     for almost every stock -- and because the blur could not render it above
+#     HD (AlgoSeparableBlur's pyramid capped at k = 8; now 64, below).
+#
+# THE FIT. Four lobes per support, in units of thickness t: a SUBTRACTED
+# Gaussian (the ring), its partner, an outer lobe and the tail. The ring pair
+# is (1+a) G(so) - a G(si) with a = si^2/(so^2 - si^2), which is ZERO at the
+# centre and non-negative everywhere, and si <= 0.70 so bounds a <= 0.96 so
+# the two lobes never cancel more than about 2:1 -- the float AVX2 engine and
+# the pyramid's per-lobe approximation would otherwise amplify their own
+# error. Least squares on the cumulative energy over 0.05 t .. 300 t,
+# Fresnel-weighted, unpolarised, Lambertian source (scratch fit, reproduced by
+# `halation_return_profile` + gate G-V59-HAL-RING on every build):
+#
+#                  rms(E)   E(r < r_c)   [truth 7.0 % / 6.9 % / 6.5 %]
+#     v34 triple   0.037      20.3 %
+#     v59 ring     0.016      13.8 %     (acetate; polyester 0.014 / 12.7 %)
+#
+# THE TAIL IS APPLIED ONLY WHERE NOTHING ABSORBS IT. An absorber of optical
+# density d in the double path removes 10^(-2d/cos theta), so it takes the
+# grazing (wide) rays first; with d unknown on every stock that has one, the
+# tail lobe is dropped and the rest renormalised, exactly as v34 did. The one
+# stock whose construction is stated as `none` is CINESTILL_800T (VISION3
+# 5219 with the rem-jet removed), and it is the film whose wide red glow
+# around bright sources is the effect: it gets the tail.
+#
+# Gains, threshold and per-channel radius scales are NOT touched: the blur
+# renormalises the kernel to unit sum, so this pass moves where the halation
+# energy lands, never how much there is.
+_V59_HALATION_RING: dict[str, tuple[tuple[float, float, float, float],
+                                    tuple[float, float, float, float]]] = {
+    #              (sig_ring, sig_o, sig_2, sig_3) / t     (w_ring, w_o, w_2, w_3)
+    "acetate":   ((1.2387, 1.7696, 5.3675, 20.0849),
+                  (0.67326, 1.37399, 0.27341, 0.02585)),
+    "nitrate":   ((1.2161, 1.7373, 5.2112, 18.9168),
+                  (0.66604, 1.35926, 0.27877, 0.02801)),
+    "polyester": ((1.1342, 1.6202, 4.8019, 18.2770),
+                  (0.64297, 1.31219, 0.30140, 0.02938)),
+}
+
+#: Anti-halation constructions under which the tail is NOT absorbed.
+_V59_HALATION_TAIL_CONSTRUCTIONS: frozenset[str] = frozenset({"none"})
+
+
+def halation_return_profile(n: float, rmax_t: float = 400.0,
+                            samples: int = 400001, base_od: float = 0.0):
+    """(r/t, cumulative energy fraction) of the support return, v34's model.
+
+    S(r) ~ R(theta) cos^4(theta), r = 2t tan(theta), R the unpolarised
+    Fresnel reflectance from inside the support (1 above the critical angle).
+    Used by verify.py to re-check `_V59_HALATION_RING` on every build.
+    """
+    import numpy as _np
+    r = _np.linspace(0.0, rmax_t, samples)
+    th = _np.arctan(r / 2.0)
+    s = n * _np.sin(th)
+    R = _np.ones_like(th)
+    m = s < 1.0
+    ti = th[m]
+    tt = _np.arcsin(s[m])
+    ci, ct = _np.cos(ti), _np.cos(tt)
+    R[m] = 0.5 * (((n * ci - ct) / (n * ci + ct)) ** 2
+                  + ((n * ct - ci) / (n * ct + ci)) ** 2)
+    S = R * _np.cos(th) ** 4
+    if base_od > 0.0:
+        # schema v60: a DYED SUPPORT of normal-incidence density d is crossed
+        # twice along the slant path 2t/cos(theta), so it passes
+        # 10^(-2 d / cos(theta)) -- the grazing rays, which make the wide
+        # halo, lose most.
+        S = S * 10.0 ** (-2.0 * base_od / _np.cos(th))
+    E = _np.cumsum(S * 2.0 * _np.pi * r)
+    return r, E / E[-1]
+
+
+def halation_kernel_cumulative(radii, weights, r):
+    """Cumulative energy of a signed Gaussian-sum kernel at radii r."""
+    import numpy as _np
+    r = _np.asarray(r, dtype=_np.float64)
+    tot = float(sum(weights))
+    acc = _np.zeros_like(r)
+    for s_, w_ in zip(radii, weights):
+        acc += w_ * (1.0 - _np.exp(-r * r / (2.0 * s_ * s_)))
+    return acc / tot
+
+
+# -- v60 (2026-10-01, owner-approved): THE FIRST TIER-B DENSITY, FROM ГОСТ ---
+#: ГОСТ 24876-81 «Пленки фотографические черно-белые негативные. Технические
+#: условия» (PDF/PROFILES/SOVIET STANDARDS/gost_24876-81.pdf), §2.2-2.5 -- the
+#: SUPPORT clauses, which the 2026-08-16 harvest of Table 6 did not read:
+#:   2.2  triacetate base; thickness 0.14-0.20 mm sheet, 0.11-0.15 mm roll
+#:        16 / 35 mm, 0.09-0.11 mm roll 61.5 mm;
+#:   2.3  sheet film on a TINTED ANTIHALATION BASE of density 0.17 +/- 0.02 or
+#:        0.25 +/- 0.05;
+#:   2.4  16 and 35 mm roll film on a tinted antihalation base of density
+#:        0.25 +/- 0.03;
+#:   2.5  61.5 mm roll film on a COLOURLESS base, density <= 0.05, with an
+#:        anti-curl antihalation layer whose tint clears in processing;
+#:   4.3  base density measured to ГОСТ 10691.0-73 (diffuse visual).
+#: The four Фото stocks are stored as 35 mm still film, so 2.4 applies.
+#: ⚠ TASMA_FN_64 IS NOT HERE: it is a CINE negative, and this standard covers
+#: still photography only («для съемок в художественной, репортажной и
+#: любительской фотографии»).
+GOST_24876_BASE = {
+    "SVEMA_FOTO_32": 0.25, "SVEMA_FOTO_65": 0.25,
+    "SVEMA_FOTO_130": 0.25, "SVEMA_FOTO_250": 0.25,
+}
+GOST_24876_BASE_SOURCE = (
+    "ГОСТ 24876-81 «Пленки фотографические черно-белые негативные. "
+    "Технические условия» (переиздание 1985 с Изм. № 1; Изм. № 2 1987, № 3 "
+    "1991), §2.2 triacetate base 0.11-0.15 mm for 16/35 mm roll film; §2.4 "
+    "«Рулонные пленки шириной 16 и 35 мм должны изготовляться на "
+    "подкрашенной противоореольной основе с оптической плотностью "
+    "0,25±0,03»; §2.3 sheet 0.17±0.02 or 0.25±0.05; §2.5 61.5 mm colourless "
+    "base <= 0.05 with a clearing antihalation backing; §4.3 density to "
+    "ГОСТ 10691.0-73")
+
+
+def _apply_gost_24876_base(p: "FilmProfile") -> "FilmProfile":
+    """Tier B on the four Фото stocks: the dyed base, as the standard sets it."""
+    od = GOST_24876_BASE.get(p.name)
+    if od is None:
+        return p
+    em = p.emulsion
+    ah = AntiHalationSpec(
+        position="in_base", optical_density=od,
+        # ГОСТ 10691.0 reads VISUAL density: 555 nm is the photopic peak it
+        # is weighted to. The tint's colour is not stated, so `neutral`
+        # stays False and `od_at` answers only near 555 nm.
+        od_lambda_nm=555.0, removable=False, measured=True,
+        source=GOST_24876_BASE_SOURCE + ". ⚠ A SPECIFICATION VALUE "
+        "(+/-0.03), not a roll measurement; diffuse visual density")
+    add = [ParamSource(
+        param="anti_halation.optical_density", tier=1, status="stated",
+        unit="diffuse visual density (ГОСТ 10691.0-73)",
+        conditions="35 mm roll film, tinted antihalation base, +/-0.03",
+        source=GOST_24876_BASE_SOURCE, confidence="medium",
+        note=("Read by the halation SHAPE only (v60: the support return "
+              "attenuated by 10^(-2d/cos theta) before the ring fit). The "
+              "gains stay hand-set: `halation_gain_from_od` needs T_pack and "
+              "a validation target, and neither exists for these stocks")),
+        ParamSource(
+        param="emulsion.antihalation", tier=1, status="stated", unit="",
+        conditions="16 / 35 mm roll film", source=GOST_24876_BASE_SOURCE,
+        confidence="high", note="«подкрашенная противоореольная основа»"),
+        ParamSource(
+        param="emulsion.base_material", tier=1, status="stated", unit="",
+        conditions="", source=GOST_24876_BASE_SOURCE, confidence="high",
+        note=("«триацетатцеллюлозная основа»; stored base_um 127 lies "
+              "inside the standard's 110-150 um"))]
+    have = {r.param for r in add}
+    ps = tuple(r for r in p.param_sources if r.param not in have) + tuple(add)
+    return replace(p, anti_halation=ah, param_sources=ps, emulsion=replace(
+        em, antihalation=em.antihalation or "dyed_base",
+        base_material=em.base_material or "cellulose triacetate"))
+
+
+FILM_PROFILES = tuple(_apply_gost_24876_base(_p) for _p in FILM_PROFILES)
+
+
+#: v60: the ring fit REPEATED on the support return through a dyed base,
+#: keyed (support, base density). Same model, same constraint (sig_ring <=
+#: 0.70 sig_o, zero-centred DoG) as `_V59_HALATION_RING`; the profile is
+#: `halation_return_profile(n, base_od=d)`. At d = 0.25 the halo is a narrow
+#: annulus: 90 % of its energy lands inside 3.9 t, where the clear-base
+#: kernel these stocks carried until v60 puts 90 % at 7.7 t (cumulative rms
+#: against the attenuated truth 0.132 for the old kernel, 0.024 for this
+#: one). The tail lobe fits to zero weight: the base has already removed the
+#: grazing rays. ⚠ A NARROW ANNULUS IS THE HARDEST SHAPE FOR A GAUSSIAN SUM:
+#: the kernel leaves 25.5 % of the energy inside r_c against a true 14.8 %,
+#: and G-HALATION-GEOM-FLOOR is scoped to that.
+_V60_HALATION_DYED_BASE: dict[tuple[str, float], tuple[
+        tuple[float, float, float, float], tuple[float, float, float, float]]] = {
+    #                     (sig_ring, sig_o, sig_2, sig_3) / t   (w_ring, w_o, w_2, w_3)
+    ("acetate", 0.25): ((1.0812, 1.5445, 7.2456, 10.8128),
+                        (0.94611, 1.93083, 0.01528, 0.0)),
+}
+
+
+def halation_ring_coefficients(p: "FilmProfile"):
+    """((sig_ring, sig_o, sig_2, sig_3) per t, weights, tail_applies) for a
+    stock: the dyed-base set where Tier B states an in-base density, else the
+    clear-support set."""
+    key = _v34_support_key(p.emulsion.base_material)
+    ah = p.anti_halation
+    if ah.position == "in_base" and ah.optical_density > 0.0:
+        per_t, w = _V60_HALATION_DYED_BASE[(key, round(ah.optical_density, 2))]
+        return per_t, w, True
+    per_t, w = _V59_HALATION_RING[key]
+    tail = (p.emulsion.antihalation or "").strip().lower() \
+        in _V59_HALATION_TAIL_CONSTRUCTIONS
+    return per_t, w, tail
+
+
+def _apply_v59_halation_ring(p: "FilmProfile") -> "FilmProfile":
+    hal = p.halation
+    t = p.emulsion.base_um
+    if hal is None or not t:
+        return p
+    per_t, w, tail = halation_ring_coefficients(p)
+    w_ring, w_o, w_2, w_3 = w
+    if not tail:
+        w_3 = 0.0
+    norm = w_o + w_2 + w_3 - w_ring            # kernel sum -> 1
+    radii = (round(per_t[1] * t, 1), round(per_t[2] * t, 1),
+             round(per_t[3] * t, 1))
+    weights = (round(w_o / norm, 5), round(w_2 / norm, 5),
+               round(w_3 / norm, 5))
+    ring_w = round(sum(weights) - 1.0, 5)       # exact unit net after rounding
+    return replace(p, halation=replace(
+        hal, radii_um=radii, weights=weights,
+        ring_um=round(per_t[0] * t, 1), ring_weight=ring_w))
+
+
+FILM_PROFILES = tuple(_apply_v59_halation_ring(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
 # v35 -- «Kodak Films» Data Book, Seventh Edition, 1956
 # ---------------------------------------------------------------------------
 # ⚠ WHAT THIS IS AND WHY IT IS TIER T1. Kodak drew, for each film in the book's
@@ -72589,6 +74343,17 @@ _PV_BY_NAME.update({
         "PJ800_EI1600_PUSH1",
     ("KODAK_EKTAPRESS_PJ800", "EI 3200 (Push 2), as E-116 prints it"):
         "PJ800_EI3200_PUSH2",
+    ("KODAK_HIE", '35 mm, small tank: D-76, 8 1/2 min'): 'HIE_D76_SMALL_TANK',
+    ("KODAK_HIE", '35 mm, small tank: HC-110 Dil B, 5 min'): 'HIE_HC110_B_SMALL_TANK',
+    ("KODAK_HIE", '35 mm, small tank: D-19, 6 min'): 'HIE_D19_SMALL_TANK',
+    ("KODAK_HIE", 'Sheet, tray: D-76, 9 1/2 min'): 'HIE_SHEET_D76_TRAY',
+    ("KODAK_HIE", 'Sheet, tray: HC-110 Dil B, 4 1/2 min'): 'HIE_SHEET_HC110_B_TRAY',
+    ("KODAK_HIE", 'Sheet, tray: D-19, 5 min'): 'HIE_SHEET_D19_TRAY',
+    ("AGFA_SCALA_200X", "EI 200, box speed, SCALA process"): "SCALA_EI200",
+    ("AGFA_SCALA_200X", "EI 100 (Pull 1)"): "SCALA_EI100_PULL1",
+    ("AGFA_SCALA_200X", "EI 400 (Push 1)"): "SCALA_EI400_PUSH1",
+    ("AGFA_SCALA_200X", "EI 800 (Push 2)"): "SCALA_EI800_PUSH2",
+    ("AGFA_SCALA_200X", "EI 1600 (Push 3)"): "SCALA_EI1600_PUSH3",
     ("KODAK_PORTRA_800", "EI 800 (box speed)"): "PORTRA800_EI800",
     ("KODAK_PORTRA_800", "EI 1600 (Push 1)"): "PORTRA800_EI1600_PUSH1",
     ("KODAK_PORTRA_800", "EI 3200 (Push 2)"): "PORTRA800_EI3200_PUSH2",
@@ -73196,11 +74961,6 @@ _SOVREMENNYE_2004_POINTS: dict[
         ('D-76', '1:1', 9.75, 20, 'large tank', '', 0),
         ('D-76', '1:1', 10, 18, 'small tank', '', 0),
         ('D-76', '1:1', 11.25, 18, 'large tank', '', 0),
-        ('D-76 (1:1) — — — — —', '', 5, 24, 'small tank', '', 0),
-        ('D-76 (1:1) — — — — —', '', 6, 22, 'small tank', '', 0),
-        ('D-76 (1:1) — — — — —', '', 6.5, 21, 'small tank', '', 0),
-        ('D-76 (1:1) — — — — —', '', 7, 20, 'small tank', '', 0),
-        ('D-76 (1:1) — — — — —', '', 8, 18, 'small tank', '', 0),
         ('DK-50', '1:1', 3.5, 24, 'small tank', '', 0),
         ('DK-50', '1:1', 4, 22, 'small tank', '', 0),
         ('DK-50', '1:1', 4.25, 21, 'small tank', '', 0),
@@ -73312,76 +75072,73 @@ _SOVREMENNYE_2004_POINTS: dict[
         ('T-MAX RS', '', 9, 20, 'small tank', '', 0),
         ('T-MAX RS', '', 10, 18, 'large tank', '', 0),
         ('T-MAX RS', '', 10, 18, 'small tank', '', 0),
-        ('T-MAX RS —', '', 4, 22, '', '', 0),
-        ('T-MAX RS —', '', 4, 22, 'drum', '', 0),
-        ('T-MAX RS —', '', 4, 24, '', '', 0),
-        ('T-MAX RS —', '', 4, 24, 'drum', '', 0),
-        ('T-MAX RS —', '', 4.5, 20, '', '', 0),
-        ('T-MAX RS —', '', 4.5, 20, 'drum', '', 0),
-        ('T-MAX RS —', '', 4.5, 21, '', '', 0),
-        ('T-MAX RS —', '', 4.5, 21, 'drum', '', 0),
-        ('T-MAX —', '', 3.5, 24, '', '', 0),
-        ('T-MAX —', '', 3.5, 24, 'drum', '', 0),
-        ('T-MAX —', '', 4.5, 22, '', '', 0),
-        ('T-MAX —', '', 4.5, 22, 'drum', '', 0),
-        ('T-MAX —', '', 5, 21, '', '', 0),
-        ('T-MAX —', '', 5, 21, 'drum', '', 0),
-        ('T-MAX —', '', 5.5, 20, '', '', 0),
-        ('T-MAX —', '', 5.5, 20, 'drum', '', 0),
-        ('T-MAX — — — — —', '', 4.25, 24, 'small tank', '', 0),
-        ('T-MAX — — — — —', '', 4.75, 22, 'small tank', '', 0),
-        ('T-MAX — — — — —', '', 5.25, 21, 'small tank', '', 0),
-        ('T-MAX — — — — —', '', 5.75, 20, 'small tank', '', 0),
-        ('T-MAX — — — — —', '', 6.75, 18, 'small tank', '', 0),
-        ('XTOL (1:1) — — — — — —', '', 6, 24, 'small tank', '', 0),
-        ('XTOL (1:1) — — — — — —', '', 7, 22, 'small tank', '', 0),
-        ('XTOL (1:1) — — — — — —', '', 7.5, 21, 'small tank', '', 0),
-        ('XTOL (1:1) — — — — — —', '', 8.25, 20, 'small tank', '', 0),
-        ('XTOL —', '', 3, 24, '', '', 0),
-        ('XTOL —', '', 3, 24, 'drum', '', 0),
-        ('XTOL —', '', 4, 21, '', '', 0),
-        ('XTOL —', '', 4, 21, 'drum', '', 0),
-        ('XTOL —', '', 4.5, 20, '', '', 0),
-        ('XTOL —', '', 4.5, 20, 'drum', '', 0),
-        ('XTOL —', '', 5.5, 18, '', '', 0),
-        ('XTOL —', '', 5.75, 18, 'drum', '', 0),
-        ('XTOL —', '', 8, 24, 'drum', '', 0),
-        ('XTOL —', '', 9, 22, 'drum', '', 0),
-        ('XTOL —', '', 10, 21, 'drum', '', 0),
-        ('XTOL — —', '', 4.5, 24, 'small tank', '', 0),
-        ('XTOL — —', '', 4.75, 24, 'large tank', '', 0),
-        ('XTOL — —', '', 5.75, 21, 'small tank', '', 0),
-        ('XTOL — —', '', 6.25, 20, 'small tank', '', 0),
-        ('XTOL — —', '', 6.5, 21, 'large tank', '', 0),
-        ('XTOL — —', '', 7.25, 20, 'large tank', '', 0),
-        ('XTOL — —', '', 7.5, 18, 'small tank', '', 0),
-        ('XTOL — —', '', 8.5, 18, 'large tank', '', 0),
-        ('Не Не', '', 9.25, 24, 'small tank', '', 0),
-        ('Не Не', '', 10.25, 24, 'large tank', '', 0),
-        ('Не Не', '', 10.75, 22, 'small tank', '', 0),
-        ('Не Не', '', 11.75, 21, 'small tank', '', 0),
-        ('Не Не', '', 12, 22, 'large tank', '', 0),
-        ('Не Не', '', 13, 20, 'small tank', '', 0),
-        ('Не Не', '', 13.25, 21, 'large tank', '', 0),
-        ('Не Не', '', 14.75, 20, 'large tank', '', 0),
-        ('—', '', 3, 24, 'drum', '', 0),
-        ('—', '', 4, 21, 'drum', '', 0),
-        ('—', '', 4.5, 20, 'drum', '', 0),
-        ('—', '', 5.5, 18, 'drum', '', 0),
-        ('— —', '', 3.75, 24, 'small tank', '', 0),
-        ('— —', '', 4, 24, 'large tank', '', 0),
-        ('— —', '', 4.5, 24, 'large tank', '', 0),
-        ('— —', '', 4.75, 21, 'small tank', '', 0),
-        ('— —', '', 5, 21, 'small tank', '', 0),
-        ('— —', '', 5.25, 20, 'small tank', '', 0),
-        ('— —', '', 5.5, 20, 'small tank', '', 0),
-        ('— —', '', 6, 21, 'large tank', '', 0),
-        ('— —', '', 6.5, 18, 'small tank', '', 0),
-        ('— —', '', 6.5, 20, 'large tank', '', 0),
-        ('— —', '', 6.75, 18, 'small tank', '', 0),
-        ('— —', '', 6.75, 20, 'large tank', '', 0),
-        ('— —', '', 7.5, 18, 'large tank', '', 0),
-        ('— —', '', 8.5, 18, 'large tank', '', 0),
+        # ⚠ REPAIRED 2026-09-29c (owner-approved): 75 rows whose developer
+        # cell had been read as a label fragment ('Не' from a vertical «Не
+        # рекомендуется», '—' refusal cells, a Cyrillic «НС-110») re-read from the
+        # page images and relabelled here. Appended LAST so they only fill keys
+        # no earlier row already holds.
+        ('D-76', '1:1', 5, 24, 'small tank', '', 0),
+        ('D-76', '1:1', 6, 22, 'small tank', '', 0),
+        ('D-76', '1:1', 6.5, 21, 'small tank', '', 0),
+        ('D-76', '1:1', 7, 20, 'small tank', '', 0),
+        ('D-76', '1:1', 8, 18, 'small tank', '', 0),
+        ('T-MAX RS', '', 4, 22, 'drum', '', 0),
+        ('T-MAX RS', '', 4, 24, 'drum', '', 0),
+        ('T-MAX RS', '', 4.5, 20, 'drum', '', 0),
+        ('T-MAX RS', '', 4.5, 21, 'drum', '', 0),
+        ('T-MAX', '', 3.5, 24, 'drum', '', 0),
+        ('T-MAX', '', 4.5, 22, 'drum', '', 0),
+        ('T-MAX', '', 5, 21, 'drum', '', 0),
+        ('T-MAX', '', 5.5, 20, 'drum', '', 0),
+        ('T-MAX', '', 4.25, 24, 'small tank', '', 0),
+        ('T-MAX', '', 4.75, 22, 'small tank', '', 0),
+        ('T-MAX', '', 5.25, 21, 'small tank', '', 0),
+        ('T-MAX', '', 5.75, 20, 'small tank', '', 0),
+        ('T-MAX', '', 6.75, 18, 'small tank', '', 0),
+        ('XTOL', '1:1', 6, 24, 'small tank', '', 0),
+        ('XTOL', '1:1', 7, 22, 'small tank', '', 0),
+        ('XTOL', '1:1', 7.5, 21, 'small tank', '', 0),
+        ('XTOL', '1:1', 8.25, 20, 'small tank', '', 0),
+        ('XTOL', '', 3, 24, 'drum', '', 0),
+        ('XTOL', '', 4, 21, 'drum', '', 0),
+        ('XTOL', '', 4.5, 20, 'drum', '', 0),
+        ('XTOL', '', 5.5, 18, 'drum', '', 0),
+        ('XTOL', '', 5.75, 18, 'drum', '', 0),
+        ('HC-110', 'Dil B', 8, 24, 'drum', '', 0),
+        ('HC-110', 'Dil B', 9, 22, 'drum', '', 0),
+        ('HC-110', 'Dil B', 10, 21, 'drum', '', 0),
+        ('XTOL', '', 4.5, 24, 'small tank', '', 0),
+        ('XTOL', '', 4.75, 24, 'large tank', '', 0),
+        ('XTOL', '', 5.75, 21, 'small tank', '', 0),
+        ('XTOL', '', 6.25, 20, 'small tank', '', 0),
+        ('XTOL', '', 6.5, 21, 'large tank', '', 0),
+        ('XTOL', '', 7.25, 20, 'large tank', '', 0),
+        ('XTOL', '', 7.5, 18, 'small tank', '', 0),
+        ('XTOL', '', 8.5, 18, 'large tank', '', 0),
+        ('MICRODOL-X', '1:3', 9.25, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '1:3', 10.25, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '1:3', 10.75, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '1:3', 11.75, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '1:3', 12, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '1:3', 13, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '1:3', 13.25, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '1:3', 14.75, 20, 'large tank', '', 0),
+        ('XTOL', '', 3.75, 24, 'small tank', '135', 0),
+        ('XTOL', '', 3.75, 24, 'small tank', '120', 0),
+        ('XTOL', '', 4, 24, 'large tank', '135', 0),
+        ('XTOL', '', 4.5, 24, 'large tank', '120', 0),
+        ('XTOL', '', 4.75, 21, 'small tank', '135', 0),
+        ('XTOL', '', 5, 21, 'small tank', '120', 0),
+        ('XTOL', '', 5.25, 20, 'small tank', '135', 0),
+        ('XTOL', '', 5.5, 20, 'small tank', '120', 0),
+        ('XTOL', '', 6, 21, 'large tank', '135', 0),
+        ('XTOL', '', 6, 21, 'large tank', '120', 0),
+        ('XTOL', '', 6.5, 18, 'small tank', '135', 0),
+        ('XTOL', '', 6.5, 20, 'large tank', '135', 0),
+        ('XTOL', '', 6.75, 18, 'small tank', '120', 0),
+        ('XTOL', '', 6.75, 20, 'large tank', '120', 0),
+        ('XTOL', '', 7.5, 18, 'large tank', '135', 0),
+        ('XTOL', '', 8.5, 18, 'large tank', '120', 0),
     ),
     "KODAK_TRI_X_320TXP": (
         ('D-76', '', 4, 24, 'drum', '', 0),
@@ -73434,15 +75191,6 @@ _SOVREMENNYE_2004_POINTS: dict[
         ('D-76', '1:1', 11.75, 21, 'drum', '', 0),
         ('D-76', '1:1', 12.75, 20, 'drum', '', 0),
         ('D-76', '1:1', 14.25, 18, 'drum', '', 0),
-        ('D-76 (1:1) — — — — —', '', 9.25, 24, 'small tank', '', 0),
-        ('D-76 (1:1) — — — — —', '', 10.75, 22, 'small tank', '', 0),
-        ('D-76 (1:1) — — — — —', '', 11.75, 21, 'small tank', '', 0),
-        ('D-76 (1:1) — — — — —', '', 12.75, 20, 'small tank', '', 0),
-        ('D-76 (1:1) — — — — —', '', 14.25, 18, 'small tank', '', 0),
-        ('D-76 —', '', 5.5, 24, '', '', 0),
-        ('D-76 —', '', 6.5, 22, '', '', 0),
-        ('D-76 —', '', 7, 21, '', '', 0),
-        ('D-76 —', '', 7.5, 20, '', '', 0),
         ('DK-50', '1:1', 2.25, 21, 'drum', '', 0),
         ('DK-50', '1:1', 2.5, 20, 'drum', '', 0),
         ('DK-50', '1:1', 2.75, 18, 'drum', '', 0),
@@ -73501,10 +75249,6 @@ _SOVREMENNYE_2004_POINTS: dict[
         ('HC-110', 'Dil B', 6.25, 18, 'large tank', '', 0),
         ('HC-110', 'Dil B', 6.25, 20, 'large tank', '', 0),
         ('HC-110', 'Dil B', 7, 18, 'large tank', '', 0),
-        ('HC-110 (Dil B) —', '', 5, 24, '', '', 0),
-        ('HC-110 (Dil B) —', '', 6.5, 22, '', '', 0),
-        ('HC-110 (Dil B) —', '', 8, 21, '', '', 0),
-        ('HC-110 (Dil B) —', '', 8.5, 20, '', '', 0),
         ('MICRODOL-X', '', 5, 24, 'drum', '', 0),
         ('MICRODOL-X', '', 5.75, 22, 'drum', '', 0),
         ('MICRODOL-X', '', 5.75, 24, 'tray', '', 0),
@@ -73567,14 +75311,6 @@ _SOVREMENNYE_2004_POINTS: dict[
         ('T-MAX RS', '', 5.5, 22, 'large tank', '', 0),
         ('T-MAX RS', '', 6, 20, 'large tank', '', 0),
         ('T-MAX RS', '', 7, 18, 'large tank', '', 0),
-        ('T-MAX RS —', '', 2, 24, '', '', 0),
-        ('T-MAX RS —', '', 2.5, 22, '', '', 0),
-        ('T-MAX RS —', '', 3, 21, '', '', 0),
-        ('T-MAX RS —', '', 3.5, 20, '', '', 0),
-        ('T-MAX —', '', 6, 24, '', '', 0),
-        ('T-MAX —', '', 7.5, 21, '', '', 0),
-        ('T-MAX —', '', 7.5, 22, '', '', 0),
-        ('T-MAX —', '', 8, 20, '', '', 0),
         ('XTOL', '', 4, 24, 'drum', '', 0),
         ('XTOL', '', 4.5, 22, 'drum', '', 0),
         ('XTOL', '', 4.5, 24, 'tray', '', 0),
@@ -73582,39 +75318,24 @@ _SOVREMENNYE_2004_POINTS: dict[
         ('XTOL', '', 5, 22, 'tray', '', 0),
         ('XTOL', '', 5.25, 20, 'drum', '', 0),
         ('XTOL', '', 5.5, 21, 'tray', '', 0),
-        ('XTOL', '', 5.75, 24, '', '', 0),
         ('XTOL', '', 5.75, 24, 'drum', '', 0),
         ('XTOL', '', 5.75, 24, 'small tank', '', 0),
         ('XTOL', '', 6, 18, 'drum', '', 0),
         ('XTOL', '', 6, 20, 'tray', '', 0),
-        ('XTOL', '', 6.5, 22, '', '', 0),
         ('XTOL', '', 6.5, 22, 'drum', '', 0),
         ('XTOL', '', 6.5, 22, 'small tank', '', 0),
-        ('XTOL', '', 6.5, 24, '', '', 0),
         ('XTOL', '', 6.5, 24, 'large tank', '', 0),
         ('XTOL', '', 6.75, 18, 'tray', '', 0),
-        ('XTOL', '', 7, 21, '', '', 0),
         ('XTOL', '', 7.25, 21, 'drum', '', 0),
         ('XTOL', '', 7.25, 21, 'small tank', '', 0),
-        ('XTOL', '', 7.5, 20, '', '', 0),
-        ('XTOL', '', 7.5, 22, '', '', 0),
         ('XTOL', '', 7.5, 22, 'large tank', '', 0),
         ('XTOL', '', 7.75, 20, 'drum', '', 0),
         ('XTOL', '', 7.75, 20, 'small tank', '', 0),
-        ('XTOL', '', 8, 21, '', '', 0),
-        ('XTOL', '', 8, 24, '', '', 0),
         ('XTOL', '', 8.25, 21, 'large tank', '', 0),
-        ('XTOL', '', 8.5, 18, '', '', 0),
         ('XTOL', '', 8.75, 18, 'drum', '', 0),
         ('XTOL', '', 8.75, 18, 'small tank', '', 0),
-        ('XTOL', '', 8.75, 20, '', '', 0),
         ('XTOL', '', 9, 20, 'large tank', '', 0),
-        ('XTOL', '', 9.25, 22, '', '', 0),
-        ('XTOL', '', 9.75, 18, '', '', 0),
-        ('XTOL', '', 10, 21, '', '', 0),
         ('XTOL', '', 10.25, 18, 'large tank', '', 0),
-        ('XTOL', '', 10.75, 20, '', '', 0),
-        ('XTOL', '', 12.25, 18, '', '', 0),
         ('XTOL', '1:1', 5.5, 24, 'drum', '', 0),
         ('XTOL', '1:1', 6.25, 22, 'drum', '', 0),
         ('XTOL', '1:1', 6.25, 24, 'tray', '', 0),
@@ -73622,40 +75343,45 @@ _SOVREMENNYE_2004_POINTS: dict[
         ('XTOL', '1:1', 7.25, 20, 'drum', '', 0),
         ('XTOL', '1:1', 7.25, 22, 'tray', '', 0),
         ('XTOL', '1:1', 7.75, 21, 'tray', '', 0),
-        ('XTOL', '1:1', 7.75, 24, '', '', 0),
         ('XTOL', '1:1', 8, 24, 'drum', '', 0),
         ('XTOL', '1:1', 8.25, 18, 'drum', '', 0),
         ('XTOL', '1:1', 8.5, 20, 'tray', '', 0),
-        ('XTOL', '1:1', 8.75, 22, '', '', 0),
-        ('XTOL', '1:1', 8.75, 24, '', '', 0),
         ('XTOL', '1:1', 9.5, 18, 'tray', '', 0),
-        ('XTOL', '1:1', 9.5, 21, '', '', 0),
         ('XTOL', '1:1', 9.5, 22, 'drum', '', 0),
         ('XTOL', '1:1', 10.25, 21, 'drum', '', 0),
-        ('XTOL', '1:1', 10.25, 22, '', '', 0),
-        ('XTOL', '1:1', 10.5, 20, '', '', 0),
-        ('XTOL', '1:1', 11, 21, '', '', 0),
         ('XTOL', '1:1', 11.25, 20, 'drum', '', 0),
-        ('XTOL', '1:1', 11.75, 18, '', '', 0),
-        ('XTOL', '1:1', 12, 20, '', '', 0),
         ('XTOL', '1:1', 12.5, 18, 'drum', '', 0),
-        ('XTOL', '1:1', 13.5, 18, '', '', 0),
-        ('XTOL (1:1) — —', '', 11.5, 24, '', '', 0),
-        ('XTOL (1:1) — —', '', 14.5, 21, '', '', 0),
-        ('XTOL (1:1) — —', '', 15.75, 20, '', '', 0),
-        ('XTOL (1:1) — — — — —', '', 8, 24, 'small tank', '', 0),
-        ('XTOL (1:1) — — — — —', '', 9.5, 22, 'small tank', '', 0),
-        ('XTOL (1:1) — — — — —', '', 10.25, 21, 'small tank', '', 0),
-        ('XTOL (1:1) — — — — —', '', 11.25, 20, 'small tank', '', 0),
-        ('XTOL (1:1) — — — — —', '', 12.5, 18, 'small tank', '', 0),
-        ('XTOL —', '', 8.75, 24, '', '', 0),
-        ('XTOL —', '', 10, 24, '', '', 0),
-        ('XTOL —', '', 11, 21, '', '', 0),
-        ('XTOL —', '', 12, 20, '', '', 0),
-        ('XTOL —', '', 12.5, 21, '', '', 0),
-        ('XTOL —', '', 13.5, 18, '', '', 0),
-        ('XTOL —', '', 13.75, 20, '', '', 0),
-        ('XTOL —', '', 15.75, 18, '', '', 0),
+        # ⚠ REPAIRED 2026-09-29c (owner-approved): 37 rows whose developer
+        # cell had been read as a label fragment ('Не' from a vertical «Не
+        # рекомендуется», '—' refusal cells, a Cyrillic «НС-110») re-read from the
+        # page images and relabelled here. Appended LAST so they only fill keys
+        # no earlier row already holds.
+        ('D-76', '1:1', 9.25, 24, 'small tank', '', 0),
+        ('D-76', '1:1', 10.75, 22, 'small tank', '', 0),
+        ('D-76', '1:1', 11.75, 21, 'small tank', '', 0),
+        ('D-76', '1:1', 12.75, 20, 'small tank', '', 0),
+        ('D-76', '1:1', 14.25, 18, 'small tank', '', 0),
+        ('D-76', '', 5.5, 24, 'drum', '', 0),
+        ('D-76', '', 6.5, 22, 'drum', '', 0),
+        ('D-76', '', 7, 21, 'drum', '', 0),
+        ('D-76', '', 7.5, 20, 'drum', '', 0),
+        ('HC-110', 'Dil B', 5, 24, 'drum', '', 0),
+        ('HC-110', 'Dil B', 6.5, 22, 'drum', '', 0),
+        ('HC-110', 'Dil B', 8, 21, 'drum', '', 0),
+        ('HC-110', 'Dil B', 8.5, 20, 'drum', '', 0),
+        ('T-MAX RS', '', 2, 24, 'drum', '', 0),
+        ('T-MAX RS', '', 2.5, 22, 'drum', '', 0),
+        ('T-MAX RS', '', 3, 21, 'drum', '', 0),
+        ('T-MAX RS', '', 3.5, 20, 'drum', '', 0),
+        ('T-MAX', '', 6, 24, 'drum', '', 0),
+        ('T-MAX', '', 7.5, 21, 'drum', '', 0),
+        ('T-MAX', '', 7.5, 22, 'drum', '', 0),
+        ('T-MAX', '', 8, 20, 'drum', '', 0),
+        ('XTOL', '1:1', 8, 24, 'small tank', '', 0),
+        ('XTOL', '1:1', 9.5, 22, 'small tank', '', 0),
+        ('XTOL', '1:1', 10.25, 21, 'small tank', '', 0),
+        ('XTOL', '1:1', 11.25, 20, 'small tank', '', 0),
+        ('XTOL', '1:1', 12.5, 18, 'small tank', '', 0),
     ),
     "KODAK_TRI_X_400TX": (
         ('D-76', '', 4.5, 24, '', '', 0),
@@ -73846,15 +75572,20 @@ _SOVREMENNYE_2004_POINTS: dict[
         ('XTOL', '1:1', 10, 18, 'small tank', '', 0),
         ('XTOL', '1:1', 10.5, 20, 'large tank', '', 0),
         ('XTOL', '1:1', 11.5, 18, 'large tank', '', 0),
-        ('Не', '', 13.5, 24, 'small tank', '', 0),
-        ('Не', '', 15, 22, 'small tank', '', 0),
-        ('Не', '', 15.5, 24, 'large tank', '', 0),
-        ('Не', '', 16, 21, 'small tank', '', 0),
-        ('Не', '', 17, 20, 'small tank', '', 0),
-        ('Не', '', 17.25, 22, 'large tank', '', 0),
-        ('Не', '', 18.25, 21, 'large tank', '', 0),
-        ('Не', '', 18.75, 18, 'small tank', '', 0),
-        ('Не', '', 19.5, 20, 'large tank', '', 0),
+        # ⚠ REPAIRED 2026-09-29c (owner-approved): 9 rows whose developer
+        # cell had been read as a label fragment ('Не' from a vertical «Не
+        # рекомендуется», '—' refusal cells, a Cyrillic «НС-110») re-read from the
+        # page images and relabelled here. Appended LAST so they only fill keys
+        # no earlier row already holds.
+        ('MICRODOL-X', '1:3', 13.5, 24, 'small tank', '', 0),
+        ('MICRODOL-X', '1:3', 15, 22, 'small tank', '', 0),
+        ('MICRODOL-X', '1:3', 15.5, 24, 'large tank', '', 0),
+        ('MICRODOL-X', '1:3', 16, 21, 'small tank', '', 0),
+        ('MICRODOL-X', '1:3', 17, 20, 'small tank', '', 0),
+        ('MICRODOL-X', '1:3', 17.25, 22, 'large tank', '', 0),
+        ('MICRODOL-X', '1:3', 18.25, 21, 'large tank', '', 0),
+        ('MICRODOL-X', '1:3', 18.75, 18, 'small tank', '', 0),
+        ('MICRODOL-X', '1:3', 19.5, 20, 'large tank', '', 0),
     ),
     "KODAK_VERICHROME_PAN": (
         ('D-76', '', 4, 24, '', '', 0),
@@ -73927,28 +75658,33 @@ _SOVREMENNYE_2004_POINTS: dict[
         ('T-MAX RS', '', 4, 21, '', '', 0),
         ('T-MAX RS', '', 4.5, 20, '', '', 0),
         ('T-MAX RS', '', 5, 18, '', '', 0),
-        ('T-MAX RS — —', '', 3.5, 22, 'small tank', '', 0),
-        ('T-MAX RS — —', '', 3.5, 24, 'small tank', '', 0),
-        ('T-MAX RS — —', '', 4, 20, 'small tank', '', 0),
-        ('T-MAX RS — —', '', 4, 21, 'small tank', '', 0),
-        ('T-MAX RS — —', '', 4, 24, 'large tank', '', 0),
-        ('T-MAX RS — —', '', 4, 24, 'small tank', '', 0),
-        ('T-MAX RS — —', '', 4.75, 22, 'small tank', '', 0),
-        ('T-MAX RS — —', '', 5, 21, 'large tank', '', 0),
-        ('T-MAX RS — —', '', 5, 22, 'large tank', '', 0),
-        ('T-MAX RS — —', '', 5.25, 21, 'small tank', '', 0),
-        ('T-MAX RS — —', '', 5.5, 20, 'large tank', '', 0),
-        ('T-MAX RS — —', '', 6, 20, 'small tank', '', 0),
-        ('T-MAX RS — —', '', 7.5, 18, 'small tank', '', 0),
-        ('НС-110 (Dil B) —', '', 4, 22, 'small tank', '', 0),
-        ('НС-110 (Dil B) —', '', 4.5, 21, 'small tank', '', 0),
-        ('НС-110 (Dil B) —', '', 4.5, 24, 'large tank', '', 0),
-        ('НС-110 (Dil B) —', '', 5, 20, 'small tank', '', 0),
-        ('НС-110 (Dil B) —', '', 5.5, 22, 'large tank', '', 0),
-        ('НС-110 (Dil B) —', '', 6, 18, 'small tank', '', 0),
-        ('НС-110 (Dil B) —', '', 6, 21, 'large tank', '', 0),
-        ('НС-110 (Dil B) —', '', 6.5, 20, 'large tank', '', 0),
-        ('НС-110 (Dil B) —', '', 8, 18, 'large tank', '', 0),
+        # ⚠ REPAIRED 2026-09-29c (owner-approved): 22 rows whose developer
+        # cell had been read as a label fragment ('Не' from a vertical «Не
+        # рекомендуется», '—' refusal cells, a Cyrillic «НС-110») re-read from the
+        # page images and relabelled here. Appended LAST so they only fill keys
+        # no earlier row already holds.
+        ('T-MAX RS', '', 3.5, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 3.5, 24, 'small tank', '', 0),
+        ('T-MAX RS', '', 4, 20, 'small tank', '', 0),
+        ('T-MAX RS', '', 4, 21, 'small tank', '', 0),
+        ('T-MAX RS', '', 4, 24, 'large tank', '', 0),
+        ('XTOL', '', 4, 24, 'small tank', '', 0),
+        ('XTOL', '', 4.75, 22, 'small tank', '', 0),
+        ('T-MAX RS', '', 5, 21, 'large tank', '', 0),
+        ('T-MAX RS', '', 5, 22, 'large tank', '', 0),
+        ('XTOL', '', 5.25, 21, 'small tank', '', 0),
+        ('T-MAX RS', '', 5.5, 20, 'large tank', '', 0),
+        ('XTOL', '', 6, 20, 'small tank', '', 0),
+        ('XTOL', '', 7.5, 18, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4, 22, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4.5, 21, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 4.5, 24, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 5, 20, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 5.5, 22, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 6, 18, 'small tank', '', 0),
+        ('HC-110', 'Dil B', 6, 21, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 6.5, 20, 'large tank', '', 0),
+        ('HC-110', 'Dil B', 8, 18, 'large tank', '', 0),
     ),
     "FUJI_NEOPAN_1600": (
         ('Finedol', '', 3.5, 26, '', '', 1250),
@@ -74179,6 +75915,441 @@ _SOVREMENNYE_2004_POINTS: dict[
     ),
 }
 
+#: ⚠ 2026-09-30 (queue P98, owner decision): 25 TRI-X 320 rows were REMOVED
+#: from the dict above -- the 15 ('XTOL', '') and 10 ('XTOL', '1:1') points at
+#: vessel "" / EI 0 were Табл. 3.251's EI 1250 SHEET push cells with their
+#: vessel and EI lost. They are in SOVREMENNYE_2004_PUSH_POINTS below at their
+#: EI, vessel and format.
+#:
+#: THE PUSH TABLES, READ WITH THEIR EXPOSURE INDEX (queue P98). Read by
+#: `sovremennye_push_tables.py` from word coordinates; that module is also the
+#: audit and re-reads every cell below from the page.
+#: (stock, developer, dilution, minutes, celsius, vessel, format, EI, edition)
+#: ⚠ Табл. 3.212-3.214 are captioned «Kodak TRI-X Pan / TX» and 3.247-3.249
+#: «Kodak Professional TRI-X 400 / 400TX»; both map to KODAK_TRI_X_400TX and
+#: they print DIFFERENT times at the same key, so the TX rows carry `edition`;
+#: likewise Plus-X 3.198-3.200 («Kodak Plus-X Pan / PX ...») against 3.227-3.229
+#: («Kodak Professional Plus-X 125 / 125PX»), both on KODAK_PLUS_X_125.
+#: ⚠ Табл. 3.247 equals the 58 Classic Camera push cells already stored from
+#: 1427.pdf (29c) cell for cell; those are exact twins and are not added twice.
+#: REFUSED: 3.199's XTOL rows (film blocks x format rows, not determinable);
+#: 3.211 (percentages). The T-MAX push tables 3.164-3.189 and 5.149-5.167 are
+#: SOVREMENNYE_2004_TMAX_POINTS below (queue P98b, closed 2026-10-01).
+SOVREMENNYE_2004_PUSH_POINTS: tuple[tuple, ...] = (
+    # Табл. 3.198
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 9, 24, 'small tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 9, 20, 'small tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8.5, 21, 'small tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.5, 22, 'small tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 24, 'small tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8, 24, 'large tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9.25, 18, 'small tank', '135', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8, 20, 'small tank', '135', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.25, 21, 'small tank', '135', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.5, 24, 'small tank', '135', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 11, 18, 'small tank', '120', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8.5, 20, 'small tank', '120', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.5, 21, 'small tank', '120', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.75, 24, 'small tank', '120', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    # Табл. 3.199
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 9, 20, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 8, 21, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 7, 22, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6, 24, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 9, 20, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8, 21, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.5, 22, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7, 24, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    # Табл. 3.200
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 9, 20, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 8, 21, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 7, 22, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6, 24, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.75, 18, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.5, 20, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6, 21, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.5, 24, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT'),
+    # Табл. 3.212
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 11.5, 18, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 10, 20, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9.5, 21, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9, 22, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.5, 24, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 11, 24, 'small tank', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.5, 20, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9, 21, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.5, 22, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8, 24, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 12, 20, 'small tank', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 11.5, 21, 'small tank', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 11.5, 22, 'small tank', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 11, 24, 'small tank', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 16, 18, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 13, 20, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 12, 21, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 11, 22, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 10, 24, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 18, 18, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 16, 20, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 15, 21, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 13.5, 22, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 12, 24, 'small tank', '', 1600, 'Tri-X Pan TX'),
+    # Табл. 3.213
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 14, 20, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 12.5, 21, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 10.5, 22, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9, 24, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 13.5, 24, 'large tank', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 15, 18, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 13, 20, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 12, 21, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 11, 22, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 10, 24, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 18, 18, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 16, 20, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 15, 21, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 13.5, 22, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 12, 24, 'large tank', '', 1600, 'Tri-X Pan TX'),
+    # Табл. 3.214
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9, 20, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8, 21, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7.5, 22, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.5, 24, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 12, 20, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 11, 21, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 10, 22, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9, 24, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 10, 20, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9, 21, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8, 22, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7, 24, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 12, 20, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 11, 21, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 10, 22, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9, 24, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9, 21, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8, 22, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7, 24, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 11, 21, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 10, 22, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.5, 24, 'drum', '', 3200, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 11.5, 18, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 11, 20, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 10.5, 21, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 10, 22, 'drum', '', 1600, 'Tri-X Pan TX'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 10, 24, 'drum', '', 1600, 'Tri-X Pan TX'),
+    # Табл. 3.247
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9.5, 18, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.75, 20, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.25, 21, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7.75, 22, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7, 24, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.25, 24, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.5, 18, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.75, 20, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.25, 21, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.75, 22, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6, 24, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.5, 20, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9, 21, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.25, 22, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.5, 24, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 7, 18, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 6, 20, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 5.5, 21, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 5, 22, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 4.25, 24, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 11.25, 18, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.5, 20, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8.75, 21, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.75, 22, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.5, 24, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 12.75, 18, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 11, 20, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.75, 21, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9, 22, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.5, 24, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 14.75, 18, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 13.25, 20, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 12.5, 21, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 11.75, 22, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 10.75, 24, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 17.5, 18, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 16, 20, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 15, 21, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 14.25, 22, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 12.75, 24, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 11.25, 18, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 9.75, 20, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 8.75, 21, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 8, 22, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 6.75, 24, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 11.5, 20, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 10.5, 21, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 9.5, 22, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 8, 24, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 14.5, 18, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 13.25, 20, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 12.25, 21, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 11.5, 22, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 10.5, 24, 'small tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 15.5, 20, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 14.5, 21, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 13.75, 22, 'small tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 12.25, 24, 'small tank', '', 3200, ''),
+    # Табл. 3.248
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.75, 20, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8, 21, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.5, 22, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7, 24, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 8, 18, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 6.75, 20, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 6.25, 21, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 5.5, 22, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 4.75, 24, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 12.5, 18, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 10.75, 20, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.75, 21, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8.75, 22, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.5, 24, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 12.75, 18, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 11, 20, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 9.75, 21, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 9, 22, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 7.5, 24, 'large tank', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 15.25, 18, 'large tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 13, 20, 'large tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 11.75, 21, 'large tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 10.5, 22, 'large tank', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 9, 24, 'large tank', '', 3200, ''),
+    # Табл. 3.249
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9.5, 18, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.75, 20, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.25, 21, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7.75, 22, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7, 24, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.25, 24, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.5, 18, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.75, 20, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.25, 21, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.75, 22, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6, 24, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.5, 20, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9, 21, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.25, 22, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.5, 24, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 7, 18, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 6, 20, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 5.5, 21, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 5, 22, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 4.25, 24, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 11.25, 18, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.5, 20, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8.75, 21, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.75, 22, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.5, 24, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 12.75, 18, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 11, 20, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.75, 21, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9, 22, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.5, 24, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 14.75, 18, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 13.25, 20, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 12.5, 21, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 11.75, 22, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 10.75, 24, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 17.5, 18, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 16, 20, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 15, 21, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 14.25, 22, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 12.75, 24, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 11.25, 18, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 9.75, 20, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 8.75, 21, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 8, 22, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 6.75, 24, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 11.5, 20, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 10.5, 21, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 9.5, 22, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 8, 24, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 14.5, 18, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 13.25, 20, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 12.25, 21, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 11.5, 22, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 10.5, 24, 'drum', '', 1600, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 15.5, 20, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 14.5, 21, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 13.75, 22, 'drum', '', 3200, ''),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 12.25, 24, 'drum', '', 3200, ''),
+    # Табл. 3.227
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6.25, 24, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6.25, 24, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.25, 20, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 21, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6, 22, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5, 24, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.25, 20, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 21, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6, 22, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5, 24, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 9, 18, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.75, 20, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7, 21, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.5, 22, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 24, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 9, 18, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.75, 20, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7, 21, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.5, 22, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 24, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9.75, 18, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8.25, 20, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.5, 21, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.75, 24, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9.75, 18, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8.25, 20, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.5, 21, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.75, 24, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 12.25, 20, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 11.25, 21, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 8.75, 24, 'small tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 12.25, 20, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 11.25, 21, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 8.75, 24, 'small tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 11.5, 18, 'small tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 10, 20, 'small tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9, 21, 'small tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7, 24, 'small tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 11.5, 18, 'small tank', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 10, 20, 'small tank', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9, 21, 'small tank', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7, 24, 'small tank', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 14.75, 20, 'small tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 13.5, 21, 'small tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 10.5, 24, 'small tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 14.75, 20, 'small tank', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 13.5, 21, 'small tank', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 10.5, 24, 'small tank', '120', 1000, ''),
+    # Табл. 3.228
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.75, 24, 'large tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.75, 24, 'large tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 10.75, 18, 'large tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9.25, 20, 'large tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8.5, 21, 'large tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.5, 24, 'large tank', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 10.75, 18, 'large tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9.25, 20, 'large tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8.5, 21, 'large tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.5, 24, 'large tank', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 13, 18, 'large tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 11.25, 20, 'large tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 10.25, 21, 'large tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8, 24, 'large tank', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 11.25, 20, 'large tank', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 10.25, 21, 'large tank', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8, 24, 'large tank', '120', 1000, ''),
+    # Табл. 3.229
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 8.75, 20, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 8, 21, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 7.25, 22, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6.25, 24, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 8.75, 20, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 8, 21, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 7.25, 22, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6.25, 24, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.25, 20, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 21, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6, 22, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5, 24, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.25, 20, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 21, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6, 22, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5, 24, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 9, 18, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.75, 20, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7, 21, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.5, 22, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 24, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 9, 18, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.75, 20, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7, 21, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.5, 22, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 24, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9.75, 18, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8.25, 20, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.5, 21, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.75, 24, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9.75, 18, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8.25, 20, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.5, 21, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.75, 24, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 12.25, 20, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 11.25, 21, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 8.75, 24, 'drum', '135', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 12.25, 20, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 11.25, 21, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 8.75, 24, 'drum', '120', 500, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 11.5, 18, 'drum', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 10, 20, 'drum', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9, 21, 'drum', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7, 24, 'drum', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 11.5, 18, 'drum', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 10, 20, 'drum', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 9, 21, 'drum', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7, 24, 'drum', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 14.75, 20, 'drum', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 13.5, 21, 'drum', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 10.5, 24, 'drum', '135', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 14.75, 20, 'drum', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 13.5, 21, 'drum', '120', 1000, ''),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 10.5, 24, 'drum', '120', 1000, ''),
+    # Табл. 3.250
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 13.5, 18, 'small tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 12, 20, 'small tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 11, 21, 'small tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 8.75, 24, 'small tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 15.75, 20, 'small tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 14.5, 21, 'small tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 11.5, 24, 'small tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 15.75, 18, 'large tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 13.75, 20, 'large tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 12.5, 21, 'large tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 10, 24, 'large tank', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 13.5, 18, 'drum', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 12, 20, 'drum', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 11, 21, 'drum', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 8.75, 24, 'drum', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 15.75, 20, 'drum', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 14.5, 21, 'drum', '120', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 11.5, 24, 'drum', '120', 1250, ''),
+    # Табл. 3.251
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 9.75, 18, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 8.75, 20, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 8, 21, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 7.5, 22, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 6.5, 24, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 13.5, 18, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 12, 20, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 11, 21, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 10.25, 22, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 8.75, 24, 'tray', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 12.25, 18, 'large tank', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 10.75, 20, 'large tank', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 10, 21, 'large tank', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 9.25, 22, 'large tank', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 8, 24, 'large tank', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 8.5, 18, 'drum', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 7.5, 20, 'drum', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 7, 21, 'drum', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 6.5, 22, 'drum', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 5.75, 24, 'drum', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 11.75, 18, 'drum', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 10.5, 20, 'drum', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 9.5, 21, 'drum', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 8.75, 22, 'drum', 'sheet', 1250, ''),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 7.75, 24, 'drum', 'sheet', 1250, ''),
+)
+
 #: The book, as one citation for every point above.
 _SOVREMENNYE_2004_SOURCE = (
     "«Современные фотоматериалы и их обработка», 717 pp. Tier T2: a reference "
@@ -74186,6 +76357,10 @@ _SOVREMENNYE_2004_SOURCE = (
     "manufacturer sheet outranks it wherever both exist. Read from word "
     "coordinates on the page, not from the text layer -- see "
     "`_SOVREMENNYE_2004_POINTS`. Queue P54.")
+
+
+SOVREMENNYE_2004_PUSH_ADDED: dict[str, int] = {}
+SOVREMENNYE_2004_PUSH_TWINS: dict[str, int] = {}
 
 
 def _apply_sovremennye_2004(p: "FilmProfile") -> "FilmProfile":
@@ -74199,10 +76374,19 @@ def _apply_sovremennye_2004(p: "FilmProfile") -> "FilmProfile":
     is the same rule v28's `vessel` and v36's `reference_developer` exist to
     keep enforceable.
     """
-    rows = _SOVREMENNYE_2004_POINTS.get(p.name)
+    rows = _SOVREMENNYE_2004_POINTS.get(p.name, ())
+    # the push points are appended by `_apply_sovremennye_push`, AFTER the
+    # 29c Classic Camera harvest, so a maker-sourced twin is found first
     if not rows:
         return p
     fam = p.processing_family
+    # ⚠ THE KEY HAS AN EXPOSURE-INDEX AXIS SINCE 2026-09-30 (queue P98). A
+    # point that states NO index (EI 0, the book's box-speed tables) is
+    # dropped when any point already holds its (developer, dilution, celsius,
+    # vessel, format) key, exactly as before, so no count moves; a PUSH point
+    # (`_apply_sovremennye_push`) is dropped only by a twin at the SAME index
+    # and edition, so a push time can neither vanish behind nor displace the
+    # box-speed time.
     have = {(q.developer, q.dilution, q.celsius, q.vessel, q.film_format)
             for q in (fam.points if fam else ())}
     pts = []
@@ -74214,6 +76398,7 @@ def _apply_sovremennye_2004(p: "FilmProfile") -> "FilmProfile":
         pts.append(DevelopmentPoint(
             developer=dev, dilution=dil, minutes=minutes, celsius=celsius,
             exposure_index=ei, vessel=vessel, film_format=fmt))
+
     if not pts:
         return p
     if fam is None:
@@ -74226,6 +76411,5290 @@ def _apply_sovremennye_2004(p: "FilmProfile") -> "FilmProfile":
 
 
 FILM_PROFILES = tuple(_apply_sovremennye_2004(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-29c (owner-approved): TWO MORE DEVELOPMENT SOURCES.
+#
+# (1) NEOPAN 400 PRESTO (120), Fuji's 2007 Japanese product bulletin. ⚠ IT IS
+# NEOPAN 400, NOT A SIBLING: its vector D-76 characteristic curves match
+# AF3-207U p41 «[120 Size]» to 0.009 / 0.007 / 0.007 D mean (max 0.027), its
+# daylight spectral curve matches the stored log_s_pan to 0.025 log rms, its
+# D-76 time-G curve matches the guide's 120 panel to 0.013, and 110 of the 115
+# third-party table cells it shares with AF3-207U p38 [120] are IDENTICAL --
+# the other five are a Microdol-X EI 400 row the guide does not print. The
+# Guide's 135 curves sit 0.12-0.13 D higher: that is the grey-tinted 135
+# base, not an emulsion difference, and it is why the stored 135 dmin 0.24 is
+# right and Presto's 0.10 is also right. The sheet calls the sensitisation
+# «オルソパンクロマチック» (orthopanchromatic); its curve is the stored one.
+# What it ADDS: Fuji's own developers (SPD, SPD 1:1, Microfine, Microfine 1:1,
+# deep-tank Minidol Fine), a Microdol-X EI 400 row, and printed G-bar labels
+# for SPD and Microfine. ⚠ NOT ADDED: the D-76 13 min / G 0.83 label (the
+# guide prints 12 min for the same G on the same curve, and Presto's own
+# time-G curve reads 0.82 at 12); the automatic-processor row (Minidol Fine
+# 24 C 7 min, a dip-and-dunk machine this schema has no vessel word for).
+NEOPAN_400_PRESTO_SOURCE = (
+    "Fuji Photo Film Co., Ltd. / FUJIFILM Imaging, «ネオパン 400 PRESTO（120） "
+    "NEOPAN 400 PRESTO (120)», FUJIFILM PRODUCT INFORMATION BULLETIN, Ref. No. "
+    "163AR0121A (神Q-07-7-FP), 2007: p2 «標準現像・増減感現像処理条件（小型丸タンク現像）» "
+    "and the deep-tank table, p3 characteristic curves (SPD, D-76, Microfine, "
+    "20 C, small round tank) with printed G-bar labels. Same emulsion as "
+    "NEOPAN 400: see the comment above NEOPAN_400_PRESTO_POINTS.")
+_PT = (18.0, 20.0, 22.0, 24.0, 26.0)
+#: (developer, dilution, exposure index, (minutes at 18/20/22/24/26 C))
+_PRESTO_TABLE = (
+    ("SPD [Super Prodol]", "stock", 400, (5.0, 4.25, 3.5, 3.0, None)),
+    ("SPD [Super Prodol]", "stock", 800, (7.75, 5.75, 4.75, 4.0, 3.5)),
+    ("SPD [Super Prodol]", "stock", 1600, (11.0, 9.0, 7.5, 6.25, 5.25)),
+    ("SPD [Super Prodol]", "1:1", 400, (8.5, 7.0, 5.75, 4.75, 4.0)),
+    ("SPD [Super Prodol]", "1:1", 800, (11.25, 9.25, 7.5, 6.25, 5.25)),
+    ("Microfine", "stock", 200, (8.5, 7.25, 6.25, 5.25, 4.5)),
+    ("Microfine", "stock", 320, (10.0, 8.5, 7.25, 6.25, 5.5)),
+    ("Microfine", "1:1", 320, (12.0, 10.5, 9.25, 8.25, 7.25)),
+    ("Microdol-X", "stock", 400, (12.0, 10.0, 8.5, 7.0, 6.0)),
+)
+#: printed G-bar labels, p3: (developer, minutes, G-bar), 20 C small tank
+_PRESTO_GBAR = (
+    ("SPD [Super Prodol]", 4.25, 0.53), ("SPD [Super Prodol]", 5.75, 0.65),
+    ("SPD [Super Prodol]", 9.0, 0.82),
+    ("Microfine", 7.0, 0.41), ("Microfine", 8.5, 0.53), ("Microfine", 11.0, 0.64),
+)
+NEOPAN_400_PRESTO_POINTS = tuple(
+    DevelopmentPoint(developer=_d, dilution=_dl, minutes=_m, celsius=_t,
+                     exposure_index=_ei, vessel="small tank", film_format="120")
+    for _d, _dl, _ei, _ms in _PRESTO_TABLE for _t, _m in zip(_PT, _ms)
+    if _m is not None
+) + tuple(
+    DevelopmentPoint(developer="Minidol Fine", dilution="stock", minutes=_m,
+                     celsius=_t, exposure_index=400, vessel="large tank",
+                     film_format="120")
+    for _t, _m in ((22.0, 8.25), (24.0, 6.5), (26.0, 5.0), (28.0, 4.0))
+) + tuple(
+    DevelopmentPoint(developer=_d, dilution="stock", minutes=_m, celsius=20.0,
+                     contrast_index=_g, exposure_index=400,
+                     vessel="small tank", film_format="120")
+    for _d, _m, _g in _PRESTO_GBAR
+)
+#: Presto's third-party rows that AF3-207U p38 [120] also prints; the audit
+#: holds them equal cell for cell.
+NEOPAN_400_PRESTO_SHARED = (
+    ("HC-110", "Dil. B", 400, (6.25, 5.25, 4.5, 3.75, 3.25)),
+    ("HC-110", "Dil. B", 800, (9.0, 7.5, 6.25, 5.25, 4.5)),
+    ("HC-110", "Dil. B", 1600, (14.5, 12.0, 10.0, 8.5, 7.25)),
+    ("T-MAX Developer", "stock", 400, (6.75, 6.0, 5.25, 4.75, 4.25)),
+    ("T-MAX Developer", "stock", 800, (8.5, 7.5, 6.5, 5.75, 5.25)),
+    ("T-MAX Developer", "stock", 1600, (11.5, 10.0, 8.75, 7.75, 7.0)),
+    ("T-MAX RS Developer", "stock", 400, (6.5, 5.5, 4.75, 4.0, 3.5)),
+    ("T-MAX RS Developer", "stock", 800, (8.25, 7.0, 6.0, 5.25, 4.5)),
+    ("T-MAX RS Developer", "stock", 1600, (11.5, 10.0, 8.5, 7.5, 6.5)),
+    ("Microphen", "stock", 400, (5.0, 4.25, 3.5, 3.0, None)),
+    ("Microphen", "stock", 800, (7.0, 5.75, 5.0, 4.25, 3.5)),
+    ("Microphen", "stock", 1600, (10.0, 8.5, 7.25, 6.25, 5.25)),
+    ("ID-11", "stock", 400, (8.0, 7.0, 6.25, 5.5, 5.0)),
+    ("ID-11", "stock", 800, (9.5, 8.5, 7.5, 6.75, 6.25)),
+    ("ID-11", "stock", 1600, (13.5, 12.0, 10.75, 9.5, 8.5)),
+    ("Acufine", "stock", 400, (4.0, 3.25, None, None, None)),
+    ("Acufine", "stock", 800, (6.0, 4.75, 4.0, 3.25, None)),
+    ("Acufine", "stock", 1600, (8.25, 7.0, 6.0, 5.0, 4.25)),
+    ("D-76", "stock", 250, (7.75, 6.5, 5.5, 4.5, 3.75)),
+    ("D-76", "stock", 400, (9.25, 7.5, 6.25, 5.25, 4.5)),
+    ("D-76", "stock", 800, (11.5, 9.5, 7.75, 6.5, 5.5)),
+    ("D-76", "1:1", 400, (11.5, 9.75, 8.25, 7.0, 6.0)),
+    ("Microdol-X", "stock", 200, (10.0, 8.5, 7.25, 6.0, 5.25)),
+)
+
+# (2) Classic Camera / Black & White N.92 (November 2014), G. Bonomo, «Kodak
+# Tri-X 400 e le altre», which REPRODUCES two ILFORD tables -- Ilford powder
+# developers (Perceptol, ID-11, Microphen; stock, 1+1, 1+3; 20 C) on Ilford
+# films and on other makers' films -- and KODAK F-4017's Tri-X push table.
+# Tier 2: a magazine reproduction of maker tables; vessel not stated by the
+# Ilford tables, so "" (never guessed). ⚠ NOT TAKEN: the PAN F Plus and FP4
+# Plus rows (ILFORD_PAN_F and ILFORD_FP4 here are the pre-Plus 1970s
+# coatings), and Delta 100 / Delta 400 / SFX 200 / Ortho Plus (no profile).
+# ⚠ ONE READING DECISION: NEOPAN 1600's ID-11 cells print «4.3» and «6.3» in
+# a table whose every other cell writes minutes:seconds as «8.30»; they are
+# read 4:30 and 6:30, which is also what Fuji's own AF3-608E prints (4.5 and
+# 6.5). The Tri-X F-4017 Microdol-X (1:3) row is in the reproduction too; it
+# is already held (the repaired «Современные» rows) and is not added twice.
+CLASSIC_CAMERA_2014_SOURCE = (
+    "Gerardo Bonomo, «Kodak Tri-X 400 e le altre -- test confronto», CLASSIC "
+    "CAMERA / Black & White (Progresso Fotografico), N. 92, November 2014, "
+    "pp32-39: p37 ILFORD tables «Tabella per il trattamento delle pellicole "
+    "Ilford con gli sviluppi in polvere Ilford» and «... delle pellicole "
+    "diverse da Ilford» (Temperature 20 C, time in minutes), p36 KODAK "
+    "«TRI-X 400/400TX esposta a 1600/3200 ISO» (F-4017 push table, small "
+    "tank, agitation at 30-second intervals)")
+#: (stock, developer, dilution, exposure index, minutes) at 20 C, vessel "".
+_ILFORD_POWDER_ROWS = (
+    ("AGFA_APX_100", "ID-11", "1+1", 100, 13.5),
+    ("AGFA_APX_100", "ID-11", "stock", 100, 9.0),
+    ("AGFA_APX_100", "Microphen", "stock", 200, 9.0),
+    ("AGFA_APX_100", "Perceptol", "stock", 50, 9.0),
+    ("AGFA_APX_400", "ID-11", "1+1", 400, 14.5),
+    ("AGFA_APX_400", "ID-11", "1+3", 400, 25.0),
+    ("AGFA_APX_400", "ID-11", "stock", 400, 10.0),
+    ("AGFA_APX_400", "Microphen", "1+1", 400, 19.0),
+    ("AGFA_APX_400", "Microphen", "1+3", 400, 27.0),
+    ("AGFA_APX_400", "Microphen", "stock", 400, 10.5),
+    ("AGFA_APX_400", "Perceptol", "1+1", 320, 17.0),
+    ("AGFA_APX_400", "Perceptol", "1+3", 320, 24.0),
+    ("AGFA_APX_400", "Perceptol", "stock", 320, 14.0),
+    ("FUJI_NEOPAN_400", "ID-11", "1+1", 400, 9.5),
+    ("FUJI_NEOPAN_400", "ID-11", "1+3", 400, 15.0),
+    ("FUJI_NEOPAN_400", "ID-11", "stock", 400, 7.5),
+    ("FUJI_NEOPAN_400", "ID-11", "stock", 800, 8.75),
+    ("FUJI_NEOPAN_400", "ID-11", "stock", 1600, 13.5),
+    ("FUJI_NEOPAN_400", "Microphen", "1+1", 400, 6.75),
+    ("FUJI_NEOPAN_400", "Microphen", "1+3", 400, 9.0),
+    ("FUJI_NEOPAN_400", "Microphen", "stock", 400, 4.5),
+    ("FUJI_NEOPAN_400", "Microphen", "stock", 800, 5.75),
+    ("FUJI_NEOPAN_400", "Microphen", "stock", 1600, 8.5),
+    ("FUJI_NEOPAN_400", "Perceptol", "1+1", 400, 14.0),
+    ("FUJI_NEOPAN_400", "Perceptol", "1+3", 400, 20.0),
+    ("FUJI_NEOPAN_400", "Perceptol", "stock", 400, 10.0),
+    ("FUJI_NEOPAN_1600", "ID-11", "1+1", 1600, 10.0),
+    ("FUJI_NEOPAN_1600", "ID-11", "1+3", 1600, 15.0),
+    ("FUJI_NEOPAN_1600", "ID-11", "stock", 800, 4.5),
+    ("FUJI_NEOPAN_1600", "ID-11", "stock", 1600, 6.5),
+    ("FUJI_NEOPAN_1600", "Microphen", "stock", 1600, 3.5),
+    ("FUJI_NEOPAN_1600", "Microphen", "stock", 3200, 5.75),
+    ("FUJI_NEOPAN_ACROS_100", "ID-11", "stock", 100, 6.75),
+    ("FUJI_NEOPAN_ACROS_100", "Perceptol", "stock", 100, 12.5),
+    ("ILFORD_DELTA_3200", "ID-11", "stock", 400, 7.0),
+    ("ILFORD_DELTA_3200", "ID-11", "stock", 800, 8.0),
+    ("ILFORD_DELTA_3200", "ID-11", "stock", 1600, 9.5),
+    ("ILFORD_DELTA_3200", "ID-11", "stock", 3200, 10.5),
+    ("ILFORD_DELTA_3200", "ID-11", "stock", 6400, 13.0),
+    ("ILFORD_DELTA_3200", "ID-11", "stock", 12500, 17.0),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 400, 6.0),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 800, 7.0),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 1600, 8.0),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 3200, 9.0),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 6400, 12.0),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 12500, 16.5),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 25000, 17.5),
+    ("ILFORD_DELTA_3200", "Perceptol", "stock", 400, 11.0),
+    ("ILFORD_DELTA_3200", "Perceptol", "stock", 800, 13.0),
+    ("ILFORD_DELTA_3200", "Perceptol", "stock", 1600, 15.0),
+    ("ILFORD_DELTA_3200", "Perceptol", "stock", 3200, 18.0),
+    ("ILFORD_HP5_PLUS_400", "ID-11", "1+1", 400, 13.0),
+    ("ILFORD_HP5_PLUS_400", "ID-11", "1+1", 800, 16.5),
+    ("ILFORD_HP5_PLUS_400", "ID-11", "1+3", 400, 20.0),
+    ("ILFORD_HP5_PLUS_400", "ID-11", "stock", 400, 7.5),
+    ("ILFORD_HP5_PLUS_400", "ID-11", "stock", 800, 10.5),
+    ("ILFORD_HP5_PLUS_400", "ID-11", "stock", 1600, 14.0),
+    ("ILFORD_HP5_PLUS_400", "Microphen", "1+1", 400, 12.0),
+    ("ILFORD_HP5_PLUS_400", "Microphen", "1+1", 800, 15.0),
+    ("ILFORD_HP5_PLUS_400", "Microphen", "1+3", 400, 23.0),
+    ("ILFORD_HP5_PLUS_400", "Microphen", "stock", 400, 6.5),
+    ("ILFORD_HP5_PLUS_400", "Microphen", "stock", 800, 8.0),
+    ("ILFORD_HP5_PLUS_400", "Microphen", "stock", 1600, 11.0),
+    ("ILFORD_HP5_PLUS_400", "Microphen", "stock", 3200, 16.0),
+    ("ILFORD_HP5_PLUS_400", "Perceptol", "1+1", 320, 18.0),
+    ("ILFORD_HP5_PLUS_400", "Perceptol", "1+3", 320, 25.0),
+    ("ILFORD_HP5_PLUS_400", "Perceptol", "stock", 250, 13.0),
+    ("KODAK_PLUS_X_125", "ID-11", "1+1", 125, 8.0),
+    ("KODAK_PLUS_X_125", "ID-11", "1+3", 125, 13.0),
+    ("KODAK_PLUS_X_125", "ID-11", "stock", 125, 7.0),
+    ("KODAK_PLUS_X_125", "Microphen", "1+1", 200, 8.5),
+    ("KODAK_PLUS_X_125", "Microphen", "1+3", 200, 13.5),
+    ("KODAK_PLUS_X_125", "Microphen", "stock", 200, 6.0),
+    ("KODAK_PLUS_X_125", "Perceptol", "1+1", 64, 8.5),
+    ("KODAK_PLUS_X_125", "Perceptol", "1+3", 64, 12.0),
+    ("KODAK_PLUS_X_125", "Perceptol", "stock", 64, 8.0),
+    ("KODAK_TMAX_100", "ID-11", "1+1", 100, 11.0),
+    ("KODAK_TMAX_100", "ID-11", "1+3", 100, 16.0),
+    ("KODAK_TMAX_100", "ID-11", "stock", 100, 8.0),
+    ("KODAK_TMAX_100", "Microphen", "1+1", 100, 11.0),
+    ("KODAK_TMAX_100", "Microphen", "1+3", 100, 16.0),
+    ("KODAK_TMAX_100", "Microphen", "stock", 100, 8.0),
+    ("KODAK_TMAX_100", "Perceptol", "1+1", 100, 13.0),
+    ("KODAK_TMAX_100", "Perceptol", "1+3", 100, 19.0),
+    ("KODAK_TMAX_100", "Perceptol", "stock", 100, 12.0),
+    ("KODAK_TMAX_400", "ID-11", "1+1", 400, 10.0),
+    ("KODAK_TMAX_400", "ID-11", "1+3", 400, 15.0),
+    ("KODAK_TMAX_400", "ID-11", "stock", 400, 7.0),
+    ("KODAK_TMAX_400", "ID-11", "stock", 800, 9.5),
+    ("KODAK_TMAX_400", "ID-11", "stock", 1600, 12.0),
+    ("KODAK_TMAX_400", "ID-11", "stock", 3200, 15.0),
+    ("KODAK_TMAX_400", "ID-11", "stock", 6400, 18.0),
+    ("KODAK_TMAX_400", "Microphen", "1+1", 400, 10.0),
+    ("KODAK_TMAX_400", "Microphen", "1+3", 400, 15.0),
+    ("KODAK_TMAX_400", "Microphen", "stock", 400, 7.0),
+    ("KODAK_TMAX_400", "Perceptol", "1+1", 400, 12.0),
+    ("KODAK_TMAX_400", "Perceptol", "1+3", 400, 17.0),
+    ("KODAK_TMAX_400", "Perceptol", "stock", 400, 11.0),
+    ("KODAK_TMAX_P3200", "ID-11", "stock", 1600, 11.0),
+    ("KODAK_TMAX_P3200", "ID-11", "stock", 3200, 14.0),
+    ("KODAK_TMAX_P3200", "Microphen", "stock", 1600, 9.0),
+    ("KODAK_TMAX_P3200", "Microphen", "stock", 3200, 12.0),
+    ("KODAK_TMAX_P3200", "Microphen", "stock", 6400, 14.0),
+    ("KODAK_TRI_X_400TX", "ID-11", "1+1", 400, 11.0),
+    ("KODAK_TRI_X_400TX", "ID-11", "1+3", 400, 19.0),
+    ("KODAK_TRI_X_400TX", "ID-11", "stock", 400, 7.5),
+    ("KODAK_TRI_X_400TX", "ID-11", "stock", 1600, 12.0),
+    ("KODAK_TRI_X_400TX", "Microphen", "1+1", 500, 11.0),
+    ("KODAK_TRI_X_400TX", "Microphen", "1+3", 500, 22.0),
+    ("KODAK_TRI_X_400TX", "Microphen", "stock", 500, 6.0),
+    ("KODAK_TRI_X_400TX", "Perceptol", "1+1", 200, 12.0),
+    ("KODAK_TRI_X_400TX", "Perceptol", "1+3", 200, 15.0),
+    ("KODAK_TRI_X_400TX", "Perceptol", "stock", 200, 10.0),
+)
+_KT = (18.0, 20.0, 21.0, 22.0, 24.0)
+#: KODAK F-4017 push, as reproduced: (developer, dilution, EI, minutes 18..24 C)
+_TRI_X_PUSH_ROWS = (
+    ("D-76", "", 1600, (11.25, 9.5, 8.75, 7.75, 6.5)),
+    ("D-76", "", 3200, (12.75, 11.0, 9.75, 9.0, 7.5)),
+    ("D-76", "1:1", 1600, (14.75, 13.25, 12.5, 11.75, 10.75)),
+    ("D-76", "1:1", 3200, (17.5, 16.0, 15.0, 14.25, 12.75)),
+    ("HC-110", "Dil B", 1600, (7.0, 6.0, 5.5, 5.0, 4.25)),
+    ("T-MAX", "", 1600, (9.5, 8.75, 8.25, 7.75, 7.0)),
+    ("T-MAX", "", 3200, (None, None, None, None, 8.25)),
+    ("T-MAX RS", "", 1600, (8.5, 7.75, 7.25, 6.75, 6.0)),
+    ("T-MAX RS", "", 3200, (None, 9.5, 9.0, 8.25, 7.5)),
+    ("XTOL", "", 1600, (11.25, 9.75, 8.75, 8.0, 6.75)),
+    ("XTOL", "", 3200, (None, 11.5, 10.5, 9.5, 8.0)),
+    ("XTOL", "1:1", 1600, (14.5, 13.25, 12.25, 11.5, 10.5)),
+    ("XTOL", "1:1", 3200, (None, 15.5, 14.5, 13.75, 12.25)),
+)
+CLASSIC_CAMERA_2014_POINTS: dict[str, tuple] = {}
+for _st, _d, _dl, _ei, _m in _ILFORD_POWDER_ROWS:
+    CLASSIC_CAMERA_2014_POINTS.setdefault(_st, ())
+    CLASSIC_CAMERA_2014_POINTS[_st] += (DevelopmentPoint(
+        developer=_d, dilution=_dl, minutes=_m, celsius=20.0,
+        exposure_index=_ei),)
+CLASSIC_CAMERA_2014_POINTS["KODAK_TRI_X_400TX"] += tuple(
+    DevelopmentPoint(developer=_d, dilution=_dl, minutes=_m, celsius=_t,
+                     exposure_index=_ei, vessel="small tank")
+    for _d, _dl, _ei, _ms in _TRI_X_PUSH_ROWS for _t, _m in zip(_KT, _ms)
+    if _m is not None)
+DEV_HARVEST_0929C_ADDED: dict[str, int] = {}
+
+
+def _append_dev_points(p: "FilmProfile", pts, src: str,
+                       tally: "dict | None" = None) -> "FilmProfile":
+    """Append points, skipping an exact (developer, dilution, minutes, celsius,
+    vessel, format, EI, contrast) twin already held."""
+    fam = p.processing_family
+    key = lambda q: (q.developer, q.dilution, q.minutes, q.celsius, q.vessel,
+                     q.film_format, q.exposure_index, q.contrast_index)
+    have = {key(q) for q in (fam.points if fam else ())}
+    new = tuple(q for q in pts if key(q) not in have)
+    tally = DEV_HARVEST_0929C_ADDED if tally is None else tally
+    tally[p.name] = tally.get(p.name, 0) + len(new)
+    if not new:
+        return p
+    if fam is None:
+        return replace(p, processing_family=ProcessingFamily(points=new, source=src))
+    return replace(p, processing_family=replace(
+        fam, points=tuple(fam.points) + new,
+        source=(fam.source + "  " + src) if fam.source else src))
+
+
+def _apply_dev_harvest_0929c(p: "FilmProfile") -> "FilmProfile":
+    if p.name == "FUJI_NEOPAN_400":
+        p = _append_dev_points(p, NEOPAN_400_PRESTO_POINTS, NEOPAN_400_PRESTO_SOURCE)
+    pts = CLASSIC_CAMERA_2014_POINTS.get(p.name)
+    if pts:
+        p = _append_dev_points(p, pts, CLASSIC_CAMERA_2014_SOURCE)
+    return p
+
+
+FILM_PROFILES = tuple(_apply_dev_harvest_0929c(_p) for _p in FILM_PROFILES)
+
+
+def _apply_sovremennye_push(p: "FilmProfile") -> "FilmProfile":
+    """Queue P98: the book's push tables at their EI (see
+    SOVREMENNYE_2004_PUSH_POINTS). A point is dropped only by a twin at the
+    same (developer, dilution, celsius, vessel, format, EI, edition)."""
+    push = [r[1:] for r in SOVREMENNYE_2004_PUSH_POINTS if r[0] == p.name]
+    if not push:
+        return p
+    fam = p.processing_family
+    have = {(q.developer, q.dilution, q.celsius, q.vessel, q.film_format,
+             q.exposure_index, q.edition) for q in fam.points}
+    pts = []
+    held = {(q.developer, q.dilution, q.celsius, q.vessel, q.film_format,
+             q.exposure_index, q.edition): q.minutes for q in fam.points}
+    for dev, dil, minutes, celsius, vessel, fmt, ei, ed in push:
+        k = (dev, dil, float(celsius), vessel, fmt, ei, ed)
+        if k in have:
+            # a twin must be the SAME time; a different time at one key is a
+            # misread or a missing axis, and the build stops on it
+            assert abs(held[k] - float(minutes)) < 1e-9, (p.name, k, held[k], minutes)
+            SOVREMENNYE_2004_PUSH_TWINS[p.name] = SOVREMENNYE_2004_PUSH_TWINS.get(p.name, 0) + 1
+            continue
+        have.add(k)
+        held[k] = float(minutes)
+        SOVREMENNYE_2004_PUSH_ADDED[p.name] = SOVREMENNYE_2004_PUSH_ADDED.get(p.name, 0) + 1
+        pts.append(DevelopmentPoint(
+            developer=dev, dilution=dil, minutes=float(minutes), celsius=float(celsius),
+            exposure_index=ei, vessel=vessel, film_format=fmt, edition=ed))
+    return replace(p, processing_family=replace(
+        fam, points=tuple(fam.points) + tuple(pts),
+        source=fam.source + "  " + _SOVREMENNYE_2004_SOURCE + " Push tables (EI), queue P98."))
+
+
+FILM_PROFILES = tuple(_apply_sovremennye_push(_p) for _p in FILM_PROFILES)
+del _st, _d, _dl, _ei, _m
+
+
+#: QUEUE P98b (2026-10-01, owner decision): THE T-MAX PUSH TABLES AND KODAK'S
+#: CHAPTER-5 PROCESSING TABLES, READ WITH THEIR EXPOSURE INDEX. Read by
+#: `sovremennye_tmax_push.py` from the ruled grids (PyMuPDF `find_tables`);
+#: that module is also the audit and re-reads every row below from the page.
+#: Табл. 3.164-3.171 and 3.180-3.189 (T-MAX 100 / 400 / P3200, both name
+#: generations), 5.149-5.154 (T-MAX RS), 5.158-5.159 (T-MAX) and 5.162-5.167
+#: (D-76) -- the chapter-5 tables also carry Plus-X, Tri-X, Verichrome Pan and
+#: Ektapan rows. (stock, developer, dilution, minutes, celsius, vessel, format,
+#: EI, edition, table). EI 0 = the stock's own box speed, as everywhere.
+#: Every series passed the physical check (time falls as temperature rises).
+#: REFUSED: 5.155/5.156 (machine, no temperature axis), 5.157/5.160/5.161 (not
+#: times), High Speed Infrared rows (no profile).
+SOVREMENNYE_2004_TMAX_POINTS: tuple[tuple, ...] = (
+    # Табл. 3.164
+    ('KODAK_TMAX_100', 'T-MAX', '', 8.0, 20, 'small tank', '', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 24, 'small tank', '', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 12.0, 20, 'small tank', '', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 9.0, 24, 'small tank', '', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.5, 24, 'small tank', '', 800, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 20, 'small tank', '', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 24, 'small tank', '', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 9.0, 20, 'small tank', '', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 8.0, 24, 'small tank', '', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 9.5, 24, 'small tank', '', 3200, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 20, 'small tank', '', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.0, 24, 'small tank', '', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 20, 'small tank', '', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 9.0, 24, 'small tank', '', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.5, 24, 'small tank', '', 800, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 20, 'small tank', '', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.0, 24, 'small tank', '', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'small tank', '', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 24, 'small tank', '', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.5, 24, 'small tank', '', 3200, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.75, 20, 'small tank', '135', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.25, 24, 'small tank', '135', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.0, 20, 'small tank', '135', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.25, 24, 'small tank', '135', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'small tank', '135', 800, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.25, 20, 'small tank', '135', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 24, 'small tank', '135', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.5, 20, 'small tank', '135', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'small tank', '135', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.75, 24, 'small tank', '135', 3200, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.75, 20, 'small tank', '120', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.25, 24, 'small tank', '120', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.0, 20, 'small tank', '120', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.0, 24, 'small tank', '120', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'small tank', '120', 800, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.25, 20, 'small tank', '120', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 24, 'small tank', '120', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.5, 20, 'small tank', '120', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'small tank', '120', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.0, 24, 'small tank', '120', 3200, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 10.25, 20, 'small tank', '135', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.0, 24, 'small tank', '135', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 12.25, 20, 'small tank', '135', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 24, 'small tank', '135', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 10.5, 24, 'small tank', '135', 800, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.5, 20, 'small tank', '135', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.75, 24, 'small tank', '135', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.75, 20, 'small tank', '135', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.5, 24, 'small tank', '135', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.25, 24, 'small tank', '135', 3200, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 11.0, 20, 'small tank', '120', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.5, 24, 'small tank', '120', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 12.75, 20, 'small tank', '120', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.75, 24, 'small tank', '120', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 10.0, 24, 'small tank', '120', 800, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.75, 20, 'small tank', '120', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.0, 24, 'small tank', '120', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 12.5, 20, 'small tank', '120', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.25, 24, 'small tank', '120', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.5, 24, 'small tank', '120', 3200, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.0, 20, 'small tank', '', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.0, 24, 'small tank', '', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'D-76', '', 11.0, 20, 'small tank', '', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 24, 'small tank', '', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 20, 'small tank', '', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'small tank', '', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'D-76', '', 10.5, 20, 'small tank', '', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 24, 'small tank', '', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.0, 20, 'small tank', '', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.0, 24, 'small tank', '', 200, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 9.5, 20, 'small tank', '', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 24, 'small tank', '', 400, 'T-MAX 100 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'small tank', '', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 4.5, 24, 'small tank', '', 800, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 8.5, 20, 'small tank', '', 1600, 'T-MAX 400 Professional', '3.164'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 24, 'small tank', '', 1600, 'T-MAX 400 Professional', '3.164'),
+    # Табл. 3.165
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 20, 'large tank', '', 200, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.5, 24, 'large tank', '', 200, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.5, 24, 'large tank', '', 400, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.5, 20, 'large tank', '', 800, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 800, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 20, 'large tank', '', 1600, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.0, 24, 'large tank', '', 1600, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 24, 'large tank', '', 3200, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'XTOL', '', 11.25, 20, 'large tank', '135', 200, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.5, 24, 'large tank', '135', 200, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'XTOL', '', 13.0, 20, 'large tank', '135', 400, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.75, 24, 'large tank', '135', 400, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 9.0, 20, 'large tank', '135', 800, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'large tank', '135', 800, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 10.0, 20, 'large tank', '135', 1600, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.0, 24, 'large tank', '135', 1600, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 11.5, 20, 'large tank', '135', 3200, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.0, 24, 'large tank', '135', 3200, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.5, 20, 'large tank', '120', 200, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.25, 24, 'large tank', '120', 200, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'XTOL', '', 10.75, 20, 'large tank', '120', 400, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'large tank', '120', 400, 'T-MAX 100 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.5, 20, 'large tank', '120', 800, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'large tank', '120', 800, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 10.0, 20, 'large tank', '120', 1600, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.75, 24, 'large tank', '120', 1600, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 11.25, 20, 'large tank', '120', 3200, 'T-MAX 400 Professional', '3.165'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.75, 24, 'large tank', '120', 3200, 'T-MAX 400 Professional', '3.165'),
+    # Табл. 3.166
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 20, 'large tank', 'sheet', 200, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.0, 21, 'large tank', 'sheet', 200, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 9.5, 22, 'large tank', 'sheet', 200, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 24, 'large tank', 'sheet', 200, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 24, 'large tank', 'sheet', 400, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'large tank', 'sheet', 800, 'T-MAX 400 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 21, 'large tank', 'sheet', 800, 'T-MAX 400 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.5, 22, 'large tank', 'sheet', 800, 'T-MAX 400 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 24, 'large tank', 'sheet', 800, 'T-MAX 400 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.0, 24, 'large tank', 'sheet', 1600, 'T-MAX 400 Professional', '3.166'),
+    ('KODAK_TMAX_100', 'XTOL', '', 10.25, 20, 'large tank', 'sheet', 200, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.0, 21, 'large tank', 'sheet', 200, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.25, 22, 'large tank', 'sheet', 200, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'large tank', 'sheet', 200, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.5, 24, 'large tank', 'sheet', 400, 'T-MAX 100 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'XTOL', '', 9.5, 20, 'large tank', 'sheet', 800, 'T-MAX 400 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.25, 21, 'large tank', 'sheet', 800, 'T-MAX 400 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.5, 22, 'large tank', 'sheet', 800, 'T-MAX 400 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.5, 24, 'large tank', 'sheet', 800, 'T-MAX 400 Professional', '3.166'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.75, 24, 'large tank', 'sheet', 1600, 'T-MAX 400 Professional', '3.166'),
+    # Табл. 3.167
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 20, 'drum', '', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 5.5, 24, 'drum', '', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.5, 20, 'drum', '', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 9.0, 24, 'drum', '', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 12.5, 24, 'drum', '', 800, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 20, 'drum', '', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 5.5, 24, 'drum', '', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 8.5, 20, 'drum', '', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 24, 'drum', '', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 9.5, 24, 'drum', '', 3200, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 20, 'drum', '', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 5.0, 24, 'drum', '', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 20, 'drum', '', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 24, 'drum', '', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 24, 'drum', '', 800, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.5, 20, 'drum', '', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.0, 24, 'drum', '', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'drum', '', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 24, 'drum', '', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 24, 'drum', '', 3200, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.0, 20, 'drum', '135', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 4.5, 24, 'drum', '135', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.0, 20, 'drum', '135', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.5, 24, 'drum', '135', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 24, 'drum', '135', 800, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.5, 20, 'drum', '135', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.5, 24, 'drum', '135', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.5, 20, 'drum', '135', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 24, 'drum', '135', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.75, 24, 'drum', '135', 3200, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.75, 20, 'drum', '120', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 4.25, 24, 'drum', '120', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.25, 20, 'drum', '120', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'drum', '120', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.0, 24, 'drum', '120', 800, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.25, 20, 'drum', '120', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.25, 24, 'drum', '120', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.25, 20, 'drum', '120', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 24, 'drum', '120', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.75, 24, 'drum', '120', 3200, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.75, 20, 'drum', '135', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.25, 24, 'drum', '135', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 11.5, 20, 'drum', '135', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.5, 24, 'drum', '135', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.75, 24, 'drum', '135', 800, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.75, 20, 'drum', '135', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.25, 24, 'drum', '135', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.0, 20, 'drum', '135', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.25, 24, 'drum', '135', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.5, 24, 'drum', '135', 3200, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.75, 20, 'drum', '120', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.75, 24, 'drum', '120', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 10.25, 20, 'drum', '120', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.75, 24, 'drum', '120', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 10.0, 24, 'drum', '120', 800, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.25, 20, 'drum', '120', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.0, 24, 'drum', '120', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.75, 20, 'drum', '120', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 24, 'drum', '120', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.25, 24, 'drum', '120', 3200, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 20, 'drum', '', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.0, 24, 'drum', '', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.0, 20, 'drum', '', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.0, 24, 'drum', '', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'drum', '', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', '', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 20, 'drum', '', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 24, 'drum', '', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 20, 'drum', '', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.5, 24, 'drum', '', 200, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 11.0, 20, 'drum', '', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 8.0, 24, 'drum', '', 400, 'T-MAX 100 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'drum', '', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'drum', '', 800, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 8.5, 20, 'drum', '', 1600, 'T-MAX 400 Professional', '3.167'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 7.0, 24, 'drum', '', 1600, 'T-MAX 400 Professional', '3.167'),
+    # Табл. 3.168
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 20, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 5.0, 24, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 20, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 24, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 24, 'drum', 'sheet', 800, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.75, 20, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 4.5, 24, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 24, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 24, 'drum', 'sheet', 3200, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 20, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.25, 20, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.75, 24, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.75, 24, 'drum', 'sheet', 800, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.0, 20, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.5, 24, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.0, 20, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 24, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'drum', 'sheet', 3200, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 20, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.5, 24, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 10.5, 20, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.5, 24, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 10.0, 24, 'drum', 'sheet', 800, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.25, 20, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.75, 24, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.75, 20, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.75, 24, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.0, 24, 'drum', 'sheet', 3200, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 20, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.0, 24, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.0, 20, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.0, 24, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 20, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 24, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 20, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.5, 24, 'drum', 'sheet', 200, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 11.0, 20, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 8.0, 24, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'drum', 'sheet', 800, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 8.5, 20, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 7.0, 24, 'drum', 'sheet', 1600, 'T-MAX 400 Professional', '3.168'),
+    # Табл. 3.169
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 20, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 21, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 22, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 24, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.0, 27, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.0, 29, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 20, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 21, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 22, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 24, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 27, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.5, 29, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 20, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 21, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 22, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 24, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 27, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.0, 29, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 20, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 21, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 22, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 24, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 27, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 29, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.0, 20, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 21, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 22, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 24, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 27, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 29, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 16.0, 20, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.5, 21, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.5, 22, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.5, 24, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 27, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 29, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 17.5, 21, 'small tank', '', 25000, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 16.0, 22, 'small tank', '', 25000, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.0, 24, 'small tank', '', 25000, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 27, 'small tank', '', 25000, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 29, 'small tank', '', 25000, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '1:7', 12.5, 24, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '1:9', 17.0, 24, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 20, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 21, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 22, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.0, 24, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 27, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 29, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 20, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 21, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 22, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 24, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.0, 27, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.0, 29, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 20, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 22, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 24, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 27, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 29, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 20, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 21, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 22, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 24, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 27, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 29, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 20, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 21, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 22, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 24, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 27, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 29, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.0, 20, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 21, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 22, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 24, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 27, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 29, 'small tank', '', 12500, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 22, 'small tank', '', 25000, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 24, 'small tank', '', 25000, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 27, 'small tank', '', 25000, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 29, 'small tank', '', 25000, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 20, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 21, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 22, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.5, 24, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 4.0, 27, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 3.0, 29, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.25, 20, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.25, 21, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.25, 22, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.0, 24, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.25, 20, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.25, 21, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.25, 22, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.0, 24, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.25, 27, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 4.5, 29, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.0, 20, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.0, 21, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.0, 22, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.0, 24, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.25, 27, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 4.75, 29, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.5, 20, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.5, 21, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.5, 22, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.25, 24, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.0, 27, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.5, 29, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 20, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.5, 21, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 22, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 24, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 27, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 4.5, 29, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.0, 20, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.0, 21, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 22, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.0, 24, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.5, 27, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.0, 29, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 20, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 21, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.5, 22, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 24, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.0, 27, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.5, 29, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 15.0, 20, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 13.5, 21, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 12.5, 22, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.0, 24, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 27, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 29, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 17.5, 20, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 16.0, 21, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 14.5, 22, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 12.5, 24, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 27, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 29, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.5, 20, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.5, 21, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.5, 22, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.0, 24, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.5, 27, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 3.5, 29, 'small tank', '', 400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.0, 20, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.0, 21, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.0, 22, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.5, 24, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.0, 29, 'small tank', '', 800, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 9.0, 20, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.5, 21, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.5, 22, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.0, 24, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.0, 27, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.5, 29, 'small tank', '', 1600, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 11.5, 20, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 10.0, 21, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.5, 22, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.5, 24, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.5, 27, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.75, 29, 'small tank', '', 3200, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 14.0, 20, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 12.0, 21, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 10.5, 22, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 9.5, 24, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.0, 27, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.75, 29, 'small tank', '', 6400, 'T-MAX P3200 Professional', '3.169'),
+    # Табл. 3.170
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 20, 'large tank', '', 400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'large tank', '', 400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 22, 'large tank', '', 400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 24, 'large tank', '', 400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 20, 'large tank', '', 800, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 21, 'large tank', '', 800, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 22, 'large tank', '', 800, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 24, 'large tank', '', 800, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 20, 'large tank', '', 1600, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 21, 'large tank', '', 1600, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 22, 'large tank', '', 1600, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'large tank', '', 1600, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 20, 'large tank', '', 3200, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 21, 'large tank', '', 3200, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 22, 'large tank', '', 3200, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 24, 'large tank', '', 3200, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.0, 21, 'large tank', '', 6400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 22, 'large tank', '', 6400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 24, 'large tank', '', 6400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.0, 22, 'large tank', '', 12500, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 24, 'large tank', '', 12500, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.0, 20, 'large tank', '', 400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.0, 21, 'large tank', '', 400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.25, 22, 'large tank', '', 400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.25, 24, 'large tank', '', 400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.0, 20, 'large tank', '', 800, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.0, 21, 'large tank', '', 800, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.25, 22, 'large tank', '', 800, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.0, 24, 'large tank', '', 800, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.0, 20, 'large tank', '', 1600, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.0, 21, 'large tank', '', 1600, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.0, 22, 'large tank', '', 1600, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.75, 24, 'large tank', '', 1600, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 13.0, 20, 'large tank', '', 3200, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.5, 21, 'large tank', '', 3200, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.5, 22, 'large tank', '', 3200, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.0, 24, 'large tank', '', 3200, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.0, 20, 'large tank', '', 6400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 13.5, 21, 'large tank', '', 6400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.25, 22, 'large tank', '', 6400, 'T-MAX P3200 Professional', '3.170'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.5, 24, 'large tank', '', 6400, 'T-MAX P3200 Professional', '3.170'),
+    # Табл. 3.171
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 20, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 21, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 22, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.0, 24, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 3.5, 27, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 3.0, 29, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 20, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 21, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 22, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.0, 24, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.0, 27, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 3.5, 29, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 20, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 21, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 22, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 24, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.5, 27, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.0, 29, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 20, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 21, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 22, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 24, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 27, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 29, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 20, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 21, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 22, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 24, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 27, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 29, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.5, 20, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 21, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 22, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 24, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 27, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 29, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.0, 21, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.0, 22, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 24, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 27, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 29, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 20, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 21, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 22, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 24, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 27, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 4.5, 29, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 20, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 21, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 22, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 24, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 27, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.0, 29, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 20, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 21, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 22, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 27, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 29, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 20, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 21, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 22, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 24, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 27, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 29, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 20, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 21, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 22, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 24, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 27, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 29, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 21, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 22, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 24, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 27, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 29, 'drum', '', 12500, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 21, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 22, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 24, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 27, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 29, 'drum', '', 25000, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.0, 20, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.0, 21, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.5, 22, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.0, 24, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.0, 20, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.0, 21, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.5, 22, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.5, 24, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.0, 20, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.0, 21, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.25, 22, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.0, 24, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.0, 20, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.0, 21, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.25, 22, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.0, 24, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.5, 20, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.0, 21, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.25, 22, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.0, 24, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.0, 20, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 21, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.25, 22, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.5, 24, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.0, 27, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 4.0, 29, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 20, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.0, 21, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.75, 22, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.0, 24, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.5, 27, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 4.5, 29, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 20, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 21, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.0, 22, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 24, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 27, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 4.75, 29, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 20, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.0, 21, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 22, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.5, 24, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 27, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 29, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 13.5, 20, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 13.0, 21, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 12.0, 22, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 24, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 27, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.0, 29, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.0, 20, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.25, 21, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.75, 22, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.0, 24, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.25, 27, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 3.25, 29, 'drum', '', 400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.0, 20, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.0, 21, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.0, 22, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.25, 24, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.5, 27, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 3.5, 29, 'drum', '', 800, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.75, 20, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.5, 21, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.5, 22, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.75, 24, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.75, 27, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 3.75, 29, 'drum', '', 1600, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 11.5, 20, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 10.0, 21, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.5, 22, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.5, 24, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.5, 27, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.0, 29, 'drum', '', 3200, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 13.0, 20, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 11.5, 21, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 10.0, 22, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 9.0, 24, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.0, 27, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.0, 29, 'drum', '', 6400, 'T-MAX P3200 Professional', '3.171'),
+    # Табл. 3.180
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.5, 20, 'small tank', '', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.25, 24, 'small tank', '', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 12.25, 20, 'small tank', '', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.0, 24, 'small tank', '', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 11.75, 24, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 20, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 24, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 10.0, 20, 'small tank', '', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 8.0, 24, 'small tank', '', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 9.5, 24, 'small tank', '', 3200, '', '3.180'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 20, 'small tank', '', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 24, 'small tank', '', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.25, 20, 'small tank', '', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 24, 'small tank', '', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.75, 24, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 20, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.0, 24, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'small tank', '', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 24, 'small tank', '', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.5, 24, 'small tank', '', 3200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.5, 20, 'small tank', '135', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'small tank', '135', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.5, 20, 'small tank', '135', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 24, 'small tank', '135', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'small tank', '135', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.25, 20, 'small tank', '135', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 24, 'small tank', '135', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.5, 20, 'small tank', '135', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'small tank', '135', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.75, 24, 'small tank', '135', 3200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.5, 20, 'small tank', '120', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'small tank', '120', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.5, 20, 'small tank', '120', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 24, 'small tank', '120', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'small tank', '120', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.25, 20, 'small tank', '120', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 24, 'small tank', '120', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.5, 20, 'small tank', '120', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'small tank', '120', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.0, 24, 'small tank', '120', 3200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.5, 20, 'small tank', '135', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 6.5, 24, 'small tank', '135', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 12.25, 20, 'small tank', '135', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.25, 24, 'small tank', '135', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 24, 'small tank', '135', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.5, 20, 'small tank', '135', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.75, 24, 'small tank', '135', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.75, 20, 'small tank', '135', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.5, 24, 'small tank', '135', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.25, 24, 'small tank', '135', 3200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.5, 20, 'small tank', '120', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 6.5, 24, 'small tank', '120', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 12.25, 20, 'small tank', '120', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.25, 24, 'small tank', '120', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 24, 'small tank', '120', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.75, 20, 'small tank', '120', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.0, 24, 'small tank', '120', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 12.5, 20, 'small tank', '120', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.25, 24, 'small tank', '120', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.5, 24, 'small tank', '120', 3200, '', '3.180'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 20, 'small tank', '', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.25, 24, 'small tank', '', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.25, 20, 'small tank', '', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 24, 'small tank', '', 400, '', '3.180'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 20, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'D-76', '', 10.5, 20, 'small tank', '', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 24, 'small tank', '', 1600, '', '3.180'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.0, 20, 'small tank', '', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.0, 24, 'small tank', '', 200, '', '3.180'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 11.5, 20, 'small tank', '', 400, '', '3.180'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.75, 24, 'small tank', '', 400, '', '3.180'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 4.5, 24, 'small tank', '', 800, '', '3.180'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 8.5, 20, 'small tank', '', 1600, '', '3.180'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 24, 'small tank', '', 1600, '', '3.180'),
+    # Табл. 3.181
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.75, 20, 'large tank', '', 200, '', '3.181'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 200, '', '3.181'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.25, 24, 'large tank', '', 400, '', '3.181'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.5, 20, 'large tank', '', 800, '', '3.181'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 800, '', '3.181'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 20, 'large tank', '', 1600, '', '3.181'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.0, 24, 'large tank', '', 1600, '', '3.181'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 24, 'large tank', '', 3200, '', '3.181'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'large tank', '135', 400, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 9.0, 20, 'large tank', '135', 800, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'large tank', '135', 800, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 10.0, 20, 'large tank', '135', 1600, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.0, 24, 'large tank', '135', 1600, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 11.5, 20, 'large tank', '135', 3200, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.0, 24, 'large tank', '135', 3200, '', '3.181'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'large tank', '120', 400, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.5, 20, 'large tank', '120', 800, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'large tank', '120', 800, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 10.0, 20, 'large tank', '120', 1600, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.75, 24, 'large tank', '120', 1600, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 11.25, 20, 'large tank', '120', 3200, '', '3.181'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.75, 24, 'large tank', '120', 3200, '', '3.181'),
+    # Табл. 3.182
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.75, 20, 'large tank', 'sheet', 200, '', '3.182'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 24, 'large tank', 'sheet', 200, '', '3.182'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.25, 24, 'large tank', 'sheet', 400, '', '3.182'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'large tank', 'sheet', 800, '', '3.182'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 21, 'large tank', 'sheet', 800, '', '3.182'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.5, 22, 'large tank', 'sheet', 800, '', '3.182'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 24, 'large tank', 'sheet', 800, '', '3.182'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.0, 24, 'large tank', 'sheet', 1600, '', '3.182'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'large tank', 'sheet', 400, '', '3.182'),
+    ('KODAK_TMAX_400', 'XTOL', '', 9.5, 20, 'large tank', 'sheet', 800, '', '3.182'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.25, 21, 'large tank', 'sheet', 800, '', '3.182'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.5, 22, 'large tank', 'sheet', 800, '', '3.182'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.5, 24, 'large tank', 'sheet', 800, '', '3.182'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.75, 24, 'large tank', 'sheet', 1600, '', '3.182'),
+    # Табл. 3.183
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.75, 20, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.25, 21, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.75, 22, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.25, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 20, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 21, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 22, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 5.5, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX', '1:7', 9.5, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX', '1:7', 10.0, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX', '1:9', 13.5, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX', '1:9', 11.0, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.75, 20, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.25, 21, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.75, 22, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.5, 20, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 21, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 22, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:7', 8.5, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:7', 7.5, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:9', 12.5, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:9', 8.5, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.75, 18, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 20, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 21, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.75, 22, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.5, 20, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 21, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.5, 22, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.0, 24, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.75, 18, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 20, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 21, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.75, 22, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 20, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.75, 21, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.25, 22, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '', 3.75, 24, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 11.75, 18, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.75, 20, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 21, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.5, 22, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.75, 24, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.75, 20, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 21, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.5, 22, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 5.5, 24, 'drum', '135', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 11.75, 18, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.75, 20, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 21, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.5, 22, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.75, 24, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 20, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.5, 21, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.0, 22, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 5.25, 24, 'drum', '120', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 18, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.25, 20, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.75, 21, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.25, 22, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.25, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 21, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.0, 22, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.0, 18, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.75, 20, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.25, 21, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.75, 22, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.0, 24, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.5, 21, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 22, 'drum', '', 0, '', '3.183'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'drum', '', 0, '', '3.183'),
+    # Табл. 3.184
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.75, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.25, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.75, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.5, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:7', 8.5, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:7', 7.5, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:9', 12.5, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:9', 8.5, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.75, 18, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.75, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.25, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.5, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.0, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 11.75, 18, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.75, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.5, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.75, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.25, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.25, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.75, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 5.75, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 18, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.25, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.75, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.25, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.25, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.0, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.0, 18, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.75, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.25, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.75, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.0, 24, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.5, 21, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 22, 'drum', 'sheet', 0, '', '3.184'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'drum', 'sheet', 0, '', '3.184'),
+    # Табл. 3.185
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.75, 20, 'drum', '', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.25, 24, 'drum', '', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 12.25, 20, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 11.5, 21, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.75, 22, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.0, 24, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 11.75, 24, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.75, 20, 'drum', '', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 24, 'drum', '', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.25, 20, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.5, 21, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.75, 22, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 24, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.75, 24, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 20, 'drum', '135', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'drum', '135', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.5, 20, 'drum', '135', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.5, 21, 'drum', '135', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.5, 22, 'drum', '135', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 24, 'drum', '135', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'drum', '135', 800, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 20, 'drum', '120', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'drum', '120', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.5, 20, 'drum', '120', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.5, 21, 'drum', '120', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.5, 22, 'drum', '120', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 24, 'drum', '120', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'drum', '120', 800, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.75, 20, 'drum', '135', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.75, 24, 'drum', '135', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 12.25, 20, 'drum', '135', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.25, 24, 'drum', '135', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 24, 'drum', '135', 800, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.75, 20, 'drum', '120', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.75, 24, 'drum', '120', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 12.25, 20, 'drum', '120', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.25, 24, 'drum', '120', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 24, 'drum', '120', 800, '', '3.185'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.25, 20, 'drum', '', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.25, 24, 'drum', '', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.25, 20, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 21, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.75, 22, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 24, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.75, 20, 'drum', '', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.0, 24, 'drum', '', 200, '', '3.185'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 11.5, 20, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 10.25, 21, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 9.25, 22, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.75, 24, 'drum', '', 400, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 20, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 5.5, 24, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 8.5, 20, 'drum', '', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 24, 'drum', '', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 9.0, 24, 'drum', '', 3200, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.5, 20, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.0, 24, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'drum', '', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 24, 'drum', '', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 24, 'drum', '', 3200, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.5, 20, 'drum', '135', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.5, 24, 'drum', '135', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.5, 20, 'drum', '135', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 24, 'drum', '135', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.75, 24, 'drum', '135', 3200, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.25, 20, 'drum', '120', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.25, 24, 'drum', '120', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.25, 20, 'drum', '120', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 24, 'drum', '120', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.75, 24, 'drum', '120', 3200, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.75, 20, 'drum', '135', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.25, 24, 'drum', '135', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.0, 20, 'drum', '135', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.25, 24, 'drum', '135', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.5, 24, 'drum', '135', 3200, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.25, 20, 'drum', '120', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.0, 24, 'drum', '120', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.75, 20, 'drum', '120', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 24, 'drum', '120', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.25, 24, 'drum', '120', 3200, '', '3.185'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 20, 'drum', '', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 24, 'drum', '', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'drum', '', 800, '', '3.185'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 8.5, 20, 'drum', '', 1600, '', '3.185'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 7.0, 24, 'drum', '', 1600, '', '3.185'),
+    # Табл. 3.186
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.75, 20, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 24, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.25, 20, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.5, 21, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.75, 22, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 24, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.75, 24, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 20, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.5, 20, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.5, 21, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.5, 22, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 24, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 24, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.75, 20, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.75, 24, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 12.25, 20, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.25, 24, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 24, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.25, 20, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.25, 24, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.25, 20, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 21, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.75, 22, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 24, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.75, 20, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.0, 24, 'drum', 'sheet', 200, '', '3.186'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 11.5, 20, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 10.25, 21, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 9.25, 22, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.75, 24, 'drum', 'sheet', 400, '', '3.186'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.5, 20, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 24, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'drum', 'sheet', 1600, '', '3.186'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 24, 'drum', 'sheet', 1600, '', '3.186'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 24, 'drum', 'sheet', 3200, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.0, 20, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.5, 24, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.0, 20, 'drum', 'sheet', 1600, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 24, 'drum', 'sheet', 1600, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.0, 24, 'drum', 'sheet', 3200, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.25, 20, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.75, 24, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.75, 20, 'drum', 'sheet', 1600, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.75, 24, 'drum', 'sheet', 1600, '', '3.186'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.0, 24, 'drum', 'sheet', 3200, '', '3.186'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 20, 'drum', 'sheet', 1600, '', '3.186'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 24, 'drum', 'sheet', 1600, '', '3.186'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'drum', 'sheet', 800, '', '3.186'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 8.5, 20, 'drum', 'sheet', 1600, '', '3.186'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 7.0, 24, 'drum', 'sheet', 1600, '', '3.186'),
+    # Табл. 3.187
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 20, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 21, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 22, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 24, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 27, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.5, 29, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 20, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 21, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 22, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 24, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 27, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 29, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 20, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 21, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 22, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 24, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 27, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 29, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 20, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 21, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 22, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 24, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 27, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 29, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 20, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 21, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 22, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 24, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 27, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 29, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.5, 20, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.5, 21, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 22, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 24, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 27, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 29, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 16.0, 21, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.0, 22, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 24, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 27, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 29, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '1:7', 13.0, 24, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '1:9', 19.5, 24, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 20, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 21, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 22, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 24, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 27, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 29, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 20, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 22, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 24, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 27, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 29, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 20, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 21, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 22, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 27, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 29, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 20, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 21, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 22, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 24, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 27, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 29, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 20, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 21, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 22, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 24, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 27, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 29, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.5, 20, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 21, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.5, 22, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 24, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 27, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 29, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 22, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 24, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 27, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 29, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.5, 20, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.5, 21, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.75, 22, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.75, 24, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.25, 27, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 4.25, 29, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.5, 20, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.5, 21, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.75, 22, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 24, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.0, 27, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 4.5, 29, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.5, 20, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.5, 21, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.5, 22, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.25, 24, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.5, 27, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.0, 29, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 13.5, 20, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.25, 21, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.25, 22, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.5, 24, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 27, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.0, 29, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.25, 20, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 14.0, 21, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.75, 22, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.0, 24, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.5, 27, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.75, 29, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 17.25, 20, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.75, 21, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 14.25, 22, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.25, 24, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.75, 27, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 29, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 19.0, 20, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 17.5, 21, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.75, 22, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 13.75, 24, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.75, 27, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.5, 29, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 12.5, 20, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 11.5, 21, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 10.0, 24, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 8.0, 27, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 14.0, 20, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 13.0, 21, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 11.5, 24, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 9.0, 27, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 16.0, 20, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 14.0, 21, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 12.5, 24, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 10.0, 27, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 18.5, 20, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 16.5, 21, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 14.5, 24, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 11.5, 27, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 20.5, 20, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 18.5, 21, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 16.0, 24, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 13.0, 27, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 22.5, 20, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 20.5, 21, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 18.0, 24, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 14.5, 27, 'small tank', '', 12500, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 25.0, 20, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 23.0, 21, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 20.0, 24, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 16.0, 27, 'small tank', '', 25000, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 20, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.5, 21, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 22, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 24, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 27, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.0, 29, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 20, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 21, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.5, 22, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 24, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.5, 27, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.5, 29, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 12.5, 20, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 21, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 22, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 24, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 27, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 29, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 14.0, 20, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 13.0, 21, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 22, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 24, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 27, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.5, 29, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 15.5, 20, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 14.0, 21, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 13.0, 22, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 24, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 27, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 29, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.5, 20, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.5, 21, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.5, 22, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.0, 24, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.25, 27, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 3.75, 29, 'small tank', '', 400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.5, 20, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.25, 21, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.25, 22, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.75, 24, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.75, 27, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.25, 29, 'small tank', '', 800, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 9.25, 20, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.0, 21, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.75, 22, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.25, 24, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.25, 27, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.5, 29, 'small tank', '', 1600, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 10.5, 20, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 9.0, 21, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.75, 22, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.0, 24, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.0, 27, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.25, 29, 'small tank', '', 3200, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 12.0, 20, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 10.25, 21, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.75, 22, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.0, 24, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.75, 27, 'small tank', '', 6400, '', '3.187'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.75, 29, 'small tank', '', 6400, '', '3.187'),
+    # Табл. 3.188
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 20, 'large tank', '', 400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'large tank', '', 400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 22, 'large tank', '', 400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 24, 'large tank', '', 400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 20, 'large tank', '', 800, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 21, 'large tank', '', 800, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 22, 'large tank', '', 800, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'large tank', '', 800, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 20, 'large tank', '', 1600, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 21, 'large tank', '', 1600, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 22, 'large tank', '', 1600, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 24, 'large tank', '', 1600, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 20, 'large tank', '', 3200, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 21, 'large tank', '', 3200, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 22, 'large tank', '', 3200, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 24, 'large tank', '', 3200, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 21, 'large tank', '', 6400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 22, 'large tank', '', 6400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 24, 'large tank', '', 6400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.5, 22, 'large tank', '', 12500, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 24, 'large tank', '', 12500, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.5, 20, 'large tank', '', 400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.5, 21, 'large tank', '', 400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 24, 'large tank', '', 400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.75, 20, 'large tank', '', 800, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.75, 21, 'large tank', '', 800, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.5, 24, 'large tank', '', 800, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 13.0, 20, 'large tank', '', 1600, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.0, 21, 'large tank', '', 1600, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.25, 24, 'large tank', '', 1600, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.25, 20, 'large tank', '', 3200, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 13.75, 21, 'large tank', '', 3200, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.75, 24, 'large tank', '', 3200, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 17.25, 20, 'large tank', '', 6400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.75, 21, 'large tank', '', 6400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.25, 24, 'large tank', '', 6400, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 19.25, 20, 'large tank', '', 12500, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 17.5, 21, 'large tank', '', 12500, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 13.75, 24, 'large tank', '', 12500, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 21.5, 20, 'large tank', '', 25000, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 19.5, 21, 'large tank', '', 25000, '', '3.188'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.25, 24, 'large tank', '', 25000, '', '3.188'),
+    # Табл. 3.189
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 20, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 21, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 22, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 24, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 27, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.5, 29, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 20, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 21, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 22, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 24, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 27, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 29, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 20, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 21, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 22, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 24, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 27, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 29, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 20, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 21, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 22, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 24, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 27, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 29, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 20, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 21, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 22, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 24, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 27, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 29, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.5, 20, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.5, 21, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 22, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 24, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 27, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 29, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 16.0, 21, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.0, 22, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 24, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 27, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 29, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 20, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 21, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 22, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 24, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 27, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 29, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 20, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 22, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 24, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 27, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 29, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 20, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 21, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 22, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 27, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 29, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 20, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 21, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 22, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 24, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 27, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 29, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 20, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 21, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 22, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 24, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 27, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 29, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.5, 20, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 21, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.5, 22, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 24, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 27, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 29, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 22, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 24, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 27, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 29, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.5, 20, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.5, 21, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.75, 22, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.75, 24, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.25, 27, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 4.25, 29, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.5, 20, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.5, 21, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.75, 22, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 24, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.0, 27, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 4.5, 29, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.5, 20, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.5, 21, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.5, 22, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.25, 24, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.5, 27, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 5.0, 29, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 13.5, 20, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.25, 21, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.25, 22, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.5, 24, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 27, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.0, 29, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.25, 20, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 14.0, 21, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.75, 22, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 11.0, 24, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.5, 27, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 6.75, 29, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 17.25, 20, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.75, 21, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 14.25, 22, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 12.25, 24, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 9.75, 27, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 7.5, 29, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 19.0, 20, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 17.5, 21, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 15.75, 22, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 13.75, 24, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 10.75, 27, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '', 8.5, 29, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 12.5, 20, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 11.5, 21, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 10.0, 24, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 8.0, 27, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 14.0, 20, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 13.0, 21, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 11.5, 24, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 9.0, 27, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 16.0, 20, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 14.0, 21, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 12.5, 24, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 10.0, 27, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 18.5, 20, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 16.5, 21, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 14.5, 24, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 11.5, 27, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 20.5, 20, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 18.5, 21, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 16.0, 24, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 13.0, 27, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 22.5, 20, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 20.5, 21, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 18.0, 24, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 14.5, 27, 'drum', '', 12500, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 25.0, 20, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 23.0, 21, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 20.0, 24, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'XTOL', '1:1', 16.0, 27, 'drum', '', 25000, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 20, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.5, 21, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 22, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 24, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 27, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.0, 29, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 20, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 21, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.5, 22, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 24, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.5, 27, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.5, 29, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 12.5, 20, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 21, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 22, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 24, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 27, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 29, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 14.0, 20, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 13.0, 21, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 22, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 24, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 27, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.5, 29, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 15.5, 20, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 14.0, 21, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 13.0, 22, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 24, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 27, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 29, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.5, 20, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.5, 21, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.5, 22, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.0, 24, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.25, 27, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 3.75, 29, 'drum', '', 400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.5, 20, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.25, 21, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.25, 22, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.75, 24, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.75, 27, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.25, 29, 'drum', '', 800, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 9.25, 20, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.0, 21, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.75, 22, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.25, 24, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.25, 27, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 4.5, 29, 'drum', '', 1600, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 10.5, 20, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 9.0, 21, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.75, 22, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 7.0, 24, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.0, 27, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.25, 29, 'drum', '', 3200, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 12.0, 20, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 10.25, 21, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.75, 22, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 8.0, 24, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 6.75, 27, 'drum', '', 6400, '', '3.189'),
+    ('KODAK_TMAX_P3200', 'HC-110', 'Dil B', 5.75, 29, 'drum', '', 6400, '', '3.189'),
+    # Табл. 5.149
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 20, 'small tank', '', 400, 'T-MAX 100 Professional', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.0, 21, 'small tank', '', 400, 'T-MAX 100 Professional', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 22, 'small tank', '', 400, 'T-MAX 100 Professional', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 9.0, 24, 'small tank', '', 400, 'T-MAX 100 Professional', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.5, 24, 'small tank', '', 800, 'T-MAX 100 Professional', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 20, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.5, 21, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 22, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 24, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.25, 20, 'small tank', '', 400, '', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 24, 'small tank', '', 400, '', '5.149'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.75, 24, 'small tank', '', 800, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 20, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 21, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 22, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.0, 24, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.0, 21, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 22, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 24, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 13.0, 20, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 21, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 11.0, 22, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.5, 24, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 20, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 21, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 22, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.0, 24, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 27, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.0, 29, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 20, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 21, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 22, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 24, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.0, 27, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 29, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 20, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 22, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 24, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 27, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.0, 29, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 20, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 21, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 22, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 24, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 27, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 29, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 20, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 21, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 22, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 24, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 27, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 29, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.0, 20, 'small tank', '', 12500, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 21, 'small tank', '', 12500, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 22, 'small tank', '', 12500, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 24, 'small tank', '', 12500, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 27, 'small tank', '', 12500, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 29, 'small tank', '', 12500, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 22, 'small tank', '', 25000, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 24, 'small tank', '', 25000, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 27, 'small tank', '', 25000, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 29, 'small tank', '', 25000, 'T-MAX P3200 Professional', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 20, 'small tank', '', 400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 21, 'small tank', '', 400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 22, 'small tank', '', 400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 24, 'small tank', '', 400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 27, 'small tank', '', 400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 29, 'small tank', '', 400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 20, 'small tank', '', 800, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'small tank', '', 800, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 22, 'small tank', '', 800, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 24, 'small tank', '', 800, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 27, 'small tank', '', 800, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 29, 'small tank', '', 800, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 20, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 21, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 22, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 27, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 29, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 20, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 21, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 22, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 24, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 27, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 29, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 20, 'small tank', '', 6400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 21, 'small tank', '', 6400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 22, 'small tank', '', 6400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 24, 'small tank', '', 6400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 27, 'small tank', '', 6400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 29, 'small tank', '', 6400, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.5, 20, 'small tank', '', 12500, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 21, 'small tank', '', 12500, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.5, 22, 'small tank', '', 12500, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 24, 'small tank', '', 12500, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 27, 'small tank', '', 12500, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 29, 'small tank', '', 12500, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 22, 'small tank', '', 25000, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 24, 'small tank', '', 25000, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 27, 'small tank', '', 25000, '', '5.149'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 29, 'small tank', '', 25000, '', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.5, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 22, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.5, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 9.0, 20, 'small tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8.5, 21, 'small tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.5, 22, 'small tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 24, 'small tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.0, 18, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.25, 20, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 21, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.5, 22, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.0, 24, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.25, 20, 'small tank', '', 500, '', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 21, 'small tank', '', 500, '', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.0, 22, 'small tank', '', 500, '', '5.149'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.0, 24, 'small tank', '', 500, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.0, 18, 'small tank', '', 400, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.0, 20, 'small tank', '', 400, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.5, 21, 'small tank', '', 400, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.5, 22, 'small tank', '', 400, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.0, 24, 'small tank', '', 400, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.5, 20, 'small tank', '', 1600, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.0, 21, 'small tank', '', 1600, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.5, 22, 'small tank', '', 1600, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.0, 24, 'small tank', '', 1600, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 12.0, 20, 'small tank', '', 3200, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 11.5, 21, 'small tank', '', 3200, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 11.5, 22, 'small tank', '', 3200, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 11.0, 24, 'small tank', '', 3200, 'Tri-X Pan TX', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.0, 18, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.0, 20, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 21, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 22, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.0, 24, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.75, 18, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.5, 20, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.25, 21, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.0, 22, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 3.5, 24, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.5, 18, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.75, 20, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.25, 21, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.75, 22, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.0, 24, 'small tank', '', 1600, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.5, 20, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.0, 21, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.25, 22, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.5, 24, 'small tank', '', 3200, '', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.5, 18, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.0, 20, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 21, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.25, 22, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.75, 24, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX RS', '', 4.0, 20, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX RS', '', 4.0, 21, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX RS', '', 3.5, 22, 'small tank', '', 0, '', '5.149'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX RS', '', 3.5, 24, 'small tank', '', 0, '', '5.149'),
+    # Табл. 5.150
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 20, 'large tank', '', 100, 'T-MAX 100 Professional', '5.150'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 9.0, 21, 'large tank', '', 100, 'T-MAX 100 Professional', '5.150'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 22, 'large tank', '', 100, 'T-MAX 100 Professional', '5.150'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.5, 24, 'large tank', '', 100, 'T-MAX 100 Professional', '5.150'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.5, 24, 'large tank', '', 400, 'T-MAX 100 Professional', '5.150'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.75, 20, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.25, 21, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.75, 22, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.25, 24, 'large tank', '', 400, '', '5.150'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.5, 20, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 21, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.5, 22, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 20, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 11.0, 21, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 22, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.0, 24, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 24, 'large tank', '', 3200, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 20, 'large tank', '', 400, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'large tank', '', 400, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 22, 'large tank', '', 400, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 24, 'large tank', '', 400, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 20, 'large tank', '', 800, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 21, 'large tank', '', 800, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 22, 'large tank', '', 800, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 24, 'large tank', '', 800, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 20, 'large tank', '', 1600, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 21, 'large tank', '', 1600, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 22, 'large tank', '', 1600, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'large tank', '', 1600, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 20, 'large tank', '', 3200, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 21, 'large tank', '', 3200, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 22, 'large tank', '', 3200, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 24, 'large tank', '', 3200, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.0, 21, 'large tank', '', 6400, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 22, 'large tank', '', 6400, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 24, 'large tank', '', 6400, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.0, 22, 'large tank', '', 12500, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 24, 'large tank', '', 12500, 'T-MAX P3200 Professional', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 20, 'large tank', '', 400, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'large tank', '', 400, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 22, 'large tank', '', 400, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 24, 'large tank', '', 400, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 20, 'large tank', '', 800, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 21, 'large tank', '', 800, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 22, 'large tank', '', 800, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'large tank', '', 800, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 20, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 21, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 22, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 24, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 20, 'large tank', '', 3200, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 21, 'large tank', '', 3200, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 22, 'large tank', '', 3200, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 24, 'large tank', '', 3200, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 21, 'large tank', '', 6400, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 22, 'large tank', '', 6400, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 24, 'large tank', '', 6400, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.5, 22, 'large tank', '', 12500, '', '5.150'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 24, 'large tank', '', 12500, '', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8.0, 20, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.0, 21, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.0, 22, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.5, 24, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8.0, 24, 'large tank', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 20, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 21, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 22, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.5, 24, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.75, 24, 'large tank', '', 500, '', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 10.0, 20, 'large tank', '', 400, 'Tri-X Pan TX', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.5, 21, 'large tank', '', 400, 'Tri-X Pan TX', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.5, 22, 'large tank', '', 400, 'Tri-X Pan TX', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.5, 24, 'large tank', '', 400, 'Tri-X Pan TX', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 14.0, 20, 'large tank', '', 1600, 'Tri-X Pan TX', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 12.5, 21, 'large tank', '', 1600, 'Tri-X Pan TX', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 10.5, 22, 'large tank', '', 1600, 'Tri-X Pan TX', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.0, 24, 'large tank', '', 1600, 'Tri-X Pan TX', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 13.5, 24, 'large tank', '', 3200, 'Tri-X Pan TX', '5.150'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 6.0, 20, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '5.150'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.5, 21, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '5.150'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.5, 22, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '5.150'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.0, 24, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.0, 20, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.75, 21, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.5, 22, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.0, 24, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.75, 20, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.0, 21, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.5, 22, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 1600, '', '5.150'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.5, 20, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.25, 21, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.75, 22, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.25, 24, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX RS', '', 5.5, 20, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX RS', '', 5.0, 21, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX RS', '', 5.0, 22, 'large tank', '', 0, '', '5.150'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX RS', '', 4.0, 24, 'large tank', '', 0, '', '5.150'),
+    # Табл. 5.151
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 20, 'large tank', 'sheet', 100, 'T-MAX 100 Professional', '5.151'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.0, 21, 'large tank', 'sheet', 100, 'T-MAX 100 Professional', '5.151'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 9.5, 22, 'large tank', 'sheet', 100, 'T-MAX 100 Professional', '5.151'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 24, 'large tank', 'sheet', 100, 'T-MAX 100 Professional', '5.151'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.75, 20, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.25, 21, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.75, 22, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 24, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 21, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.5, 22, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 24, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 9.0, 20, 'large tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.151'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8.0, 21, 'large tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.151'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.5, 22, 'large tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.151'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.0, 24, 'large tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.151'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.0, 20, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.151'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.5, 21, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.151'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.5, 22, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.151'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.0, 24, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.151'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 20, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.25, 21, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_EKTAPAN_100', 'T-MAX RS', '', 5.0, 20, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_EKTAPAN_100', 'T-MAX RS', '', 4.0, 21, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_EKTAPAN_100', 'T-MAX RS', '', 3.5, 22, 'large tank', 'sheet', 0, '', '5.151'),
+    ('KODAK_EKTAPAN_100', 'T-MAX RS', '', 3.0, 24, 'large tank', 'sheet', 0, '', '5.151'),
+    # Табл. 5.152
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.0, 20, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '5.152'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 21, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '5.152'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 9.0, 22, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '5.152'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 24, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '5.152'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.25, 20, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.75, 21, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 22, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 5.75, 24, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 20, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.5, 21, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 22, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 24, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 9.0, 20, 'tray', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.152'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.5, 21, 'tray', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.152'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 22, 'tray', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.152'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.0, 24, 'tray', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.152'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.0, 20, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.152'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.0, 21, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.152'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.75, 20, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.5, 21, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_EKTAPAN_100', 'T-MAX RS', '', 5.0, 20, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_EKTAPAN_100', 'T-MAX RS', '', 4.0, 21, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_EKTAPAN_100', 'T-MAX RS', '', 4.0, 22, 'tray', 'sheet', 0, '', '5.152'),
+    ('KODAK_EKTAPAN_100', 'T-MAX RS', '', 3.0, 24, 'tray', 'sheet', 0, '', '5.152'),
+    # Табл. 5.153
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 20, 'drum', '', 100, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.5, 21, 'drum', '', 100, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.0, 22, 'drum', '', 100, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 5.0, 24, 'drum', '', 100, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 20, 'drum', '', 400, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.0, 21, 'drum', '', 400, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 22, 'drum', '', 400, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 24, 'drum', '', 400, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 14.5, 22, 'drum', '', 800, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 24, 'drum', '', 800, 'T-MAX 100 Professional', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.75, 20, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.25, 21, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.75, 22, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 24, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.25, 20, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.5, 21, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.75, 22, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 24, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.75, 22, 'drum', '', 800, '', '5.153'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.75, 24, 'drum', '', 800, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.5, 20, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 21, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 22, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 24, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.0, 21, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.5, 22, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 24, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 14.0, 20, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 13.0, 21, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.5, 22, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 24, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 20, 'drum', '', 400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 21, 'drum', '', 400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 22, 'drum', '', 400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 24, 'drum', '', 400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 27, 'drum', '', 400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 4.5, 29, 'drum', '', 400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 20, 'drum', '', 800, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 21, 'drum', '', 800, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 22, 'drum', '', 800, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 24, 'drum', '', 800, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 27, 'drum', '', 800, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.0, 29, 'drum', '', 800, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 20, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 21, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 22, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 27, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 29, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 20, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 21, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 22, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 24, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 27, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 29, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 20, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 21, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 22, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 24, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 27, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.0, 29, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 21, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 22, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 24, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 27, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 29, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.0, 21, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 22, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.0, 24, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 27, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 29, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 20, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 21, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 22, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 24, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 27, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 5.5, 29, 'drum', '', 400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.5, 20, 'drum', '', 800, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 21, 'drum', '', 800, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.0, 22, 'drum', '', 800, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 24, 'drum', '', 800, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.5, 27, 'drum', '', 800, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 6.5, 29, 'drum', '', 800, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 20, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 21, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 22, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 9.5, 24, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 27, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 7.0, 29, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 20, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 21, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.0, 22, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 24, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 27, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 8.5, 29, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 20, 'drum', '', 6400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.0, 21, 'drum', '', 6400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.5, 22, 'drum', '', 6400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 24, 'drum', '', 6400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.5, 27, 'drum', '', 6400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 10.0, 29, 'drum', '', 6400, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 18.5, 20, 'drum', '', 12500, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 21, 'drum', '', 12500, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 15.5, 22, 'drum', '', 12500, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 24, 'drum', '', 12500, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 13.0, 27, 'drum', '', 12500, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 11.0, 29, 'drum', '', 12500, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 17.0, 22, 'drum', '', 25000, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 16.5, 24, 'drum', '', 25000, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 14.5, 27, 'drum', '', 25000, '', '5.153'),
+    ('KODAK_TMAX_P3200', 'T-MAX RS', '', 12.5, 29, 'drum', '', 25000, '', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 9.0, 20, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8.0, 21, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.5, 22, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.0, 24, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.25, 20, 'drum', '', 0, '', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 21, 'drum', '', 0, '', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.5, 22, 'drum', '', 0, '', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.0, 24, 'drum', '', 0, '', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.25, 20, 'drum', '', 500, '', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 21, 'drum', '', 500, '', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.0, 22, 'drum', '', 500, '', '5.153'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.0, 24, 'drum', '', 500, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.0, 20, 'drum', '', 400, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.5, 21, 'drum', '', 400, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.0, 22, 'drum', '', 400, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.0, 24, 'drum', '', 400, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 10.0, 20, 'drum', '', 1600, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.0, 21, 'drum', '', 1600, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.0, 22, 'drum', '', 1600, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.0, 24, 'drum', '', 1600, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 12.0, 20, 'drum', '', 3200, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 11.0, 21, 'drum', '', 3200, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 10.0, 22, 'drum', '', 3200, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.0, 24, 'drum', '', 3200, 'Tri-X Pan TX', '5.153'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 20, 'drum', '', 320, 'TRI-X Pan Professional TXP', '5.153'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.0, 21, 'drum', '', 320, 'TRI-X Pan Professional TXP', '5.153'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.5, 22, 'drum', '', 320, 'TRI-X Pan Professional TXP', '5.153'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.0, 24, 'drum', '', 320, 'TRI-X Pan Professional TXP', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.5, 20, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.25, 21, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.0, 22, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 3.5, 24, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.75, 20, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.25, 21, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.75, 22, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.0, 24, 'drum', '', 1600, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.5, 20, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 9.0, 21, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 8.25, 22, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 7.5, 24, 'drum', '', 3200, '', '5.153'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.0, 20, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 21, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.25, 22, 'drum', '', 0, '', '5.153'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.75, 24, 'drum', '', 0, '', '5.153'),
+    # Табл. 5.154
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 20, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.5, 21, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.0, 22, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 5.0, 24, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 20, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.0, 21, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 22, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 24, 'drum', 'sheet', 400, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 14.5, 22, 'drum', 'sheet', 800, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.0, 24, 'drum', 'sheet', 800, 'T-MAX 100 Professional', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.75, 20, 'drum', 'sheet', 0, '', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.25, 21, 'drum', 'sheet', 0, '', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.75, 22, 'drum', 'sheet', 0, '', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 24, 'drum', 'sheet', 0, '', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 12.25, 20, 'drum', 'sheet', 400, '', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.5, 21, 'drum', 'sheet', 400, '', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.75, 22, 'drum', 'sheet', 400, '', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 24, 'drum', 'sheet', 400, '', '5.154'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.75, 24, 'drum', 'sheet', 800, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.5, 20, 'drum', 'sheet', 0, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 21, 'drum', 'sheet', 0, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 22, 'drum', 'sheet', 0, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 24, 'drum', 'sheet', 0, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 10.0, 20, 'drum', 'sheet', 1600, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 9.0, 21, 'drum', 'sheet', 1600, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.5, 22, 'drum', 'sheet', 1600, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 24, 'drum', 'sheet', 1600, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 14.0, 20, 'drum', 'sheet', 3200, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 13.0, 21, 'drum', 'sheet', 3200, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.5, 22, 'drum', 'sheet', 3200, '', '5.154'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 12.0, 24, 'drum', 'sheet', 3200, '', '5.154'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 20, 'drum', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.154'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.5, 21, 'drum', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.154'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.0, 22, 'drum', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.154'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 24, 'drum', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.154'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 10.5, 20, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.154'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 10.0, 21, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.154'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 9.0, 22, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.154'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8.0, 24, 'drum', 'sheet', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.154'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.5, 20, 'drum', 'sheet', 0, '', '5.154'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.25, 21, 'drum', 'sheet', 0, '', '5.154'),
+    # Табл. 5.158
+    ('KODAK_TMAX_100', 'T-MAX', '', 8.0, 20, '', '', 100, 'T-MAX 100 Professional', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.5, 21, '', '', 100, 'T-MAX 100 Professional', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.0, 22, '', '', 100, 'T-MAX 100 Professional', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 24, '', '', 100, 'T-MAX 100 Professional', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 12.0, 20, '', '', 400, 'T-MAX 100 Professional', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 11.0, 21, '', '', 400, 'T-MAX 100 Professional', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.0, 22, '', '', 400, 'T-MAX 100 Professional', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 9.0, 24, '', '', 400, 'T-MAX 100 Professional', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.5, 24, '', '', 800, 'T-MAX 100 Professional', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.5, 20, '', '', 0, '', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.0, 21, '', '', 0, '', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 22, '', '', 0, '', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.25, 24, '', '', 0, '', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 12.25, 20, '', '', 400, '', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.0, 24, '', '', 400, '', '5.158'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 11.75, 24, '', '', 800, '', '5.158'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 20, '', '', 0, '', '5.158'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 21, '', '', 0, '', '5.158'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 22, '', '', 0, '', '5.158'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 24, '', '', 0, '', '5.158'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 10.0, 20, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 9.0, 21, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 8.0, 22, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 8.0, 24, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 9.5, 24, '', '', 3200, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 20, '', '', 400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 21, '', '', 400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 22, '', '', 400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 24, '', '', 400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.0, 27, '', '', 400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.0, 29, '', '', 400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 20, '', '', 800, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 21, '', '', 800, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 22, '', '', 800, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 24, '', '', 800, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 27, '', '', 800, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.5, 29, '', '', 800, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 20, '', '', 1600, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 21, '', '', 1600, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 22, '', '', 1600, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 24, '', '', 1600, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 27, '', '', 1600, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.0, 29, '', '', 1600, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 20, '', '', 3200, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 21, '', '', 3200, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 22, '', '', 3200, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 24, '', '', 3200, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 27, '', '', 3200, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 29, '', '', 3200, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.0, 20, '', '', 6400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 21, '', '', 6400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 22, '', '', 6400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 24, '', '', 6400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 27, '', '', 6400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 29, '', '', 6400, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 16.0, 20, '', '', 12500, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.5, 21, '', '', 12500, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.5, 22, '', '', 12500, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.5, 24, '', '', 12500, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 27, '', '', 12500, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 29, '', '', 12500, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 17.5, 21, '', '', 25000, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 16.0, 22, '', '', 25000, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.0, 24, '', '', 25000, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 27, '', '', 25000, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 29, '', '', 25000, 'T-MAX P3200 Professional', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 20, '', '', 400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 21, '', '', 400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 22, '', '', 400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 24, '', '', 400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 27, '', '', 400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.5, 29, '', '', 400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 20, '', '', 800, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 21, '', '', 800, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 22, '', '', 800, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 24, '', '', 800, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 27, '', '', 800, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 29, '', '', 800, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 20, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 21, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 22, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 24, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 27, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 29, '', '', 1600, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 20, '', '', 3200, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 21, '', '', 3200, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 22, '', '', 3200, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 24, '', '', 3200, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 27, '', '', 3200, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 29, '', '', 3200, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 20, '', '', 6400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 21, '', '', 6400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 22, '', '', 6400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 24, '', '', 6400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 27, '', '', 6400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 29, '', '', 6400, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.5, 20, '', '', 12500, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.5, 21, '', '', 12500, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 22, '', '', 12500, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 24, '', '', 12500, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 27, '', '', 12500, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 29, '', '', 12500, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 16.0, 21, '', '', 25000, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.0, 22, '', '', 25000, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 24, '', '', 25000, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 27, '', '', 25000, '', '5.158'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 29, '', '', 25000, '', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.5, 20, '', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.5, 21, '', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.0, 22, '', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.0, 24, '', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 9.0, 24, '', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.75, 20, '', '', 0, '', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.25, 21, '', '', 0, '', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.75, 22, '', '', 0, '', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.25, 24, '', '', 0, '', '5.158'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6.25, 24, '', '', 500, '', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.0, 20, '', '', 400, 'Tri-X Pan TX', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.0, 21, '', '', 400, 'Tri-X Pan TX', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.5, 22, '', '', 400, 'Tri-X Pan TX', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.5, 24, '', '', 400, 'Tri-X Pan TX', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 10.0, 20, '', '', 1600, 'Tri-X Pan TX', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9.5, 21, '', '', 1600, 'Tri-X Pan TX', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9.0, 22, '', '', 1600, 'Tri-X Pan TX', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.5, 24, '', '', 1600, 'Tri-X Pan TX', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 11.0, 24, '', '', 3200, 'Tri-X Pan TX', '5.158'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 8.0, 20, '', '', 320, 'TRI-X Pan Professional TXP', '5.158'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.5, 21, '', '', 320, 'TRI-X Pan Professional TXP', '5.158'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.0, 22, '', '', 320, 'TRI-X Pan Professional TXP', '5.158'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.5, 24, '', '', 320, 'TRI-X Pan Professional TXP', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.0, 20, '', '', 0, '', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.75, 21, '', '', 0, '', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.5, 22, '', '', 0, '', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 4.75, 24, '', '', 0, '', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.75, 20, '', '', 1600, '', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.25, 21, '', '', 1600, '', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7.75, 22, '', '', 1600, '', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7.0, 24, '', '', 1600, '', '5.158'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.25, 24, '', '', 3200, '', '5.158'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.25, 20, '', '', 0, '', '5.158'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.75, 21, '', '', 0, '', '5.158'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.25, 22, '', '', 0, '', '5.158'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 5.25, 24, '', '', 0, '', '5.158'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX', '', 6.0, 20, '', '', 0, '', '5.158'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX', '', 5.5, 21, '', '', 0, '', '5.158'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX', '', 5.0, 22, '', '', 0, '', '5.158'),
+    ('KODAK_VERICHROME_PAN', 'T-MAX', '', 4.0, 24, '', '', 0, '', '5.158'),
+    # Табл. 5.159
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 20, 'drum', '', 100, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 21, 'drum', '', 100, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.0, 22, 'drum', '', 100, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 5.5, 24, 'drum', '', 100, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.5, 20, 'drum', '', 400, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.0, 21, 'drum', '', 400, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 9.0, 22, 'drum', '', 400, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 9.0, 24, 'drum', '', 400, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 14.0, 22, 'drum', '', 800, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 12.5, 24, 'drum', '', 800, 'T-MAX 100 Professional', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.75, 20, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.25, 21, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.75, 22, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.25, 24, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 12.25, 20, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 11.5, 21, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.75, 22, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 10.0, 24, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 12.75, 22, 'drum', '', 800, '', '5.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 11.75, 24, 'drum', '', 800, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 20, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 21, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 22, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 5.5, 24, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 8.5, 20, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 8.0, 21, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.5, 22, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 24, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 11.0, 20, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 10.5, 21, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 10.0, 22, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 9.5, 24, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 20, 'drum', '', 400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 21, 'drum', '', 400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 22, 'drum', '', 400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.5, 24, 'drum', '', 400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 3.5, 27, 'drum', '', 400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 3.0, 29, 'drum', '', 400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 20, 'drum', '', 800, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 21, 'drum', '', 800, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 22, 'drum', '', 800, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.0, 24, 'drum', '', 800, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.0, 27, 'drum', '', 800, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 3.5, 29, 'drum', '', 800, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 20, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 21, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 22, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 24, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.5, 27, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.0, 29, 'drum', '', 1600, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 20, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 21, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 22, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 24, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 27, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 29, 'drum', '', 3200, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 20, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 21, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 22, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 24, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 27, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 29, 'drum', '', 6400, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.5, 20, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 21, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 22, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 24, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 27, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 29, 'drum', '', 12500, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.0, 21, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.0, 22, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 24, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 27, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 29, 'drum', '', 25000, 'T-MAX P3200 Professional', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 20, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 21, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 22, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 24, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 27, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 4.5, 29, 'drum', '', 400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 20, 'drum', '', 800, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 21, 'drum', '', 800, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 22, 'drum', '', 800, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 24, 'drum', '', 800, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 27, 'drum', '', 800, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 5.5, 29, 'drum', '', 800, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 20, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 21, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 22, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 24, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.0, 27, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.0, 29, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 20, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 21, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.5, 22, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 24, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.0, 27, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 6.5, 29, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 20, 'drum', '', 6400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.0, 21, 'drum', '', 6400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 22, 'drum', '', 6400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.0, 24, 'drum', '', 6400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.0, 27, 'drum', '', 6400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 7.5, 29, 'drum', '', 6400, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.5, 20, 'drum', '', 12500, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 14.5, 21, 'drum', '', 12500, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 22, 'drum', '', 12500, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 12.0, 24, 'drum', '', 12500, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 10.0, 27, 'drum', '', 12500, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 8.5, 29, 'drum', '', 12500, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 16.0, 21, 'drum', '', 25000, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 15.0, 22, 'drum', '', 25000, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 13.5, 24, 'drum', '', 25000, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 11.5, 27, 'drum', '', 25000, '', '5.159'),
+    ('KODAK_TMAX_P3200', 'T-MAX', '', 9.5, 29, 'drum', '', 25000, '', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.5, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 3.5, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 9.0, 20, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 8.0, 21, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 7.0, 22, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6.0, 24, 'drum', '', 500, 'Plus-X Pan PX/PXP/PXE/PXT', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.75, 20, 'drum', '', 0, '', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.25, 21, 'drum', '', 0, '', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.75, 22, 'drum', '', 0, '', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.25, 24, 'drum', '', 0, '', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 8.75, 20, 'drum', '', 500, '', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 8.0, 21, 'drum', '', 500, '', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 7.25, 22, 'drum', '', 500, '', '5.159'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6.25, 24, 'drum', '', 500, '', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.0, 20, 'drum', '', 400, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.5, 21, 'drum', '', 400, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.0, 22, 'drum', '', 400, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 4.5, 24, 'drum', '', 400, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9.0, 20, 'drum', '', 1600, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.0, 21, 'drum', '', 1600, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7.5, 22, 'drum', '', 1600, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.5, 24, 'drum', '', 1600, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 12.0, 20, 'drum', '', 3200, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 11.0, 21, 'drum', '', 3200, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 10.0, 22, 'drum', '', 3200, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 9.0, 24, 'drum', '', 3200, 'Tri-X Pan TX', '5.159'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 8.0, 20, 'drum', '', 320, 'TRI-X Pan Professional TXP', '5.159'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.5, 21, 'drum', '', 320, 'TRI-X Pan Professional TXP', '5.159'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.5, 22, 'drum', '', 320, 'TRI-X Pan Professional TXP', '5.159'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.0, 24, 'drum', '', 320, 'TRI-X Pan Professional TXP', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.0, 20, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.75, 21, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.5, 22, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 4.75, 24, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.75, 20, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.25, 21, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7.75, 22, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 7.0, 24, 'drum', '', 1600, '', '5.159'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 8.25, 24, 'drum', '', 3200, '', '5.159'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.25, 20, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.75, 21, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.25, 22, 'drum', '', 0, '', '5.159'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 5.25, 24, 'drum', '', 0, '', '5.159'),
+    # Табл. 5.162
+    ('KODAK_TMAX_100', 'D-76', '', 10.5, 18, 'small tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.0, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.0, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.0, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 11.5, 18, 'large tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 10.0, 20, 'large tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.0, 21, 'large tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.0, 22, 'large tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 24, 'large tank', '', 100, 'T-MAX 100 Professional', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 18, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 20, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 21, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.0, 22, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.25, 24, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.25, 18, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.25, 20, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 21, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.75, 22, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.75, 24, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 18, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 20, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 21, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 22, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 10.0, 18, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 20, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 21, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.5, 22, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 24, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 8.0, 18, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 7.0, 20, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 5.5, 21, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 5.0, 22, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 4.5, 24, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 9.0, 18, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 8.0, 20, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 7.0, 21, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 6.0, 22, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '', 5.0, 24, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.5, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.0, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 22, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 3.75, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.5, 18, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.5, 20, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.0, 21, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 22, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 24, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.5, 18, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 20, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.0, 21, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 22, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.0, 24, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.25, 18, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.25, 20, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.75, 21, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.25, 22, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 24, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.0, 18, 'small tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8.0, 20, 'small tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.5, 21, 'small tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.5, 22, 'small tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 5.5, 24, 'small tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 10.0, 18, 'large tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.0, 20, 'large tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8.0, 21, 'large tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.0, 22, 'large tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.0, 24, 'large tank', '', 400, 'Tri-X Pan TX', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 9.0, 18, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.0, 20, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 21, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.0, 22, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.0, 24, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 10.0, 18, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 9.0, 20, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.5, 21, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.0, 22, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.0, 24, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8.0, 18, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.75, 20, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.25, 21, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 5.5, 22, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 4.75, 24, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.25, 18, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.75, 20, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.0, 21, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.5, 22, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 5.5, 24, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 10.0, 18, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 9.0, 20, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.25, 21, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 22, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.5, 24, 'small tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 11.5, 18, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 10.25, 20, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 9.5, 21, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.75, 22, 'large tank', '', 0, '', '5.162'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 24, 'large tank', '', 0, '', '5.162'),
+    # Табл. 5.163
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 20, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.5, 21, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 24, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 27, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 4.5, 29, 'small tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 20, 'large tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.5, 21, 'large tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 24, 'large tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 27, 'large tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.0, 29, 'large tank', '', 400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.0, 20, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.0, 21, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.0, 24, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.5, 27, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.0, 29, 'small tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 20, 'large tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 21, 'large tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 24, 'large tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.5, 27, 'large tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.5, 29, 'large tank', '', 800, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 20, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 21, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 24, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.0, 27, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 5.5, 29, 'small tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 12.5, 20, 'large tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 21, 'large tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 24, 'large tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 27, 'large tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.0, 29, 'large tank', '', 1600, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 15.0, 20, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 13.5, 21, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.0, 24, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 27, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 29, 'small tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 14.0, 20, 'large tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 13.0, 21, 'large tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 24, 'large tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 8.5, 27, 'large tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 6.5, 29, 'large tank', '', 3200, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 17.5, 20, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 16.0, 21, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 12.5, 24, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 10.5, 27, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 29, 'small tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 15.5, 20, 'large tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 14.0, 21, 'large tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 11.5, 24, 'large tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 9.0, 27, 'large tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    ('KODAK_TMAX_P3200', 'D-76', '', 7.5, 29, 'large tank', '', 6400, 'T-MAX P3200 Professional', '5.163'),
+    # Табл. 5.164
+    ('KODAK_TMAX_100', 'D-76', '1:1', 14.5, 18, 'small tank', '', 100, 'T-MAX 100 Professional', '5.164'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 12.0, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '5.164'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 11.0, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '5.164'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 10.0, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '5.164'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 8.5, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '5.164'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 11.0, 18, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 9.5, 20, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 8.5, 21, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 7.5, 22, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 6.25, 24, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 14.5, 18, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 12.5, 20, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 11.0, 21, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 10.0, 22, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 9.0, 24, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 11.0, 18, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 9.0, 20, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 8.0, 21, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 7.0, 22, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 6.0, 24, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 12.5, 18, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 10.0, 20, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 9.0, 21, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 8.0, 22, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_VERICHROME_PAN', 'D-76', '1:1', 7.0, 24, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 8.0, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 7.0, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 6.5, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 6.0, 22, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 5.0, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 10.0, 18, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 9.0, 20, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 8.0, 21, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 7.5, 22, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 7.0, 24, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 10.0, 18, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 8.5, 20, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 7.75, 21, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 7.25, 22, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 6.0, 24, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 11.25, 18, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 9.75, 20, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 8.75, 21, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 8.0, 22, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 6.75, 24, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 11.0, 18, 'small tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 10.0, 20, 'small tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 9.5, 21, 'small tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 9.0, 22, 'small tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 8.0, 24, 'small tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 13.0, 18, 'large tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 12.0, 20, 'large tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 11.0, 21, 'large tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 10.0, 22, 'large tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 9.0, 24, 'large tank', '', 400, 'Tri-X Pan TX', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 10.75, 18, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 9.75, 20, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 9.0, 21, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 8.5, 22, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 7.75, 24, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 12.25, 18, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 11.0, 20, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 10.5, 21, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 9.75, 22, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 8.75, 24, 'large tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 14.25, 18, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 12.75, 20, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 11.75, 21, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 10.75, 22, 'small tank', '', 0, '', '5.164'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 9.25, 24, 'small tank', '', 0, '', '5.164'),
+    # Табл. 5.165
+    ('KODAK_TMAX_100', 'D-76', '', 9.5, 18, 'small tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.0, 20, 'small tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 21, 'small tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 22, 'small tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.0, 24, 'small tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 11.5, 18, 'large tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.5, 20, 'large tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.5, 21, 'large tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 22, 'large tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.0, 24, 'large tank', 'sheet', 100, 'T-MAX 100 Professional', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.75, 18, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.75, 20, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.25, 21, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.75, 22, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.0, 24, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.25, 18, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.25, 20, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 21, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.75, 22, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.75, 24, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.5, 18, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 21, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.0, 22, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 11.0, 18, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 10.0, 20, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 21, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 22, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 24, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.0, 18, 'small tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.5, 20, 'small tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.0, 21, 'small tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.0, 22, 'small tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 4.5, 24, 'small tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 18, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.0, 20, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.5, 21, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.0, 22, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.5, 24, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.75, 18, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.0, 20, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.5, 21, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.0, 22, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 4.5, 24, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.5, 18, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 20, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.0, 21, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.25, 22, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.5, 24, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.0, 18, 'small tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.0, 20, 'small tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 21, 'small tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.0, 22, 'small tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 24, 'small tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 9.0, 18, 'large tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 8.0, 20, 'large tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.5, 21, 'large tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.0, 22, 'large tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.0, 24, 'large tank', 'sheet', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 9.0, 18, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 8.0, 20, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 7.0, 21, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 6.5, 22, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 5.5, 24, 'small tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 11.0, 18, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 10.0, 20, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 9.0, 21, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 8.5, 22, 'large tank', 'sheet', 0, '', '5.165'),
+    ('KODAK_EKTAPAN_100', 'D-76', '', 7.5, 24, 'large tank', 'sheet', 0, '', '5.165'),
+    # Табл. 5.166
+    ('KODAK_TMAX_100', 'D-76', '', 9.0, 20, 'small tank', '', 200, 'T-MAX 100 Professional', '5.166'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.0, 24, 'small tank', '', 200, 'T-MAX 100 Professional', '5.166'),
+    ('KODAK_TMAX_100', 'D-76', '', 11.0, 20, 'small tank', '', 400, 'T-MAX 100 Professional', '5.166'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 24, 'small tank', '', 400, 'T-MAX 100 Professional', '5.166'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 20, 'small tank', '', 200, '', '5.166'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.25, 24, 'small tank', '', 200, '', '5.166'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.25, 20, 'small tank', '', 400, '', '5.166'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 24, 'small tank', '', 400, '', '5.166'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 20, 'small tank', '', 800, '', '5.166'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'small tank', '', 800, '', '5.166'),
+    ('KODAK_TMAX_400', 'D-76', '', 10.5, 20, 'small tank', '', 1600, '', '5.166'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 24, 'small tank', '', 1600, '', '5.166'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8.0, 20, 'small tank', '', 800, 'Tri-X Pan TX', '5.166'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 5.5, 24, 'small tank', '', 800, 'Tri-X Pan TX', '5.166'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 13.0, 20, 'small tank', '', 1600, 'Tri-X Pan TX', '5.166'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 10.0, 24, 'small tank', '', 1600, 'Tri-X Pan TX', '5.166'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8.0, 20, 'small tank', '', 800, '', '5.166'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 4.75, 24, 'small tank', '', 800, '', '5.166'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.5, 20, 'small tank', '', 1600, '', '5.166'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.5, 24, 'small tank', '', 1600, '', '5.166'),
+    # Табл. 5.167
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 20, 'drum', '', 100, 'T-MAX 100 Professional', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.0, 21, 'drum', '', 100, 'T-MAX 100 Professional', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 22, 'drum', '', 100, 'T-MAX 100 Professional', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.0, 24, 'drum', '', 100, 'T-MAX 100 Professional', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.0, 20, 'drum', '', 400, 'T-MAX 100 Professional', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.5, 21, 'drum', '', 400, 'T-MAX 100 Professional', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.0, 22, 'drum', '', 400, 'T-MAX 100 Professional', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.0, 24, 'drum', '', 400, 'T-MAX 100 Professional', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 18, 'drum', '', 0, '', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.25, 20, 'drum', '', 0, '', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.75, 21, 'drum', '', 0, '', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.25, 22, 'drum', '', 0, '', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.25, 24, 'drum', '', 0, '', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.25, 20, 'drum', '', 400, '', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 21, 'drum', '', 400, '', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.75, 22, 'drum', '', 400, '', '5.167'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 24, 'drum', '', 400, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 20, 'drum', '', 0, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 21, 'drum', '', 0, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.0, 22, 'drum', '', 0, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', '', 0, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'drum', '', 800, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 21, 'drum', '', 800, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.0, 22, 'drum', '', 800, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', '', 800, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 20, 'drum', '', 1600, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.5, 21, 'drum', '', 1600, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 22, 'drum', '', 1600, '', '5.167'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 24, 'drum', '', 1600, '', '5.167'),
+)
+SOVREMENNYE_2004_TMAX_ADDED: dict[str, int] = {}
+SOVREMENNYE_2004_TMAX_TWINS: dict[str, int] = {}
+SOVREMENNYE_2004_TMAX_SPLIT: dict[str, int] = {}
+
+
+def _apply_sovremennye_tmax(p: "FilmProfile") -> "FilmProfile":
+    """Queue P98b. An exact twin -- same developer, dilution, time, temperature,
+    vessel, format and EI, any edition -- is the same printed condition (the
+    book repeats Kodak's tables between chapters 3 and 5) and is not added
+    twice. A DIFFERENT time at the same key is a second printing that
+    disagrees; it is kept, with its table appended to the edition, so neither
+    reading is silently chosen."""
+    rows = [r for r in SOVREMENNYE_2004_TMAX_POINTS if r[0] == p.name]
+    if not rows:
+        return p
+    fam = p.processing_family
+    twin = {(q.developer, q.dilution, q.minutes, q.celsius, q.vessel,
+             q.film_format, q.exposure_index) for q in fam.points}
+    held = {(q.developer, q.dilution, q.celsius, q.vessel, q.film_format,
+             q.exposure_index, q.edition): q.minutes for q in fam.points}
+    pts = []
+    for _s, dev, dil, minutes, celsius, vessel, fmt, ei, ed, tid in rows:
+        m, c = float(minutes), float(celsius)
+        if (dev, dil, m, c, vessel, fmt, ei) in twin:
+            SOVREMENNYE_2004_TMAX_TWINS[p.name] = SOVREMENNYE_2004_TMAX_TWINS.get(p.name, 0) + 1
+            continue
+        k = (dev, dil, c, vessel, fmt, ei, ed)
+        if k in held:
+            ed = (ed + " / " if ed else "") + "Табл. " + tid
+            # a tagged point states its own speed: box speed made explicit
+            ei = ei or p.exposure_index
+            k = (dev, dil, c, vessel, fmt, ei, ed)
+            SOVREMENNYE_2004_TMAX_SPLIT[p.name] = SOVREMENNYE_2004_TMAX_SPLIT.get(p.name, 0) + 1
+            assert k not in held, (p.name, k)
+        twin.add((dev, dil, m, c, vessel, fmt, ei))
+        held[k] = m
+        SOVREMENNYE_2004_TMAX_ADDED[p.name] = SOVREMENNYE_2004_TMAX_ADDED.get(p.name, 0) + 1
+        pts.append(DevelopmentPoint(
+            developer=dev, dilution=dil, minutes=m, celsius=c, exposure_index=ei,
+            vessel=vessel, film_format=fmt, edition=ed))
+    return replace(p, processing_family=replace(
+        fam, points=tuple(fam.points) + tuple(pts),
+        source=fam.source + "  " + _SOVREMENNYE_2004_SOURCE
+        + " T-MAX push and chapter-5 Kodak tables (EI), queue P98b."))
+
+
+FILM_PROFILES = tuple(_apply_sovremennye_tmax(_p) for _p in FILM_PROFILES)
+
+
+#: QUEUE P54c (2026-10-01, owner decision): THE NORMAL-DEVELOPMENT TABLES WHOSE
+#: CELLS THE P54 WORD-COORDINATE READER HELD, re-read by the same ruled-grid
+#: reader as P98b (`sovremennye_tmax_push.HELD_TABLES`): Табл. 3.159-3.163 and
+#: 3.176-3.177 (T-MAX 100 / 400, both generations), 3.194-3.197 (Plus-X Pan),
+#: 3.207-3.210 (Tri-X Pan / TXP / TX), 3.225-3.226 (Plus-X 125), 3.241-3.242
+#: (Tri-X 400TX / 320TXP) and 3.263-3.264 (Neopan 100 Acros, EI per row).
+#: 1122 cells, every series passing the physical check. Of the 395 values P54
+#: had held on these pages, 348 are reproduced here under their right film;
+#: the other 47 were mis-assigned cells and do not exist as printed. Same
+#: tuple layout and EI convention as SOVREMENNYE_2004_TMAX_POINTS.
+SOVREMENNYE_2004_GRID_POINTS: tuple[tuple, ...] = (
+    # Табл. 3.159
+    ('KODAK_TMAX_100', 'T-MAX', '', 8.0, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.5, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.0, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 20, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 21, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 22, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '1:7', 10.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '1:7', 10.0, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX', '1:9', 14.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX', '1:9', 15.0, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 20, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 21, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 22, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.0, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:7', 8.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:7', 7.0, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:9', 12.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:9', 13.0, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.0, 18, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.75, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.0, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.5, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '', 4.5, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.5, 18, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.5, 20, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.75, 21, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 22, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.5, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.25, 20, 'small tank', '135', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.5, 21, 'small tank', '135', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.0, 22, 'small tank', '135', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.0, 24, 'small tank', '135', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.75, 20, 'small tank', '135', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.0, 21, 'small tank', '135', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.5, 22, 'small tank', '135', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 24, 'small tank', '135', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 10.0, 20, 'small tank', '120', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.0, 21, 'small tank', '120', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.0, 22, 'small tank', '120', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 6.75, 24, 'small tank', '120', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.25, 20, 'small tank', '120', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.5, 21, 'small tank', '120', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.0, 22, 'small tank', '120', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 24, 'small tank', '120', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '', 10.5, 18, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.0, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.0, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.0, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 18, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 20, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 21, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 22, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 14.5, 18, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 12.0, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 11.0, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 10.0, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 8.5, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 14.5, 18, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 12.5, 20, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 11.0, 21, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 10.0, 22, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 9.0, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 8.0, 18, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.0, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.0, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.5, 18, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.5, 21, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 22, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 4.5, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 16.0, 18, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 13.5, 20, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 12.0, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 10.5, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 8.5, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 12.0, 18, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 10.5, 20, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 9.0, 21, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 8.5, 22, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 7.5, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '1:3', 20.0, 21, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '1:3', 18.5, 22, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '1:3', 16.0, 24, 'small tank', '', 100, 'T-MAX 100 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '1:3', 20.0, 21, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '1:3', 18.5, 22, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '1:3', 16.0, 24, 'small tank', '', 400, 'T-MAX 400 Professional', '3.159'),
+    # Табл. 3.160
+    ('KODAK_TMAX_100', 'T-MAX', '', 8.0, 20, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.5, 21, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.0, 22, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 24, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 20, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 21, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 22, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 24, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 20, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 9.0, 21, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 22, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.5, 24, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.5, 20, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 21, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.5, 22, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 11.5, 18, 'large tank', '135', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.5, 20, 'large tank', '135', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.5, 21, 'large tank', '135', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.5, 22, 'large tank', '135', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.25, 24, 'large tank', '135', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 9.0, 18, 'large tank', '135', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.75, 20, 'large tank', '135', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.0, 21, 'large tank', '135', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.5, 22, 'large tank', '135', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.5, 24, 'large tank', '135', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 11.0, 18, 'large tank', '120', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.25, 20, 'large tank', '120', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.5, 21, 'large tank', '120', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.75, 22, 'large tank', '120', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.5, 24, 'large tank', '120', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 9.25, 18, 'large tank', '120', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.75, 20, 'large tank', '120', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.75, 21, 'large tank', '120', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.25, 22, 'large tank', '120', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 24, 'large tank', '120', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'D-76', '', 11.5, 18, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'D-76', '', 10.0, 20, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.0, 21, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.0, 22, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 24, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'D-76', '', 10.0, 18, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 20, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 21, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.5, 22, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 24, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 8.5, 18, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.5, 20, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.0, 21, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 22, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.5, 24, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 8.0, 18, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 7.0, 20, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.5, 21, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 22, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 16.0, 18, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 13.5, 20, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 12.0, 21, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 11.0, 22, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 9.0, 24, 'large tank', '', 100, 'T-MAX 100 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 13.0, 18, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 11.5, 20, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 10.0, 21, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 9.0, 22, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 8.0, 24, 'large tank', '', 400, 'T-MAX 400 Professional', '3.160'),
+    # Табл. 3.161
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 11.0, 20, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 10.0, 21, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 9.0, 22, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 24, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 20, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.5, 21, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 22, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 24, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.5, 18, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 20, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 21, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.0, 22, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'XTOL', '', 8.5, 18, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.25, 20, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.25, 21, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.75, 22, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 24, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 10.5, 20, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.5, 21, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.5, 24, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 10.5, 20, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.5, 21, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.25, 24, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'D-76', '', 9.5, 18, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.0, 20, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 21, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 22, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.0, 24, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.5, 18, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 21, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.0, 22, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 8.5, 18, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.5, 20, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.0, 21, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 22, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.5, 24, 'tray', 'sheet', 100, 'T-MAX 100 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 9.0, 18, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 7.5, 20, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 7.0, 21, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.5, 22, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 24, 'tray', 'sheet', 400, 'T-MAX 400 Professional', '3.161'),
+    # Табл. 3.162
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 20, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 21, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.0, 22, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 5.5, 24, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 20, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 21, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 22, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 5.5, 24, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX', '1:7', 10.0, 24, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX', '1:7', 10.0, 24, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX', '1:9', 11.5, 24, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX', '1:9', 11.0, 24, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX', '1:15', 13.0, 24, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX', '1:15', 14.0, 24, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 20, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.5, 21, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.0, 22, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 5.0, 24, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.5, 20, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 21, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 22, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 24, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:7', 8.5, 24, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:7', 7.5, 24, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:9', 10.0, 24, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:9', 8.5, 24, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.0, 20, 'drum', '135', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.25, 21, 'drum', '135', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '', 4.75, 22, 'drum', '135', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '', 4.0, 24, 'drum', '135', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.5, 20, 'drum', '135', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 21, 'drum', '135', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.5, 22, 'drum', '135', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.0, 24, 'drum', '135', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.75, 20, 'drum', '120', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 21, 'drum', '120', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '', 4.5, 22, 'drum', '120', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '', 3.75, 24, 'drum', '120', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 20, 'drum', '120', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.75, 21, 'drum', '120', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.25, 22, 'drum', '120', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '', 3.75, 24, 'drum', '120', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.75, 20, 'drum', '135', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.0, 21, 'drum', '135', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.25, 22, 'drum', '135', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 6.25, 24, 'drum', '135', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.75, 20, 'drum', '135', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 21, 'drum', '135', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.5, 22, 'drum', '135', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 5.5, 24, 'drum', '135', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.75, 20, 'drum', '120', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.5, 21, 'drum', '120', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.25, 22, 'drum', '120', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 6.75, 24, 'drum', '120', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 20, 'drum', '120', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.5, 21, 'drum', '120', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.0, 22, 'drum', '120', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 5.25, 24, 'drum', '120', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 20, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.0, 21, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 22, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.0, 24, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 21, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.0, 22, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 20, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.0, 21, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.5, 22, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.5, 24, 'drum', '', 100, 'T-MAX 100 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.5, 21, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 22, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'drum', '', 400, 'T-MAX 400 Professional', '3.162'),
+    # Табл. 3.163
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 20, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.5, 21, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.0, 22, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 5.0, 24, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.5, 20, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 21, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 22, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.5, 24, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:7', 8.5, 24, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:7', 7.5, 24, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:9', 10.0, 24, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:9', 8.5, 24, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.25, 20, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.5, 21, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 22, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'XTOL', '', 4.25, 24, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.25, 20, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.5, 21, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.0, 22, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.0, 24, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.75, 20, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.5, 21, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 7.25, 22, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 6.75, 24, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.25, 20, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.25, 21, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 6.75, 22, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 5.75, 24, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 20, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.0, 21, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 22, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.0, 24, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 20, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 21, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.0, 22, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 20, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.0, 21, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.5, 22, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.5, 24, 'drum', 'sheet', 100, 'T-MAX 100 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.5, 21, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 22, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'drum', 'sheet', 400, 'T-MAX 400 Professional', '3.163'),
+    # Табл. 3.176
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.5, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.0, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.5, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 6.25, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX', '1:7', 9.5, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX', '1:7', 10.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX', '1:9', 13.5, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX', '1:9', 15.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.0, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.5, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 6.25, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 6.0, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 5.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:7', 8.5, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:7', 7.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '1:9', 12.5, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '1:9', 13.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.5, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.5, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.0, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.5, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.5, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.75, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '', 4.5, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 11.5, 18, 'small tank', '135', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.5, 20, 'small tank', '135', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.5, 21, 'small tank', '135', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 6.5, 24, 'small tank', '135', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.75, 20, 'small tank', '135', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.0, 21, 'small tank', '135', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.5, 22, 'small tank', '135', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 24, 'small tank', '135', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 11.5, 18, 'small tank', '120', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 9.5, 20, 'small tank', '120', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 8.5, 21, 'small tank', '120', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'XTOL', '1:1', 6.5, 24, 'small tank', '120', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 9.25, 20, 'small tank', '120', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.5, 21, 'small tank', '120', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 8.0, 22, 'small tank', '120', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'XTOL', '1:1', 7.0, 24, 'small tank', '120', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.5, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.5, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.0, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.25, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.0, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '', 5.5, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 11.0, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 9.5, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 8.5, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 7.5, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'D-76', '1:1', 6.25, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 14.5, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 12.5, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 11.0, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 10.0, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'D-76', '1:1', 9.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.0, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.5, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.0, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.5, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.5, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 4.5, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 13.5, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 11.5, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 10.5, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 9.5, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 8.0, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 12.0, 18, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 10.5, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 9.0, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 8.5, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 7.5, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '1:3', 17.0, 20, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '1:3', 15.5, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '1:3', 14.5, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '1:3', 12.5, 24, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '1:3', 20.0, 21, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '1:3', 18.5, 22, 'small tank', '', 0, '', '3.176'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '1:3', 16.0, 24, 'small tank', '', 0, '', '3.176'),
+    # Табл. 3.177
+    ('KODAK_TMAX_100', 'T-MAX', '', 8.5, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 8.0, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.5, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'T-MAX', '', 7.0, 24, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 7.0, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.5, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'T-MAX', '', 6.0, 24, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.75, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 8.25, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.75, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.5, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 8.0, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.5, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.5, 18, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.25, 20, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 21, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 22, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.5, 24, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 9.0, 18, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.75, 20, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.0, 21, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.5, 22, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.5, 24, 'large tank', '135', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 9.5, 18, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 8.25, 20, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 7.25, 21, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 6.5, 22, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'XTOL', '', 5.5, 24, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 9.25, 18, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 7.75, 20, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.75, 21, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 6.25, 22, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'XTOL', '', 5.25, 24, 'large tank', '120', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'D-76', '', 8.25, 18, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'D-76', '', 7.25, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'D-76', '', 6.5, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'D-76', '', 5.75, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'D-76', '', 4.75, 24, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'D-76', '', 10.0, 18, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'D-76', '', 9.0, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'D-76', '', 8.0, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'D-76', '', 7.5, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'D-76', '', 6.5, 24, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 7.5, 18, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.5, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 6.0, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 5.25, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'HC-110', 'Dil B', 4.5, 24, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 8.0, 18, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 7.0, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.5, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 6.0, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'HC-110', 'Dil B', 5.0, 24, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 15.0, 18, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 13.0, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 11.25, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 10.75, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_100', 'MICRODOL-X', '', 8.75, 24, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 13.0, 18, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 11.5, 20, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 10.0, 21, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 9.0, 22, 'large tank', '', 0, '', '3.177'),
+    ('KODAK_TMAX_400', 'MICRODOL-X', '', 8.0, 24, 'large tank', '', 0, '', '3.177'),
+    # Табл. 3.194
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 10.0, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 9.0, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.5, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 22, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.0, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 10.0, 18, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 9.0, 20, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8.0, 21, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.5, 22, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 7.0, 24, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.5, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.25, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.75, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.5, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 8.5, 18, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.25, 20, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.5, 21, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.75, 24, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 6.0, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 5.0, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 4.75, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 4.5, 22, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 4.0, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 8.0, 18, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 7.0, 20, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 6.5, 21, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 6.0, 22, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 5.5, 24, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.0, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.0, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.0, 22, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 9.0, 18, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 8.0, 20, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.5, 21, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.0, 22, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.0, 24, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 8.0, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 7.0, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 6.5, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 6.0, 22, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 5.0, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 9.0, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 8.0, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 7.5, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 7.0, 22, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 6.0, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 11.0, 18, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 10.0, 20, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 9.5, 21, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 9.0, 22, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 8.0, 24, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 5.0, 18, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 4.5, 20, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 4.25, 21, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 4.0, 22, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 3.5, 24, 'small tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 6.5, 18, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 6.0, 20, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 5.75, 21, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 5.5, 22, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    ('KODAK_PLUS_X_125', 'DK-50', '1:1', 5.0, 24, 'large tank', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.194'),
+    # Табл. 3.195
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.5, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 3.5, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.5, 18, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 3.0, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 8.0, 18, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 7.0, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 6.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 5.0, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 4.0, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 18, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.0, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 3.5, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 3.5, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.195'),
+    # Табл. 3.196
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.5, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 3.5, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.75, 18, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 3.0, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 10.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 9.0, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 8.0, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.0, 18, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.0, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.196'),
+    # Табл. 3.197
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 8.0, 18, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.197'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 6.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.197'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.5, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.197'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.0, 22, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.197'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.197'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.5, 18, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.197'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.5, 20, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.197'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.0, 21, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.197'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 3.0, 24, 'drum', '', 125, 'Plus-X Pan PX/PXP/PXE/PXT', '3.197'),
+    # Табл. 3.207
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 9.0, 18, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 8.0, 20, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.5, 21, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.0, 22, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.5, 24, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.0, 18, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.0, 20, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 21, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 22, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.0, 24, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 7.0, 18, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 6.0, 20, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.5, 21, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.5, 22, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.0, 24, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.75, 18, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.5, 20, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.25, 21, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 4.75, 22, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 3.75, 24, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 7.0, 18, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 6.25, 20, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 6.0, 21, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.5, 22, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.0, 24, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 9.0, 18, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.0, 20, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 21, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.0, 22, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.0, 24, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 10.0, 18, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 9.0, 20, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.5, 21, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.0, 22, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.0, 24, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 9.0, 18, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 8.0, 20, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 7.5, 21, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 7.0, 22, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 6.0, 24, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 10.0, 18, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 9.0, 20, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 8.5, 21, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 8.0, 22, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 7.0, 24, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 11.0, 18, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 10.0, 20, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 9.0, 21, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 8.5, 22, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 7.5, 24, 'small tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 12.0, 18, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 11.0, 20, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 10.0, 21, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 9.0, 22, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 8.0, 24, 'large tank', '', 320, 'TRI-X Pan Professional TXP', '3.207'),
+    # Табл. 3.208
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 6.0, 18, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.0, 20, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.0, 21, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.5, 18, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.0, 20, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.5, 21, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.5, 22, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.0, 24, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 6.0, 18, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.5, 20, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.0, 21, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 4.5, 22, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 4.0, 24, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 8.0, 18, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 7.5, 20, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 7.0, 21, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 6.0, 22, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.0, 24, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.0, 18, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.5, 20, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.0, 21, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.0, 22, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 4.5, 24, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 18, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.0, 20, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.5, 21, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.0, 22, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.5, 24, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 8.0, 18, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 7.0, 20, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 6.0, 21, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 5.5, 22, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 5.0, 24, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 10.0, 18, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 9.0, 20, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 8.0, 21, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 7.5, 22, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 6.5, 24, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 5.0, 18, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 5.0, 20, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 4.5, 21, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 4.5, 22, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 4.0, 24, 'tray', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 7.0, 18, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 6.5, 20, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 6.0, 21, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 5.5, 22, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    ('KODAK_TRI_X_320TXP', 'DK-50', '1:1', 5.0, 24, 'large tank', 'sheet', 320, 'TRI-X Pan Professional TXP', '3.208'),
+    # Табл. 3.209
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.5, 18, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.0, 20, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.5, 21, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.0, 22, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 4.5, 24, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.5, 18, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 6.0, 20, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.5, 21, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.0, 22, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.0, 24, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 7.0, 18, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 6.0, 20, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 5.5, 21, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 4.5, 22, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 4.0, 24, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.5, 18, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.0, 20, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.0, 21, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 5.0, 22, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 4.5, 24, 'drum', '', 400, 'Tri-X Pan TX', '3.209'),
+    # Табл. 3.210
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 8.0, 20, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.5, 21, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.5, 22, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.0, 24, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 20, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.0, 21, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.5, 22, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.0, 24, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 8.5, 20, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 8.0, 21, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 6.5, 22, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.0, 24, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 20, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.0, 21, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.5, 22, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 5.5, 24, 'drum', '', 320, 'TRI-X Pan Professional TXP', '3.210'),
+    # Табл. 3.225
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6.75, 18, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.75, 20, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.25, 21, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.75, 22, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.25, 24, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.0, 18, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.25, 20, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 21, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.5, 22, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.0, 24, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.5, 18, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.75, 20, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.5, 21, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 22, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.5, 24, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 4.0, 18, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 3.5, 20, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 3.0, 21, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 2.75, 22, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 2.5, 24, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 4.5, 18, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 3.75, 20, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 3.5, 21, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 3.25, 22, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 2.75, 24, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.5, 18, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 20, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.0, 21, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 22, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.0, 24, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 7.25, 18, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.25, 20, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.75, 21, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.25, 22, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 24, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 10.0, 18, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 8.5, 20, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 7.75, 21, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 7.25, 22, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 6.0, 24, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 11.25, 18, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 9.75, 20, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 8.75, 21, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 8.0, 22, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'D-76', '1:1', 6.75, 24, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.5, 18, 'small tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.5, 20, 'small tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.0, 21, 'small tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.5, 22, 'small tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.0, 24, 'small tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.25, 18, 'large tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.25, 20, 'large tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.75, 21, 'large tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.25, 22, 'large tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.5, 24, 'large tank', '135', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.0, 18, 'small tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.0, 20, 'small tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.5, 21, 'small tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.0, 22, 'small tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.25, 24, 'small tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 7.75, 18, 'large tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.75, 20, 'large tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.25, 21, 'large tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.5, 22, 'large tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.75, 24, 'large tank', '120', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 8.25, 20, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 7.5, 21, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 7.0, 22, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 6.0, 24, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 9.25, 18, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 8.0, 20, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 7.25, 21, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 6.75, 22, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 5.75, 24, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 10.5, 18, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 9.0, 20, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 8.25, 21, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 7.5, 22, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '', 6.5, 24, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '1:3', 13.0, 20, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '1:3', 11.75, 21, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '1:3', 10.75, 22, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '1:3', 9.25, 24, 'small tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '1:3', 14.75, 20, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '1:3', 13.25, 21, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '1:3', 12.0, 22, 'large tank', '', 0, '', '3.225'),
+    ('KODAK_PLUS_X_125', 'MICRODOL-X', '1:3', 10.25, 24, 'large tank', '', 0, '', '3.225'),
+    # Табл. 3.226
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 6.75, 18, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.75, 20, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 5.25, 21, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.75, 22, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'T-MAX', '', 4.25, 24, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 5.0, 18, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.25, 20, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 4.0, 21, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.5, 22, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'T-MAX RS', '', 3.0, 24, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 6.75, 18, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.75, 20, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 5.25, 21, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.75, 22, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'XTOL', '', 4.0, 24, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 8.25, 20, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 7.5, 21, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 7.0, 22, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'XTOL', '1:1', 6.0, 24, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 4.0, 18, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 3.5, 20, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 3.0, 21, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 2.75, 22, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'HC-110', 'Dil B', 2.5, 24, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 6.5, 18, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.5, 20, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 5.0, 21, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.5, 22, 'drum', '', 0, '', '3.226'),
+    ('KODAK_PLUS_X_125', 'D-76', '', 4.0, 24, 'drum', '', 0, '', '3.226'),
+    # Табл. 3.241
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.75, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 6.0, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.75, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 5.5, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX', '', 4.75, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.75, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.5, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.25, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.0, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 3.5, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.5, 18, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 5.0, 20, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.75, 21, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.5, 22, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'T-MAX RS', '', 4.0, 24, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 4.5, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 3.75, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 3.5, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 3.0, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 2.5, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 5.0, 18, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 4.5, 20, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 4.0, 21, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 3.5, 22, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'HC-110', 'Dil B', 3.0, 24, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 8.0, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.75, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.25, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 5.5, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 4.75, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 9.25, 18, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.75, 20, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 7.0, 21, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 6.5, 22, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '', 5.5, 24, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 10.75, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 9.75, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 9.0, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 8.5, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 7.75, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 12.25, 18, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 11.0, 20, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 10.5, 21, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 9.75, 22, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'D-76', '1:1', 8.75, 24, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 8.0, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 7.0, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 6.25, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 5.75, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 4.75, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 9.25, 18, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 8.0, 20, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 7.25, 21, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 6.5, 22, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '', 5.5, 24, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 10.0, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 9.0, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 8.5, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 8.0, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 7.25, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 11.5, 18, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 10.5, 20, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 9.75, 21, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 9.25, 22, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'XTOL', '1:1', 8.25, 24, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 10.25, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 9.25, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 8.75, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 8.25, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 7.5, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 11.75, 18, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 10.75, 20, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 10.0, 21, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 9.5, 22, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '', 8.5, 24, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '1:3', 18.75, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '1:3', 17.0, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '1:3', 16.0, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '1:3', 15.0, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '1:3', 13.5, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '1:3', 19.5, 20, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '1:3', 18.25, 21, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '1:3', 17.25, 22, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'MICRODOL-X', '1:3', 15.5, 24, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 7.0, 18, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 6.0, 20, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 5.5, 21, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 5.0, 22, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 4.5, 24, 'small tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 7.5, 18, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 6.5, 20, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 6.0, 21, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 5.5, 22, 'large tank', '', 0, '', '3.241'),
+    ('KODAK_TRI_X_400TX', 'DK-50', '1:1', 5.0, 24, 'large tank', '', 0, '', '3.241'),
+    # Табл. 3.242
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 8.25, 18, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 7.25, 20, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.75, 21, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 6.25, 22, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX', '', 5.25, 24, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.5, 18, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.0, 20, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.5, 21, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.25, 22, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 2.75, 24, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 5.0, 18, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.5, 20, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 4.25, 21, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.75, 22, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'T-MAX RS', '', 3.25, 24, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.25, 18, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 4.75, 20, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 4.25, 21, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 4.0, 22, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 3.5, 24, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 6.25, 18, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.5, 20, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 5.0, 21, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 4.5, 22, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'HC-110', 'Dil B', 4.0, 24, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 10.0, 18, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 9.0, 20, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.25, 21, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 22, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 6.5, 24, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 11.5, 18, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 10.25, 20, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 9.5, 21, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 8.75, 22, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '', 7.5, 24, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 14.25, 18, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 12.75, 20, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 11.75, 21, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 10.75, 22, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'D-76', '1:1', 9.25, 24, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 8.75, 18, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 7.75, 20, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 7.25, 21, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 6.5, 22, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 5.75, 24, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 10.25, 18, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 9.0, 20, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 8.25, 21, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 7.5, 22, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '', 6.5, 24, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 12.5, 18, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 11.25, 20, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 10.25, 21, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 9.5, 22, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'XTOL', '1:1', 8.0, 24, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 11.5, 18, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 10.25, 20, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 9.5, 21, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 8.75, 22, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 7.5, 24, 'small tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 13.25, 18, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 11.75, 20, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 10.75, 21, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 10.0, 22, 'large tank', '', 0, '', '3.242'),
+    ('KODAK_TRI_X_320TXP', 'MICRODOL-X', '', 8.5, 24, 'large tank', '', 0, '', '3.242'),
+    # Табл. 3.263
+    ('FUJI_NEOPAN_ACROS_100', 'Microfine', '', 12.5, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microfine', '', 10.0, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microfine', '', 8.5, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microfine', '', 7.0, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microfine', '', 5.75, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microfine', '1:1', 15.0, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microfine', '1:1', 12.5, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microfine', '1:1', 10.0, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microfine', '1:1', 8.25, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '', 11.0, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '', 9.0, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '', 7.25, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '', 6.0, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '', 4.75, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '', 17.0, 20, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '', 14.0, 22, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '', 11.0, 24, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '', 8.75, 26, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '1:1', 15.0, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '1:1', 12.5, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '1:1', 10.5, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '1:1', 8.75, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Fujidol E', '1:1', 7.25, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Fujidol-L', '', 7.25, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Fujidol-L', '', 6.0, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Fujidol-L', '', 5.0, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Fujidol-L', '', 4.0, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Fujidol-L', '', 3.25, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Neoprodol', '1:1', 8.5, 18, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Neoprodol', '1:1', 7.0, 20, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Neoprodol', '1:1', 6.0, 22, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Neoprodol', '1:1', 5.0, 24, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Neoprodol', '1:1', 4.25, 26, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Prodol', '', 5.5, 18, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Prodol', '', 4.25, 20, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Prodol', '', 3.5, 22, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Prodol', '1:1', 7.75, 18, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Prodol', '1:1', 6.5, 20, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Prodol', '1:1', 5.5, 22, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Prodol', '1:1', 4.5, 24, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Prodol', '1:1', 3.75, 26, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microdol-X', '', 13.5, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microdol-X', '', 11.5, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microdol-X', '', 9.75, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microdol-X', '', 8.25, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Microdol-X', '', 7.0, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 8.5, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 7.25, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 6.25, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 5.25, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 4.5, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 12.0, 18, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 10.0, 20, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 8.5, 22, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 7.0, 24, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '', 6.0, 26, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '1:1', 13.0, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '1:1', 10.5, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '1:1', 8.75, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '1:1', 7.25, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'D-76', '1:1', 6.25, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 6.5, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 5.5, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 4.75, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 4.0, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 3.5, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 9.5, 18, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 8.0, 20, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 6.5, 22, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 5.5, 24, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX', '', 4.75, 26, 'small tank', '', 200, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX RS', '', 6.25, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX RS', '', 5.25, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX RS', '', 4.5, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX RS', '', 3.75, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'T-MAX RS', '', 3.25, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'XTOL', '', 9.5, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'XTOL', '', 8.0, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'XTOL', '', 6.75, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'XTOL', '', 5.5, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'XTOL', '', 4.75, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'HC-110', 'Dil B', 5.5, 18, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'HC-110', 'Dil B', 4.5, 20, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'HC-110', 'Dil B', 3.75, 22, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'HC-110', 'Dil B', 3.25, 24, 'small tank', '', 80, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'ID-11', '', 8.0, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'ID-11', '', 6.75, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'ID-11', '', 5.75, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'ID-11', '', 4.75, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'ID-11', '', 4.0, 26, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Perceptol', '', 15.5, 18, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Perceptol', '', 12.5, 20, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Perceptol', '', 10.0, 22, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Perceptol', '', 8.0, 24, 'small tank', '', 0, '', '3.263'),
+    ('FUJI_NEOPAN_ACROS_100', 'Perceptol', '', 6.5, 26, 'small tank', '', 0, '', '3.263'),
+    # Табл. 3.264
+    ('FUJI_NEOPAN_ACROS_100', 'Minidol', '', 10.5, 18, 'large tank', '', 0, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Minidol', '', 9.0, 20, 'large tank', '', 0, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Minidol', '', 7.5, 22, 'large tank', '', 0, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Minidol', '', 6.25, 24, 'large tank', '', 0, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Finedol', '', 13.5, 18, 'large tank', '', 0, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Finedol', '', 11.0, 20, 'large tank', '', 0, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Finedol', '', 9.0, 22, 'large tank', '', 0, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Finedol', '', 7.5, 24, 'large tank', '', 0, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Finedol', '', 11.0, 18, 'large tank', '', 80, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Finedol', '', 8.5, 20, 'large tank', '', 80, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Finedol', '', 7.0, 22, 'large tank', '', 80, '', '3.264'),
+    ('FUJI_NEOPAN_ACROS_100', 'Super Finedol', '', 5.75, 24, 'large tank', '', 80, '', '3.264'),
+)
+SOVREMENNYE_2004_GRID_ADDED: dict[str, int] = {}
+
+
+def _apply_sovremennye_grid(p: "FilmProfile") -> "FilmProfile":
+    """Queue P54c: the same twin and split rules as `_apply_sovremennye_tmax`."""
+    rows = [r for r in SOVREMENNYE_2004_GRID_POINTS if r[0] == p.name]
+    if not rows:
+        return p
+    fam = p.processing_family
+    twin = {(q.developer, q.dilution, q.minutes, q.celsius, q.vessel,
+             q.film_format, q.exposure_index) for q in fam.points}
+    held = {(q.developer, q.dilution, q.celsius, q.vessel, q.film_format,
+             q.exposure_index, q.edition): q.minutes for q in fam.points}
+    pts = []
+    for _s, dev, dil, minutes, celsius, vessel, fmt, ei, ed, tid in rows:
+        m, c = float(minutes), float(celsius)
+        if (dev, dil, m, c, vessel, fmt, ei) in twin:
+            SOVREMENNYE_2004_TMAX_TWINS[p.name] = SOVREMENNYE_2004_TMAX_TWINS.get(p.name, 0) + 1
+            continue
+        k = (dev, dil, c, vessel, fmt, ei, ed)
+        if k in held:
+            ed = (ed + " / " if ed else "") + "Табл. " + tid
+            ei = ei or p.exposure_index
+            k = (dev, dil, c, vessel, fmt, ei, ed)
+            SOVREMENNYE_2004_TMAX_SPLIT[p.name] = SOVREMENNYE_2004_TMAX_SPLIT.get(p.name, 0) + 1
+            assert k not in held, (p.name, k)
+        twin.add((dev, dil, m, c, vessel, fmt, ei))
+        held[k] = m
+        SOVREMENNYE_2004_GRID_ADDED[p.name] = SOVREMENNYE_2004_GRID_ADDED.get(p.name, 0) + 1
+        pts.append(DevelopmentPoint(
+            developer=dev, dilution=dil, minutes=m, celsius=c, exposure_index=ei,
+            vessel=vessel, film_format=fmt, edition=ed))
+    return replace(p, processing_family=replace(
+        fam, points=tuple(fam.points) + tuple(pts),
+        source=fam.source + "  " + _SOVREMENNYE_2004_SOURCE
+        + " Held normal tables re-read from their grids, queue P54c."))
+
+
+FILM_PROFILES = tuple(_apply_sovremennye_grid(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-01d (owner-approved batch, item 2): «КРИВЫЕ КИНЕТИКИ ПРОЯВЛЕНИЯ».
+#
+# В. Л. Лихачев, «Современные фотоматериалы и их обработка» (Москва: СЛОН-ПРЕСС, 2003)
+# prints 42 development-kinetics panels (contrast against development time).
+# Each curve below is the panel's OWN ink, read at fixed contrast rows (or
+# fixed-time columns on the curved panels) off the ruled axes, attributed by
+# legend / inline label / temperature order, and checked against the book's
+# normal-time tables (sovremennye_kinetics.py re-rasterises every panel from
+# the PDF on each build and puts every stored point back on ink).
+#
+# ⚠ WHAT THE ORDINATE IS. Kodak panels: «коэффициент контрастности» is Kodak's
+# CONTRAST INDEX (the book's own text: these times give contrast 0.56, 0.60 for
+# T-MAX 400 -- Kodak's CI aims), stored in `contrast_index` with criterion
+# "kodak_ci". Fuji panels print «G»: Fuji's average gradient, stored in
+# `contrast_index` exactly like the Fuji sheet points already on those stocks
+# (the panels reproduce them: Acros D-76 0.43/0.53/0.65 at 4/7/10 min). Agfa
+# panels are the AGFA datasheet gamma drawing (P-16-C cells reproduced to
+# ~0.1 min) and stay in `gamma`, like the Agfa points beside them.
+#
+# ⚠ ROW FORMAT: (stock, figure, developer, dilution, celsius, vessel, format,
+# measure, EI (0 = box speed), edition, ((contrast, minutes), ...)).
+# Panels 3.237-3.240 also carry the line START at 0.56 (Kodak draws every line
+# from the normal contrast; read 0.01 above it and extended along the line).
+# NOT STORED, with the reason (sovremennye_kinetics.py prints them):
+#   3.261  Versamat 5 transport SPEED (m/min), no developer path length;
+#   3.358/3.359 Scala 200x D-max / contrast against EI -- the same Agfa
+#          F-PF-D4 drawing already harvested into AGFA_SCALA_200X.push;
+#   3.364  Kodak High-Speed Infrared -- no profile;
+#   3.311 (7 of 9), 3.318 (6 of 8), 3.321/3.322 (4 of 7) curves overlap
+#          within one line width and are not separable at this raster.
+# ---------------------------------------------------------------------------
+SOVREMENNYE_2004_KINETICS = (
+    ('AGFA_APX_100', '2.115', 'REFINAL', 'stock', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.115',
+     ((0.565, 3.21), (0.585, 3.8), (0.605, 4.43), (0.625, 5.06), (0.645, 5.71), (0.665, 6.38), (0.685, 7.14), (0.705, 7.93))),
+    ('AGFA_APX_100', '2.115', 'RODINAL 1+25', '1+25', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.115',
+     ((0.565, 4.68), (0.585, 5.41), (0.605, 6.17), (0.625, 6.93), (0.645, 7.68), (0.665, 8.48), (0.685, 9.32), (0.705, 10.2))),
+    ('AGFA_APX_100', '2.115', 'RODINAL 1+50', '1+50', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.115',
+     ((0.565, 12.81), (0.585, 13.65), (0.605, 14.49), (0.625, 15.48), (0.645, 16.46), (0.665, 17.51))),
+    ('AGFA_APX_100', '2.115', 'RODINAL SPECIAL', '1+15', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.115',
+     ((0.565, 2.96), (0.585, 3.12), (0.605, 3.31), (0.625, 3.54), (0.645, 3.82), (0.665, 4.13), (0.685, 4.51), (0.705, 4.89))),
+    ('AGFA_APX_100', '2.115', 'STUDIONAL LIQUID', '1+15', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.115',
+     ((0.565, 2.96), (0.585, 3.12), (0.605, 3.31), (0.625, 3.54), (0.645, 3.82), (0.665, 4.13), (0.685, 4.51), (0.705, 4.89))),
+    ('AGFA_APX_400', '2.119', 'REFINAL', 'stock', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.119',
+     ((0.565, 3.57), (0.585, 4.03), (0.605, 4.53), (0.625, 5.08), (0.645, 5.67), (0.665, 6.34), (0.685, 7.03), (0.705, 7.75), (0.725, 8.48))),
+    ('AGFA_APX_400', '2.119', 'RODINAL 1+25', '1+25', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.119',
+     ((0.565, 4.26), (0.585, 4.83), (0.605, 5.4), (0.625, 6.03), (0.645, 6.74), (0.665, 7.52), (0.685, 8.42), (0.705, 9.39), (0.725, 10.44))),
+    ('AGFA_APX_400', '2.119', 'RODINAL 1+50', '1+50', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.119',
+     ((0.565, 6.53), (0.585, 7.62), (0.605, 8.67), (0.625, 9.81), (0.645, 10.94), (0.685, 13.48), (0.705, 14.91), (0.725, 16.55))),
+    ('AGFA_APX_400', '2.119', 'RODINAL SPECIAL', '1+15', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.119',
+     ((0.565, 2.9), (0.585, 3.15), (0.605, 3.48), (0.625, 3.84), (0.645, 4.24), (0.665, 4.66), (0.685, 5.12), (0.705, 5.63))),
+    ('AGFA_APX_400', '2.119', 'STUDIONAL LIQUID', '1+15', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.119',
+     ((0.565, 2.9), (0.585, 3.15), (0.605, 3.48), (0.625, 3.84), (0.645, 4.24), (0.665, 4.66), (0.685, 5.12), (0.705, 5.63))),
+    ('FUJI_NEOPAN_1600', '3.351', 'D-76', '', 20.0, 'small tank', '', 'fuji_g', 0, 'Современные 2004, рис. 3.351',
+     ((0.443, 3.6), (0.573, 5.0), (0.761, 7.0), (0.898, 9.0), (0.982, 11.0), (1.05, 13.0), (1.073, 14.0), (1.082, 14.8))),
+    ('FUJI_NEOPAN_1600', '3.351', 'Fujidol E', '', 20.0, 'small tank', '', 'fuji_g', 0, 'Современные 2004, рис. 3.351',
+     ((0.484, 3.6), (0.627, 5.0), (0.718, 6.0), (0.795, 7.0), (0.939, 9.0))),
+    ('FUJI_NEOPAN_1600', '3.351', 'Microfine', '', 20.0, 'small tank', '', 'fuji_g', 0, 'Современные 2004, рис. 3.351',
+     ((0.487, 5.0), (0.554, 6.0), (0.623, 7.0))),
+    ('FUJI_NEOPAN_1600', '3.351', 'SPD [Super Prodol]', '', 20.0, 'small tank', '', 'fuji_g', 0, 'Современные 2004, рис. 3.351',
+     ((0.59, 2.7), (0.629, 3.0), (0.705, 3.6), (0.82, 5.0), (0.886, 6.0), (0.939, 7.0))),
+    ('FUJI_NEOPAN_400', '3.342', 'D-76', '', 20.0, 'small tank', '135', 'fuji_g', 0, 'Современные 2004, рис. 3.342',
+     ((0.381, 5.6), (0.426, 6.0), (0.518, 7.0), (0.673, 9.0), (0.797, 11.0), (0.88, 12.8), (0.922, 14.0), (0.948, 15.0))),
+    ('FUJI_NEOPAN_400', '3.342', 'SPD [Super Prodol]', '', 20.0, 'small tank', '135', 'fuji_g', 0, 'Современные 2004, рис. 3.342',
+     ((0.556, 4.5), (0.595, 5.0), (0.636, 5.6), (0.663, 6.0), (0.726, 7.0), (0.832, 9.0), (0.875, 10.0), (0.915, 11.0), (0.974, 12.8), (1.015, 18.5))),
+    ('FUJI_NEOPAN_400', '3.342', 'T-MAX', '', 20.0, 'small tank', '135', 'fuji_g', 0, 'Современные 2004, рис. 3.342',
+     ((0.453, 5.0), (0.506, 5.6), (0.539, 6.0), (0.618, 7.0), (0.75, 9.0), (0.855, 11.0), (0.935, 12.8), (0.976, 14.0), (0.994, 15.0))),
+    ('FUJI_NEOPAN_400', '3.346', 'D-76', '', 20.0, 'small tank', '120', 'fuji_g', 0, 'Современные 2004, рис. 3.346',
+     ((0.382, 5.6), (0.425, 6.0), (0.517, 7.0), (0.679, 9.0), (0.845, 12.8))),
+    ('FUJI_NEOPAN_400', '3.346', 'SPD [Super Prodol]', '', 20.0, 'small tank', '120', 'fuji_g', 0, 'Современные 2004, рис. 3.346',
+     ((0.562, 4.5), (0.599, 5.0), (0.643, 5.6), (0.668, 6.0), (0.731, 7.0), (0.835, 9.0), (0.879, 10.0), (0.915, 11.0), (0.958, 12.8))),
+    ('FUJI_NEOPAN_400', '3.346', 'T-MAX', '', 20.0, 'small tank', '120', 'fuji_g', 0, 'Современные 2004, рис. 3.346',
+     ((0.462, 5.0), (0.5, 5.6), (0.531, 6.0), (0.725, 9.0), (0.781, 10.0), (0.828, 11.0), (0.891, 12.8))),
+    ('FUJI_NEOPAN_ACROS_100', '3.337', 'D-76', '', 20.0, '', '', 'fuji_g', 0, 'Современные 2004, рис. 3.337',
+     ((0.432, 4.2), (0.502, 6.0), (0.537, 7.0), (0.643, 10.0))),
+    ('FUJI_NEOPAN_ACROS_100', '3.337', 'Fujidol E', '', 20.0, '', '', 'fuji_g', 0, 'Современные 2004, рис. 3.337',
+     ((0.432, 4.2), (0.482, 6.0), (0.507, 7.0), (0.548, 9.0), (0.568, 10.0), (0.586, 11.0), (0.597, 12.0), (0.617, 13.0), (0.63, 14.0), (0.674, 17.0), (0.685, 18.0))),
+    ('FUJI_NEOPAN_ACROS_100', '3.337', 'Microfine', '', 20.0, '', '', 'fuji_g', 0, 'Современные 2004, рис. 3.337',
+     ((0.308, 5.0), (0.412, 7.0), (0.484, 9.0), (0.517, 10.0), (0.542, 11.0), (0.573, 12.0), (0.597, 13.0), (0.63, 14.0), (0.65, 15.0), (0.7, 17.0), (0.747, 19.0))),
+    ('KODAK_COMMERCIAL_1956', '3.211', 'D-11', '', 20.0, 'tank', '', 'kodak_ci', 50, 'Kodak Commercial (2004) / Современные 2004, рис. 3.211',
+     ((0.916, 1.6), (0.951, 2.0), (0.976, 2.2), (1.019, 2.6), (1.065, 3.0), (1.128, 4.0), (1.163, 5.0), (1.185, 6.0), (1.198, 7.0), (1.204, 8.0))),
+    ('KODAK_COMMERCIAL_1956', '3.211', 'DK-50', '', 20.0, 'tank', '', 'kodak_ci', 50, 'Kodak Commercial (2004) / Современные 2004, рис. 3.211',
+     ((0.82, 2.6), (0.893, 3.0), (1.003, 4.0), (1.057, 5.0), (1.066, 13.9), (1.077, 6.0), (1.077, 13.0), (1.085, 12.0), (1.088, 11.0))),
+    ('KODAK_COMMERCIAL_1956', '3.211', 'HC-110', 'Dil B', 20.0, 'tank', '', 'kodak_ci', 50, 'Kodak Commercial (2004) / Современные 2004, рис. 3.211',
+     ((0.677, 2.0), (0.704, 2.6), (0.726, 3.0), (0.769, 4.0), (0.816, 5.0), (0.862, 6.0), (0.905, 7.0), (0.942, 8.0), (0.974, 9.0), (1.004, 10.0), (1.034, 11.0), (1.063, 12.0), (1.096, 13.0), (1.123, 13.9))),
+    ('KODAK_COMMERCIAL_1956', '3.211', 'HC-110', 'Dil D', 20.0, 'tank', '', 'kodak_ci', 50, 'Kodak Commercial (2004) / Современные 2004, рис. 3.211',
+     ((0.666, 2.0), (0.691, 2.6), (0.706, 3.0), (0.747, 4.0), (0.799, 5.0), (0.845, 6.0), (0.88, 7.0), (0.904, 8.0), (0.928, 9.0), (0.945, 10.0), (0.961, 11.0), (0.977, 12.0), (0.99, 13.0), (1.004, 13.9))),
+    ('KODAK_EKTAPAN_100', '3.205', 'D-76', '', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.205',
+     ((0.456, 8.0), (0.511, 9.0), (0.561, 10.0), (0.608, 11.0), (0.643, 12.0), (0.681, 13.0), (0.715, 14.0), (0.745, 15.0), (0.776, 16.0), (0.8, 17.0), (0.822, 17.8))),
+    ('KODAK_EKTAPAN_100', '3.205', 'DK-50', '1:1', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.205',
+     ((0.506, 4.0), (0.547, 5.0), (0.586, 6.0), (0.627, 7.0), (0.665, 8.0), (0.707, 9.0), (0.742, 10.0), (0.776, 11.0), (0.806, 12.0))),
+    ('KODAK_EKTAPAN_100', '3.205', 'HC-110', 'Dil A', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.205',
+     ((0.547, 3.1), (0.575, 4.0), (0.609, 5.0), (0.646, 6.0), (0.692, 7.0), (0.731, 8.0), (0.77, 9.0), (0.803, 10.0), (0.836, 11.0), (0.866, 12.0))),
+    ('KODAK_EKTAPAN_100', '3.205', 'HC-110', 'Dil B', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.205',
+     ((0.506, 4.0), (0.547, 5.0), (0.586, 6.0), (0.627, 7.0), (0.665, 8.0), (0.707, 9.0), (0.742, 10.0), (0.776, 11.0), (0.806, 12.0))),
+    ('KODAK_EKTAPAN_100', '3.205', 'MICRODOL-X', '', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.205',
+     ((0.426, 8.0), (0.453, 9.0), (0.481, 10.0), (0.511, 11.0), (0.539, 12.0), (0.559, 13.0), (0.575, 14.0), (0.591, 15.0), (0.605, 16.0), (0.621, 17.0), (0.632, 17.8))),
+    ('KODAK_EKTAPAN_100', '3.205', 'T-MAX RS', '', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.205',
+     ((0.492, 3.1), (0.525, 4.0), (0.566, 5.0), (0.605, 6.0), (0.646, 7.0), (0.687, 8.0), (0.729, 9.0), (0.765, 10.0), (0.803, 11.0), (0.836, 12.0))),
+    ('KODAK_PLUS_X_125', '3.266', 'D-76', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.266',
+     ((0.488, 4.0), (0.566, 5.0), (0.634, 6.0), (0.684, 7.0), (0.73, 8.0), (0.771, 9.0), (0.809, 10.0), (0.838, 11.0))),
+    ('KODAK_PLUS_X_125', '3.266', 'D-76', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.266',
+     ((0.438, 4.5), (0.527, 6.0), (0.581, 7.0), (0.63, 8.0), (0.673, 9.0), (0.707, 10.0), (0.738, 11.0))),
+    ('KODAK_PLUS_X_125', '3.266', 'HC-110', 'Dil B', 20.0, 'small tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.266',
+     ((0.676, 8.0), (0.706, 9.0), (0.73, 10.0), (0.752, 11.0))),
+    ('KODAK_PLUS_X_125', '3.266', 'MICRODOL-X', '1:3', 24.0, 'small tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.266',
+     ((0.358, 6.0), (0.421, 7.0), (0.489, 8.0), (0.608, 10.0), (0.652, 11.0), (0.692, 12.0))),
+    ('KODAK_PLUS_X_125', '3.266', 'T-MAX RS', '', 24.0, 'small tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.266',
+     ((0.687, 8.0), (0.725, 9.0), (0.765, 10.0), (0.806, 11.0))),
+    ('KODAK_PLUS_X_125', '3.269', 'D-76', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.269',
+     ((0.579, 6.0), (0.671, 8.0), (0.714, 9.0), (0.752, 10.0), (0.781, 11.0), (0.808, 12.0), (0.833, 13.0))),
+    ('KODAK_PLUS_X_125', '3.269', 'D-76', '1:1', 20.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.269',
+     ((0.498, 7.0), (0.63, 10.0), (0.668, 11.0), (0.703, 12.0), (0.735, 13.0))),
+    ('KODAK_PLUS_X_125', '3.269', 'HC-110', 'Dil B', 20.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.269',
+     ((0.554, 6.0), (0.644, 8.0), (0.673, 9.0), (0.698, 10.0), (0.719, 11.0), (0.741, 12.0), (0.757, 13.0), (0.774, 14.0), (0.792, 15.0))),
+    ('KODAK_PLUS_X_125', '3.269', 'MICRODOL-X', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.269',
+     ((0.482, 7.0), (0.619, 10.0), (0.653, 11.0), (0.681, 12.0), (0.711, 13.0), (0.762, 15.0))),
+    ('KODAK_PLUS_X_125', '3.269', 'MICRODOL-X', '1:3', 24.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.269',
+     ((0.459, 9.0), (0.503, 10.0), (0.544, 11.0), (0.59, 12.0), (0.63, 13.0), (0.669, 14.0), (0.706, 15.0), (0.738, 16.0), (0.768, 17.0), (0.797, 18.0))),
+    ('KODAK_PLUS_X_125', '3.269', 'T-MAX RS', '', 24.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.269',
+     ((0.603, 6.0), (0.66, 7.0), (0.711, 8.0), (0.75, 9.0), (0.789, 10.0), (0.822, 11.0), (0.857, 12.0), (0.887, 13.0))),
+    ('KODAK_PLUS_X_125', '3.272', 'D-76', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.272',
+     ((0.337, 3.0), (0.39, 4.0), (0.444, 5.0), (0.495, 6.0), (0.551, 7.0), (0.657, 9.0), (0.697, 10.0), (0.729, 11.0), (0.759, 12.0), (0.786, 13.0), (0.81, 14.0), (0.835, 15.0))),
+    ('KODAK_PLUS_X_125', '3.272', 'DK-50', '1:1', 20.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.272',
+     ((0.427, 3.0), (0.479, 4.0), (0.527, 5.0), (0.578, 6.0), (0.627, 7.0), (0.665, 8.0), (0.689, 9.0), (0.705, 10.0), (0.716, 11.0), (0.735, 13.0), (0.743, 14.0), (0.751, 15.0))),
+    ('KODAK_PLUS_X_125', '3.272', 'HC-110', 'Dil B', 20.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.272',
+     ((0.406, 3.0), (0.452, 4.0), (0.492, 5.0), (0.532, 6.0), (0.569, 7.0), (0.634, 9.0), (0.658, 10.0), (0.677, 11.0), (0.692, 12.0), (0.708, 13.0), (0.721, 14.0), (0.735, 15.0))),
+    ('KODAK_PLUS_X_125', '3.272', 'MICRODOL-X', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.272',
+     ((0.257, 3.0), (0.311, 4.0), (0.36, 5.0), (0.408, 6.0), (0.452, 7.0), (0.5, 8.0), (0.543, 9.0), (0.578, 10.0), (0.608, 11.0), (0.635, 12.0), (0.659, 13.0), (0.684, 14.0), (0.705, 15.0))),
+    ('KODAK_PLUS_X_125', '3.272', 'T-MAX RS', '', 24.0, 'large tank', '', 'kodak_ci', 0, 'Plus-X Pan PX/PXP/PXE/PXT / Современные 2004, рис. 3.272',
+     ((0.359, 4.0), (0.411, 5.0), (0.46, 6.0), (0.503, 7.0), (0.546, 8.0), (0.635, 10.0), (0.727, 12.0))),
+    ('KODAK_PLUS_X_125', '3.300', 'D-76', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.300',
+     ((0.59, 6.0), (0.651, 7.0), (0.78, 9.0))),
+    ('KODAK_PLUS_X_125', '3.300', 'D-76', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.300',
+     ((0.382, 5.0), (0.434, 6.0), (0.618, 10.0), (0.659, 11.0), (0.697, 12.0), (0.734, 13.0), (0.77, 14.0), (0.808, 15.0))),
+    ('KODAK_PLUS_X_125', '3.300', 'HC-110', 'Dil B', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.300',
+     ((0.646, 5.0), (0.698, 6.0), (0.756, 7.0), (0.812, 8.0), (0.861, 9.0), (0.898, 10.0))),
+    ('KODAK_PLUS_X_125', '3.300', 'MICRODOL-X', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.300',
+     ((0.555, 8.0), (0.649, 10.0), (0.687, 11.0), (0.729, 12.0), (0.766, 13.0), (0.798, 14.0), (0.826, 15.0), (0.849, 16.0), (0.869, 17.0))),
+    ('KODAK_PLUS_X_125', '3.300', 'MICRODOL-X', '1:3', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.300',
+     ((0.5, 11.0), (0.531, 12.0), (0.562, 13.0), (0.592, 14.0), (0.622, 15.0), (0.649, 16.0), (0.675, 17.0), (0.839, 24.0))),
+    ('KODAK_PLUS_X_125', '3.300', 'T-MAX', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.300',
+     ((0.519, 5.0), (0.571, 6.0), (0.629, 7.0), (0.728, 9.0), (0.773, 10.0), (0.816, 11.0), (0.85, 12.0), (0.875, 13.0), (0.891, 14.0), (0.903, 15.0), (0.913, 16.0), (0.923, 17.0))),
+    ('KODAK_PLUS_X_125', '3.300', 'T-MAX RS', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.300',
+     ((0.658, 6.0), (0.706, 7.0), (0.818, 9.0))),
+    ('KODAK_PLUS_X_125', '3.301', 'XTOL', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.301',
+     ((0.47, 5.0), (0.544, 6.0), (0.611, 7.0), (0.668, 8.0), (0.736, 9.0), (0.797, 10.0), (0.899, 12.0), (0.93, 13.0), (0.958, 14.0), (0.981, 15.0))),
+    ('KODAK_PLUS_X_125', '3.301', 'XTOL', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.301',
+     ((0.391, 5.0), (0.452, 6.0), (0.515, 7.0), (0.566, 8.0), (0.612, 9.0), (0.651, 10.0), (0.688, 11.0), (0.722, 12.0), (0.756, 13.0))),
+    ('KODAK_PLUS_X_125', '3.302', 'D-76', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.302',
+     ((0.486, 5.2), (0.546, 6.0), (0.612, 7.0), (0.675, 8.0), (0.738, 9.0), (0.794, 10.0), (0.845, 11.0), (0.9, 12.0))),
+    ('KODAK_PLUS_X_125', '3.302', 'D-76', '1:1', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.302',
+     ((0.358, 5.2), (0.399, 6.0), (0.447, 7.0), (0.537, 9.0), (0.576, 10.0), (0.615, 11.0), (0.648, 12.0), (0.683, 13.0), (0.716, 14.0), (0.75, 15.0), (0.782, 16.0), (0.815, 17.0))),
+    ('KODAK_PLUS_X_125', '3.302', 'HC-110', 'Dil B', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.302',
+     ((0.63, 5.2), (0.671, 6.0), (0.719, 7.0), (0.769, 8.0), (0.815, 9.0), (0.855, 10.0), (0.89, 11.0), (0.922, 12.0), (0.949, 13.0))),
+    ('KODAK_PLUS_X_125', '3.302', 'MICRODOL-X', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.302',
+     ((0.556, 9.0), (0.603, 10.0), (0.644, 11.0), (0.681, 12.0), (0.718, 13.0), (0.751, 14.0), (0.783, 15.0), (0.809, 16.0), (0.832, 17.0), (0.852, 18.0), (0.871, 19.0))),
+    ('KODAK_PLUS_X_125', '3.302', 'MICRODOL-X', '1:3', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.302',
+     ((0.52, 13.0), (0.601, 16.0), (0.63, 17.0), (0.677, 19.0), (0.698, 20.0), (0.739, 22.0), (0.782, 24.0), (0.822, 26.0), (0.884, 29.0))),
+    ('KODAK_PLUS_X_125', '3.302', 'T-MAX RS', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.302',
+     ((0.565, 5.0), (0.625, 6.0), (0.68, 7.0), (0.724, 8.0), (0.771, 9.0), (0.81, 10.0), (0.845, 11.0), (0.89, 12.0))),
+    ('KODAK_PLUS_X_125', '3.303', 'XTOL', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.303',
+     ((0.481, 5.1), (0.532, 6.0), (0.588, 7.0), (0.643, 8.0), (0.697, 9.0), (0.749, 10.0), (0.797, 11.0), (0.836, 12.0), (0.874, 13.0), (0.907, 14.0), (0.938, 15.0), (0.966, 16.0), (0.991, 17.0))),
+    ('KODAK_TMAX_100', '3.237', 'D-76', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.237',
+     ((0.56, 6.3), (0.57, 6.42), (0.62, 7.04), (0.82, 9.1))),
+    ('KODAK_TMAX_100', '3.237', 'D-76', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.237',
+     ((0.56, 9.36), (0.57, 9.53), (0.62, 10.37), (0.82, 13.34))),
+    ('KODAK_TMAX_100', '3.237', 'HC-110', 'Dil B', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.237',
+     ((0.56, 5.83), (0.57, 6.19), (0.67, 9.76), (0.82, 14.52))),
+    ('KODAK_TMAX_100', '3.237', 'T-MAX', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.237',
+     ((0.56, 7.61), (0.565, 7.74), (0.82, 14.26))),
+    ('KODAK_TMAX_100', '3.237', 'T-MAX RS', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.237',
+     ((0.56, 7.73), (0.565, 7.86), (0.82, 14.52))),
+    ('KODAK_TMAX_100', '3.237', 'XTOL', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.237',
+     ((0.56, 7.32), (0.57, 7.43), (0.62, 8.0), (0.815, 10.57))),
+    ('KODAK_TMAX_100', '3.237', 'XTOL', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.237',
+     ((0.56, 9.66), (0.57, 9.82), (0.62, 10.6), (0.82, 13.34))),
+    ('KODAK_TMAX_100', '3.238', 'D-76', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.238',
+     ((0.56, 7.09), (0.57, 7.22), (0.62, 7.89), (0.67, 8.55), (0.72, 9.19), (0.77, 9.75), (0.82, 10.29))),
+    ('KODAK_TMAX_100', '3.238', 'HC-110', 'Dil B', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.238',
+     ((0.56, 6.54), (0.57, 6.93), (0.72, 12.76), (0.77, 14.46), (0.795, 15.3))),
+    ('KODAK_TMAX_100', '3.238', 'T-MAX RS', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.238',
+     ((0.56, 8.63), (0.57, 8.96), (0.695, 13.03), (0.72, 13.8), (0.795, 15.79), (0.82, 16.43))),
+    ('KODAK_TMAX_100', '3.238', 'XTOL', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.238',
+     ((0.56, 8.18), (0.57, 8.34), (0.62, 9.13), (0.67, 9.93), (0.77, 11.3), (0.82, 11.88))),
+    ('KODAK_TMAX_100', '3.239', 'XTOL', '', 20.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.239',
+     ((0.56, 7.27), (0.57, 7.41), (0.62, 8.1), (0.67, 8.77), (0.72, 9.42), (0.77, 10.02), (0.82, 10.57))),
+    ('KODAK_TMAX_100', '3.239', 'XTOL', '1:1', 20.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.239',
+     ((0.56, 9.66), (0.57, 9.81), (0.62, 10.56), (0.67, 11.3), (0.77, 12.7), (0.82, 13.35))),
+    ('KODAK_TMAX_100', '3.240', 'XTOL', '', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.240',
+     ((0.56, 6.78), (0.57, 6.91), (0.62, 7.55), (0.67, 8.17), (0.72, 8.75), (0.77, 9.28), (0.82, 9.78))),
+    ('KODAK_TMAX_100', '3.240', 'XTOL', '1:1', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.240',
+     ((0.56, 8.97), (0.57, 9.11), (0.62, 9.81), (0.72, 11.13), (0.77, 11.72), (0.82, 12.27))),
+    ('KODAK_TMAX_400', '3.247', 'D-76', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.247',
+     ((0.38, 4.43), (0.42, 5.01), (0.5, 6.13), (0.58, 7.31), (0.7, 9.04), (0.78, 10.18), (0.86, 11.34), (0.9, 11.94))),
+    ('KODAK_TMAX_400', '3.247', 'D-76', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.247',
+     ((0.34, 6.17), (0.42, 7.83), (0.5, 9.49), (0.58, 11.21), (0.66, 12.85), (0.7, 13.7))),
+    ('KODAK_TMAX_400', '3.247', 'HC-110', 'Dil B', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.247',
+     ((0.62, 5.8), (0.74, 8.0), (0.78, 8.7))),
+    ('KODAK_TMAX_400', '3.247', 'T-MAX', '', 24.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.247',
+     ((0.54, 5.11), (0.58, 5.57), (0.74, 7.48), (0.82, 8.39), (0.9, 9.39), (0.98, 10.32))),
+    ('KODAK_TMAX_400', '3.247', 'T-MAX RS', '', 24.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.247',
+     ((0.5, 3.48), (0.62, 4.99), (0.74, 6.44), (0.86, 7.94), (0.94, 8.95))),
+    ('KODAK_TMAX_400', '3.247', 'XTOL', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.247',
+     ((0.54, 5.94), (0.58, 6.38), (0.66, 7.27), (0.7, 7.77), (0.74, 8.23), (0.86, 9.45))),
+    ('KODAK_TMAX_400', '3.247', 'XTOL', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.247',
+     ((0.54, 8.1), (0.62, 9.06), (0.7, 9.97), (0.78, 10.98), (0.82, 11.63), (0.86, 12.37))),
+    ('KODAK_TMAX_400', '3.248', 'D-76', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.248',
+     ((0.55, 8.01), (0.58, 8.54), (0.61, 9.04), (0.64, 9.56), (0.7, 10.82), (0.73, 11.43))),
+    ('KODAK_TMAX_400', '3.248', 'HC-110', 'Dil B', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.248',
+     ((0.61, 7.25), (0.64, 7.78), (0.67, 8.33), (0.7, 8.86))),
+    ('KODAK_TMAX_400', '3.248', 'T-MAX RS', '', 24.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.248',
+     ((0.61, 7.1), (0.64, 7.62), (0.67, 8.15), (0.7, 8.73), (0.73, 9.31), (0.76, 9.89))),
+    ('KODAK_TMAX_400', '3.248', 'XTOL', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.248',
+     ((0.55, 7.2), (0.61, 8.24), (0.64, 8.73), (0.73, 9.73), (0.76, 10.08))),
+    ('KODAK_TMAX_400', '3.249', 'XTOL', '', 20.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.249',
+     ((0.55, 5.22), (0.58, 5.53), (0.61, 5.93), (0.64, 6.35), (0.67, 6.73), (0.7, 7.05), (0.73, 7.34), (0.76, 7.62), (0.79, 7.9), (0.82, 8.2))),
+    ('KODAK_TMAX_400', '3.249', 'XTOL', '1:1', 20.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.249',
+     ((0.55, 7.09), (0.58, 7.64), (0.61, 8.17), (0.64, 8.59), (0.67, 8.97), (0.7, 9.35), (0.76, 10.17), (0.79, 10.58), (0.82, 11.03))),
+    ('KODAK_TMAX_P3200', '3.256', 'XTOL', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.256',
+     ((0.51, 9.53), (0.58, 10.83), (0.65, 12.1), (0.72, 13.42), (0.79, 14.71), (0.86, 15.97), (0.93, 17.33), (1.0, 18.62))),
+    ('KODAK_TMAX_P3200', '3.256', 'XTOL', '', 21.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.256',
+     ((0.51, 8.63), (0.58, 9.89), (0.65, 11.03), (0.72, 12.17), (0.79, 13.38), (1.015, 17.24))),
+    ('KODAK_TMAX_P3200', '3.256', 'XTOL', '', 24.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.256',
+     ((0.51, 6.81), (0.58, 7.78), (0.65, 8.66), (0.72, 9.58), (0.79, 10.5), (0.93, 12.39), (1.0, 13.29))),
+    ('KODAK_TMAX_P3200', '3.256', 'XTOL', '', 27.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.256',
+     ((0.51, 5.41), (0.58, 6.11), (0.79, 8.26), (0.86, 8.99), (1.0, 10.46))),
+    ('KODAK_TMAX_P3200', '3.256', 'XTOL', '', 29.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.256',
+     ((0.51, 4.22), (0.65, 5.36), (0.72, 5.94), (0.79, 6.51), (0.86, 7.08), (0.93, 7.69), (1.0, 8.24))),
+    ('KODAK_TMAX_P3200', '3.257', 'XTOL', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.257',
+     ((0.51, 12.84), (0.58, 14.64), (0.65, 16.4), (0.72, 18.12), (0.79, 19.65), (0.86, 21.19), (0.93, 22.82), (1.0, 24.53))),
+    ('KODAK_TMAX_P3200', '3.257', 'XTOL', '1:1', 21.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.257',
+     ((0.51, 11.66), (0.58, 13.24), (0.65, 14.78), (0.72, 16.34), (0.79, 17.7), (1.0, 22.25))),
+    ('KODAK_TMAX_P3200', '3.257', 'XTOL', '1:1', 24.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.257',
+     ((0.51, 10.23), (0.58, 11.63), (0.65, 13.02), (0.72, 14.36), (0.79, 15.59), (0.86, 16.84), (0.93, 18.14), (1.0, 19.54))),
+    ('KODAK_TMAX_P3200', '3.257', 'XTOL', '1:1', 27.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.257',
+     ((0.51, 8.12), (0.72, 11.44), (0.79, 12.42), (0.86, 13.46), (0.93, 14.47), (1.0, 15.52))),
+    ('KODAK_TMAX_P3200', '3.258', 'D-76', '', 20.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.258',
+     ((0.51, 10.41), (0.58, 11.67), (0.65, 12.88), (0.72, 14.0), (1.0, 18.33))),
+    ('KODAK_TMAX_P3200', '3.258', 'HC-110', 'Dil B', 20.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.258',
+     ((0.51, 7.71), (0.79, 11.36), (0.86, 12.79), (0.93, 14.24), (1.0, 15.36))),
+    ('KODAK_TMAX_P3200', '3.258', 'T-MAX', '', 24.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.258',
+     ((0.51, 6.79), (0.58, 7.69), (0.79, 10.35), (0.93, 12.15), (1.0, 13.07))),
+    ('KODAK_TMAX_P3200', '3.258', 'T-MAX RS', '', 24.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.258',
+     ((0.51, 7.31), (0.58, 8.7), (0.79, 12.39), (0.86, 13.6), (0.93, 14.77), (1.0, 15.96))),
+    ('KODAK_TMAX_P3200', '3.259', 'XTOL', '', 20.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.259',
+     ((0.51, 9.49), (0.58, 10.77), (0.65, 12.04), (0.72, 13.36), (0.79, 14.66), (0.86, 15.96), (0.93, 17.28), (1.0, 18.6))),
+    ('KODAK_TMAX_P3200', '3.259', 'XTOL', '', 21.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.259',
+     ((0.51, 8.59), (0.58, 9.84), (0.65, 10.99), (1.015, 17.21))),
+    ('KODAK_TMAX_P3200', '3.259', 'XTOL', '', 24.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.259',
+     ((0.51, 6.79), (0.65, 8.61), (0.72, 9.54), (0.79, 10.48), (0.86, 11.36), (0.93, 12.35), (1.0, 13.25))),
+    ('KODAK_TMAX_P3200', '3.259', 'XTOL', '', 27.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.259',
+     ((0.51, 5.38), (0.58, 6.08), (0.72, 7.47), (0.79, 8.24), (0.86, 8.94), (1.0, 10.44))),
+    ('KODAK_TMAX_P3200', '3.259', 'XTOL', '', 29.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.259',
+     ((0.51, 4.17), (0.65, 5.31), (0.79, 6.44), (0.86, 7.05), (0.93, 7.62), (1.0, 8.22))),
+    ('KODAK_TMAX_P3200', '3.260', 'XTOL', '1:1', 20.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.260',
+     ((0.51, 12.83), (0.58, 14.59), (0.65, 16.4), (0.72, 18.07), (0.79, 19.63), (0.86, 21.17), (0.93, 22.82), (1.0, 24.49))),
+    ('KODAK_TMAX_P3200', '3.260', 'XTOL', '1:1', 21.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.260',
+     ((0.51, 11.65), (0.58, 13.23), (0.65, 14.77), (0.72, 16.31), (0.79, 17.69), (0.86, 19.08), (1.015, 22.51))),
+    ('KODAK_TMAX_P3200', '3.260', 'XTOL', '1:1', 24.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.260',
+     ((0.51, 10.24), (0.58, 11.6), (0.65, 13.01), (0.72, 14.33), (0.79, 15.58), (0.86, 16.81), (0.93, 18.13), (1.0, 19.52))),
+    ('KODAK_TMAX_P3200', '3.260', 'XTOL', '1:1', 27.0, 'drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.260',
+     ((0.51, 8.1), (0.58, 9.25), (0.72, 11.4), (0.79, 12.41), (0.86, 13.43), (0.93, 14.48), (1.0, 15.49))),
+    ('KODAK_TRI_X_320TXP', '3.282', 'D-76', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'TRI-X Pan Professional TXP / Современные 2004, рис. 3.282',
+     ((0.315, 4.05), (0.422, 6.0), (0.474, 7.0), (0.519, 8.0), (0.564, 9.0), (0.648, 11.0), (0.682, 12.0), (0.712, 13.0), (0.739, 14.0), (0.764, 14.9))),
+    ('KODAK_TRI_X_320TXP', '3.282', 'DK-50', '1:1', 20.0, 'large tank', '', 'kodak_ci', 0, 'TRI-X Pan Professional TXP / Современные 2004, рис. 3.282',
+     ((0.392, 4.05), (0.474, 6.0), (0.509, 7.0), (0.547, 8.0), (0.578, 9.0), (0.639, 11.0), (0.663, 12.0), (0.685, 13.0), (0.706, 14.0), (0.725, 14.9))),
+    ('KODAK_TRI_X_320TXP', '3.282', 'HC-110', 'Dil B', 20.0, 'large tank', '', 'kodak_ci', 0, 'TRI-X Pan Professional TXP / Современные 2004, рис. 3.282',
+     ((0.482, 4.05), (0.521, 5.0), (0.562, 6.0), (0.6, 7.0), (0.635, 8.0), (0.669, 9.0), (0.699, 10.0), (0.729, 11.0), (0.753, 12.0), (0.774, 13.0), (0.795, 14.0), (0.813, 14.9))),
+    ('KODAK_TRI_X_320TXP', '3.282', 'MICRODOL-X', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'TRI-X Pan Professional TXP / Современные 2004, рис. 3.282',
+     ((0.293, 4.05), (0.39, 6.0), (0.435, 7.0), (0.478, 8.0), (0.516, 9.0), (0.549, 10.0), (0.577, 11.0), (0.6, 12.0), (0.624, 13.0), (0.646, 14.0), (0.665, 14.9))),
+    ('KODAK_TRI_X_320TXP', '3.283', 'D-76', '', 21.0, 'large tank', 'sheet', 'kodak_ci', 0, 'TRI-X Pan Professional TXP / Современные 2004, рис. 3.283',
+     ((0.477, 5.05), (0.534, 6.0), (0.594, 7.0), (0.653, 8.0), (0.694, 9.0), (0.72, 9.5), (0.746, 9.9))),
+    ('KODAK_TRI_X_320TXP', '3.283', 'DK-50', '1:1', 21.0, 'large tank', 'sheet', 'kodak_ci', 0, 'TRI-X Pan Professional TXP / Современные 2004, рис. 3.283',
+     ((0.499, 5.05), (0.568, 6.0), (0.632, 7.0), (0.687, 8.0), (0.728, 9.0), (0.742, 9.5), (0.751, 9.9))),
+    ('KODAK_TRI_X_320TXP', '3.283', 'HC-110', 'Dil B', 21.0, 'large tank', 'sheet', 'kodak_ci', 0, 'TRI-X Pan Professional TXP / Современные 2004, рис. 3.283',
+     ((0.477, 5.05), (0.521, 6.0), (0.564, 7.0), (0.602, 8.0), (0.639, 9.0), (0.657, 9.5), (0.67, 9.9))),
+    ('KODAK_TRI_X_320TXP', '3.283', 'MICRODOL-X', '', 21.0, 'large tank', 'sheet', 'kodak_ci', 0, 'TRI-X Pan Professional TXP / Современные 2004, рис. 3.283',
+     ((0.436, 5.05), (0.474, 6.0), (0.513, 7.0), (0.551, 8.0), (0.581, 9.0), (0.593, 9.5), (0.602, 9.9))),
+    ('KODAK_TRI_X_320TXP', '3.318', 'HC-110', 'Dil B', 20.0, 'small tank, drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.318',
+     ((0.48, 3.5), (0.513, 4.0), (0.58, 5.0), (0.608, 5.5), (0.631, 6.0), (0.669, 7.0))),
+    ('KODAK_TRI_X_320TXP', '3.318', 'T-MAX RS', '', 20.0, 'small tank, drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.318',
+     ((0.683, 5.5), (0.706, 6.0), (0.761, 8.0), (0.786, 9.0), (0.81, 10.0), (0.844, 12.0))),
+    ('KODAK_TRI_X_320TXP', '3.319', 'D-76', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.319',
+     ((0.55, 10.0), (0.625, 12.0), (0.662, 13.0))),
+    ('KODAK_TRI_X_320TXP', '3.319', 'HC-110', 'Dil B', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.319',
+     ((0.475, 4.0), (0.536, 5.0), (0.59, 6.0), (0.668, 8.0), (0.696, 9.0), (0.717, 10.0), (0.736, 11.0), (0.752, 12.0), (0.766, 13.0))),
+    ('KODAK_TRI_X_320TXP', '3.319', 'MICRODOL-X', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.319',
+     ((0.52, 10.0), (0.577, 12.0), (0.598, 13.0), (0.618, 14.0), (0.638, 15.0), (0.656, 16.0), (0.706, 19.0), (0.72, 20.0), (0.736, 21.0), (0.751, 22.0))),
+    ('KODAK_TRI_X_320TXP', '3.319', 'T-MAX RS', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.319',
+     ((0.525, 4.0), (0.604, 5.0), (0.709, 7.0), (0.757, 9.0), (0.778, 10.0), (0.8, 11.0), (0.835, 13.0), (0.847, 14.0))),
+    ('KODAK_TRI_X_320TXP', '3.319', 'XTOL', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.319',
+     ((0.519, 8.0), (0.561, 9.0), (0.6, 10.0), (0.639, 11.0), (0.681, 12.0), (0.709, 13.0), (0.728, 14.0), (0.743, 15.0), (0.775, 18.0))),
+    ('KODAK_TRI_X_320TXP', '3.320', 'D-76', '', 20.0, 'large tank', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.320',
+     ((0.539, 7.0), (0.59, 8.0), (0.639, 9.0), (0.691, 10.0), (0.741, 11.0), (0.787, 12.0))),
+    ('KODAK_TRI_X_320TXP', '3.320', 'HC-110', 'Dil B', 20.0, 'large tank', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.320',
+     ((0.551, 4.0), (0.614, 5.0), (0.672, 6.0), (0.728, 7.0), (0.87, 11.0), (0.958, 15.0), (0.973, 16.0))),
+    ('KODAK_TRI_X_320TXP', '3.320', 'MICRODOL-X', '', 20.0, 'large tank', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.320',
+     ((0.413, 6.0), (0.515, 8.0), (0.547, 9.0), (0.574, 10.0), (0.602, 11.0), (0.631, 12.0), (0.661, 13.0), (0.689, 14.0), (0.715, 15.0), (0.738, 16.0), (0.76, 17.0), (0.783, 18.0), (0.803, 19.0), (0.844, 21.0), (0.867, 22.0))),
+    ('KODAK_TRI_X_320TXP', '3.320', 'T-MAX RS', '', 20.0, 'large tank', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.320',
+     ((0.593, 4.0), (0.703, 6.0), (0.745, 7.0), (0.887, 11.0), (0.969, 15.0), (0.985, 16.0), (0.999, 17.0))),
+    ('KODAK_TRI_X_320TXP', '3.320', 'XTOL', '', 20.0, 'large tank', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.320',
+     ((0.379, 4.0), (0.436, 5.0), (0.489, 6.0), (0.539, 7.0), (0.59, 8.0), (0.639, 9.0), (0.691, 10.0), (0.741, 11.0), (0.787, 12.0), (0.824, 13.0), (0.856, 14.0), (0.882, 15.0), (0.904, 16.0))),
+    ('KODAK_TRI_X_320TXP', '3.321', 'HC-110', 'Dil B', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.321',
+     ((0.544, 3.1), (0.613, 4.0), (0.685, 5.0), (0.801, 7.0), (0.839, 8.0), (0.875, 9.0), (0.909, 10.0))),
+    ('KODAK_TRI_X_320TXP', '3.321', 'T-MAX RS', '', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.321',
+     ((0.652, 4.0), (0.685, 5.0), (0.801, 7.0), (0.839, 8.0), (0.892, 9.0), (0.919, 10.0), (0.944, 11.0), (1.002, 13.8))),
+    ('KODAK_TRI_X_320TXP', '3.321', 'XTOL', '', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.321',
+     ((0.374, 3.1), (0.437, 4.0), (0.747, 9.0), (0.801, 10.0), (0.847, 11.0))),
+    ('KODAK_TRI_X_320TXP', '3.322', 'HC-110', 'Dil B', 20.0, 'drum', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.322',
+     ((0.549, 2.8), (0.734, 5.0), (0.793, 6.0), (0.883, 8.0), (0.95, 10.0), (0.97, 11.0))),
+    ('KODAK_TRI_X_320TXP', '3.322', 'T-MAX RS', '', 20.0, 'drum', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.322',
+     ((0.594, 2.8), (0.753, 5.0), (0.802, 6.0), (0.895, 8.0), (0.956, 10.0), (0.982, 11.0))),
+    ('KODAK_TRI_X_320TXP', '3.322', 'XTOL', '', 20.0, 'drum', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.322',
+     ((0.476, 4.0), (0.555, 5.0), (0.69, 7.0), (0.756, 8.0), (0.897, 11.0))),
+    ('KODAK_TRI_X_400TX', '3.276', 'D-76', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Tri-X Pan TX / Современные 2004, рис. 3.276',
+     ((0.465, 7.0), (0.521, 8.0), (0.575, 9.0), (0.621, 10.0), (0.66, 11.0))),
+    ('KODAK_TRI_X_400TX', '3.276', 'D-76', '1:1', 20.0, 'large tank', '', 'kodak_ci', 0, 'Tri-X Pan TX / Современные 2004, рис. 3.276',
+     ((0.409, 8.0), (0.461, 9.0), (0.506, 10.0), (0.541, 11.0), (0.576, 12.0), (0.606, 13.0))),
+    ('KODAK_TRI_X_400TX', '3.276', 'DK-50', '1:1', 20.0, 'large tank', '', 'kodak_ci', 0, 'Tri-X Pan TX / Современные 2004, рис. 3.276',
+     ((0.437, 4.0), (0.491, 5.0), (0.537, 6.0), (0.576, 7.0))),
+    ('KODAK_TRI_X_400TX', '3.276', 'HC-110', 'Dil B', 20.0, 'large tank', '', 'kodak_ci', 0, 'Tri-X Pan TX / Современные 2004, рис. 3.276',
+     ((0.549, 8.0), (0.575, 9.0), (0.606, 10.0), (0.625, 11.0))),
+    ('KODAK_TRI_X_400TX', '3.276', 'MICRODOL-X', '', 20.0, 'large tank', '', 'kodak_ci', 0, 'Tri-X Pan TX / Современные 2004, рис. 3.276',
+     ((0.409, 8.0), (0.461, 9.0), (0.506, 10.0), (0.541, 11.0), (0.576, 12.0), (0.606, 13.0))),
+    ('KODAK_TRI_X_400TX', '3.276', 'MICRODOL-X', '1:3', 24.0, 'large tank', '', 'kodak_ci', 0, 'Tri-X Pan TX / Современные 2004, рис. 3.276',
+     ((0.467, 12.0), (0.504, 13.0), (0.537, 14.0), (0.568, 15.0), (0.595, 16.0))),
+    ('KODAK_TRI_X_400TX', '3.277', 'T-MAX', '', 24.0, 'small tank', '', 'kodak_ci', 0, 'Tri-X Pan TX / Современные 2004, рис. 3.277',
+     ((0.534, 5.0), (0.583, 6.0), (0.637, 7.0), (0.698, 8.0), (0.784, 9.0), (0.884, 10.0))),
+    ('KODAK_TRI_X_400TX', '3.311', 'HC-110', 'Dil B', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.311',
+     ((0.726, 6.0), (0.798, 7.0), (0.867, 8.0), (0.945, 9.0), (0.996, 10.0))),
+    ('KODAK_TRI_X_400TX', '3.311', 'MICRODOL-X', '1:3', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.311',
+     ((0.456, 13.0), (0.485, 14.0), (0.512, 15.0), (0.597, 18.0), (0.649, 20.0), (0.693, 22.0))),
+    ('KODAK_VERICHROME_PAN', '3.307', 'D-76', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.307',
+     ((0.536, 4.0), (0.56, 5.0), (0.587, 6.0), (0.62, 7.0), (0.663, 8.0), (0.708, 9.0), (0.754, 10.0), (0.854, 12.0))),
+    ('KODAK_VERICHROME_PAN', '3.307', 'D-76', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.307',
+     ((0.458, 6.0), (0.506, 7.0), (0.555, 8.0), (0.608, 9.0), (0.668, 10.0), (0.736, 11.0))),
+    ('KODAK_VERICHROME_PAN', '3.307', 'HC-110', 'Dil B', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.307',
+     ((0.399, 2.2), (0.457, 3.0), (0.589, 5.0), (0.643, 6.0), (0.688, 7.0), (0.724, 8.0), (0.753, 9.0), (0.779, 10.0), (0.802, 11.0))),
+    ('KODAK_VERICHROME_PAN', '3.307', 'MICRODOL-X', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.307',
+     ((0.605, 8.0), (0.653, 9.0), (0.703, 10.0), (0.753, 11.0), (0.861, 13.0), (0.913, 14.0))),
+    ('KODAK_VERICHROME_PAN', '3.307', 'MICRODOL-X', '1:3', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.307',
+     ((0.522, 11.0), (0.554, 12.0), (0.58, 13.0), (0.602, 14.0), (0.62, 15.0), (0.636, 16.0))),
+)
+
+SOVREMENNYE_2004_COMMERCIAL_TABLES = (
+    ('D-11', '', 9.0, 18.0, 'small tank, tray', 'Табл. 3.151', 'для максимального контраста'),
+    ('D-11', '', 8.0, 20.0, 'small tank, tray', 'Табл. 3.151', 'для максимального контраста'),
+    ('D-11', '', 7.0, 21.0, 'small tank, tray', 'Табл. 3.151', 'для максимального контраста'),
+    ('D-11', '', 6.5, 22.0, 'small tank, tray', 'Табл. 3.151', 'для максимального контраста'),
+    ('D-11', '', 5.5, 24.0, 'small tank, tray', 'Табл. 3.151', 'для максимального контраста'),
+    ('DK-50', '', 2.5, 18.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '', 2.0, 20.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '', 2.0, 21.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '', 1.75, 22.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '', 1.75, 24.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '1:1', 4.25, 18.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '1:1', 3.25, 20.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '1:1', 3.25, 21.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '1:1', 3.0, 22.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '1:1', 2.5, 24.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil B', 2.75, 18.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil B', 2.25, 20.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil B', 2.25, 21.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil B', 2.0, 22.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil B', 1.75, 24.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil D', 4.75, 18.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil D', 4.25, 20.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil D', 4.25, 21.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil D', 4.0, 22.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('HC-110', 'Dil D', 3.75, 24.0, 'small tank, tray', 'Табл. 3.151', ''),
+    ('DK-50', '', 3.0, 20.0, 'tray', 'Табл. 3.152', 'репродукция произведений искусства'),
+    ('HC-110', 'Dil C', 3.0, 20.0, 'tray', 'Табл. 3.152', 'гравюры'),
+    ('D-11', '', 3.0, 20.0, 'tray', 'Табл. 3.152', 'гравюры, высокий контраст'),
+)
+
+
+SOVREMENNYE_2004_KINETICS_ADDED: dict[str, int] = {}
+
+#: Reference developer the stored curve was measured in, where the PROFILE's
+#: own record documents it and nothing is set yet (CI families never guess).
+_KINETICS_REFERENCES = {
+    # curve comment: "CURVE TRACED 2026-09-22 from F-4016 (2007) p15, the D-76
+    # small-tank 20 C panel" -> the book's small-tank D-76 line, рис. 3.237.
+    "KODAK_TMAX_100": ("D-76", "stock", "Современные 2004, рис. 3.237"),
+    # processing.developer 'KODAK HC-110 (Dilution B)' in the book's spelling.
+    "KODAK_EKTAPAN_100": ("HC-110", "Dil B", ""),
+    # curve comment: "Microfine 20 C small tank, 15 min (G-bar = 0.65)".
+    "FUJI_NEOPAN_ACROS_100": ("Microfine", "", ""),
+}
+
+
+def _apply_sovremennye_kinetics(p: "FilmProfile") -> "FilmProfile":
+    """Item 2 of 2026-10-01d: the kinetics curves as contrast-bearing points."""
+    rows = [r for r in SOVREMENNYE_2004_KINETICS if r[0] == p.name]
+    trows = (SOVREMENNYE_2004_COMMERCIAL_TABLES
+             if p.name == "KODAK_COMMERCIAL_1956" else ())
+    if not rows and not trows:
+        return p
+    fam = p.processing_family
+    seen = {(q.developer, q.dilution, q.minutes, q.celsius, q.vessel,
+             q.film_format, q.contrast_index, q.gamma, q.edition)
+            for q in fam.points}
+    pts = []
+    for _s, fig, dev, dil, cel, vessel, fmt, meas, ei, ed, curve in rows:
+        ei = ei or p.exposure_index
+        for contrast, minutes in curve:
+            ci = contrast if meas in ("kodak_ci", "fuji_g") else 0.0
+            ga = contrast if meas == "agfa_gamma" else 0.0
+            k = (dev, dil, float(minutes), float(cel), vessel, fmt, ci, ga, ed)
+            assert k not in seen, (p.name, fig, k)
+            seen.add(k)
+            pts.append(DevelopmentPoint(
+                developer=dev, dilution=dil, minutes=float(minutes),
+                celsius=float(cel), contrast_index=ci, gamma=ga,
+                contrast_criterion="kodak_ci" if meas == "kodak_ci" else "",
+                exposure_index=ei, vessel=vessel, film_format=fmt, edition=ed))
+    for dev, dil, minutes, cel, vessel, tid, note in trows:
+        pts.append(DevelopmentPoint(
+            developer=dev, dilution=dil, minutes=minutes, celsius=cel,
+            exposure_index=50, vessel=vessel,
+            edition="Kodak Commercial (2004) / " + tid
+            + (" / " + note if note else "")))
+    SOVREMENNYE_2004_KINETICS_ADDED[p.name] = len(pts)
+    upd = dict(points=tuple(fam.points) + tuple(pts),
+               source=fam.source + "  " + _SOVREMENNYE_2004_SOURCE
+               + " Development-kinetics panels (contrast against time) read"
+               " from the panels' own ink, 2026-10-01d."
+               + (" Табл. 3.151/3.152 (Kodak Commercial, EI 50/18 per the"
+                  " book's own text) read as time-only rows." if trows else ""))
+    ref = _KINETICS_REFERENCES.get(p.name)
+    if ref is not None:
+        assert not fam.reference_developer and not fam.reference_edition, p.name
+        upd.update(reference_developer=ref[0], reference_dilution=ref[1],
+                   reference_edition=ref[2])
+    return replace(p, processing_family=replace(fam, **upd))
+
+
+FILM_PROFILES = tuple(_apply_sovremennye_kinetics(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-29d (owner-approved): AF3-608E(N) READ FROM ITS TEXT LAYER.
+#
+# `datasheet_neopan1600superpresto_en_01.pdf` is the 1999 distillation of the
+# sheet already on file as the 2012 copy: same Ref. No. AF3-608E(N)
+# (EIGI-99.1-HB8-14), drawings identical page for page, and all six images
+# (the p3 spectrogram and the five p4 curve panels) byte-identical, so the
+# traced curves, spectral set and time-G data stand. What differs is that its
+# text layer is clean where the 2012 copy's is font-encoded, and that is what
+# exposed three things the earlier pass had not entered:
+#   * 52 cells of the p2 development tables. The 101 cells already held (from
+#     AF3-207U p38) are identical to this sheet, 0 conflicts; what was never
+#     entered is the whole Fuji-developer table (SPD, SPD 1:1, Fujidol E,
+#     Fujidol E 1:1, Microfine) and two non-Fuji rows (XTOL, ILFOTEC LC 29).
+#     ⚠ SPD 1:1 at 18/20/24/26 C is ALREADY held under the name «Super
+#     Prodol» from another source, with identical times; this sheet's row is
+#     stored under the sheet's own «SPD [Super Prodol]» and adds the 22 C cell.
+#   * the p3 processing-capacity table -> `ProcessingFamily.capacity` (v58).
+#   * the p3 automatic-processor conditions, recorded in the source only.
+# p1 also names the product «NEOPAN 1600 SUPER PRESTO» and states that its
+# EI 1600 «is derived through the same short development time required of
+# NEOPAN 400 Professional film».
+AF3_608E_TEXT_SOURCE = (
+    "Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «NEOPAN 1600 Professional» "
+    "(«NEOPAN 1600 SUPER PRESTO»), Ref. No. AF3-608E(N) (EIGI-99.1-HB8-14), "
+    "1999 distillation with a clean text layer: p2 «Development Conditions "
+    "(Small Tank Processing)», Fuji and non-Fuji developer tables, 18-26 C by "
+    "EI; p3 «Processing Capacities and Times (Small Tank Development, "
+    "20°C/68°F)», 135 36-exp. films. p3 AUTOMATIC PROCESSORS, recorded and not "
+    "stored as points (no vessel word exists for a machine): Kodak Versamat "
+    "with HPD (= Kodak Duraflo RT) at 26.5 C, processing speed EI 800 / 1600 / "
+    "3200 = 5.5 / 4 / 3 ft/min on the 5AN and 411 and 11 / 8 / 6 ft/min on "
+    "the 11C; FP260 (FC) with SPD at 30 C, printed «Development Time (min.)» "
+    "50 / 60 / 90 at EI 800 / 1600 / 3200, kept as printed and NOT "
+    "converted -- 50-90 minutes at 30 C cannot be right when the small-tank "
+    "EI 1600 SPD time at 24 C is NR and at 22 C 3 1/2 min, so the unit is "
+    "probably seconds; hanger-transport processors with Finedol, Super Finedol "
+    "or Minidol «the same as ... Fuji Neopan SS film».")
+_T5 = (18.0, 20.0, 22.0, 24.0, 26.0)
+#: (developer, dilution, EI, minutes 18/20/22/24/26 C); None = «NR».
+_AF3_608E_NEW_ROWS = (
+    ("SPD [Super Prodol]", "stock", 1600, (5.25, 4.25, 3.5, None, None)),
+    ("SPD [Super Prodol]", "stock", 3200, (10.0, 8.0, 6.5, 5.0, 4.0)),
+    ("SPD [Super Prodol]", "1:1", 1600, (8.0, 6.5, 5.5, 4.5, 3.75)),
+    ("Fujidol E", "stock", 1600, (8.0, 6.5, 5.25, 4.25, 3.5)),
+    ("Fujidol E", "1:1", 1600, (10.0, 8.0, 6.25, 5.0, 4.0)),
+    ("Microfine", "stock", 250, (6.25, 5.0, 4.0, 3.25, None)),
+    ("Microfine", "stock", 400, (7.5, 6.0, 4.75, 3.75, 3.0)),
+    ("Microfine", "stock", 800, (10.0, 8.0, 6.5, 5.0, 4.0)),
+    ("XTOL", "stock", 1600, (7.5, 6.0, 4.75, 4.0, 3.25)),
+    ("XTOL", "stock", 3200, (13.5, 11.0, 9.0, 7.25, 6.0)),
+    ("ILFOTEC LC 29", "1:19", 1600, (8.0, 6.5, 5.5, 4.5, 3.75)),
+)
+AF3_608E_NEW_POINTS = tuple(
+    DevelopmentPoint(developer=_d, dilution=_dl, minutes=_m, celsius=_t,
+                     exposure_index=_ei, vessel="small tank", film_format="135")
+    for _d, _dl, _ei, _ms in _AF3_608E_NEW_ROWS for _t, _m in zip(_T5, _ms)
+    if _m is not None)
+#: p3 capacity table. Column spans read from the table's vector rules and the
+#: word coordinates: SPD 4 1/4 spans rolls 1-4, 4 1/2 rolls 5-6, 4 3/4 rolls
+#: 7-8, 5 rolls 9-10, «—» 11-12; D-76 7 1/2 rolls 1-4, 8 rolls 5-7, 8 1/2
+#: rolls 8-9, 9 roll 10, «—» 11-12.
+AF3_608E_CAPACITY = (
+    DevelopmentCapacity(developer="SPD [Super Prodol]", dilution="stock",
+                        exposure_index=1600, celsius=20.0, vessel="small tank",
+                        solution_ml=1000.0, film_unit="135-36",
+                        minutes=(4.25,) * 4 + (4.5,) * 2 + (4.75,) * 2 + (5.0,) * 2,
+                        table_rolls=12),
+    DevelopmentCapacity(developer="Fujidol E", dilution="stock",
+                        exposure_index=1600, celsius=20.0, vessel="small tank",
+                        solution_ml=1000.0, film_unit="135-36",
+                        minutes=(6.5, 6.5, 6.5, 7.0, 7.0, 7.5, 7.5, 8.0, 8.0,
+                                 8.5, 8.5, 9.0),
+                        table_rolls=12),
+    DevelopmentCapacity(developer="Microfine", dilution="stock",
+                        exposure_index=800, celsius=20.0, vessel="small tank",
+                        solution_ml=600.0, film_unit="135-36",
+                        minutes=(8.0, 8.5, 9.0, 9.5), table_rolls=12),
+    DevelopmentCapacity(developer="D-76", dilution="stock",
+                        exposure_index=1600, celsius=20.0, vessel="small tank",
+                        solution_ml=1000.0, film_unit="135-36",
+                        minutes=(7.5,) * 4 + (8.0,) * 3 + (8.5,) * 2 + (9.0,),
+                        table_rolls=12),
+)
+
+
+AF3_608E_ADDED: dict[str, int] = {}
+
+
+def _apply_af3_608e_text(p: "FilmProfile") -> "FilmProfile":
+    if p.name != "FUJI_NEOPAN_1600":
+        return p
+    p = _append_dev_points(p, AF3_608E_NEW_POINTS, AF3_608E_TEXT_SOURCE,
+                           tally=AF3_608E_ADDED)
+    return replace(p, processing_family=replace(
+        p.processing_family, capacity=AF3_608E_CAPACITY))
+
+
+FILM_PROFILES = tuple(_apply_af3_608e_text(_p) for _p in FILM_PROFILES)
+
+
+# 2026-09-30 (owner decision): NEOPAN 400 PRESTO (120)'s p2 capacity table,
+# «処理能力と現像時間（小型丸タンク現像：20℃）», stored on the v58 carrier.
+# 10 columns («1 本 ... 10 本», rolls of 120); the printed «処理能力» column
+# gives SPD 10, Microfine 8 and D-76 10 rolls per litre, and Microfine's two
+# last cells print «─». Roll 1 equals each developer's fresh-bath time in the
+# same sheet's 20 C table, which is how the EI is identified (the capacity
+# table prints none): SPD 4 1/4 = EI 400, Microfine 8 1/2 = EI 320, D-76
+# 7 1/2 = EI 400.
+PRESTO_120_CAPACITY = (
+    DevelopmentCapacity(developer="SPD [Super Prodol]", dilution="stock",
+                        exposure_index=400, celsius=20.0, vessel="small tank",
+                        solution_ml=1000.0, film_unit="120",
+                        minutes=(4.25, 4.25, 4.25, 4.5, 4.5, 4.75, 4.75, 5.0, 5.0, 5.5),
+                        table_rolls=10),
+    DevelopmentCapacity(developer="Microfine", dilution="stock",
+                        exposure_index=320, celsius=20.0, vessel="small tank",
+                        solution_ml=1000.0, film_unit="120",
+                        minutes=(8.5, 8.5, 9.0, 9.0, 9.5, 9.5, 10.0, 10.5),
+                        table_rolls=10),
+    DevelopmentCapacity(developer="D-76", dilution="stock",
+                        exposure_index=400, celsius=20.0, vessel="small tank",
+                        solution_ml=1000.0, film_unit="120",
+                        minutes=(7.5, 7.5, 7.5, 8.0, 8.0, 8.5, 8.5, 9.0, 9.0, 9.5),
+                        table_rolls=10),
+)
+
+
+def _apply_presto_120_capacity(p: "FilmProfile") -> "FilmProfile":
+    if p.name != "FUJI_NEOPAN_400":
+        return p
+    assert not p.processing_family.capacity, "NEOPAN 400 already carries a capacity table"
+    return replace(p, processing_family=replace(
+        p.processing_family, capacity=PRESTO_120_CAPACITY))
+
+
+FILM_PROFILES = tuple(_apply_presto_120_capacity(_p) for _p in FILM_PROFILES)
+_replace_param_source("FUJI_NEOPAN_400", ParamSource(
+    param="processing.capacity", tier=1, status="stated", unit="minutes per roll, 1 l bath",
+    conditions="small round tank, 20 C, 120 rolls; SPD / D-76 EI 400, Microfine EI 320",
+    source=NEOPAN_400_PRESTO_SOURCE.split(": p2")[0] + ": p2 «処理能力と現像時間（小型丸タンク現像：20℃）»",
+    confidence="high",
+    note="Stored 2026-09-30, owner decision (was NotFound.md 29d)."))
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-29f (owner request): ILFORD HP5 PLUS AND DELTA 3200 FROM ILFORD'S
+# OWN TECHNICAL SHEETS -- HP5 Plus Nov 2018 (HARMAN) and July 2004 (ILFORD
+# Imaging UK, 95042.GB); DELTA 3200 Jun 2025 and Nov 2018 (HARMAN) and
+# September 2002 (ILFORD Imaging UK). Tier 1.
+#
+# The two current editions draw every graph as a raster; the 2002/2004 FACT
+# SHEETS draw the same graphs as VECTOR paths, and those are what was traced
+# (characteristic curves, and DELTA 3200's two contrast-time graphs). The
+# DEVELOPMENT TABLES are read from the text layers. Development times are
+# the sheets' spiral-tank / deep-tank / dip-and-dunk column («min/20°C»,
+# intermittent agitation), stored as vessel "small tank" (a spiral tank)
+# like the Ilford tables already on file; the dip-and-dunk (24 C) and
+# ILFOLAB FP40 / RT RAPID (seconds, 26 C) machine rows are recorded here and
+# NOT stored, because no vessel word exists for a machine:
+#   HP5 Plus, dip and dunk 24 C: ILFOTEC DD 1+4 7 / 10 / 14 / 18 min, T-Max RS
+#     4 1/2 / 5 / 7, Xtol 7 1/2 / 9 1/2 / 12 / 16 at EI 400 / 800 / 1600 /
+#     3200; RT RAPID 26 C 1+1+2 60 / 75 / 91 / 108 s, 1+1+5 70 / 95 / 120 /
+#     166 s; (2004 only) ILFOTEC HC 1+11 24 C 55 / 70 / 90 / 130 s, Kodak
+#     Duraflo RT 26 C 60 / 81 / 120 / 166 s.
+#   DELTA 3200, dip and dunk 24 C: ILFOTEC DD 1+4 8 / 8 1/2 / 9 1/2 / 10 1/2 /
+#     13 1/2 / 19 min at EI 400-12500, T-Max RS 4 / 4 1/2 / 5 / 6 1/2 / 8 1/2 /
+#     10 1/2, Xtol 8 / 9 / 10 1/2 / 13 1/2 / 17 1/2 / 23; RT RAPID 26 C 1+1+2
+#     54 / 65 / 73 / 84 / 104 s, 1+1+5 95 / 108 / 120 / 153 / 176 s.
+# ⚠ EDITIONS. Where two editions print the same developer the 2018 values
+# are stored (2025 prints the Ilford rows identically and drops the
+# non-Ilford ones). Developers only in the older edition are stored from it:
+# HP5 2004 ILFOSOL S, Agfa Refinal, Paterson Acutol; DELTA 3200 2002
+# ILFOSOL S and Kodak Microdol-X. The 2004 «Tetenal Ultrafin 1+10 / 1+20»
+# rows are the 2018 «Ultrafin SF stock / 1+1» rows cell for cell and are
+# not stored twice.
+# ⚠ RECIPROCITY IS ALREADY RIGHT and is only given its record: both sheets
+# print Ilford's law Ta = Tm^p (HP5 p = 1.31, DELTA 3200 p = 1.33) with no
+# correction from 1/10000 to 1/2 s, which is the stored Schwarzschild
+# exponent 1/p (0.7634, 0.7519) at onset 0.5 s. (The 2018/2025 DELTA 3200
+# text says «longer than 1 second» beside «between 1/2 and 1/10 000 second,
+# no adjustments»; the 2002 edition says 1/2 s throughout, and 0.5 is kept.)
+ILFORD_SHEETS_SOURCE = {
+    "ILFORD_HP5_PLUS_400": (
+        "HARMAN technology Limited, «HP5 PLUS -- Technical Information», "
+        "Nov 2018, p3-4 development tables; ILFORD Imaging UK Limited, «HP5 "
+        "Plus» FACT SHEET, July 2004 (95042.GB), p3-5 development tables and "
+        "the VECTOR characteristic curve on p5"),
+    "ILFORD_DELTA_3200": (
+        "HARMAN technology Limited, «DELTA 3200 PROFESSIONAL -- Technical "
+        "Information», Nov 2018 and Jun 2025, p3-4 development tables at 20 "
+        "and 24 C and the EI 25000 table; ILFORD Imaging UK Limited, «DELTA "
+        "3200 PROFESSIONAL» FACT SHEET, September 2002, p3-4 tables (ILFOSOL "
+        "S, Kodak Microdol-X), p5 VECTOR contrast-time graphs and p6 VECTOR "
+        "characteristic curves"),
+}
+_HP5_EI = (200, 250, 320, 400, 800, 1600, 3200)
+_D32_EI = (400, 800, 1600, 3200, 6400, 12500)
+_N = None
+#: (developer, dilution, times at the EI columns) -- «−» = None
+_HP5_ROWS_20C = (
+    ("Ilfotec DD-X", "1+4", (_N, _N, _N, 9.0, 10.0, 13.0, 20.0)),
+    ("Ilfosol 3", "1+9", (5.0, _N, _N, 6.5, 13.5, _N, _N)),
+    ("Ilfosol 3", "1+14", (7.0, _N, _N, 11.0, 19.5, _N, _N)),
+    ("Ilfotec HC", "1+15", (_N, _N, _N, 3.5, 5.0, 7.5, 11.0)),
+    ("Ilfotec HC", "1+31", (_N, _N, _N, 6.5, 9.5, 14.0, _N)),
+    ("Ilfotec LC29", "1+9", (_N, _N, _N, 3.5, 5.0, 7.5, 11.0)),
+    ("Ilfotec LC29", "1+19", (_N, _N, _N, 6.5, 9.5, 14.0, _N)),
+    ("Ilfotec LC29", "1+29", (_N, _N, _N, 9.0, _N, _N, _N)),
+    ("ID-11", "stock", (_N, _N, _N, 7.5, 10.5, 14.0, _N)),
+    ("ID-11", "1+1", (_N, _N, _N, 13.0, 16.5, _N, _N)),
+    ("ID-11", "1+3", (_N, _N, _N, 20.0, _N, _N, _N)),
+    ("Microphen", "stock", (_N, _N, _N, 6.5, 8.0, 11.0, 16.0)),
+    ("Microphen", "1+1", (_N, _N, _N, 12.0, 15.0, _N, _N)),
+    ("Microphen", "1+3", (_N, _N, _N, 23.0, _N, _N, _N)),
+    ("Perceptol", "stock", (_N, 13.0, _N, _N, _N, _N, _N)),
+    ("Perceptol", "1+1", (_N, _N, 18.0, _N, _N, _N, _N)),
+    ("Perceptol", "1+3", (_N, _N, 25.0, _N, _N, _N, _N)),
+    ("Acufine", "stock", (_N, _N, _N, 4.5, 6.5, 9.5, _N)),
+    ("Rodinal", "1+25", (_N, _N, _N, 6.0, 8.0, _N, _N)),
+    ("Rodinal", "1+50", (_N, _N, _N, 11.0, _N, _N, _N)),
+    ("D-76", "stock", (_N, _N, _N, 7.5, 9.5, 12.5, _N)),
+    ("D-76", "1+1", (_N, _N, _N, 11.0, 13.0, _N, _N)),
+    ("D-76", "1+3", (_N, _N, _N, 22.0, _N, _N, _N)),
+    ("HC-110", "Dil A", (_N, _N, _N, 2.5, 3.75, 5.5, 9.5)),
+    ("HC-110", "Dil B", (_N, _N, _N, 5.0, 7.5, 11.0, _N)),
+    ("T-MAX", "1+4", (_N, _N, _N, 6.5, 8.0, 9.5, 11.5)),
+    ("Tetenal Ultrafin SF", "stock", (_N, _N, _N, 7.5, 10.0, _N, _N)),
+    ("Tetenal Ultrafin SF", "1+1", (_N, _N, _N, 16.0, _N, _N, _N)),
+    ("Tetenal Ultrafin Plus", "1+4", (_N, _N, _N, 7.0, 10.0, 13.0, _N)),
+    ("XTOL", "stock", (_N, _N, _N, 8.0, 11.0, 14.0, 19.0)),
+    ("XTOL", "1+1", (_N, _N, _N, 12.0, 17.0, _N, _N)),
+    # 2004 edition only
+    ("Ilfosol S", "1+9", (_N, _N, _N, 7.0, 8.5, 14.0, _N)),
+    ("Ilfosol S", "1+14", (_N, _N, _N, 9.5, 14.0, _N, _N)),
+    ("Agfa Refinal", "stock", (_N, _N, _N, 6.0, 8.5, _N, _N)),
+    ("Paterson Acutol", "1+10", (_N, _N, _N, 7.0, _N, _N, _N)),
+)
+#: «accidental exposure only» (both editions): PERCEPTOL stock at EI 50 / 100 / 200
+_HP5_ACCIDENTAL = ((50, 9.0), (100, 9.0), (200, 11.0))
+_D32_ROWS = {
+    20.0: (
+        ("Ilfotec DD-X", "1+4", (6.0, 7.0, 8.0, 9.5, 12.5, 17.0)),
+        ("Ilfosol 3", "1+9", (6.0, 7.5, 10.0, 11.0, 18.0, _N)),
+        ("Ilfosol 3", "1+14", (11.0, 13.0, 15.5, 17.0, 23.0, _N)),
+        ("Ilfotec HC", "1+15", (_N, _N, 5.0, 8.0, 13.0, _N)),
+        ("Ilfotec HC", "1+31", (6.0, 7.5, 9.0, 14.5, _N, _N)),
+        ("Ilfotec LC29", "1+9", (_N, _N, 5.0, 8.0, 13.0, _N)),
+        ("Ilfotec LC29", "1+19", (6.0, 7.5, 9.0, 14.5, _N, _N)),
+        ("ID-11", "stock", (7.0, 8.0, 9.5, 10.5, 13.0, 17.0)),
+        ("Microphen", "stock", (6.0, 7.0, 8.0, 9.0, 12.0, 16.5)),
+        ("Perceptol", "stock", (11.0, 13.0, 15.0, 18.0, _N, _N)),
+        ("Rodinal", "1+25", (5.5, 7.0, 9.0, 11.0, 20.0, _N)),
+        ("D-76", "stock", (7.0, 8.0, 9.5, 10.5, 13.0, 17.0)),
+        ("HC-110", "Dil A", (_N, _N, 5.0, 8.0, 13.0, _N)),
+        ("HC-110", "Dil B", (6.0, 7.5, 9.0, 14.5, _N, _N)),
+        ("T-MAX", "1+4", (5.5, 6.5, 7.5, 8.5, 11.0, 14.0)),
+        ("XTOL", "stock", (5.0, 6.0, 6.5, 7.5, 10.0, 12.5)),
+        # 2002 edition only
+        ("Ilfosol S", "1+9", (6.5, 8.0, 10.5, 13.0, _N, _N)),
+        ("Microdol-X", "stock", (10.0, 11.5, 13.0, 18.0, _N, _N)),
+    ),
+    24.0: (
+        ("Ilfotec DD-X", "1+4", (_N, 5.0, 6.0, 7.0, 9.0, 12.0)),
+        ("Ilfosol 3", "1+9", (5.5, 7.0, 8.0, 9.0, 15.5, _N)),
+        ("Ilfosol 3", "1+14", (7.0, 8.0, 10.0, 11.0, 19.0, _N)),
+        ("Ilfotec HC", "1+15", (_N, _N, _N, 5.5, 8.5, _N)),
+        ("Ilfotec HC", "1+31", (5.0, 6.0, 7.0, 10.5, _N, _N)),
+        ("Ilfotec LC29", "1+9", (_N, _N, _N, 5.5, 8.5, _N)),
+        ("Ilfotec LC29", "1+19", (5.0, 6.0, 7.0, 10.5, _N, _N)),
+        ("ID-11", "stock", (6.0, 7.0, 8.0, 9.0, 11.0, 13.5)),
+        ("Microphen", "stock", (_N, 5.0, 6.0, 7.0, 9.5, 13.5)),
+        ("Perceptol", "stock", (9.5, 10.5, 12.0, 15.5, _N, _N)),
+        ("Rodinal", "1+25", (_N, _N, 5.5, 7.5, 15.0, _N)),
+        ("D-76", "stock", (6.0, 7.0, 8.0, 9.0, 11.0, 13.5)),
+        ("HC-110", "Dil A", (_N, _N, _N, 5.5, 8.5, _N)),
+        ("HC-110", "Dil B", (5.0, 6.0, 7.0, 10.5, _N, _N)),
+        ("T-MAX", "1+4", (_N, 5.5, 6.5, 7.5, 9.5, 13.0)),
+        ("XTOL", "stock", (_N, 5.5, 6.0, 7.0, 9.0, 11.0)),
+        ("Ilfosol S", "1+9", (5.5, 6.5, 8.0, 10.5, _N, _N)),
+        ("Microdol-X", "stock", (7.0, 8.0, 9.0, 12.0, _N, _N)),
+    ),
+}
+#: «Meter setting EI 25000/45 manual processing» (2002 / 2018 / 2025)
+_D32_EI25000 = (("Ilfotec DD-X", "1+4", 20.0, 25.0), ("Ilfotec DD-X", "1+4", 24.0, 17.0),
+                ("Microphen", "stock", 20.0, 22.0), ("Microphen", "stock", 24.0, 17.5))
+#: DELTA 3200 contrast-time graphs (2002 p5, vector), read at the four times
+#: the sheet's characteristic curves are drawn for; «Contrast (G)».
+_D32_GBAR = (("Ilfotec DD-X", "1+4", ((7.0, 0.512), (9.0, 0.599), (12.0, 0.721), (16.0, 0.833))),
+             ("Microphen", "stock", ((7.0, 0.544), (9.0, 0.626), (12.0, 0.730), (16.0, 0.801))))
+
+
+def _ilford_points():
+    out = {"ILFORD_HP5_PLUS_400": [], "ILFORD_DELTA_3200": []}
+    for d, dl, ms in _HP5_ROWS_20C:
+        for ei, m in zip(_HP5_EI, ms):
+            if m is not None:
+                out["ILFORD_HP5_PLUS_400"].append(DevelopmentPoint(
+                    developer=d, dilution=dl, minutes=m, celsius=20.0,
+                    exposure_index=ei, vessel="small tank"))
+    for ei, m in _HP5_ACCIDENTAL:
+        out["ILFORD_HP5_PLUS_400"].append(DevelopmentPoint(
+            developer="Perceptol", dilution="stock", minutes=m, celsius=20.0,
+            exposure_index=ei, vessel="small tank"))
+    for t, rows in _D32_ROWS.items():
+        for d, dl, ms in rows:
+            for ei, m in zip(_D32_EI, ms):
+                if m is not None:
+                    out["ILFORD_DELTA_3200"].append(DevelopmentPoint(
+                        developer=d, dilution=dl, minutes=m, celsius=t,
+                        exposure_index=ei, vessel="small tank"))
+    for d, dl, t, m in _D32_EI25000:
+        out["ILFORD_DELTA_3200"].append(DevelopmentPoint(
+            developer=d, dilution=dl, minutes=m, celsius=t,
+            exposure_index=25000, vessel="small tank"))
+    for d, dl, pts in _D32_GBAR:
+        for m, g in pts:
+            out["ILFORD_DELTA_3200"].append(DevelopmentPoint(
+                developer=d, dilution=dl, minutes=m, celsius=20.0,
+                contrast_index=g, exposure_index=3200, vessel="small tank"))
+    return {k: tuple(v) for k, v in out.items()}
+
+
+ILFORD_SHEET_POINTS = _ilford_points()
+#: The eight vector characteristic curves (x = RELATIVE log exposure), as
+#: ToneCurve parameters (dmin, gamma, toe_x, toe_k, shoulder_x, shoulder_k),
+#: fit rms / max in D, and the Ilford G-bar of the fit (0.10 over fog, 1.5 log E).
+ILFORD_SHEET_CURVE_FITS = {
+    ('ILFORD_HP5_PLUS_400', 'Ilfotec HC', '1+31', 6.5): ((0.1749, 0.6939, 1.0787, 0.2225, 7.2185, 1.5384), 0.0038, 0.0089, 0.609),
+    ('ILFORD_DELTA_3200', 'Ilfotec DD-X', '1+4', 7.0): ((0.2887, 0.6033, 0.6619, 0.1419, 3.5263, 0.8698), 0.0040, 0.0093, 0.525),
+    ('ILFORD_DELTA_3200', 'Ilfotec DD-X', '1+4', 9.0): ((0.3113, 0.7165, 0.6220, 0.1378, 3.1647, 0.7782), 0.0064, 0.0118, 0.611),
+    ('ILFORD_DELTA_3200', 'Ilfotec DD-X', '1+4', 12.0): ((0.3286, 0.8836, 0.5773, 0.1460, 2.8411, 0.7076), 0.0149, 0.0260, 0.728),
+    ('ILFORD_DELTA_3200', 'Ilfotec DD-X', '1+4', 16.0): ((0.3398, 1.0012, 0.5648, 0.1420, 2.6769, 0.6624), 0.0231, 0.0412, 0.813),
+    ('ILFORD_DELTA_3200', 'Microphen', 'stock', 7.0): ((0.2604, 0.6672, 0.6352, 0.1432, 3.4011, 0.8374), 0.0040, 0.0074, 0.576),
+    ('ILFORD_DELTA_3200', 'Microphen', 'stock', 9.0): ((0.2855, 0.7298, 0.5576, 0.1198, 3.2425, 0.7881), 0.0142, 0.0241, 0.638),
+    ('ILFORD_DELTA_3200', 'Microphen', 'stock', 12.0): ((0.3089, 0.8563, 0.5170, 0.1312, 2.8697, 0.7155), 0.0199, 0.0330, 0.722),
+    ('ILFORD_DELTA_3200', 'Microphen', 'stock', 16.0): ((0.3398, 0.9931, 0.5250, 0.1416, 2.6611, 0.6690), 0.0275, 0.0501, 0.809),
+}
+#: Shift from each sheet's RELATIVE log-exposure axis to the stored curve's x:
+#: stored x = sheet x + shift, chosen so the fog + 0.10 point lands at -1.60,
+#: the median over the other 64 monochrome negatives (mid-grey is x = 0).
+ILFORD_CURVE_X_SHIFT = {"ILFORD_DELTA_3200": -2.24, "ILFORD_HP5_PLUS_400": -2.69}
+#: 2026-09-30: the same re-origin on AGFA_AVIPHOT_PAN_20's 42 s trace (owner-approved).
+AVIPHOT_CURVE_X_SHIFT = -3.20
+ILFORD_SHEETS_ADDED: dict[str, int] = {}
+
+
+def _apply_ilford_sheets(p: "FilmProfile") -> "FilmProfile":
+    pts = ILFORD_SHEET_POINTS.get(p.name)
+    if not pts:
+        return p
+    return _append_dev_points(p, pts, ILFORD_SHEETS_SOURCE[p.name],
+                              tally=ILFORD_SHEETS_ADDED)
+
+
+FILM_PROFILES = tuple(_apply_ilford_sheets(_p) for _p in FILM_PROFILES)
+
+
+# ---- 2026-09-29g: Soviet handbooks -- Гурлев 1986 figures, Иофис 1964 / 1973 / 1977 / 1980 ----
+# Owner-approved. Six PDFs in PDF/PROFILES/SOVIET, two of them byte-identical to
+# copies already on file (Иофис 1964 and 1980 under a second name).
+#
+# ⚠⚠ THE FINDING THAT MATTERS: THE SOVIET CORPUS DOES HOLD PLOTTED CURVES. The
+# ТУ corpus prints none (soviet_tu_1986_90.py), and doc/FilmCurves.md said
+# «no plot in archive» for every Svema stock -- but Гурлев 1986, already on
+# file as Gurlev_sprav_svetotexnika_materialy.pdf and re-supplied as a better
+# scan, DRAWS characteristic curves for 17 Soviet films (Рис. 176-203) and
+# development-kinetics graphs for the «Фото» line. The earlier reading used
+# its tables only.
+#
+# ADOPTED 2026-09-29g where the trace lands inside the stock's own band:
+#   ЦНЛ-32 (Рис. 197), ЛН-8 (Рис. 199), ЦО-32Д (Рис. 198),
+#   ОЧ-45 (Рис. 178, 12 min).
+# ADOPTED 2026-09-30 ON THE OWNER'S DECISION, bands kept as the batch range:
+#   ДС-4 (Рис. 197; slopes 0.81-0.84, the ТУ-74 edition, over the ТУ-84
+#   aims 0.60 / 0.70 / 0.70; no band),
+#   ЦНЛ-65 (Рис. 197; gamma above ГОСТ 25120-82's band on all three layers),
+#   ЦНД-32 (Рис. 197; inside its bands; the zero is now the drawn roll),
+#   ЦО-Т-90ЛМ (Рис. 200 RE-TRACED 2026-09-30, gamma inside 1.4-1.6; the 29g
+#   record fit, kept below, mis-ranked the converging toe).
+# RECORDED, NOT ADOPTED:
+#   ДС-5М (stored from its own ТУ 6-17-691-88 at tier 1).
+GURLEV_1986_SOURCE = (
+    "Гурлев Д. С., «Справочник по фотографии (светотехника и материалы)», "
+    "Киев: Техніка, 1986, 368 pp. (PDF/PROFILES/SOVIET/Справочник по "
+    "фотографии (светотехника и материалы).pdf; the same book as "
+    "Gurlev_sprav_svetotexnika_materialy.pdf, rescanned). Raster figures "
+    "traced 2026-09-29g at the scan's native 300 dpi.")
+IOFIS_1977_SOURCE = (
+    "Иофис Е. А. (сост.), «Справочник фотолюбителя», М.: Искусство, 1977 "
+    "(© 1976), 448 pp., text layer (ABBYY FineReader).")
+IOFIS_TF_SOURCE = (
+    "Иофис Е. А., «Техника фотографии», М.: Искусство (year not printed on the "
+    "scanned pages), 367 pp., image scan.")
+IOFIS_1980_SOURCE = (
+    "Иофис Е. А., «Кинофотопроцессы и материалы», 2-е изд., М.: Искусство, "
+    "1980.")
+
+#: (stock, layer, 'adopted' | 'record') -> (softplus q, rms D, max D). x is
+#: lg H in lux s for negatives; for reversal it is -lg H re-origined so the
+#: green layer reaches D 1.20 at x = 0 (the record entries are on -lg H).
+GURLEV_1986_CURVE_FITS = {
+    ('SVEMA_CND_32', 'r', 'adopted'): ((0.1860, 0.6068, -1.4010, 0.4239, 0.7133, 0.2654), 0.0073, 0.0178),
+    ('SVEMA_CND_32', 'g', 'adopted'): ((0.3604, 0.6432, -1.5635, 0.4020, 0.7724, 0.4684), 0.0098, 0.0355),
+    ('SVEMA_CND_32', 'b', 'adopted'): ((0.8486, 0.6529, -2.1494, 0.3087, 1.0206, 0.3825), 0.0071, 0.0300),
+    ('SVEMA_CNL_32', 'r', 'adopted'): ((0.2665, 0.7485, -1.5599, 0.2313, 0.9824, 0.5133), 0.0136, 0.0321),
+    ('SVEMA_CNL_32', 'g', 'adopted'): ((0.4343, 0.7560, -1.4821, 0.2977, 1.5432, 0.3045), 0.0077, 0.0312),
+    ('SVEMA_CNL_32', 'b', 'adopted'): ((0.7955, 0.8244, -1.4010, 0.2026, 1.5743, 0.2573), 0.0100, 0.0410),
+    ('SVEMA_LN_8', 'r', 'adopted'): ((0.2500, 0.5542, -2.4669, 0.1978, 0.7936, 0.6559), 0.0099, 0.0223),
+    ('SVEMA_LN_8', 'g', 'adopted'): ((0.4963, 0.5985, -2.3994, 0.2087, 0.5555, 0.4107), 0.0056, 0.0199),
+    ('SVEMA_LN_8', 'b', 'adopted'): ((1.0195, 0.6232, -2.2352, 0.1758, 0.2539, 0.4396), 0.0060, 0.0220),
+    ('SVEMA_CO_32D', 'r', 'adopted'): ((0.1166, 2.1255, -0.3120, 0.2470, 0.8728, 0.1726), 0.0281, 0.0754),
+    ('SVEMA_CO_32D', 'g', 'adopted'): ((0.1778, 2.1088, -0.4496, 0.2571, 0.8072, 0.2248), 0.0208, 0.0569),
+    ('SVEMA_CO_32D', 'b', 'adopted'): ((0.2500, 2.4388, -0.4680, 0.2344, 0.6369, 0.1766), 0.0332, 0.0709),
+    ('TASMA_OCH_45', 'g', 'adopted'): ((0.1000, 1.4990, -0.7511, 0.2228, 0.7149, 0.2941), 0.0111, 0.1144),
+    ('SVEMA_DS_4', 'r', 'record'): ((0.3003, 0.8131, -1.3951, 0.2738, 1.2529, 0.1604), 0.0084, 0.0301),
+    ('SVEMA_DS_4', 'g', 'record'): ((0.3159, 0.8533, -1.5070, 0.3624, 1.0764, 0.2822), 0.0076, 0.0272),
+    ('SVEMA_DS_4', 'b', 'record'): ((0.4944, 0.8711, -1.5077, 0.3172, 1.0011, 0.3113), 0.0099, 0.0328),
+    ('SVEMA_DS_5M', 'r', 'record'): ((0.1545, 0.5107, -1.9305, 0.1552, 1.1007, 0.2393), 0.0057, 0.0213),
+    ('SVEMA_DS_5M', 'g', 'record'): ((0.3833, 0.5031, -2.0074, 0.1764, 1.2213, 0.1149), 0.0046, 0.0175),
+    ('SVEMA_DS_5M', 'b', 'record'): ((0.9078, 0.5362, -1.9815, 0.1863, 1.1302, 0.3444), 0.0049, 0.0203),
+    ('SVEMA_CNL_65', 'r', 'adopted'): ((0.2056, 0.7364, -1.5064, 0.3970, 1.0758, 0.3951), 0.0077, 0.0362),
+    ('SVEMA_CNL_65', 'g', 'adopted'): ((0.5222, 0.6920, -1.8004, 0.2637, 0.9129, 0.5412), 0.0083, 0.0298),
+    ('SVEMA_CNL_65', 'b', 'adopted'): ((1.0111, 0.8423, -1.5908, 0.3353, 0.5320, 0.4247), 0.0067, 0.0282),
+    ('SVEMA_CO_T_90LM', 'r', 'record'): ((0.1480, 1.3770, 0.4696, 0.3468, 2.1146, 0.1803), 0.0304, 0.0861),
+    ('SVEMA_CO_T_90LM', 'g', 'record'): ((0.2297, 1.4390, 0.3997, 0.3305, 1.9801, 0.1740), 0.0272, 0.0722),
+    ('SVEMA_CO_T_90LM', 'b', 'record'): ((0.4101, 1.7627, 0.4230, 0.2546, 1.6801, 0.2227), 0.0187, 0.0551),
+    # 2026-09-30 ADOPTED ДС-4: the same trace refitted with D-min held at
+    # ТУ 6-17-622-84's fog ceiling 0.28 (the drawn toe ends at 0.29 / 0.36 / 0.52):
+    ('SVEMA_DS_4', 'r', 'adopted'): ((0.2800, 0.8439, -1.3698, 0.3287, 1.2640, 0.2296), 0.0109, 0.0821),
+    ('SVEMA_DS_4', 'g', 'adopted'): ((0.2800, 0.9755, -1.3718, 0.4708, 0.9857, 0.4018), 0.0078, 0.0309),
+    ('SVEMA_DS_4', 'b', 'adopted'): ((0.2800, 0.9191, -1.6445, 0.5244, 0.9776, 0.3308), 0.0179, 0.0764),
+    # 2026-09-30 RE-TRACE (title masked, row ranking), x = -lg H - 1.0215:
+    ('SVEMA_CO_T_90LM', 'r', 'adopted'): ((0.1874, 1.4480, -0.4926, 0.2989, 1.0020, 0.1768), 0.0239, 0.0615),
+    ('SVEMA_CO_T_90LM', 'g', 'adopted'): ((0.2206, 1.4233, -0.6512, 0.3153, 0.9251, 0.1681), 0.0282, 0.0760),
+    ('SVEMA_CO_T_90LM', 'b', 'adopted'): ((0.2500, 1.5288, -0.7986, 0.2995, 0.6989, 0.1417), 0.0285, 0.0907),
+    ('TASMA_OCH_45', 't4', 'record'): ((0.1596, 1.5035, 0.0980, 0.3249, 1.9898, 0.2125), 0.0105, 0.0424),
+    ('TASMA_OCH_45', 't8', 'record'): ((0.3530, 1.3787, 0.4046, 0.0932, 1.9685, 0.2662), 0.0106, 0.0592),
+    ('TASMA_OCH_45', 't16', 'record'): ((0.0449, 1.2818, 0.6563, 0.2206, 2.0414, 0.1705), 0.0093, 0.0326),
+}
+
+#: Рис. 176, СТ-2: (minutes, gamma) sampled on the traced gamma curve; median
+#: of the trace within +/- 0.4 min of each time.
+#: ⚠ ФОТО-65's DRAWN GAMMA IS 0.59-0.66 AND FLAT, against the p296 table's
+#: γ_рек 0.8 (whose footnote says the gamma barely moves with time). The
+#: stored curve follows the drawing (0.66) since 2026-09-30, owner decision.
+GURLEV_1986_FOTO_KINETICS = {
+    'SVEMA_FOTO_32': ((3, 0.57), (4, 0.65), (5, 0.73), (6, 0.79), (8, 0.91), (10, 1.00), (12, 1.08), (14, 1.13), (16, 1.17), (18, 1.20), (20, 1.21), (24, 1.22)),
+    'SVEMA_FOTO_65': ((4, 0.59), (5, 0.61), (6, 0.64), (8, 0.66), (10, 0.66), (14, 0.66), (16, 0.66)),
+    'SVEMA_FOTO_130': ((4, 0.31), (5, 0.39), (6, 0.49), (8, 0.64), (10, 0.73), (12, 0.82), (14, 0.88), (16, 0.93), (18, 0.97), (20, 0.97), (22, 0.98)),
+    'SVEMA_FOTO_250': ((5, 0.57), (6, 0.62), (8, 0.70), (10, 0.77), (12, 0.82), (14, 0.87), (16, 0.90), (18, 0.93), (20, 0.95)),
+}
+
+GURLEV_1986_ADDED: dict[str, int] = {}
+
+
+def _gurlev_points() -> dict:
+    out: dict[str, list] = {}
+    for st, rows in GURLEV_1986_FOTO_KINETICS.items():
+        out.setdefault(st, []).extend(
+            DevelopmentPoint(developer="СТ-2", minutes=float(t), celsius=20.0,
+                             gamma=g) for t, g in rows)
+    # time-only rows: (stock, developer, dilution, minutes, celsius)
+    for st, dev, dil, m, c in (
+            # Иофис 1977 p318 / «Техника фотографии» табл. 13: Проявитель № 2
+            # (= СТ-2), 20 C, midpoints of 6-10 / 8-14 min.
+            ("SVEMA_FOTO_32", "СТ-2", "", 8.0, 20.0),
+            ("SVEMA_FOTO_65", "СТ-2", "", 8.0, 20.0),
+            ("SVEMA_FOTO_130", "СТ-2", "", 11.0, 20.0),
+            ("SVEMA_FOTO_250", "СТ-2", "", 11.0, 20.0),
+            # ОЧ-45 first development: Гурлев p287 window 6-12 (9.0) and p298
+            # 12 min; «Техника фотографии» стандартный процесс 8-12 (10.0);
+            # Иофис 1980 табл. 24, отечественный машинный процесс, 4 min.
+            ("TASMA_OCH_45", "первый проявитель ОЧ-45 (Гурлев 1986, с. 287)", "", 9.0, 20.0),
+            ("TASMA_OCH_45", "первый проявитель ОЧ-45 (Гурлев 1986, с. 287)", "", 12.0, 20.0),
+            ("TASMA_OCH_45", "первый проявитель, стандартный процесс (Иофис, «Техника фотографии»)", "", 10.0, 20.0),
+            ("TASMA_OCH_45", "первый проявитель, отечественный процесс (Иофис 1980, табл. 24)", "", 4.0, 20.0),
+            # Colour negatives, ГОСТ 5554-70 developer: Гурлев p288 and Иофис
+            # 1977 p321 5-8 min (6.5); «Техника фотографии» p220 5-7 (6.0).
+            ("SVEMA_DS_4", "цветной проявитель ГОСТ 5554-70", "", 6.5, 20.0),
+            ("SVEMA_DS_4", "цветной проявитель (Иофис, «Техника фотографии»)", "", 6.0, 20.0),
+            ("SVEMA_CNL_32", "цветной проявитель ГОСТ 5554-70", "", 6.5, 20.0),
+            ("SVEMA_CNL_32", "цветной проявитель (Иофис, «Техника фотографии»)", "", 6.0, 20.0),
+            ("SVEMA_CNL_65", "цветной проявитель ГОСТ 5554-70", "", 6.5, 20.0),
+            ("SVEMA_CNL_65", "цветной проявитель (Иофис, «Техника фотографии»)", "", 6.0, 20.0),
+            ("SVEMA_CND_32", "цветной проявитель ГОСТ 5554-70", "", 6.5, 20.0),
+            # Colour reversal first development: Иофис 1977 p324 25 C 10-12
+            # (11.0); «Техника фотографии» p320 10 min 25 C; Иофис 1980
+            # табл. 27 отечественный стандартный 11-13 min 25 C (12.0).
+            ("SVEMA_CO_32D", "первый проявитель ЦО (Иофис 1977)", "", 11.0, 25.0),
+            ("SVEMA_CO_32D", "первый проявитель ЦО (Иофис, «Техника фотографии»)", "", 10.0, 25.0),
+            ("SVEMA_CO_32D", "первый проявитель ЦО, стандартный процесс (Иофис 1980, табл. 27)", "", 12.0, 25.0),
+            ("SVEMA_CO_90L", "первый проявитель ЦО (Иофис 1977)", "", 11.0, 25.0),
+            ("SVEMA_CO_90L", "первый проявитель ЦО (Иофис, «Техника фотографии»)", "", 10.0, 25.0),
+            # ORWO: «Техника фотографии» p222 NC-19 MASK in «Орво-15» 8-10 min
+            # 20 C (9.0); Иофис 1980 табл. 27 ORWO 9165 first developer 10 min
+            # 25 C for Orwochrom UT-18.
+            ("ORWOCOLOR_NC19", "Орво-15", "", 9.0, 20.0),
+            ("ORWO_CHROM_UT18", "ORWO 9165 first developer", "", 10.0, 25.0)):
+        out.setdefault(st, []).append(DevelopmentPoint(
+            developer=dev, dilution=dil, minutes=m, celsius=c))
+    return out
+
+
+GURLEV_1986_POINTS = _gurlev_points()
+
+
+def _apply_gurlev_1986(p: "FilmProfile") -> "FilmProfile":
+    pts = GURLEV_1986_POINTS.get(p.name)
+    if pts:
+        p = _append_dev_points(
+            p, tuple(pts), "Soviet handbooks 2026-09-29g: " + GURLEV_1986_SOURCE
+            + " " + IOFIS_1977_SOURCE + " " + IOFIS_TF_SOURCE + " "
+            + IOFIS_1980_SOURCE, tally=GURLEV_1986_ADDED)
+    return p
+
+
+FILM_PROFILES = tuple(_apply_gurlev_1986(_p) for _p in FILM_PROFILES)
+
+
+# -- v60 (2026-10-01, owner-approved): «JENSEITS VON 1000 ASA» ---------------
+JENSEITS_2024_SOURCE = (
+    "Bernhard W. Schmidt, «Jenseits von 1000 ASA -- Push-Entwicklung und "
+    "höchstempfindliche Filme», 25 July 2024, 13 pp (PDF/PROFILES/"
+    "Jenseits_von_1000_ASA.pdf). Method §3: DarkLight Duo sensitometer/"
+    "densitometer, 21-step wedge at 1/2-stop, checked against a calibrated "
+    "Kodak step wedge and a T-MAX 400 / T-MAX norm development; Jobo tank on "
+    "a machine at ~8 rpm, direction reversed every 30 s (SHADOWmax on T-MAX "
+    "400: one inversion per 2 min, footnote 3); no stop bath; TF-3 fixer. "
+    "gamma = the author's 'Steilheit' of the measured curve; EI-5 = the "
+    "mean effective speed over zone V. Tables 1-3, Fig. 6")
+#: (stock, developer, dilution, minutes, celsius, gamma, EI-5, vessel, where)
+#: Developer names follow this database's spelling so the developer is the
+#: same string as on the maker's own rows; dilutions exactly as printed.
+#: ⚠ EVERY ROW IS edition "Schmidt 2024", so `development_family` keys it
+#: apart from the makers' rows of the same developer: a third-party drum
+#: development at its own times is not a point on Ilford's or Kodak's curve.
+JENSEITS_2024_POINTS = (
+    ("KODAK_TMAX_400", "Jobo Alpha", "1+19", 14.0, 20.0, 0.67, 400, "drum",
+     "Table 1 (Fig. 4 legend prints 13 min)"),
+    ("KODAK_TMAX_400", "Jobo Alpha", "1+19", 25.0, 20.0, 0.99, 1250, "drum",
+     "Table 1"),
+    ("KODAK_TMAX_400", "SPUR SHADOWmax", "1+19/z", 13.0, 20.0, 0.86, 1250,
+     "small tank", "Table 1; inversion, footnote 3"),
+    ("KODAK_TMAX_400", "T-MAX", "1+4", 10.0, 20.0, 0.95, 1600, "drum",
+     "Table 1"),
+    ("ILFORD_DELTA_3200", "SPUR SHADOWmax", "1+19/x", 15.0, 20.0, 0.74, 800,
+     "drum", "Table 2"),
+    ("ILFORD_DELTA_3200", "Jobo Alpha", "1+19", 16.0, 22.0, 0.73, 500, "drum",
+     "Table 2"),
+    ("ILFORD_DELTA_3200", "Ilfosol 3", "1+9", 11.0, 20.0, 0.64, 320, "drum",
+     "Table 2"),
+    ("ILFORD_DELTA_3200", "D-76", "stock", 10.5, 20.0, 0.49, 200, "drum",
+     "Table 2"),
+    ("ILFORD_DELTA_3200", "Ilfotec DD-X", "1+4", 9.5, 20.0, 0.47, 200, "drum",
+     "Table 2 / Fig. 6"),
+    ("ILFORD_DELTA_3200", "Ilfotec DD-X", "1+4", 19.0, 20.0, 0.61, 500, "drum",
+     "Fig. 6"),
+    ("ILFORD_DELTA_3200", "Ilfotec DD-X", "1+4", 27.0, 20.0, 0.74, 1000,
+     "drum", "Fig. 6"),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 9.0, 20.0, 0.46, 200, "drum",
+     "Table 2 / Fig. 6"),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 15.0, 20.0, 0.62, 800, "drum",
+     "Fig. 6"),
+    ("ILFORD_DELTA_3200", "Microphen", "stock", 20.0, 20.0, 0.78, 1250, "drum",
+     "Fig. 6"),
+    ("KODAK_TMAX_P3200", "SPUR SHADOWmax", "1+19/x", 15.0, 20.0, 0.86, 3200,
+     "drum", "Table 3"),
+    ("KODAK_TMAX_P3200", "SPUR SHADOWmax", "1+19/x", 7.0, 20.0, 0.67, 2500,
+     "drum", "Table 3, adjusted time"),
+    ("KODAK_TMAX_P3200", "T-MAX", "1+4", 12.0, 20.0, 0.66, 1600, "drum",
+     "Table 3"),
+    ("KODAK_TMAX_P3200", "Jobo Alpha", "1+19", 16.0, 22.0, 0.60, 1000, "drum",
+     "Table 3 (Fig. 7 legend prints EI 800)"),
+    ("KODAK_TMAX_P3200", "Jobo Alpha", "1+19", 25.0, 20.0, 0.72, 1250, "drum",
+     "Table 3, adjusted time (Fig. 7 legend N+1.25)"),
+    ("KODAK_TMAX_P3200", "D-76", "stock", 14.0, 20.0, 0.61, 640, "drum",
+     "Table 3"),
+    ("KODAK_TMAX_P3200", "Microphen", "stock", 9.0, 20.0, 0.57, 320, "drum",
+     "Table 3"),
+)
+JENSEITS_2024_ADDED: dict[str, int] = {}
+
+
+def _apply_jenseits_2024(p: "FilmProfile") -> "FilmProfile":
+    rows = [r for r in JENSEITS_2024_POINTS if r[0] == p.name]
+    if not rows:
+        return p
+    pts = tuple(DevelopmentPoint(
+        developer=dev, dilution=dil, minutes=t, celsius=c, gamma=g,
+        exposure_index=ei, vessel=v, edition="Schmidt 2024")
+        for _, dev, dil, t, c, g, ei, v, _w in rows)
+    return _append_dev_points(p, pts, "v60: " + JENSEITS_2024_SOURCE,
+                              tally=JENSEITS_2024_ADDED)
+
+
+FILM_PROFILES = tuple(_apply_jenseits_2024(_p) for _p in FILM_PROFILES)
 
 
 #: Series shorter than this cannot fix a slope worth trusting: two points fit a
@@ -74246,12 +81715,27 @@ def _apply_temperature_law(p: "FilmProfile") -> "FilmProfile":
     fam = p.processing_family
     if fam is None or not fam.points:
         return p
-    series: dict[tuple[str, str, str, str], set[tuple[float, float]]] = {}
+    # ⚠ 2026-10-01 (queue P98b): THE SERIES KEY GAINS THE EXPOSURE INDEX AND
+    # THE EDITION. A push table prints one time-temperature row PER EI, and
+    # two name generations print their own rows; keyed without them, the
+    # rows of one developer were pooled into one regression whose intercepts
+    # differ by the push -- a slope fitted across EI 400 and EI 3200 is not a
+    # temperature law. Each printed row is now its own series.
+    series: dict[tuple, set[tuple[float, float]]] = {}
     for q in fam.points:
         if q.minutes <= 0.0 or q.celsius <= 0.0:
             continue
+        # ⚠ 2026-10-01d: THE CONTRAST LEVEL IS PART OF THE ROW. A
+        # time-temperature row holds the RESULT constant; a series that pooled
+        # (20 C, 2.87 min -> gamma 0.55) with (20 C, 9.84 min -> gamma 0.75)
+        # and (18 C, 8 min -> 0.65) fitted contrast as if it were temperature.
+        # Time-only rows carry 0/0 and group exactly as before; the kinetics
+        # panels' fixed-contrast rows (рис. 3.256: five temperatures at each
+        # of eight contrast levels) are each a proper equal-contrast series.
         series.setdefault(
-            (q.developer, q.dilution, q.vessel, q.film_format),
+            (q.developer, q.dilution, q.vessel, q.film_format,
+             q.exposure_index, q.edition,
+             round(q.contrast_index, 4), round(q.gamma, 4)),
             set()).add((q.celsius, q.minutes))
     slopes = []
     for pts in series.values():
@@ -74834,6 +82318,20 @@ _FUJI_FOURTH_LAYER: dict[str, tuple[float, ...]] = {
         -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
         -4.00,
     ),
+    # ⚠ ADDED 2026-10-01f, OWNER-APPROVED (completeness fix). PRO 400H's cyan
+    # record was traced by fuji_spectral4_2026.py and written to
+    # doc/FUJI_FOURTH_LAYER.md, but never entered here, so the stock stored
+    # three of the four curves AF3-176E section 19 draws. Re-derived from the
+    # sheet on 2026-10-01f: peak 519 nm, values identical to the document, and
+    # the same panel reproduces the stored R/G/B records exactly. Inert, like
+    # the other fifteen: no stage reads `log_s_c` yet.
+    "FUJICOLOR_PRO_400H": (
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -0.42, -0.25, -0.11, -0.03, 0.00, -0.03,
+        -0.15, -0.37, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
+        -4.00,
+    ),
     "FUJICOLOR_PRO_800Z": (
         -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00, -4.00,
         -4.00, -4.00, -0.42, -0.24, -0.11, -0.03, 0.00, -0.04,
@@ -74866,7 +82364,7 @@ _FUJI_FOURTH_LAYER: dict[str, tuple[float, ...]] = {
 
 
 def _apply_fuji_fourth_layer(p: "FilmProfile") -> "FilmProfile":
-    """Attach the cyan record to the five stocks that publish one.
+    """Attach the cyan record to the six stocks whose traced sheet publishes one.
 
     ⚠ REFUSES TO OVERWRITE AND REFUSES TO INVENT. A stock with no spectral
     set at all does not get one from here -- the fourth record only means
@@ -75760,7 +83258,9 @@ _ANTIHALATION_1957_COLOUR = ("jet backing on the reverse of the base, removed "
 #: cannot yet carry them: this is a REVERSAL stock whose D-max FALLS as
 #: contrast rises, and a bare `gamma_scale` would raise the model's asymptote
 #: instead -- the gap `PushSpec.source` on this stock already records as
-#: deliberately open. PULL 1 IS REFUSED: its tied fit converges to gamma 29.6
+#: deliberately open -- ⚠ CLOSED 2026-10-01f: `ProcessVariant.curves` carries
+#: whole curves, so Push 1-3 below now ship as AGFA_SCALA_200X's process
+#: variants (queue P96j). PULL 1 IS REFUSED: its tied fit converges to gamma 29.6
 #: at rms 0.0742, a degenerate corner rather than a film.
 _AGFA_SCALA_PUSH_CURVES: dict[str, dict] = {
     #  step:      (dmin, gamma, toe_x, toe_k, shoulder_x, shoulder_k),
@@ -78600,12 +86100,610 @@ _PROVENANCE_SOURCES["KODAK_VISION3_500T_5219_AHU"] = (
 del _src5219
 
 
+
+# ===========================================================================
+# 2026-09-30c -- RETRO RMS-granularity theses harvested (schema v59)
+# ===========================================================================
+#
+# Owner-approved. Six PDFs were read for data a renderer can USE; what landed:
+#   * J. C. Smith 1980, Fig. 2: sigma(D) along the curve for a D-76
+#     time-of-development series of Panatomic-X (2 1/2, 4 1/2, 6 1/2 min) and
+#     Tri-X (7, 9, 12 min) -> a measured sigma(D) TABLE per stock
+#     (`GrainSpec.sigma_shape_points`), the rms-vs-gamma law the development
+#     control now applies (`rms_gamma_exponent`), and Panatomic-X's first
+#     measured rms level (the 7.0 it replaces was this project's estimate).
+#   * Armstrong 1978, Fig. 2-7: Tri-X and Pan-X Wiener spectra flat from about
+#     4 to 35 cycles/mm -> no low-frequency clustering lobe (`clump_gain` 0).
+# Everything else those six PDFs hold is instrument design, off-nominal
+# processing with no gamma, or reading-optics theory with no consumer; see
+# doc/RESULT_2026-09-30c_rms_granularity_sources.md for the itemised refusals.
+
+SMITH_1980_SOURCE = (
+    "Jack C. Smith, «The measurement of RMS granularity of black and white "
+    "photographic materials using a visual comparison technique», thesis, "
+    "Rochester Institute of Technology, 1980. PDF p15: Kodak Research Labs "
+    "microdensitometer, aperture equivalent to 48 um diameter, green filter. "
+    "PDF p17-18: values are diffuse (microdensitometer readings / 1.22). "
+    "PDF p18-19: Panatomic-X D-76 2 1/2 min 6.2 at D ~0.9, gamma ~0.35; Tri-X "
+    "D-76 12 min 25.3 at D ~1.1, gamma ~1.2. PDF p22, Fig. 2: density and log "
+    "RMS granularity vs log exposure for both series. D-76 temperature and "
+    "agitation are not stated anywhere in the thesis")
+
+#: How Fig. 2 was read, stated once because every number below depends on it.
+#: 300 dpi render; granularity from the right-hand LOG axis, whose three ticks
+#: (10 / 20 / 30) are hand-drawn and not self-consistent (the 20-30 gap is
+#: 0.83x its log spacing), so the axis is a least-squares line through the
+#: three ticks AND the two values the text prints at stated densities
+#: (Panatomic-X 6.2 at D 0.9, Tri-X 25.3 at D 1.1); residuals <= 0.043 log.
+#: Density from the left axis ticks 1.0 / 2.0. Curves separated by column
+#: profiles; toe points read by hand where the curves cross. Uncertainty of a
+#: single value about +/-8 % in level, much less in ratio along one curve.
+SMITH_1980_FIG2_METHOD = (
+    "Fig. 2 read at 300 dpi; log-granularity axis = LSQ line through ticks "
+    "10/20/30 and the two printed text values (6.2 @ D0.9 Pan-X 2.5 min; "
+    "25.3 @ D1.1 Tri-X 12 min), 271 px/decade (Pan-X panel), 302 (Tri-X); "
+    "density axis ticks 1.0/2.0. Level uncertainty ~+/-8 %")
+
+#: (stock, minutes) -> ((absolute diffuse density, rms x 1000 at 48 um), ...)
+#: AS READ. Density is GROSS (base + fog included); fog read at the left edge.
+SMITH_1980_FIG2: dict[tuple[str, float], tuple[tuple[float, float], ...]] = {
+    ("KODAK_PANATOMIC_X", 2.5): (
+        (0.480, 4.18), (0.900, 6.68), (1.000, 7.21), (1.070, 7.61),
+        (1.161, 8.18), (1.202, 8.22)),
+    ("KODAK_PANATOMIC_X", 4.5): (
+        (0.230, 3.07), (0.338, 4.85), (0.427, 6.00), (0.513, 6.54),
+        (0.692, 7.65), (1.000, 9.14), (1.036, 9.22), (1.180, 9.02),
+        (1.421, 10.38), (1.537, 11.21), (1.581, 11.40)),
+    ("KODAK_PANATOMIC_X", 6.5): (
+        (0.230, 3.81), (0.290, 4.65), (0.365, 6.56), (0.502, 7.91),
+        (0.811, 10.04), (1.000, 11.64), (1.233, 12.52), (1.405, 12.95),
+        (1.690, 13.92), (1.818, 14.65), (1.875, 14.90)),
+    ("KODAK_TRI_X_400TX", 7.0): (
+        (0.342, 9.18), (0.468, 14.17), (0.597, 15.77), (1.000, 17.01),
+        (1.287, 17.01), (1.794, 19.22), (1.954, 20.98), (2.008, 20.35)),
+    ("KODAK_TRI_X_400TX", 9.0): (
+        (0.509, 15.23), (0.670, 19.52), (1.000, 22.56), (1.511, 22.90),
+        (1.740, 24.16), (2.090, 25.48), (2.260, 26.47), (2.337, 26.57)),
+    ("KODAK_TRI_X_400TX", 12.0): (
+        (0.554, 17.08), (0.756, 21.80), (1.000, 25.38), (1.773, 33.40),
+        (2.456, 30.36), (2.622, 30.48), (2.693, 29.01)),
+}
+
+#: Base + fog of each series, read where the three density curves merge.
+SMITH_1980_FOG: dict[str, float] = {
+    "KODAK_PANATOMIC_X": 0.23, "KODAK_TRI_X_400TX": 0.34}
+
+#: Local slope of each density curve over +/-100 px about D = 1.0, in units of
+#: "density per (1167 px / 3.0)" -- i.e. a gamma under the assumption that the
+#: plotted span is the sensitometer's 11 steps x 0.3. AS MEASURED; only the
+#: RATIOS within one film are used, and the level is then fixed by the gamma
+#: the text prints for one curve of that film (`SMITH_1980_GAMMA_TEXT`).
+SMITH_1980_SLOPE_RAW: dict[tuple[str, float], float] = {
+    ("KODAK_PANATOMIC_X", 2.5): 0.388, ("KODAK_PANATOMIC_X", 4.5): 0.593,
+    ("KODAK_PANATOMIC_X", 6.5): 0.849,
+    ("KODAK_TRI_X_400TX", 7.0): 0.876, ("KODAK_TRI_X_400TX", 9.0): 1.193,
+    ("KODAK_TRI_X_400TX", 12.0): 1.317,
+}
+#: The two gammas the text prints (PDF p18-19).
+SMITH_1980_GAMMA_TEXT: dict[str, tuple[float, float]] = {
+    "KODAK_PANATOMIC_X": (2.5, 0.35), "KODAK_TRI_X_400TX": (12.0, 1.2)}
+
+#: Which series supplies each stock's sigma(D) SHAPE: the one whose gamma is
+#: nearest the profile's stored curve gamma (Pan-X 0.72 -> 6 1/2 min, 0.77;
+#: Tri-X 0.59 -> 7 min, 0.80, the least-developed Tri-X in the series).
+SMITH_1980_SHAPE_SERIES: dict[str, float] = {
+    "KODAK_PANATOMIC_X": 6.5, "KODAK_TRI_X_400TX": 7.0}
+
+
+def smith_1980_gammas(stock: str) -> dict[float, float]:
+    """Gamma of each Fig. 2 series, scaled so the text-printed one is exact."""
+    t_ref, g_ref = SMITH_1980_GAMMA_TEXT[stock]
+    scale = g_ref / SMITH_1980_SLOPE_RAW[(stock, t_ref)]
+    return {t: raw * scale for (st, t), raw in SMITH_1980_SLOPE_RAW.items()
+            if st == stock}
+
+
+def smith_1980_rms_at(stock: str, density: float) -> dict[float, float]:
+    """rms of each series at one ABSOLUTE density, linear in D; series that
+    do not reach it are left out rather than extrapolated."""
+    out = {}
+    for (st, t), pts in SMITH_1980_FIG2.items():
+        if st != stock:
+            continue
+        for (d0, g0), (d1, g1) in zip(pts, pts[1:]):
+            if d0 <= density <= d1:
+                out[t] = g0 + (g1 - g0) * (density - d0) / (d1 - d0)
+                break
+    return out
+
+
+def smith_1980_rms_net1(stock: str) -> dict[float, float]:
+    """rms at NET 1.0 (Smith's own fog + 1.0) of each series that reaches it."""
+    return smith_1980_rms_at(stock, SMITH_1980_FOG[stock] + 1.0)
+
+
+#: The density the gamma law is fitted at: GROSS 1.0, the density Smith
+#: himself quotes ("at a diffuse density of about 1.0", PDF p18), and the only
+#: one all six series reach -- Panatomic-X 2 1/2 min stops at D 1.20, short of
+#: its net 1.0 (1.23), so a net-1.0 fit would rest on two points.
+SMITH_1980_LAW_DENSITY: float = 1.0
+
+
+def smith_1980_power_law(stock: str) -> tuple[float, float, float]:
+    """(n, ln A, span) of rms = A * gamma**n at SMITH_1980_LAW_DENSITY,
+    least squares in log-log over all three series."""
+    gam = smith_1980_gammas(stock)
+    rms = smith_1980_rms_at(stock, SMITH_1980_LAW_DENSITY)
+    ts = sorted(rms)
+    xs = [math.log(gam[t]) for t in ts]
+    ys = [math.log(rms[t]) for t in ts]
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    n = (sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+         / sum((x - mx) ** 2 for x in xs))
+    span = max(gam.values()) / min(gam.values())
+    return n, my - n * mx, span
+
+
+def smith_1980_rms_at_gamma(stock: str, gamma: float) -> float:
+    """rms at NET 1.0 at `gamma`, log-log between the two net-1.0 series that
+    bracket it (or the nearest two). The LEVEL the Panatomic-X profile takes."""
+    gam = smith_1980_gammas(stock)
+    rms = smith_1980_rms_net1(stock)
+    ts = sorted(rms, key=lambda t: gam[t])
+    lo, hi = ts[0], ts[-1]
+    for a, b in zip(ts, ts[1:]):
+        if gam[a] <= gamma <= gam[b]:
+            lo, hi = a, b
+            break
+    k = math.log(rms[hi] / rms[lo]) / math.log(gam[hi] / gam[lo])
+    return rms[hi] * (gamma / gam[hi]) ** k
+
+
+#: Armstrong, thesis 1978 (PDF p68, Fig. 2-7): incoherent Wiener spectra of
+#: Tri-X and Pan-X, D-19, mean D ~1.0, Perkin-Elmer 1010A, slit 4.2 x 105.8 um,
+#: 4 um sampling. (cycles/mm, Tri-X, Pan-X), "Variance" x 1e-3, units not
+#: stated, so only RATIOS are used. Read by ring-template matching on a
+#: 200 dpi render against pixel-calibrated log ticks. The dashed low-frequency
+#: level near 4 c/mm is 4.28e-3 (Tri-X) and 1.41e-3 (Pan-X).
+ARMSTRONG_1978_SOURCE = (
+    "Armstrong, thesis (1978), PDF 137303, Fig. 2-7 p68 (incoherent Wiener "
+    "spectra, Tri-X and Pan-X in D-19, D ~1.0, slit 4.2 x 105.8 um), Fig. 3-4 "
+    "p92 and Figs. 3-7/3-8 p97-98 (coherent spectra, flat 16-200 c/mm)")
+ARMSTRONG_1978_WIENER: tuple[tuple[float, float, float], ...] = (
+    (4.0, 4.28, 1.41),
+    (12.0, 4.18, 1.39), (24.0, 4.37, 1.38), (35.0, 4.18, 1.30),
+    (47.0, 3.91, 1.15), (59.0, 3.59, 1.03), (70.0, 2.95, 0.96),
+)
+ARMSTRONG_1978_SLIT_UM: float = 4.2
+
+
+def armstrong_1978_flat_ratio(stock_col: int, f_lo: float = 4.0,
+                              f_hi: float = 35.0) -> float:
+    """Measured W(f_lo)/W(f_hi), corrected for the 4.2 um slit's sinc^2."""
+    def slit(f):
+        x = math.pi * f * ARMSTRONG_1978_SLIT_UM * 1e-3
+        return (math.sin(x) / x) ** 2 if x else 1.0
+    row = {r[0]: r for r in ARMSTRONG_1978_WIENER}
+    return ((row[f_lo][stock_col] / slit(f_lo))
+            / (row[f_hi][stock_col] / slit(f_hi)))
+
+
+#: The measured flatness a model spectrum must reproduce, and the stock each
+#: Armstrong column is attached to. Both measured ratios are 1.00 within the
+#: read accuracy; a clustering lobe of gain g adds roughly (1+g) at 4 c/mm.
+ARMSTRONG_1978_STOCK_COL: dict[str, int] = {
+    "KODAK_TRI_X_400TX": 1, "KODAK_PANATOMIC_X": 2}
+
+
+def _apply_retro_rms_2026_09_30c(p: "FilmProfile") -> "FilmProfile":
+    """Write the Smith 1980 / Armstrong 1978 harvest onto its two stocks."""
+    if p.name not in SMITH_1980_SHAPE_SERIES:
+        return p
+    g = p.grain
+    n, ln_a, span = smith_1980_power_law(p.name)
+    shape = SMITH_1980_FIG2[(p.name, SMITH_1980_SHAPE_SERIES[p.name])]
+    # the anchors are kept as a readable SUMMARY of the table (ratios to the
+    # value at absolute 1.0, as that convention requires); the table wins
+    def _at(d):
+        for (d0, v0), (d1, v1) in zip(shape, shape[1:]):
+            if d0 <= d <= d1:
+                return v0 + (v1 - v0) * (d - d0) / (d1 - d0)
+        return shape[0][1] if d < shape[0][0] else shape[-1][1]
+    v1 = _at(1.0)
+    kw = dict(
+        sigma_shape_points=shape, sigma_shape_measured=True,
+        sigma_shape_toe=round(shape[0][1] / v1, 4),
+        sigma_shape_toe_at=shape[0][0], sigma_shape_mid=1.0,
+        sigma_shape_dmax=round(shape[-1][1] / v1, 4),
+        sigma_shape_dmax_at=shape[-1][0],
+        sigma_shape_peak=0.0, sigma_shape_peak_at=0.0,
+        rms_gamma_exponent=round(n, 4), rms_gamma_span=round(span, 4),
+        clump_gain=0.0)
+    add = [
+        ParamSource(
+            param="grain.sigma_shape_points", tier=2, status="traced",
+            unit="(diffuse density, rms x 1000 at 48 um)",
+            conditions="D-76, %g min, temperature not stated"
+            % SMITH_1980_SHAPE_SERIES[p.name],
+            source=SMITH_1980_SOURCE + ". " + SMITH_1980_FIG2_METHOD,
+            confidence="medium",
+            note=("Third-party measurement on Kodak's reference instrument. "
+                  "Series chosen as nearest the profile's curve gamma. 1980 "
+                  "emulsion; identity at stock-family level")),
+        ParamSource(
+            param="grain.rms_gamma_exponent", tier=2, status="derived",
+            unit="rms ~ gamma**n at gross diffuse D 1.0",
+            conditions="fitted over gamma %.2f-%.2f (span %.2f)"
+            % (min(smith_1980_gammas(p.name).values()),
+               max(smith_1980_gammas(p.name).values()), span),
+            source=SMITH_1980_SOURCE,
+            confidence="low",
+            note=("Least squares in log-log over the three Fig. 2 series; "
+                  "gammas are local slopes scaled to the one gamma the text "
+                  "prints. Applied by the development-time control only, "
+                  "clamped to the fitted span")),
+        ParamSource(
+            param="grain.clump_gain", tier=2, status="measured",
+            unit="", conditions="D-19, D ~1.0",
+            source=ARMSTRONG_1978_SOURCE, confidence="medium",
+            note=("Measured spectrum flat 4-35 c/mm after the slit's sinc^2 "
+                  "(ratio %.2f), where a lobe of the previous estimated gain "
+                  "%.2f would add ~%.1fx at 4 c/mm; T-101's measured "
+                  "EASTMAN_TRI_X_5223 already carries 0.0"
+                  % (armstrong_1978_flat_ratio(
+                      ARMSTRONG_1978_STOCK_COL[p.name]),
+                     g.clump_gain, 1.0 + g.clump_gain))),
+    ]
+    if p.name == "KODAK_PANATOMIC_X":
+        # the ONLY rms level adopted: the stored 7.0 was an estimate ("no
+        # published rms for this stock in the corpus"); this is the stock's
+        # own measured series evaluated at the profile's own curve gamma
+        rms = smith_1980_rms_at_gamma(p.name, float(p.curves.g.gamma))
+        kw["rms_granularity"] = round(rms, 2)
+        add.append(ParamSource(
+            param="grain.rms_granularity", tier=2, status="traced",
+            unit="rms diffuse density x 1000, 48 um, net D 1.0",
+            conditions="D-76, interpolated to the profile's gamma %.2f"
+            % float(p.curves.g.gamma),
+            source=SMITH_1980_SOURCE + ". " + SMITH_1980_FIG2_METHOD,
+            confidence="medium",
+            note=("Replaces this project's estimate 7.0. Net-1.0 rms of the "
+                  "4 1/2 and 6 1/2 min series (9.3 / 12.5 at gamma 0.53 / "
+                  "0.77), log-log to the profile gamma. ⚠ Armstrong 1978 (D-19) puts Tri-X at "
+                  "1.7-2.2x Pan-X, which with Tri-X 17 gives 8-10: the two "
+                  "sources disagree by ~20-40 %, and Smith is kept because it "
+                  "is an absolute diffuse 48 um figure in the profile's own "
+                  "developer")))
+    fam = p.processing_family
+    if p.name == "KODAK_TRI_X_400TX":
+        # OWNER DECISION 2026-09-30c (queue P96c): the two 1956 editions tie,
+        # four D-76 points each; the 35 mm edition is the one followed, which
+        # makes the development control -- and the Smith law -- live here.
+        fam = replace(fam, reference_edition="1956 35mm")
+        add.append(ParamSource(
+            param="processing_family.reference_edition", tier=2,
+            status="stated", unit="",
+            conditions="KODAK D-76 stock, small tank, 20 C",
+            source=("Owner decision 2026-09-30c between the Kodak Data Book "
+                    "1956 editions already stored on this family"),
+            confidence="medium",
+            note=("'1956 35mm' (6/10/15/25 min -> gamma 0.51/0.72/0.87/"
+                  "1.04) chosen over '1956 roll film'. The stored curve is "
+                  "the 2007 400TX; the family is 1956 Tri-X, identity at "
+                  "family level")))
+    have = {r.param for r in add}
+    ps = tuple(r for r in p.param_sources if r.param not in have) + tuple(add)
+    return replace(p, grain=replace(g, **kw), param_sources=ps,
+                   processing_family=fam)
+
+
+FILM_PROFILES = tuple(_apply_retro_rms_2026_09_30c(_p) for _p in FILM_PROFILES)
+
 # ---------------------------------------------------------------------------
 # Lookup
 # ---------------------------------------------------------------------------
 def _norm(s: str) -> str:
     """Normalise a lookup key: alphanumerics only, upper case."""
     return "".join(ch for ch in s if ch.isalnum()).upper()
+
+
+# -- v60 (2026-10-01): BERNHARD W. SCHMIDT, ONE FILM IN MANY DEVELOPERS -------
+#: Bernhard W. Schmidt, film-developer tests, bernhard-w-schmidt.de:
+#: «Methode Korn» (de/methodgrain) RMS table, supplied by the owner as
+#: PDF/PROFILES/RMSTable.png (the page's own WEBP, 500 x 1145 px); and
+#: «Resolution» (en/resolution) Fig. 4, «Width of the transmission zone (halo)
+#: of darker (exposed stripes) measured at 8 LP/mm», supplied as
+#: PDF/PROFILES/reso_halo.png (1600 x 944 px). Method (en/methodikreso, read
+#: 2026-10-01): a 24 mm chrome-on-glass Siemens star, 36 wedge pairs, CONTACT
+#: exposed under a Durst Laborator 900 / CLS 450 at f/16 with an ND x8;
+#: exposed wedges at D 1.0-1.3 on a 0.2-0.3 unexposed ground; read through a
+#: 100x microscope (about 2 um optical resolution) at 0.6-0.7 um/pixel; the
+#: halo width is estimated from the relative n = 2 harmonic at 8 lp/mm --
+#: the widening of the dark (exposed) stripes into the light ones -- and the
+#: edge-sharpness parameter is SP = 3 H3 at the same frequency.
+SCHMIDT_SOURCE = (
+    "Bernhard W. Schmidt, film-developer tests, www.bernhard-w-schmidt.de: "
+    "«Methode Korn» RMS table (de/methodgrain; owner-supplied image "
+    "PDF/PROFILES/RMSTable.png, read cell by cell) and «Resolution» Fig. 4, "
+    "width of the halo of the exposed stripes at 8 lp/mm (en/resolution; "
+    "owner-supplied PDF/PROFILES/reso_halo.png, bar ends read in pixels "
+    "against the 0/2/4/6/8 um ticks at x = 181/477/775/1073/1371, 148.75 "
+    "px/um, +/-0.02 um). Method: en/methodikreso -- contact-exposed Siemens "
+    "star, exposed D 1.0-1.3, 100x microscope at 0.6-0.7 um/px, halo from "
+    "the n = 2 harmonic at 8 lp/mm")
+
+#: The RMS table exactly as printed: (film, developer, ISO, a_k um, RMS_D).
+#: Trailing-dot cells ("9.", "4.", "10.", "13.", "6.", "20.") are whole
+#: numbers in the source's own typography. 41 rows.
+SCHMIDT_RMS_TABLE = (
+    ("SPUR Ultra R800", "SPUR Nanotec", 16, 3.4, 4.2),
+    ("Tmax100", "XTOL", 200, 4.6, 6.8),
+    ("Tmax100", "Wehner/Alpha", 200, 3.8, 7.4),
+    ("Delta100", "SD2525", 100, 4.2, 7.5),
+    ("Tmax100", "Atomal", 125, 5.3, 7.6),
+    ("Tmax100", "FX39", 200, 3.8, 7.8),
+    ("Tmax100", "D76", 200, 4.1, 7.9),
+    ("PanF", "XTOL", 50, 4.6, 7.9),
+    ("Delta100", "XTOL", 160, 4.6, 8.3),
+    ("Delta100", "D76", 200, 4.1, 8.7),
+    ("Tmax100", "Rodinal", 250, 3.7, 8.8),
+    ("PanF", "SD2525", 40, 5.2, 8.8),
+    ("PanF", "D76", 40, 4.2, 8.8),
+    ("PanF", "Wehner/Alpha", 50, 5.9, 9.0),
+    ("Tmax100", "SD2525", 250, 4.6, 9.2),
+    ("Delta100", "FX39", 125, 4.0, 9.6),
+    ("PanF", "FX39", 40, 4.7, 9.6),
+    ("Delta400", "D76", 500, 4.2, 9.9),
+    ("Delta400", "XTOL", 500, 4.6, 10.0),
+    ("TriX", "Atomal", 400, 5.4, 10.2),
+    ("Tmax400", "XTOL", 800, 5.0, 10.5),
+    ("Delta100", "Wehner/Alpha", 125, 4.3, 10.6),
+    ("PanF", "Rodinal", 40, 4.9, 11.1),
+    ("TriX", "Microphen", 400, 5.6, 11.1),
+    ("Tmax400", "Wehner/Alpha", 500, 4.4, 11.3),
+    ("TriX", "XTOL", 400, 5.9, 11.6),
+    ("Tmax400", "D76", 640, 5.3, 12.9),
+    ("TriX", "D76", 250, 5.7, 13.0),
+    ("Delta400", "Wehner/Alpha", 500, 5.6, 13.6),
+    ("Delta100", "Rodinal", 125, 5.7, 13.7),
+    ("TriX", "Wehner/Alpha", 400, 6.0, 13.9),
+    ("Tmax400", "SD2525", 640, 5.4, 14.8),
+    ("Tmax400", "FX39", 640, 5.7, 15.7),
+    ("Delta400", "SD2525", 500, 5.3, 16.1),
+    ("Delta400", "FX39", 250, 6.2, 16.7),
+    ("Tmax400", "Rodinal", 640, 5.9, 16.8),
+    ("TriX", "FX39", 400, 6.2, 17.4),
+    ("TriX", "SD2525", 500, 7.3, 17.7),
+    ("Delta400", "Rodinal", 500, 6.5, 20.0),
+    ("TriX", "Rodinal", 500, 6.8, 20.5),
+    ("Tmax400", "Shadowmax 19/z", 1250, 7.6, 22.2),
+)
+
+#: Fig. 4 bar ends in PIXELS as measured (x of the last bar pixel, the axis
+#: zero at 181), so the micrometre values are re-derived by verify.py rather
+#: than copied. Film labels as the figure prints them (TMX = T-MAX 100, TMY =
+#: T-MAX 400). Spur Ultra R800 / Nanotec UR has no visible bar: its halo is
+#: below the chart's resolution and is not stored as zero.
+SCHMIDT_HALO_PX = {
+    "PanF":     (("D76", 537), ("Rodinal", 456), ("XTOL", 451),
+                 ("Wehner/Alpha", 449), ("FX39", 391), ("SD2525", 367)),
+    "TMX":      (("D76", 806), ("XTOL", 767), ("FX39", 730), ("Rodinal", 635),
+                 ("SD2525", 585), ("Wehner/Alpha", 541)),
+    "Delta100": (("XTOL", 729), ("D76", 697), ("FX39", 614), ("SD2525", 611),
+                 ("Rodinal", 607), ("Wehner/Alpha", 514)),
+    "TMY":      (("FX39", 1028), ("Rodinal", 699), ("D76", 586),
+                 ("SD2525", 554), ("XTOL", 553), ("Wehner/Alpha", 482)),
+    "Delta400": (("FX39", 1038), ("D76", 990), ("XTOL", 788), ("SD2525", 753),
+                 ("Wehner/Alpha", 702), ("Rodinal", 656)),
+    "TriX":     (("FX39", 1383), ("SD2525", 1013), ("D76", 942),
+                 ("Rodinal", 705), ("XTOL", 654), ("Wehner/Alpha", 565)),
+}
+SCHMIDT_HALO_AXIS = (181.0, (1371.0 - 181.0) / 8.0)   # (x of 0 um, px per um)
+
+
+def schmidt_halo_um(px: float) -> float:
+    """Fig. 4 bar end (pixels) -> halo width, micrometres, 2 decimals."""
+    return round((px - SCHMIDT_HALO_AXIS[0]) / SCHMIDT_HALO_AXIS[1], 2)
+
+
+#: Which database stock each tested film is, and the label each table uses.
+#: ⚠ Delta 100, Delta 400 and SPUR Ultra R800 HAVE NO PROFILE: their 14 RMS
+#: rows and 12 halo bars stay in the two tables above and reach no render.
+#: ⚠ ILFORD_PAN_F is the 1970s Pan F; Schmidt's is Pan F Plus (1992-). The
+#: rows are attached at FAMILY level, for ratios only, and say so.
+SCHMIDT_STOCKS = {
+    "KODAK_TMAX_100":    ("Tmax100", "TMX"),
+    "KODAK_TMAX_400":    ("Tmax400", "TMY"),
+    "KODAK_TRI_X_400TX": ("TriX", "TriX"),
+    "ILFORD_PAN_F":      ("PanF", "PanF"),
+}
+#: The row each stored profile corresponds to. D-76 on all four: Kodak's rms
+#: figures for T-MAX 100 / 400 are stated "D-76 at 68 F" (F-32), Tri-X's
+#: F-4017 figure is the stock's D-76 reference, and ILFORD_PAN_F's curve is
+#: ID-11, Ilford's D-76-type formula.
+SCHMIDT_REFERENCE_DEVELOPER = "D76"
+
+
+def schmidt_grain_points(name: str):
+    """The DeveloperGrainPoint rows for one database stock, sorted by name."""
+    rms_label, halo_label = SCHMIDT_STOCKS[name]
+    halo = {d: schmidt_halo_um(px) for d, px in SCHMIDT_HALO_PX[halo_label]}
+    rows = []
+    for film, dev, iso, a_k, rms in SCHMIDT_RMS_TABLE:
+        if film != rms_label:
+            continue
+        rows.append(DeveloperGrainPoint(
+            developer=dev, exposure_index=iso, rms_d=rms, grain_a_k_um=a_k,
+            development_halo_width_um=halo.get(dev, 0.0)))
+    return tuple(sorted(rows, key=lambda q: q.developer.lower()))
+
+
+def _apply_schmidt_2026_10_01(p: "FilmProfile") -> "FilmProfile":
+    """Owner-approved 2026-10-01: Schmidt's developer rows onto four stocks."""
+    if p.name not in SCHMIDT_STOCKS:
+        return p
+    rows = schmidt_grain_points(p.name)
+    fam = p.processing_family
+    fam = replace(fam, grain_points=rows,
+                  grain_reference_developer=SCHMIDT_REFERENCE_DEVELOPER,
+                  source=fam.source + "  v60 developer rows: " + SCHMIDT_SOURCE)
+    ident = ("Pan F Plus (1992-) attached to the 1970s Pan F at FAMILY level"
+             if p.name == "ILFORD_PAN_F" else "same product")
+    add = [
+        ParamSource(
+            param="processing_family.grain_points", tier=2,
+            status="measured", unit=("rms_d: rms granularity, SOURCE SCALE; "
+                                     "development_halo_width_um: um; "
+                                     "exposure_index: ISO as printed; "
+                                     "grain_a_k_um: um as printed"),
+            conditions=("%d developers, each at its own normal development. "
+                        "Halo: 8 lp/mm, contact-exposed Siemens star, D "
+                        "1.0-1.3. rms aperture and density level are on the "
+                        "method page, not retrieved (HTTP 429)" % len(rows)),
+            source=SCHMIDT_SOURCE, confidence="medium",
+            note=("rms cells read one by one; halo bar ends read in pixels, "
+                  "+/-0.02 um. Used ONLY as ratios to the D76 row by the "
+                  "Developer control: Schmidt's D76 rows against Kodak's 48 "
+                  "um figures give 0.99 / 1.29 / 0.76 for T-MAX 100 / T-MAX "
+                  "400 / Tri-X, so the scales do not map. The halo is a "
+                  "DEVELOPMENT halo (chemical spreading), never written into "
+                  "HalationSpec; it scales MTFSpec.adjacency_um. EI stored, "
+                  "not rendered (the Exposure control owns speed). a_k INERT "
+                  "until its definition is read. Identity: " + ident)),
+        ParamSource(
+            param="processing_family.grain_reference_developer", tier=2,
+            status="stated", unit="", conditions="",
+            source=("Kodak F-32 (2002) states T-MAX 100 / 400 rms 'D-76 at "
+                    "68 F'; Kodak F-4017 Tri-X 400TX; ILFORD_PAN_F's stored "
+                    "curve is ID-11, Ilford's D-76-type formula"),
+            confidence="medium",
+            note="Selecting this row is the identity"),
+    ]
+    have = {r.param for r in add}
+    ps = tuple(r for r in p.param_sources if r.param not in have) + tuple(add)
+    return replace(p, processing_family=fam, param_sources=ps)
+
+
+FILM_PROFILES = tuple(_apply_schmidt_2026_10_01(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-01d (owner-approved batch, item 4): COMBINED COLOUR MTF CURVES.
+#
+# «Современные» prints these stocks' MTF as ONE curve. On five of them the
+# per-layer f50 were estimates (era-and-class heuristic); they are replaced
+# by the f50 that reproduce the printed curve. Ektachrome 64 and Kodachrome
+# 64 keep their Vitale 2009 f50 (a published MTF point) and store the curve
+# as corroboration -- `combined_mtf.py` solves and --asserts
+# them on every build; the literal below is its output. ⚠ The layer RATIOS are
+# the corpus's measured ones (negatives r/g 0.615, b/g 1.16 over 15 traced
+# three-layer stocks; reversal 0.868 / 1.447 over 5) and the combination is
+# Rec. 709 luminance -- the two stated assumptions.
+# KODAK_ULTRA_COLOR_400UC is the other case: the book prints its THREE layer
+# curves (рис. 3.52), so r and g are READ (50 % crossings 38.3 and 64.0
+# cycles/mm); blue stays above 50 % to the end of the drawn range (55 % at
+# 83 cycles/mm) and its 98 is a log-log extrapolation of the last two drawn
+# points -- recorded as such.
+# ---------------------------------------------------------------------------
+_COMBINED_MTF_SRC = ("В. Л. Лихачев, «Современные фотоматериалы и их "
+                     "обработка» (Москва: СЛОН-ПРЕСС, 2003)")
+_COMBINED_MTF = {
+    'KONICA_CENTURIA_SUPER_400': (94, '3.56', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0),
+        (1.176, 1.215, 1.215, 1.215, 1.176, 1.067, 0.953, 0.85, 0.759, 0.625, 0.531), (34.81, 56.61, 65.67), 0.0116),
+    'KONICA_CENTURIA_SUPER_1600': (103, '3.68', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0),
+        (1.157, 1.195, 1.195, 1.195, 1.157, 1.05, 0.922, 0.823, 0.735, 0.595, 0.49, 0.43), (34.64, 56.33, 65.35), 0.0274),
+    'KONICA_VX_100': (106, '3.72', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 25.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0),
+        (1.237, 1.299, 1.342, 1.386, 1.386, 1.32, 1.103, 0.992, 0.809, 0.659, 0.51, 0.404, 0.321), (41.86, 68.07, 78.96), 0.0221),
+    'KONICA_CHROME_R100': (285, '3.198', (2.0, 3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0),
+        (1.108, 1.108, 1.108, 1.076, 1.03, 0.936, 0.779, 0.625, 0.504, 0.409, 0.267, 0.188, 0.14), (24.08, 27.74, 40.14), 0.0406),
+    'KODAK_VERICOLOR_III_160': (184, '3.74', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0),
+        (1.114, 1.131, 1.14, 1.14, 1.131, 1.055, 0.94, 0.851, 0.752, 0.611, 0.51, 0.419, 0.362, 0.322), (38.51, 62.62, 72.64), 0.0458),
+    'EKTACHROME_64': (238, '3.142', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0),
+        (1.09, 1.08, 1.071, 1.053, 1.017, 0.918, 0.8, 0.676, 0.577, 0.392, 0.278), (31.09, 35.82, 51.83), 0.0229),
+    'KODACHROME_64': (265, '3.174', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0),
+        (1.122, 1.163, 1.179, 1.214, 1.231, 1.098, 0.941, 0.806, 0.714, 0.478, 0.324, 0.227, 0.157, 0.115), (34.54, 39.8, 57.59), 0.0216),
+}
+_UC_LAYER_MTF = (38.3, 64.0, 98.0)
+
+
+def _apply_combined_mtf(p: "FilmProfile") -> "FilmProfile":
+    def _ps(params):
+        keep = tuple(x for x in p.param_sources if x.param not in params)
+        return keep + tuple(params[k] for k in sorted(params))
+    if p.name in _COMBINED_MTF:
+        pg, fig, fq, resp, (r, g, b), rms = _COMBINED_MTF[p.name]
+        assert not p.mtf.mtf_measured, p.name
+        src = "%s, p%d рис. %s (single combined curve)" % (_COMBINED_MTF_SRC, pg, fig)
+        # ⚠ VITALE'S STOCKS KEEP VITALE. Ektachrome 64 and Kodachrome 64 carry
+        # f50 converted from a PUBLISHED MTF point (Vitale 2009 Table 4), not
+        # an estimate, so the owner's rule -- solve only where f50 is an
+        # estimate -- leaves them; the curve is stored and the solved triple is
+        # the corroboration combined_mtf.py prints.
+        if p.name in VITALE_2009_ADOPTED:
+            return replace(p, mtf=replace(p.mtf, combined_freqs=fq,
+                                          combined_response=resp,
+                                          combined_source=src))
+        rec = {("mtf.f50_" + ch): ParamSource(
+            param="mtf.f50_" + ch, tier=2, status="derived", unit="cycles/mm",
+            conditions="solved to reproduce the printed combined curve (fit rms %.3f log10)" % rms,
+            source=src, confidence="medium",
+            note=("Luminance-weighted sum of three layer MTFs, corpus-measured "
+                  "layer ratios; combined_mtf.py. Replaces an estimate, 2026-10-01d."))
+            for ch in "rgb"}
+        return replace(p, mtf=replace(p.mtf, f50_r=r, f50_g=g, f50_b=b,
+                                      combined_freqs=fq, combined_response=resp,
+                                      combined_source=src),
+                       param_sources=_ps(rec))
+    if p.name == "KODAK_ULTRA_COLOR_400UC":
+        r, g, b = _UC_LAYER_MTF
+        src = "%s, p170 рис. 3.52 (three layer curves)" % _COMBINED_MTF_SRC
+        rec = {
+            "mtf.f50_r": ParamSource(param="mtf.f50_r", tier=1, status="traced", unit="cycles/mm",
+                                     conditions="50 % crossing of the drawn red-layer curve", source=src,
+                                     confidence="medium", note="Replaces a class estimate (60), 2026-10-01d."),
+            "mtf.f50_g": ParamSource(param="mtf.f50_g", tier=1, status="traced", unit="cycles/mm",
+                                     conditions="50 % crossing of the drawn green-layer curve", source=src,
+                                     confidence="medium", note="Replaces a class estimate (68), 2026-10-01d."),
+            "mtf.f50_b": ParamSource(param="mtf.f50_b", tier=2, status="derived", unit="cycles/mm",
+                                     conditions="log-log extrapolation of the last two drawn points (60 % at 71.5, 55 % at 83.2)",
+                                     source=src, confidence="low",
+                                     note="Blue stays above 50 % across the drawn range. Replaces 78, 2026-10-01d."),
+        }
+        return replace(p, mtf=replace(p.mtf, f50_r=r, f50_g=g, f50_b=b), param_sources=_ps(rec))
+    if p.name == "KODAK_PORTRA_160NC":
+        # queue P96n (2026-10-01e). The stored blue f50 of 60.0 sat BELOW the
+        # sheet's own lower bound (its comment says so: censored at 80). The
+        # «Современные» p161 Рис. 3.35 reprints E-190's panel; traced against
+        # its gridlines (x 145 px/decade, y 134 px/decade, residuals <= 3 %):
+        # B 66.5/63.7/61.0/57.9/55.4 % at 63.3/67.5/71.9/76.6/81.6 c/mm, the
+        # curve ending at 81.6. R crosses 50 % at 49.5 and G at 74.8 -- the
+        # stored 49.1 / 73.3 from E-190 itself agree, so they stay. Blue uses
+        # the UC 400 rule: log-log fit of the last drawn points.
+        b, bf, br = _PORTRA160NC_BLUE
+        src = "%s, p161 рис. 3.35 (reprint of KODAK E-190 p9 MTF panel)" % _COMBINED_MTF_SRC
+        rec = {
+            "mtf.f50_r": ParamSource(param="mtf.f50_r", tier=1, status="traced", unit="cycles/mm",
+                                     conditions="50 % crossing of the drawn red curve, E-190 p9", source=src,
+                                     confidence="medium", note="Corroborated by the reprint: 49.5. 2026-10-01e."),
+            "mtf.f50_g": ParamSource(param="mtf.f50_g", tier=1, status="traced", unit="cycles/mm",
+                                     conditions="50 % crossing of the drawn green curve, E-190 p9", source=src,
+                                     confidence="medium", note="Corroborated by the reprint: 74.8. 2026-10-01e."),
+            "mtf.f50_b": ParamSource(param="mtf.f50_b", tier=2, status="derived", unit="cycles/mm",
+                                     conditions="log-log fit of the last five drawn points %s %% at %s c/mm; "
+                                                "the curve ends at 81.6 c/mm still above 50 %%" % (br, bf),
+                                     source=src, confidence="low",
+                                     note="Replaces 60.0, which was below the sheet's own lower bound of 80 (queue P96n)."),
+        }
+        return replace(p, mtf=replace(p.mtf, f50_b=b), param_sources=_ps(rec))
+    return p
+
+
+#: queue P96n: Portra 160NC blue f50 (derived), the traced frequencies and
+#: responses it is fitted to.
+_PORTRA160NC_BLUE = (94.0, (63.3, 67.5, 71.9, 76.6, 81.6), (66.5, 63.7, 61.0, 57.9, 55.4))
+
+
+FILM_PROFILES = tuple(_apply_combined_mtf(_p) for _p in FILM_PROFILES)
 
 
 _BY_NAME: dict[str, FilmProfile] = {p.name: p for p in FILM_PROFILES}
@@ -79096,6 +87194,13 @@ def validate_all() -> None:
         p.validate()
         if not p.is_reversal:
             get_print_stock(p.default_print)
+        for _m in p.printing_matrices:                      # schema v61
+            _ps = get_print_stock(_m.print_stock)
+            if not (_ps.reader_is_emulsion and _ps.spectral.log_s_r
+                    and _ps.spectral.log_s_g and _ps.spectral.log_s_b):
+                raise ValueError(
+                    f"{p.name}: PrintingMatrix for {_m.print_stock}, which has "
+                    "no traced spectral sensitivity to derive it from")
         # -- schema v2 checks -------------------------------------------------
         if min(p.grain.rms_r, p.grain.rms_g, p.grain.rms_b) < 0:
             raise ValueError(f"{p.name}: per-channel grain rms must be >= 0")

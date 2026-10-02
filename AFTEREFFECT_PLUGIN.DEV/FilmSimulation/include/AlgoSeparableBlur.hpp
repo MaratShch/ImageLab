@@ -148,8 +148,19 @@ constexpr AlgoType ALGO_BLUR_SIGMA_EXACT_MAX =
 constexpr AlgoType ALGO_BLUR_PYRAMID_TARGET_SIGMA = static_cast<AlgoType>(4.0);
 
 // Hard ceiling on the decimation factor, so a pathological sigma cannot reduce
-// the plane to a handful of samples.
-constexpr int32_t ALGO_BLUR_PYRAMID_MAX_K = 8;
+// the plane to a handful of samples (planBlurXY also refuses a reduced extent
+// below 4).
+//
+// ⚠ 8 -> 64 ON 2026-10-01 (schema v59), AND 8 WAS THE SAME DEFECT THIS FILE
+// NAMES AT ALGO_BLUR_SIGMA_EXACT_MAX, ONE LEVEL UP. With k capped at 8 the
+// reduced-grid sigma is sigma / 8, which leaves the exact band (<= 16) above
+// sigma = 128 px -- and the direct kernel then renormalises into a box again,
+// silently. The halation tail (about 20 t, 2.5 mm on a 127 um base) is 418 px
+// at 4K Super 35 and the veiling-flare lobes reach 823 px at 1024: all of them
+// were rendered as ~8 x 37 px boxes. At 64 every sigma up to 1024 px lands in
+// the exact band, which covers 8K. The reference (film_sim, FFT) was always
+// exact, so this moves the C++ engines TOWARDS it.
+constexpr int32_t ALGO_BLUR_PYRAMID_MAX_K = 64;
 
 // Preview-quality engagement threshold. NOT used by the Full path, which
 // engages only above ALGO_BLUR_SIGMA_EXACT_MAX because below that the direct

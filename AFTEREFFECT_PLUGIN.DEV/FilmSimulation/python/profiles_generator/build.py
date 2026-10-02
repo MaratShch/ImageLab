@@ -352,6 +352,64 @@ def audits(root: Path):
          "160- and 400-speed spectral panels re-read on every printing, the NC/VC reciprocity bound, "
          "E-27 (EKTACHROME 100 EPN) curves / spectral / dyes / MTF, the H-1-5219 Revised 3-26 AHU "
          "generation and its identical bitmaps, and Vitale 2009 Table 4"),
+        ("gurlev_1986_2026_09_29g.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Справочник по фотографии (светотехника и материалы).pdf",
+         "2026-09-29g/30: Гурлев 1986 raster figures re-traced -- Рис. 197 ЦНЛ-32 / ДС-4 / ЦНД-32 / "
+         "ЦНЛ-65, Рис. 199 ЛН-8, Рис. 198 ЦО-32Д, Рис. 200 ЦО-Т-90ЛМ, Рис. 178 ОЧ-45 12 min against "
+         "the stored curves, Рис. 176 СТ-2 kinetics against the stored gamma points, and the "
+         "owner decisions of 2026-09-30 kept visible"),
+        ("kodak_spectral_regrid.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "KODAK" / "f2350-T400CN.pdf",
+         "2026-09-30 (queue P95): the 2026-08-16 Kodak still-film spectral panels re-read "
+         "against the DRAWN gridlines (raster-located, vector curves) -- 12 stocks, with PORTRA "
+         "100T's 29b vector-grid reading as the cross-check"),
+        ("sovremennye_push_tables.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Современные фотоматериалы и их обработка.pdf",
+         "2026-09-30 (queue P98): «Современные фотоматериалы» push tables 3.198-3.200, "
+         "3.212-3.214, 3.227-3.229, 3.247-3.251 re-read from word coordinates WITH their "
+         "exposure index; every cell must be on its profile at its EI, vessel and format"),
+        ("sovremennye_tmax_push.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Современные фотоматериалы и их обработка.pdf",
+         "2026-10-01 (queue P98b): «Современные фотоматериалы» T-MAX push tables "
+         "3.164-3.171 / 3.180-3.189 and Kodak's chapter-5 tables 5.149-5.154, 5.158-5.159, "
+         "5.162-5.167 re-read from their ruled grids WITH their exposure index; every "
+         "series passes the physical check and every cell is on its profile at its EI"),
+        ("combined_mtf.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Современные фотоматериалы и их обработка.pdf",
+         "2026-10-01d (batch item 4): single combined colour MTF curves -- every stored "
+         "per-layer f50 re-solved from its traced curve (luminance-weighted layer sum, "
+         "corpus-measured layer ratios, blue sharpest / red softest)"),
+        ("sovremennye_kinetics.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Современные фотоматериалы и их обработка.pdf",
+         "2026-10-01d (batch item 2): «Современные фотоматериалы» development-kinetics "
+         "panels -- every stored contrast/time point re-rasterised back onto the panel's "
+         "ink against displaced nulls, the developer labels against the printed normal "
+         "times, рис. 3.259/3.260 against the 3.256/3.257 drawing, every panel accounted for"),
+        ("ilford_sheets_2026_09_29f.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "ILFORD" / "HP5+-200407.pdf",
+         "2026-09-29f: ILFORD HP5 Plus / DELTA 3200 sheets (2002, 2004, 2018, 2025) -- the "
+         "development tables re-parsed, the 2004 / 2002 vector characteristic curves "
+         "re-traced, the DD-X / Microphen laws against the contrast-time graphs, reciprocity"),
+        ("af3_608e_text_2026_09_29d.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FUJI" / "datasheet_neopan1600superpresto_en_01.pdf",
+         "2026-09-29d: AF3-608E (NEOPAN 1600 / SUPER PRESTO) read from its clean text layer -- "
+         "the p2 development tables cell for cell (101 held equal, 52 new), the p3 "
+         "processing-capacity table and its merged-cell spans, identity with the 2012 copy"),
+        ("harvest_2026_09_29c.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FUJI" / "datasheet_neopan400presto120_01.pdf",
+         "2026-09-29c harvest: NEOPAN 400 PRESTO (120) as NEOPAN 400 (curves, spectral, "
+         "time-G, 110 shared table cells), its reciprocity ladder and new developers; "
+         "Popular Photography 2003 rms / resolving power; Classic Camera 2014's Ilford "
+         "powder-developer and Tri-X push tables; the «Современные» label repair"),
         ("fuji_konica_dye.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "FUJI" / "provia_100f_datasheet.pdf",
@@ -1822,7 +1880,7 @@ def audits(root: Path):
         ("sovremennye_2004.py",
          ["--assert"],
          HERE / "sovremennye_2004.py",
-         "В. И. Шеберстов et al., «Современные фотоматериалы и их обработка» "
+         "В. Л. Лихачев, «Современные фотоматериалы и их обработка» "
          "-- the plot atlas of the late-film-era catalogue, 717 pp and 708 "
          "figures, every one an embedded bitmap with no vector paths. ADOPTED: "
          "the Vericolor III and EKTAPRESS PJ400 orange-mask ladders, both of "
@@ -2052,6 +2110,17 @@ def audits(root: Path):
          "nothing about what a good roll did -- the rendered film is the "
          "worst legal example of itself wherever a one-sided limit is all "
          "there is. Two stocks added from it, \u0426\u041e-\u0422-90\u041b\u041c and \u0426\u041d\u0414-64"),
+        ("batch_position_headers.py",
+         ["--root", str(root)],
+         HERE / "batch_position_headers.py",
+         "2026-09-30: the Batch Position control is the same control in every "
+         "place it is represented -- AlgoControlEnums.hpp's range equals "
+         "film_enum.hpp's film::eBATCH_POSITION_*, film_params_mask.hpp carries "
+         "eCTRL_BIT_BATCH_POSITION at the panel position and sets it on exactly "
+         "the stocks whose resolver moves, every other bit of every film equals "
+         "its shared predicate, AlgoControls declares and defaults the field, "
+         "the mockup draws the mask's controls in the mask's order, and a g++ "
+         "probe static_asserts the bit of every film against the shipped header"),
         ("batch_position_parity.py",
          ["--root", str(root)],
          HERE / "batch_position_parity.py",

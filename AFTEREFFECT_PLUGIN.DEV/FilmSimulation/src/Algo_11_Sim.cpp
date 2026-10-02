@@ -987,10 +987,12 @@ static inline void algoAddGrainPlane
     const int32_t            sizeY,
     const int32_t            pitch,
     const AlgoGrainAmp&      a,
-    const AlgoType           gain
+    const AlgoType           gain,
+    const AlgoType           kv
 ) noexcept
 {
     const __m256  vGain = _mm256_set1_ps(gain);
+    const __m256  vKv   = _mm256_set1_ps(kv);
     const int32_t nv    = sizeX / ALGO_AVX2_LANES_LOCAL;
     const int32_t nt    = sizeX - nv * ALGO_AVX2_LANES_LOCAL;
     const __m256i mt    = algoTailMaskLocal(nt);
@@ -1014,7 +1016,13 @@ static inline void algoAddGrainPlane
             const __m256 add = _mm256_mul_ps(
                 _mm256_mul_ps(vGain, _mm256_loadu_ps(rF + x)), amp);
 
-            _mm256_storeu_ps(rD + x, _mm256_add_ps(d, add));
+            // schema v59 mean-transmittance term: kv * (gain*amp)^2, the same
+            // association as the scalar path, (kv * ga) * ga.
+            const __m256 ga  = _mm256_mul_ps(vGain, amp);
+            // 2026-10-01g: add + (kv*ga)*ga fused into one FMA, same association.
+            const __m256 sum = _mm256_fmadd_ps(_mm256_mul_ps(vKv, ga), ga, add);
+
+            _mm256_storeu_ps(rD + x, _mm256_add_ps(d, sum));
         }
 
         // Mandatory scalar tail, expressed as a masked vector so the partial
@@ -1027,7 +1035,10 @@ static inline void algoAddGrainPlane
             const __m256 add = _mm256_mul_ps(
                 _mm256_mul_ps(vGain, _mm256_maskload_ps(rF + x, mt)), amp);
 
-            _mm256_maskstore_ps(rD + x, mt, _mm256_add_ps(d, add));
+            const __m256 ga  = _mm256_mul_ps(vGain, amp);
+            const __m256 sum = _mm256_fmadd_ps(_mm256_mul_ps(vKv, ga), ga, add);
+
+            _mm256_maskstore_ps(rD + x, mt, _mm256_add_ps(d, sum));
         }
     }
 }
@@ -1105,8 +1116,28 @@ void AlgoAddGrain
         // constants.
         const AlgoGrainAmp amp = AlgoGrainAmpBuild(grain, dmin[c], dmax[c]);
 
+        // ⚠ MEAN TRANSMITTANCE, NOT MEAN DENSITY (schema v59, queue P96b):
+        // see the scalar AlgoAddGrain. <F^2> is accumulated in double per
+        // element, as the reference takes it in float64; this is setup-domain
+        // work, one pass per channel.
+        const AlgoType* RESTRICT pF = fldPlane[c];
+        double sumSq = 0.0;
+
+        for (int32_t y = 0; y < sizeY; y++)
+        {
+            const AlgoType* RESTRICT rF =
+                pF + static_cast<std::ptrdiff_t>(y) * pitch;
+
+            for (int32_t x = 0; x < sizeX; x++)
+                sumSq += static_cast<double>(rF[x]) * static_cast<double>(rF[x]);
+        }
+
+        const double cnt = static_cast<double>(sizeX) * static_cast<double>(sizeY);
+        const AlgoType kv = static_cast<AlgoType>(
+            (cnt > 0.0) ? (ALGO_GRAIN_MEAN_T_K * sumSq / cnt) : 0.0);
+
         algoAddGrainPlane(dstPlane[c], fldPlane[c],
-                          sizeX, sizeY, pitch, amp, gain);
+                          sizeX, sizeY, pitch, amp, gain, kv);
     }
 
     return;
@@ -1142,8 +1173,9 @@ void AlgoAddGrainRaw
     {
         const AlgoGrainAmp amp = AlgoGrainAmpRaw(dmin[c], fogGrain);
 
+        // print / duplication grain: no mean-transmittance term (stage 11 only)
         algoAddGrainPlane(dstPlane[c], fldPlane[c],
-                          sizeX, sizeY, pitch, amp, gain);
+                          sizeX, sizeY, pitch, amp, gain, static_cast<AlgoType>(0));
     }
 
     return;

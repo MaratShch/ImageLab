@@ -102,23 +102,28 @@
 // ---------------------------------------------------------------------------
 //  AlgoDevelopmentGroup
 //
-//  The one coherent (developer, dilution, vessel, edition) group of points the
-//  stored curve sits on, as a sorted (minutes, gamma) list. Empty when the
-//  stock has no usable family or when the choice would be ambiguous.
+//  The one coherent group of points the stored curve sits on, as a sorted
+//  (minutes, contrast) list. Empty when the stock has no usable family or when
+//  the choice would be ambiguous.
 //
 //  THE GROUP IS CHOSEN, NOT GUESSED:
-//    1. only points carrying a real gamma are eligible - a time-only point
-//       states a temperature, not a contrast, and cannot place a curve;
-//    2. groups are keyed on all four discriminants;
+//    1. only points carrying a real contrast are eligible - a time-only point
+//       states a temperature, not a contrast, and cannot place a curve.
+//       GAMMA groups first; CONTRAST-INDEX groups (Kodak CI, Fuji G-bar, the
+//       «Современные» kinetics panels, 2026-10-01d) only when the stock has
+//       no gamma group at all, only groups that RISE with time, and only for
+//       a developer the record names (no "largest group" guess);
+//    2. groups are keyed on measure kind, developer, dilution, vessel,
+//       edition, temperature and film format - a curve is one temperature
+//       (рис. 3.256 draws five in one vessel) and one format (Fuji 135/120);
 //    3. a group whose developer matches ProcessingSpec::developer wins,
 //       because that is the developer the STORED CURVE was measured in;
-//    4. failing THAT, ProcessingFamily::reference_developer - the developer
-//       the SOURCE's own characteristic curve was measured in, which the
-//       1956 sheets letter in their caption and the profile's ProcessingSpec
-//       does not carry because the stored curve is a later coating;
-//    5. failing that the largest group wins, and a TIE IS A REFUSAL - two
-//       equally large groups are two different processes, and picking one by
-//       container order would make the render depend on insertion order.
+//    4. failing THAT (ProcessingSpec::developer empty, or a CI family with no
+//       match), ProcessingFamily::reference_developer, filtered by
+//       reference_dilution when that is set ("stock" == undiluted == "");
+//    5. then reference_edition, then the largest group, and a TIE IS A
+//       REFUSAL - two equally large groups are two different processes.
+//  film_sim.development_family is the reference; cpp_parity probes it.
 // ---------------------------------------------------------------------------
 inline void AlgoDevelopmentGroup
 (
@@ -132,28 +137,45 @@ inline void AlgoDevelopmentGroup
     if (pts.empty())
         return;
 
-    // Keys are built as one string so no ordering container is needed and the
-    // comparison cannot disagree with the Python reference's tuple compare.
+    // Keys are built as one string plus the two numeric discriminants, so no
+    // ordering container is needed and equality matches the Python tuple.
     std::vector<std::string>                                        keys;
+    std::vector<int>                                                kinds;
+    std::vector<double>                                             cels;
     std::vector<std::vector<std::pair<HighPrecType, HighPrecType>>> groups;
     std::vector<std::string>                                        devs;
     std::vector<std::string>                                        dils;
+    std::vector<std::string>                                        eds;
 
     for (std::size_t i = 0u; i < pts.size(); ++i)
     {
         const film::DevelopmentPoint& q = pts[i];
 
-        if (q.gamma <= 0.0)
+        int    kind;
+        double v;
+        if (q.gamma > 0.0)
+        {
+            kind = 0;
+            v    = q.gamma;
+        }
+        else if (q.contrast_index > 0.0)
+        {
+            kind = 1;
+            v    = q.contrast_index;
+        }
+        else
+        {
             continue;
+        }
 
         const std::string key =
             q.developer + "\x1f" + q.dilution + "\x1f" +
-            q.vessel    + "\x1f" + q.edition;
+            q.vessel    + "\x1f" + q.edition  + "\x1f" + q.film_format;
 
         std::size_t slot = keys.size();
         for (std::size_t k = 0u; k < keys.size(); ++k)
         {
-            if (keys[k] == key)
+            if ((kinds[k] == kind) && (cels[k] == q.celsius) && (keys[k] == key))
             {
                 slot = k;
                 break;
@@ -162,27 +184,80 @@ inline void AlgoDevelopmentGroup
         if (slot == keys.size())
         {
             keys.push_back(key);
+            kinds.push_back(kind);
+            cels.push_back(q.celsius);
             groups.push_back(std::vector<std::pair<HighPrecType, HighPrecType>>());
             devs.push_back(q.developer);
             dils.push_back(q.dilution);
+            eds.push_back(q.edition);
         }
         groups[slot].push_back(
             std::make_pair(static_cast<HighPrecType>(q.minutes),
-                           static_cast<HighPrecType>(q.gamma)));
+                           static_cast<HighPrecType>(v)));
     }
+
+    auto sortByTime = [](std::vector<std::pair<HighPrecType, HighPrecType>>& g)
+    {
+        // Insertion sort: the largest group in the database is a few dozen.
+        for (std::size_t i = 1u; i < g.size(); ++i)
+        {
+            std::pair<HighPrecType, HighPrecType> v = g[i];
+            std::size_t j = i;
+            while ((j > 0u) && (g[j - 1u].first > v.first))
+            {
+                g[j] = g[j - 1u];
+                --j;
+            }
+            g[j] = v;
+        }
+    };
 
     // A group of one cannot describe an axis.
     std::vector<std::size_t> live;
+    bool anyGamma = false;
     for (std::size_t k = 0u; k < groups.size(); ++k)
     {
         if (groups[k].size() >= 2u)
+        {
             live.push_back(k);
+            anyGamma = anyGamma || (0 == kinds[k]);
+        }
     }
     if (live.empty())
         return;
 
-    // Prefer the developer the stored curve was measured in. The comparison is
-    // case-insensitive and trimmed on both sides, matching the reference.
+    const bool ciOnly = !anyGamma;
+    {
+        std::vector<std::size_t> keep;
+        for (std::size_t i = 0u; i < live.size(); ++i)
+        {
+            const std::size_t k = live[i];
+            if (!ciOnly)
+            {
+                if (0 == kinds[k])
+                    keep.push_back(k);
+                continue;
+            }
+            // A development curve RISES with time (tolerance 0.01).
+            std::vector<std::pair<HighPrecType, HighPrecType>> g = groups[k];
+            sortByTime(g);
+            bool rising = true;
+            for (std::size_t j = 1u; j < g.size(); ++j)
+            {
+                if (g[j].second < g[j - 1u].second - static_cast<HighPrecType>(0.01))
+                {
+                    rising = false;
+                    break;
+                }
+            }
+            if (rising)
+                keep.push_back(k);
+        }
+        live = keep;
+    }
+    if (live.empty())
+        return;
+
     auto norm = [](std::string s) -> std::string
     {
         std::size_t a = s.find_first_not_of(" \t");
@@ -195,48 +270,60 @@ inline void AlgoDevelopmentGroup
         }
         return s;
     };
+    auto ndil = [&norm](const std::string& s) -> std::string
+    {
+        const std::string n = norm(s);
+        return (n == "stock") ? std::string() : n;   // undiluted, printed both ways
+    };
 
     const std::string want = norm(p.processing.developer);
+    const std::string ref  = norm(p.processing_family.reference_developer);
+    const bool        rdilSet = !norm(p.processing_family.reference_dilution).empty();
+    const std::string rdil = ndil(p.processing_family.reference_dilution);
+
+    std::vector<std::size_t> named;
     if (!want.empty())
     {
-        std::vector<std::size_t> named;
         for (std::size_t i = 0u; i < live.size(); ++i)
         {
             if (norm(devs[live[i]]) == want)
                 named.push_back(live[i]);
         }
-        if (!named.empty())
-            live = named;
     }
-    else
+    // \warning THE FAMILY'S OWN REFERENCE DEVELOPER (schema v36) - consulted
+    // when ProcessingSpec::developer is empty (every 1956-sourced stock: the
+    // stored curve is a later sheet, the points sit beside the SOURCE's own
+    // curve), and for a contrast-index family whose spelling of the developer
+    // differs from the profile's (EKTAPAN: 'KODAK HC-110 (Dilution B)').
+    if (named.empty() && !ref.empty() && (ciOnly || want.empty()))
     {
-        // \warning FAILING THAT, THE FAMILY'S OWN REFERENCE DEVELOPER (schema
-        // v36), AND WITHOUT IT A STOCK LOSES THE CONTROL WHEN IT GAINS DATA.
-        // ProcessingSpec::developer describes the profile's STORED curve and
-        // is empty on every 1956-sourced stock, because the stored curve is a
-        // later sheet. ProcessingFamily::reference_developer describes the
-        // SOURCE's own characteristic curve - the curve these points were
-        // drawn beside - and Kodak letters it in the caption. Tracing the
-        // 1956 time-gamma insets gave SUPER-XX PAN seventeen DK-50 points
-        // against seventeen DK-60a, which is a tie and therefore a refusal,
-        // so the stock lost a working development control the moment the
-        // measurements arrived.
-        const std::string ref  = norm(p.processing_family.reference_developer);
-        const std::string rdil = norm(p.processing_family.reference_dilution);
-        if (!ref.empty())
+        for (std::size_t i = 0u; i < live.size(); ++i)
         {
-            std::vector<std::size_t> named;
-            for (std::size_t i = 0u; i < live.size(); ++i)
+            if ((norm(devs[live[i]]) == ref)
+                && (!rdilSet || (ndil(dils[live[i]]) == rdil)))
             {
-                if ((norm(devs[live[i]]) == ref)
-                    && (rdil.empty() || (norm(dils[live[i]]) == rdil)))
-                {
-                    named.push_back(live[i]);
-                }
+                named.push_back(live[i]);
             }
-            if (!named.empty())
-                live = named;
         }
+    }
+    if (!named.empty())
+        live = named;
+    else if (ciOnly)
+        return;                     // a CI family is never a guess
+
+    // schema v59: THE EDITION the stored curve follows, when the family names
+    // one -- after the developer choice, and only if it matches.
+    const std::string red = norm(p.processing_family.reference_edition);
+    if (!red.empty())
+    {
+        std::vector<std::size_t> ed;
+        for (std::size_t i = 0u; i < live.size(); ++i)
+        {
+            if (norm(eds[live[i]]) == red)
+                ed.push_back(live[i]);
+        }
+        if (!ed.empty())
+            live = ed;
     }
 
     std::size_t bestN = 0u;
@@ -257,20 +344,7 @@ inline void AlgoDevelopmentGroup
         return;                     // a tie is a refusal, see the note above
 
     out = groups[pick];
-
-    // Sort by time. Insertion sort: the largest group in the database is 62
-    // points and most are five.
-    for (std::size_t i = 1u; i < out.size(); ++i)
-    {
-        std::pair<HighPrecType, HighPrecType> v = out[i];
-        std::size_t j = i;
-        while ((j > 0u) && (out[j - 1u].first > v.first))
-        {
-            out[j] = out[j - 1u];
-            --j;
-        }
-        out[j] = v;
-    }
+    sortByTime(out);
 }
 
 
@@ -457,6 +531,33 @@ inline HighPrecType AlgoDevelopmentEquivalentMinutes
     return minutes * std::exp(c * (ref - celsius));
 }
 
+// ---------------------------------------------------------------------------
+//  rms multiplier for a development that scales gamma by k (schema v59).
+//
+//  rms ~ gamma^n (GrainSpec::rms_gamma_exponent), k clamped to [1/span, span]
+//  (rms_gamma_span): the law is a fit over that span of measured gammas and is
+//  held flat beyond it rather than extrapolated. 1.0 on every stock without a
+//  measured law. film_sim.development_rms_factor is the same function.
+// ---------------------------------------------------------------------------
+inline HighPrecType AlgoDevelopmentRmsFactor
+(
+    const film::GrainSpec& g,
+    const HighPrecType     k
+) noexcept
+{
+    const HighPrecType n    = static_cast<HighPrecType>(g.rms_gamma_exponent);
+    const HighPrecType span = static_cast<HighPrecType>(g.rms_gamma_span);
+    const HighPrecType one  = static_cast<HighPrecType>(1);
+
+    if (!(n > static_cast<HighPrecType>(0)) || !(span > one)
+        || !(k > static_cast<HighPrecType>(0)) || (k == one))
+        return one;
+
+    const HighPrecType kc = MIN_VALUE(MAX_VALUE(k, one / span), span);
+    return std::pow(kc, n);
+}
+
+
 inline const film::FilmProfile& AlgoResolveDevelopmentTime
 (
     const film::FilmProfile& base,
@@ -484,6 +585,23 @@ inline const film::FilmProfile& AlgoResolveDevelopmentTime
     store.curves.b.gamma =
         static_cast<float>(static_cast<HighPrecType>(base.curves.b.gamma) * k);
 
+    // schema v59: the measured rms-vs-gamma law. Every rms figure moves by the
+    // same factor; grain_um_* is emitted RESOLVED and is left as it is, so the
+    // spectrum keeps its shape and only its level follows the development --
+    // film_sim.resolve_development_time pins grain_um for the same reason.
+    const HighPrecType f = AlgoDevelopmentRmsFactor(base.grain, k);
+    if (f != static_cast<HighPrecType>(1))
+    {
+        store.grain.rms_granularity = static_cast<float>(
+            static_cast<HighPrecType>(base.grain.rms_granularity) * f);
+        store.grain.rms_r = static_cast<float>(
+            static_cast<HighPrecType>(base.grain.rms_r) * f);
+        store.grain.rms_g = static_cast<float>(
+            static_cast<HighPrecType>(base.grain.rms_g) * f);
+        store.grain.rms_b = static_cast<float>(
+            static_cast<HighPrecType>(base.grain.rms_b) * f);
+    }
+
 
     // ⚠⚠ AND THE MEASURED TABLE IS DROPPED (schema v55). A `MeasuredCurve` is
     // 21 densities read at ONE development; scaling the gamma beside it does
@@ -504,5 +622,129 @@ inline const film::FilmProfile& AlgoResolveDevelopmentTime
         _mc[_k]->meas_n = 0;
     }
 
+    return store;
+}
+
+
+// ---------------------------------------------------------------------------
+//  THE DEVELOPER, schema v60
+//
+//  film::ProcessingFamily::grain_points holds one film measured in several
+//  developers by ONE laboratory (Bernhard W. Schmidt's tests on four stocks).
+//  The Developer control selects a row; this returns the two RATIOS that row
+//  implies against the family's reference row:
+//
+//      rms factor        rms_d[index] / rms_d[reference]
+//      adjacency factor  development_halo_width_um[index] / ...[reference]
+//
+//  RATIOS ONLY, because the source's absolute rms scale is not Kodak's 48 um
+//  diffuse scale: within one film the instrument cancels. (1, 1) on every
+//  inert path -- index < 0, out of range, no rows, no reference row, the
+//  reference row itself, or a quantity missing on either row.
+//  film_sim.developer_factors is the same function.
+// ---------------------------------------------------------------------------
+inline bool AlgoDeveloperNameEq
+(
+    const std::string& a,
+    const std::string& b
+) noexcept
+{
+    // Python compares q.developer.strip().lower() to the reference name the
+    // same way; ASCII is enough for every developer name in the database.
+    std::size_t a0 = 0, a1 = a.size(), b0 = 0, b1 = b.size();
+    while ((a0 < a1) && (' ' == a[a0]))     ++a0;
+    while ((a1 > a0) && (' ' == a[a1 - 1])) --a1;
+    while ((b0 < b1) && (' ' == b[b0]))     ++b0;
+    while ((b1 > b0) && (' ' == b[b1 - 1])) --b1;
+    if ((a1 - a0) != (b1 - b0)) return false;
+    for (std::size_t i = 0; i < (a1 - a0); ++i)
+    {
+        char ca = a[a0 + i], cb = b[b0 + i];
+        if ((ca >= 'A') && (ca <= 'Z')) ca = static_cast<char>(ca - 'A' + 'a');
+        if ((cb >= 'A') && (cb <= 'Z')) cb = static_cast<char>(cb - 'A' + 'a');
+        if (ca != cb) return false;
+    }
+    return true;
+}
+
+inline void AlgoDeveloperFactors
+(
+    const film::FilmProfile& base,
+    const int32_t            index,
+    HighPrecType&            fRms,
+    HighPrecType&            fAdj
+) noexcept
+{
+    const HighPrecType one  = static_cast<HighPrecType>(1);
+    const HighPrecType zero = static_cast<HighPrecType>(0);
+    fRms = one;
+    fAdj = one;
+
+    const std::vector<film::DeveloperGrainPoint>& rows =
+        base.processing_family.grain_points;
+    if ((index < 0) || (static_cast<std::size_t>(index) >= rows.size()))
+        return;
+
+    const film::DeveloperGrainPoint* ref = nullptr;
+    for (std::size_t i = 0; i < rows.size(); ++i)
+        if (AlgoDeveloperNameEq(rows[i].developer,
+                base.processing_family.grain_reference_developer))
+        {
+            ref = &rows[i];
+            break;
+        }
+    if (nullptr == ref)
+        return;
+
+    const film::DeveloperGrainPoint& q = rows[static_cast<std::size_t>(index)];
+    const HighPrecType qr = static_cast<HighPrecType>(q.rms_d);
+    const HighPrecType rr = static_cast<HighPrecType>(ref->rms_d);
+    const HighPrecType qh = static_cast<HighPrecType>(q.development_halo_width_um);
+    const HighPrecType rh = static_cast<HighPrecType>(ref->development_halo_width_um);
+    if ((qr > zero) && (rr > zero)) fRms = qr / rr;
+    if ((qh > zero) && (rh > zero)) fAdj = qh / rh;
+}
+
+// ---------------------------------------------------------------------------
+//  AlgoResolveDeveloper -- the profile as developer row `index` renders it.
+//
+//  Same contract as AlgoResolveDevelopmentTime: returns `base` by reference on
+//  every inert path and writes `store` only when something moves. rms moves by
+//  the rms ratio (grain_um_* is emitted RESOLVED and is left alone, so the
+//  spectrum keeps its shape); MTFSpec::adjacency_um moves by the halo ratio.
+//  The adjacency STRENGTH is not touched: the source measures a width.
+//  Applied in frame setup straight after the development time.
+// ---------------------------------------------------------------------------
+inline const film::FilmProfile& AlgoResolveDeveloper
+(
+    const film::FilmProfile& base,
+    const int32_t            index,
+    film::FilmProfile&       store
+) noexcept
+{
+    HighPrecType fRms, fAdj;
+    AlgoDeveloperFactors(base, index, fRms, fAdj);
+
+    const HighPrecType one = static_cast<HighPrecType>(1);
+    if ((fRms == one) && (fAdj == one))
+        return base;
+
+    store = base;
+    if (fRms != one)
+    {
+        store.grain.rms_granularity = static_cast<float>(
+            static_cast<HighPrecType>(base.grain.rms_granularity) * fRms);
+        store.grain.rms_r = static_cast<float>(
+            static_cast<HighPrecType>(base.grain.rms_r) * fRms);
+        store.grain.rms_g = static_cast<float>(
+            static_cast<HighPrecType>(base.grain.rms_g) * fRms);
+        store.grain.rms_b = static_cast<float>(
+            static_cast<HighPrecType>(base.grain.rms_b) * fRms);
+    }
+    if (fAdj != one)
+    {
+        store.mtf.adjacency_um = static_cast<decltype(store.mtf.adjacency_um)>(
+            static_cast<HighPrecType>(base.mtf.adjacency_um) * fAdj);
+    }
     return store;
 }

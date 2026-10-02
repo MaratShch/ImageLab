@@ -315,9 +315,15 @@ def tolerance_population(problems: list, report: list) -> None:
 #: «16 of 191» for development time on the day queue P61 landed and it was
 #: true that day; it was still there at 200 stocks and 37 families.
 MOCKUP_POPULATIONS = (
+    # ⚠ CORRECTED 2026-09-30: this counted every stock holding ANY
+    # development point (37 of 201 then, 53 of 221 now), but the control acts
+    # only where the points carry a contrast -- film_sim.development_family,
+    # the predicate film_params_mask.hpp's availability bit uses. The mockup
+    # therefore told a host to draw the control on stocks the mask greys.
     (r'Development Time</b> answers on <b>(\d+) of (\d+)</b>',
-     lambda P: (sum(1 for p in P if p.processing_family
-                    and p.processing_family.points), len(P)),
+     lambda P: (sum(1 for p in P
+                    if __import__("film_sim").development_family(p) is not None),
+                len(P)),
      "stocks whose development-time control has a family to move along"),
     (r'acts on the <b>(\d+)</b> stocks that publish a dye-fade\s+rate',
      lambda P: (sum(1 for p in P if p.dye_stability

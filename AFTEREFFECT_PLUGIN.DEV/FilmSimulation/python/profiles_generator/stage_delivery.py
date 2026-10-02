@@ -83,245 +83,81 @@ DB_FILES = (
 )
 
 MANIFEST = """\
-SIX ARCHIVES -- {stamp}
-=======================
+SEVEN ARCHIVES -- {stamp}
+============================
 
-Schema v49. 191 film stocks, 11 print stocks, 2 colour-paper spectral records,
-14 gauges. Verify 863 PASS / 1 baselined FAIL, build gate green end to end,
-every engine parity audit green, all 28 translation units compiling at
--Wall -Wextra with zero bytes of output.
+Schema v61. 222 film stocks, 11 print stocks, 2 colour-paper spectral records,
+14 gauges. Verify 1044 PASS / 4 baselined FAIL (saturation hierarchy + the
+three G-SCRATCH guards whose harness is lost), all 40 translation units (38
+data slots) compiling at -Wall -Wextra with zero bytes of output,
+cpp_parity / chain_parity (222 stocks, Python = scalar = AVX2) /
+spectral_mono_parity / interimage parity green. Build failures = the known
+11-item baseline only.
 
-THIS SET ALSO CARRIES THE 2026-09-20b ANALOGY-CURVE PASS
---------------------------------------------------------
-The 25 stocks whose characteristic curve had no evidence behind it were opened
-ONE AT A TIME on the owner's instruction, not swept as a batch. One yielded:
+ARCHIVES
+--------
+  1  python_generator      PYTHON/profile_generator  (no C++)
+  2  generated_database    CPP/Algorithm/FilmProfile
+  3  algorithm_scalar      CPP/Algorithm/Scalar
+  4  algorithm_avx2        CPP/Algorithm/AVX2
+  5  documentation_md      doc tree
+  6  ui_mockup_and_pdf     UI documentation (mockup rev 13, EN/RU PDFs)
+  7  cpp_tests             C++ test harness (test_chain_dump.cpp), flat
 
-  * KODAK BW400CN's curve is TRACED from F-4036 p5 (figure F009_0274AC, Status
-    M, fit rms 0.0218 / 0.0211 / 0.0256 D). It had been carrying ONE GREY CURVE
-    COPIED INTO ALL THREE CHANNELS on a film its own description calls
-    orange-masked; the sheet draws a 0.67 D dmin ladder. The panel had never
-    been read because the reader's only caption key was the PLURAL
-    "characteristic curves" and F-4036 -- the first F-series sheet it has seen
-    -- prints one panel and captions it singular.
+OWNER ACTION IN VISUAL STUDIO
+-----------------------------
+None: still 38 data slots (film_profiles_data_01..38.cpp), no new source file.
+No film added since 2026-10-01e (KODAK_HIE, eKODAK_HIE = 122); the headers and
+TXT files are regenerated anyway and unchanged apart from their timestamps.
+AlgoControlEnums.hpp is unchanged since 2026-10-01e (ProcessVariantCtrl
+TOTAL_PROCESSES 49).
 
-  * A DYE IMAGE WAS BEING READ AS SILVER. `_apply_schema_v2` branched on
-    `is_monochrome`, which meant both "renders grey" and "the image is silver".
-    BW400CN and T400CN are chromogenic, so they were getting callier_q 1.6856 --
-    a silver scattering coefficient -- and stage 12b was steepening the tone
-    scale of a dye image on every specular render. Both now carry Q = 1.0 and
-    Status M, the Callier control is marked INAPPLICABLE on both in the control
-    matrix and the bitmask, and the new guard G-CHROMO pins it (that is the
-    857th check).
+WHAT CHANGED SINCE 2026-10-01
+-----------------------------
+  * Schema v61 (2026-10-01d): PrintingMatrix per negative (16 negatives print
+    on 2383 through their own dyes), MTFSpec.combined_* (inert), the
+    development_family rework (contrast-index families), temperature law
+    keyed on contrast level; «Современные» held tables (786 points), 155
+    kinetics curves (1139 points), dye panels, combined MTF on 7 stocks;
+    Development Time on 33 stocks; SVEMA FOTO-250 gamma 0.795.
+  * 2026-10-01e: NEW STOCK KODAK_HIE (eKODAK_HIE = 122; migrate projects with
+    film_id_migration.txt) with six developer / format process variants;
+    AGFA SCALA 200x push / pull ladder (five variants); Portra 160NC blue
+    f50 60 -> 94; 27 of 28 book sensitivity panels corroborate the makers'
+    records; SMPTE ST 2065-2 Academy Printing Density responsivities and 16
+    per-negative scanner matrices stored INERT; book citations corrected to
+    V. L. Likhachev, SLON-PRESS 2003.
+  * Codegen: development points over 8 kB are emitted as helper functions in
+    the same slot file (largest function 110 342 bytes, limit 112 000).
+  * 2026-10-01f: stage 8b (Algo_08_Sim.cpp, Scalar and AVX2) on COLOUR
+    NEGATIVES now leaves every neutral on the stored white-light curves (each
+    layer measures a donor against that donor's density under a neutral
+    exposure at the layer's own log E); interimage coefficients of all colour
+    negatives re-solved. VISIBLE LOOK CHANGE on every colour negative: more
+    contrast and saturation, much less grey-scale colour drift. Reversal
+    unchanged. AGFA SCALA 200x Push 1-3 now use Agfa's own traced curves.
+  * 2026-10-01g/h: FUJICOLOR_PRO_400H cyan (4th) record stored (inert); AVX2
+    engine uses FMA at the last six multiply-then-add sites.
+  * 2026-10-02: SCAN_DI is balanced PER COLOUR NEGATIVE (equal neutral system
+    gamma per channel; Algo_13_Sim.cpp, AlgoDuplication.hpp) -- visible look
+    change on colour negatives scanned through SCAN_DI: far less grey-scale
+    colour drift. Small frames: the anchor solve and the print chain's mid
+    grey now see stage 9's sub-pixel gate (AlgoDirCoupler.hpp,
+    AlgorithmMain.cpp, Algo_13_Sim.cpp). Reversal stocks unchanged.
 
-  * 23 of the 25 are refused with a per-stock reason, and seven stale
-    `fitted_from` labels were corrected without moving a single value.
+Full accounts: doc/RESULT_2026-10-01d_kinetics_dyes_mtf.md,
+doc/RESULT_2026-10-01e_queue_followups_hie_scala_apd.md,
+doc/RESULT_2026-10-01f_interimage_neutral_scala.md,
+doc/RESULT_2026-10-02_scan_balance_smallframe_reversal_test.md, doc/PROGRESS.md.
 
-Full account: doc/FilmDatabase_Charecteristics.MD section D.18 (and its Russian
-twin), doc/DIGITIZATION_QUEUE.md rows P82-P84, doc/PROGRESS.md 2026-09-20d.
+Regenerated together from one build: film_profiles.*, film_schema_version.h,
+film_enum.hpp, film_names.txt, film_display_order.txt, film_id_migration.txt,
+film_params_mask.hpp, LoadFilmDataBase.*, film_profiles_data_01..38.cpp,
+algo_control_enums.py, doc/FilmControlMatrix.md, doc/FilmActiveProfiles.md.
 
-AND SCHEMA v49 -- THE TEMPORAL GRAIN MODEL
-------------------------------------------
-⚠ A v49 RENDER AT DEFAULTS IS BIT-IDENTICAL TO A v48 ONE, and that is asserted
-by G-V49-IDENTITY rather than claimed. The spec this answers opened by stating
-the grain was static across frames; it was measured first and it was not --
-adjacent frames already correlated at r = 0.008, as uncorrelated as two
-different seeds. The model was at the OTHER failure the same spec names,
-complete frame-to-frame randomisation.
-
-⚠ AND r = 0 IS PHYSICALLY RIGHT FOR AN EMULSION: every frame is a different
-piece of film and shares no silver grains with its neighbours. So
-`grain_frame_correlation` stays 0.0 on all 191 stocks. What was missing is the
-INSTRUMENT -- a scanner's fixed-pattern noise is identical on every frame -- so
-v49 adds `AlgoControls::scannerFixedPattern`, a CONTROL and not a database
-column, because the pattern belongs to the scanner and not to the film.
-
-  * stateless sliding-kernel correlation, so any frame renders on its own with
-    no warm-up: an AR(1) recursion would have made frame 5000 depend on frames
-    0-4999
-  * tau is bisected onto the kernel's OWN lag-1 autocorrelation, not assumed
-  * variance preserved exactly at every setting, so neither control can change
-    how much grain there is -- only how it behaves in time
-  * measured: rho 0.5 -> r 0.503, rho 0.9 -> r 0.900, fixed 1.0 -> r 1.000 at
-    every lag
-  * one inline kernel in AlgoGrain.hpp, three engines; stage_parity agrees on
-    all 125 retained planes, worst 3.289e-05
-
-⚠ THE CONTROL SHIPS AT 0.0 BECAUSE THE DATA IS ABSENT. No measurement of any
-scanner's fixed-pattern noise exists in this corpus (queue M1b/P88). Mechanism
-built, guarded, inert.
-
-⚠⚠ OWNER ACTION IN VISUAL STUDIO, 2026-09-25: film_profiles_data_29.cpp and
-_30.cpp are new in THIS delivery and must be added to the .vcxproj. CMake globs
-src/*.cpp and picks them up by itself; Visual Studio lists files once and will
-not. (_27 and _28 were the previous such pair and are already listed.)
-
-WHY THE COUNT MOVED, SINCE IT IS AN INTERRUPTION AND NOT A TIDY-UP: the slot
-packer is provably optimal -- binary search for the smallest feasible maximum,
-then a DP over the partitions that achieve it -- so when it reports a slot over
-the 112 kB ceiling, no rearrangement exists that would fit. The FERRANIA P30
-harvest put TWO slots over by 3 989 bytes at 28, and the second of them holds
-none of that harvest: the partition boundaries move, so a large addition
-anywhere can push an untouched neighbour over. 30 was chosen over the minimum
-29 so that one Visual Studio edit buys two harvests of room rather than one
-(high-water 105 325 of 112 000, 6 675 free).
-
-ONE SYNCHRONISED STATE, SIX DESTINATIONS
-========================================
-The archives are strictly separated because the owner integrates each into a
-different place: the generator into PYTHON/profile_generator, the database into
-CPP/Algorithm/FilmProfile, the two engines into CPP/Algorithm/Scalar and
-CPP/Algorithm/AVX2, the Markdown into the doc tree, and the mockup and the two
-parameter references into the UI documentation. A single archive would make
-every delivery a merge.
-
-EVERY ARCHIVE IS CUT FROM THE SAME STATE, and that is asserted rather than
-intended: the generated C++ in archive 2 was written by the same build that ran
-verify, the parity audits and the compile gate; archives 3 and 4 are the engine
-tree that build synced and compiled; and the documents in archive 5 were
-regenerated or re-derived in that same build, with doc_consistency.py checking
-31 registered counts and the queue's live-row set against the database.
-
-NO TEST CODE IN ANY CODE ARCHIVE
---------------------------------
-Standing owner instruction. The engine archives exclude the thirteen
-test_*.cpp files, profall.cpp and e2e.cpp; the Python archive carries no
-test_*.py and no make_test_chart.py. build.py, verify.py and the parity
-harnesses stay, because they are the build GATE rather than tests of it.
-
-WHAT CHANGED IN THIS DELIVERY
-=============================
-
-THE FILM GRAIN MODEL IS REPLACED, TO FGS-DDS-001 Rev. A, AT SCHEMA v48
-----------------------------------------------------------------------
-Governing document: FGS-DDS-001 Rev. A, 51 pp., 2026-09-19, owner-approved in
-full with one constraint -- Python, C++ scalar and C++ AVX2 must execute the
-SAME ALGORITHM FLOW. That constraint decided the architecture.
-
-⚠⚠ NOT ONE RENDER IS BIT-IDENTICAL TO A v47 ONE, ON PURPOSE. The mandatory F1
-fix changes every pixel by construction and the spectral rebase changes the
-texture on 186 stocks. What IS guarded: in `legacy_gaussian` mode the v48
-spectrum reproduces the v47 spectrum to 4.4e-16, so the difference in that mode
-is the generator and nothing else.
-
-  1. THE SPECTRUM is the radius-averaged Boolean (jinc) form of the random-dot
-     literature, h(f)^2 = E_r[r^4 b(f;r)^2]/E_r[r^4], carried as a FIVE-TERM
-     GAUSSIAN MIXTURE. ⚠ Spec 19.1 asks for a per-frame 2-D FFT; neither C++
-     engine has one, and writing one into two engines against a no-allocation
-     policy would have produced three implementations of two algorithms. The
-     mixture is what all three engines already execute. Worst fit error over
-     the corpus 1.305e-03, against the aperture correction's own 1.0e-02 to
-     5.3e-02 -- thirty times smaller than an error the model already accepts.
-  2. THE GRAIN DIAMETER is derived from the published RMS granularity by a
-     closed-form inversion with no fitted constant in it: 0.1835 - 2.6558 um,
-     median 0.719. The five stocks whose diameter is a BBC T-101 measurement
-     keep it and agree with the derivation at 1.04 / 1.05 / 1.21 / 1.62 / 1.91.
-  3. THE 48 um APERTURE is the exact disk transfer, not a Gaussian stand-in.
-  4. THE FIELD IS FRAME-KEYED through a counter-based generator (SplitMix64
-     finaliser, seed/stage/ordinal counter), identical in all three engines.
-  5. THE MARGINAL LEAVES GAUSSIAN where the grain count per resolution element
-     is low, through the specification's own count gate driving a
-     Cornish-Fisher skew.
-
-FOUR PRE-EXISTING ENGINE DEFECTS, THREE OF THEM OUTSIDE GRAIN
---------------------------------------------------------------
-  F1  the Python reference produced IDENTICAL grain on every frame of a clip
-      while both C++ engines re-rolled it. The model of record and the shipping
-      engines were simulating different physics, and every harness passed --
-      because every harness compares ONE FRAME.
-  kSigma, both Algo_11_Sim.cpp: 0.22508352815546 against 1/(pi*sqrt(2)) =
-      0.22507907903927651.
-  AlgoScanSigmaMm, both Algo_10_Sim.cpp: 0.18738564618678 against
-      sqrt(ln2/2)/pi = 0.1873906251292776. This is STAGE 10 -- the whole image,
-      not only the grain.
-  ALGO_MTF_SIGMA_MM_PER_INV_F50, AlgoEmulsionMtf.hpp: the same wrong digits
-      again, and this one is the EMULSION MTF read by stage 6, i.e. a property
-      of every stock.
-⚠ The last three hid for one structural reason worth carrying beyond grain:
-the reference evaluates its transfers straight onto a frequency grid and
-DERIVES NO SIGMA AT ALL, so each constant existed on the C++ side alone and had
-nothing to disagree with. A quantity computed in one engine and not in the
-other is not covered by parity testing, however thorough that testing is.
-
-THE CONFORMANCE AUDIT, AND THE FIVE GAPS IT FOUND
--------------------------------------------------
-All eighteen normative requirements were audited against the shipped code:
-13 met, 3 partial, 2 not met. All five gaps are closed:
-
-  R-S4(a)  the dispersion term was in the spectrum and not in the counts. With
-           E[pi r^2] in the mean area the calibration loop closes from 1.0317x
-           to 4.4e-16, and every derived diameter is 3-6 % smaller.
-  R-N3     two EXACT factoring identities plus an identity-skip: AVX2, one
-           channel at 4K, 398 -> 95 ms with a clustering lobe and 124 -> 62 ms
-           without. ⚠ THE BUDGET IS 11.9 ms PER CHANNEL AND IS STILL MISSED,
-           8x and 5x. See WHAT IS STILL OPEN.
-  R-S6     the exact dot renderer was BUILT, measured at 25-100 ms per channel
-           against an 8 ms budget, and refused on that measurement. The count
-           gate ships; a Cornish-Fisher marginal replaces the sampler, with its
-           coefficient clamped at 0.1 for monotonicity -- the clamp binds on
-           2.04 % of the stock-density space, measured rather than waved at.
-  R-S5     the saturating sigma(D) family was fitted and REFUSED BY ITS OWN
-           GATE: 14.0 % mean / 25.3 % worst against the specification's 10 %.
-           sigma_sat_droll and sigma_sat_q stay 0.0 on 191 of 191.
-  R-T5     the specification contradicts itself -- 18.2 asks the stage to
-           FREEZE the field for one class and R-T5 forbids any frame-locked
-           component, which is what a frozen field is. The requirement wins;
-           the field is declarative and validate_all refuses any other value.
-
-FOUR ERRATA AGAINST THE SPECIFICATION BECAME SIX
-------------------------------------------------
-The two new ones were found by building the dot renderer that was then refused,
-which is the argument for costing a requirement by building it: the
-compound-Poisson skewness 1/sqrt(N) is low by exp(6 sigma_ln^2), and 12.4.1's
-break densities were computed without the dispersion term 13 itself requires.
-
-SCHEMA v47 -> v48
------------------
-GrainSpec gains grain_um_r/g/b, development_gamma_ref, grain_temporal_class,
-sigma_sat_droll, sigma_sat_q and rho_layers; film_profiles.hpp gains
-GrainSpectrumTerms, the factored spectrum both engines consume.
-⚠ development_gamma_ref and rho_layers are populated on 0 of 191 and read by no
-law. That is deliberate -- an unread carrier cannot move a pixel -- and it is
-queue row P81 rather than a silent gap.
-
-THE GATE ITSELF
----------------
-verify.py gains 24 v48 guards and the specification's seven named validation
-gates (V-CAL, V-NORM, V-TEMP, V-COMPAT, V-SAT, V-SPARSE, V-PARITY).
-cpp_parity.py gains the first probe in this project that compares grain PIXELS
-rather than grain statistics: RNG draws bit-exact against AlgoCounterRng.hpp,
-mixture terms and the clustering lobe to 4.8e-08, the field to 2.7e-07 of field
-RMS, and frames 0 and 7 sharing 0 of 3072 pixel values.
-build.py's docs stage now also regenerates doc/FilmControlMatrix.md, which was
-the one generated document nothing regenerated.
-
-DOCUMENTATION
--------------
-All eight named documents were REVIEWED, not appended to. Every figure derived
-from a grain diameter was recomputed with the shipped code and restated in
-place rather than annotated. PROJECT_STATE.md, FilmActiveProfiles.md,
-FilmCurves.md and FilmControlMatrix.md are regenerated from the live module on
-every build and cannot drift. Both FilmDatabase_Charecteristics documents carry
-a new D.17.7 in English and Russian; FilmGrainSimulationModel.md carries a new
-12.10; GRAIN_MODEL_ASSESSMENT.md a new 8.6; DIGITIZATION_QUEUE.md rows P74-P81,
-with its census re-derived from the parse.
-
-WHAT IS STILL OPEN
-------------------
-Twelve queue rows.
-
-⚠ P80 IS THE ONE THAT NEEDS A DECISION FROM THE OWNER, and it is the honest
-residue of this delivery. R-N3's budget is missed by 8x on the 186 stocks that
-carry a clustering lobe. The lobe blur alone is 47 of the 95 ms, so setting
-clump_gain to zero is a further 3.3x -- but that parameter was FITTED to
-rendered results on those 186 stocks under queue C45, so dropping it is a
-modelling decision and not an optimisation. Stated with the alternative: even
-with clump_gain = 0 the budget is still missed 5x, so it is not reachable on
-this architecture by dropping the lobe alone.
-
-P81 asks for two quantities nothing in this corpus prints. C14, F1, K5, M1b,
-P19, P20 and P38 need a document nobody here has; D1, D2a and D2b need scans
-only the owner can make. The one baselined verify failure is unchanged and is
-documented where it is asserted.
+NO TEST CODE IN ARCHIVES 1-4 (owner instruction); the harness ships only in 7. AlgoControlEnums.hpp
+carries the owner's Splice & Tear block verbatim. Films are in alphabetical
+order in every generated list.
 """
 
 
@@ -559,7 +395,8 @@ def main() -> int:
                         if p.is_file() and p.name.startswith("test_"))
                  if (CPP / "AVX2").is_dir() else [])
     zips = [z1, z2, z3, z4, z5, z6]
-    if tests or avx_tests:
+    # ⚠ 2026-10-01e: the owner asked for SIX archives; FILMSIM_NO_TESTS=1 skips 7.
+    if (tests or avx_tests) and not os.environ.get("FILMSIM_NO_TESTS"):
         tstage = OUT / "stage" / "cpp_tests"
         if tstage.exists():
             shutil.rmtree(tstage)

@@ -42,8 +42,8 @@ AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int
         algoParams.sceneKelvin = get_slider_value(params, FilmSimulationCtrl::SCENE_COLOUR_TEMPERATURE);
     if (is_control_available(film::eCTRL_BIT_PRINT_STOCK, filmMask))
         algoParams.printStock = get_list_box_value<PrintStockCtrl>(params, FilmSimulationCtrl::PRINT_STOCK);
-    if (is_control_available(film::eCTRL_BIT_GENERATIONS, filmMask))
-        algoParams.generations = get_slider_value(params, FilmSimulationCtrl::DUPLICATION_GENERATION);
+//    if (is_control_available(film::eCTRL_BIT_GENERATIONS, filmMask))
+//        algoParams.generations = get_slider_value(params, FilmSimulationCtrl::DUPLICATION_GENERATION);
     if (is_control_available(film::eCTRL_BIT_DUPE_STOCK, filmMask))
         algoParams.dupeStock = get_list_box_value<DupeStockCtrl>(params, FilmSimulationCtrl::INTERMEDIATE_STOCK);
     if (is_control_available(film::eCTRL_BIT_PRINT_GRAIN, filmMask))

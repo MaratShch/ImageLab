@@ -205,6 +205,33 @@ void AlgoStage05_Halation
         }
     }
 
+    // ----------------------------------------------------------------------
+    //  schema v59: THE RING -- a SUBTRACTED lobe, appended with a NEGATIVE
+    //  weight. AlgoMultiGaussianBlurPlaneWrap normalises by the signed sum, so
+    //  the kernel is sum(w_i G_i) - ring_weight G_ring over (sum w_i -
+    //  ring_weight), exactly film_sim's multi_gaussian(*hal.lobes()). The ring
+    //  is the support return's annulus (r_c = 2t/sqrt(n^2-1)): no totally
+    //  reflected light lands inside it. Dropped with its partner: if the
+    //  first positive lobe was below the representable radius, subtracting a
+    //  still narrower one would carve a hole the render cannot resolve.
+    // ----------------------------------------------------------------------
+    {
+        const AlgoType sR = static_cast<AlgoType>(hal.ring_um)
+                          * static_cast<AlgoType>(0.001) * pxPerMm;
+        const AlgoType wR = static_cast<AlgoType>(hal.ring_weight);
+        const AlgoType s0 = static_cast<AlgoType>(hal.radii_um[0])
+                          * static_cast<AlgoType>(0.001) * pxPerMm;
+
+        if ((wR > ALGO_ZERO) && (sR >= static_cast<AlgoType>(0.25))
+            && (s0 >= static_cast<AlgoType>(0.25))
+            && (lobes < ALGO_BLUR_MAX_LOBES))
+        {
+            sigmaPx[lobes] = sR;
+            weight [lobes] = -wR;
+            lobes++;
+        }
+    }
+
     // Every lobe fell below the representable radius. The physical effect exists
     // but this render cannot show it, so pass the exposure through unchanged
     // rather than fabricating a one-pixel halo.

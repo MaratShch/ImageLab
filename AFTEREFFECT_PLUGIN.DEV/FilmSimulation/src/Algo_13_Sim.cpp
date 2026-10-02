@@ -35,6 +35,7 @@
 
 #include "AlgoHalation.hpp"   // AlgoSoftplus, shared by every curve evaluation
 #include "AlgoCallier.hpp"    // AlgoCallierApplyScalar, the print chain's mid-grey reference
+#include "AlgoDirCoupler.hpp" // AlgoCouplerFlatScale, stage 9's sub-pixel gate (2026-10-02)
 
 
 static_assert(sizeof(AlgoType) == 4,
@@ -169,8 +170,9 @@ namespace
         p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(-2.4999993993E-1f));
         p = _mm256_fmadd_ps(p, f, _mm256_set1_ps( 3.3333331174E-1f));
         const __m256 ff = _mm256_mul_ps(f, f);
-        p = _mm256_mul_ps(p, _mm256_mul_ps(ff, f));
-        __m256 r = _mm256_add_ps(_mm256_fnmadd_ps(_mm256_set1_ps(0.5f), ff, f), p);
+        // 2026-10-01g: the p * f^3 term is fused into the final sum.
+        __m256 r = _mm256_fmadd_ps(p, _mm256_mul_ps(ff, f),
+                                   _mm256_fnmadd_ps(_mm256_set1_ps(0.5f), ff, f));
         return _mm256_fmadd_ps(_mm256_cvtepi32_ps(e),
                                _mm256_set1_ps(0.693147180559945309f), r);
     }
@@ -483,8 +485,11 @@ void AlgoStage13_Duplication
     // ----------------------------------------------------------------------
     HighPrecType dMid[3];
 
+    // 2026-10-02: gated like stage 9, the same value the anchor solve used.
     AlgoNeutralMidDensity(profile,
-                          static_cast<HighPrecType>(params.couplerScale),
+                          AlgoCouplerFlatScale(profile,
+                              static_cast<HighPrecType>(params.couplerScale),
+                              pxPerMm),
                           dMid);
 
     // ⚠⚠ FIXED 2026-09-27: THE READER'S OPTICS ON THE PRINT CHAIN'S MID-GREY
@@ -656,6 +661,9 @@ void AlgoStage13_Duplication
         neutralCurves.b = neutralCurves.g;
         printDyeM = {{ {{ 1.0f, 0.0f, 0.0f }}, {{ 0.0f, 1.0f, 0.0f }}, {{ 0.0f, 0.0f, 1.0f }} }};
     }
+    // 2026-10-02, fix B: a scan is balanced per negative (AlgoScanBalanceCurves).
+    // Real print stocks, slides and monochrome negatives are left as they are.
+    AlgoScanBalanceCurves(profile, *pPrintStock, neutralCurves);
     const film::RGBCurves& pcurves = neutralCurves;
 
     // Where a neutral has to land, per channel, carrying its share of the base tint
@@ -696,9 +704,13 @@ void AlgoStage13_Duplication
     //  Identity on ten of the eleven print stocks, so this is a branch and not
     //  a cost on the paths that have no measurement behind them.
     // ----------------------------------------------------------------------
-    if (!AlgoIsIdentityMatrix(pPrintStock->printing_density_matrix))
+    //  schema v61: THIS NEGATIVE'S OWN matrix for this print where both
+    //  spectra are measured (film::PrintingDensityMatrixFor), the print
+    //  stock's class median otherwise.
+    const film::Matrix3& pdmSel = film::PrintingDensityMatrixFor(profile, *pPrintStock);
+    if (!AlgoIsIdentityMatrix(pdmSel))
     {
-        const film::Matrix3& pdm = pPrintStock->printing_density_matrix;
+        const film::Matrix3& pdm = pdmSel;
 
         AlgoApplyDensityMatrix(work[0], work[1], work[2],
                                tmp[0], tmp[1], tmp[2],

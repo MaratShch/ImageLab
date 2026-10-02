@@ -411,6 +411,9 @@ PRINT_READER = "KODAK_2383_RELEASE"
 #: applied crosstalk already present in the status curves, at several times the
 #: strength of the correction actually owed.
 EXPECTED_STAGE12 = {
+    # 2026-10-01d: the book's three-dye panels, «Современные» рис. 3.173 / 3.141.
+    "KODACHROME_64": 0.0983,
+    "EKTACHROME_64": 0.0695,
     # 2026-09-29: E-144's own dye panel and Kodak's Ektachrome-X figure.
     "EKTACHROME_160T": 0.0598,
     "KODAK_EKTACHROME_100_EPN": 0.0657,   # 2026-09-29b, E-27 p5
@@ -515,6 +518,89 @@ PRINTING_REFERENCE = (
     "KODAK_VISION_200T_5274",
     "KODAK_VISION_500T_5279",
 )
+
+
+def reader_response_of(name):
+    """{band: linear sensitivity on GRID} for the named print stock, or None."""
+    global PRINT_READER
+    keep = PRINT_READER
+    try:
+        PRINT_READER = name
+        return reader_response()
+    finally:
+        PRINT_READER = keep
+
+
+def per_negative_printing():
+    """{(negative, print stock): rownorm(M_print . M_status^-1)} -- schema v61.
+
+    ⚠ EVERY colour NEGATIVE with a traced three-dye panel, against EVERY print
+    emulsion with a traced spectral sensitivity, and nothing else. This is the
+    per-negative form of the print stock's class median: how THAT print sees
+    THAT negative. A negative whose panel derive() refuses for stage 12 is not
+    excluded here -- the stage-12 refusals test the panel against a status
+    densitometer's expectations, while this asks only what the print layers
+    integrate, which needs the dyes and the print's sensitivity and no more.
+    """
+    out = {}
+    for s in PRINT_STOCKS:
+        if not (s.reader_is_emulsion and s.spectral.has_data
+                and s.spectral.log_s_r and s.spectral.log_s_g
+                and s.spectral.log_s_b):
+            continue                # a panchromatic B&W print has no 3 layers
+        resp = reader_response_of(s.name)
+        if resp is None:
+            continue
+        for p in FILM_PROFILES:
+            if (p.is_monochrome or p.is_reversal
+                    or not p.dye_density.has_data):
+                continue
+            _lam, cols = dye_curves(p)
+            m, _err = stage12_matrix(p, cols, resp)
+            if m is None:
+                continue
+            n = normalise_rows(m)
+            if n is None:
+                continue
+            out[(p.name, s.name)] = tuple(tuple(round(float(v), 6) for v in r)
+                                          for r in n)
+    return out
+
+
+def apd_response():
+    """{band: linear responsivity on GRID} for SMPTE ST 2065-2 Pi_APD (queue M1b).
+
+    Zero outside the tabulated 360-730 nm, for the same reason as a traced
+    sensitivity in `reader_response`: the standard defines nothing there.
+    """
+    d = fp.ACES_APD_RESPONSIVITY
+    lam = d["lambda_start_nm"] + d["lambda_step_nm"] * np.arange(len(d["r"]))
+    return {band: np.interp(GRID, lam, np.asarray(d[band], float), left=0.0, right=0.0)
+            for band in BAND_OF_ROW}
+
+
+def per_negative_scanner_apd():
+    """{negative: rownorm(M_APD . M_status^-1)} -- INERT (queue M1b, 2026-10-01e).
+
+    The same construction as `per_negative_printing`, with the ACES reference
+    scanner's standard responsivity in place of a print emulsion's: every
+    colour negative with a traced three-dye panel. Nothing renders these;
+    `SCAN_DI` keeps its reader (owner decision: store inert).
+    """
+    resp = apd_response()
+    out = {}
+    for p in FILM_PROFILES:
+        if p.is_monochrome or p.is_reversal or not p.dye_density.has_data:
+            continue
+        _lam, cols = dye_curves(p)
+        m, _err = stage12_matrix(p, cols, resp)
+        if m is None:
+            continue
+        n = normalise_rows(m)
+        if n is None:
+            continue
+        out[p.name] = tuple(tuple(round(float(v), 6) for v in r) for r in n)
+    return out
 
 
 def reader_response():
@@ -667,8 +753,11 @@ def derive(p):
 #: ⚠ REPINNED 2026-09-29b, 38 -> 39, FOR KODAK_EKTACHROME_100_EPN (E-27 p5, vector): 39 of 39
 #: POSITIVE. Magnitude median 0.2111 -> 0.2127 (one more set above the old median); asymmetry
 #: median 0.0813 -> 0.0809 and vs_rownorm_max unchanged, both within tolerance.
-EXPECTED_M1A = dict(n=39, positive=39, t_off_median=0.2127,
-                    t_asym_median=0.0813, vs_rownorm_max=0.1405)
+#: ⚠ REPINNED 2026-10-01d, 39 -> 41, FOR KODACHROME_64 AND EKTACHROME_64 (the
+#: book's three-dye panels): 41 of 41 POSITIVE. Magnitude median unchanged
+#: (0.2127); asymmetry median 0.0813 -> 0.0817; vs_rownorm_max unchanged.
+EXPECTED_M1A = dict(n=41, positive=41, t_off_median=0.2127,
+                    t_asym_median=0.0817, vs_rownorm_max=0.1405)
 M1A_TOL = 0.002
 
 
@@ -1162,6 +1251,44 @@ def main(argv=None) -> int:
                       "but has no spectral sensitivity to derive one from"
                       % s.name)
                 bad += 1
+
+    # ---- schema v61 (2026-10-01d): the PER-NEGATIVE printing matrices ------
+    # ⚠ THE LITERAL IN film_profiles IS THIS DERIVATION, to the sixth decimal,
+    # over exactly the pairs it can be derived for -- no more, no fewer.
+    _pn = per_negative_printing()
+    _lit = fp._PER_NEGATIVE_PRINTING_MATRIX
+    _pn_bad = sorted(set(_pn) ^ set(_lit))
+    _pn_err = max((abs(a - b) for k in set(_pn) & set(_lit)
+                   for ra, rb in zip(_pn[k], _lit[k]) for a, b in zip(ra, rb)),
+                  default=0.0)
+    _pn_live = sum(1 for p in FILM_PROFILES for m in p.printing_matrices)
+    if _pn_bad or _pn_err > 1e-6 or _pn_live != len(_lit):
+        print("[!] per-negative printing matrices drifted: pairs %s, worst "
+              "%.2e, %d live against %d stored" % (_pn_bad[:4], _pn_err,
+                                                  _pn_live, len(_lit)))
+        bad += 1
+    else:
+        _r_m = sorted(v[0][1] for v in _lit.values())
+        print("[OK  ] %d per-negative printing matrices (negative x print "
+              "emulsion with three traced layers) reproduce the derivation; "
+              "red<-magenta spans %.4f .. %.4f where the print stock's class "
+              "median is one number" % (len(_lit), _r_m[0], _r_m[-1]))
+
+    # ---- queue M1b (2026-10-01e): per-negative APD scanner matrices, INERT --
+    _sa = per_negative_scanner_apd()
+    _sl = fp.PER_NEGATIVE_SCANNER_MATRIX_APD
+    _sa_bad = sorted(set(_sa) ^ set(_sl))
+    _sa_err = max((abs(a - b) for k in set(_sa) & set(_sl)
+                   for ra, rb in zip(_sa[k], _sl[k]) for a, b in zip(ra, rb)),
+                  default=0.0)
+    if _sa_bad or _sa_err > 1e-6:
+        print("[!] APD scanner matrices drifted: %s, worst %.2e"
+              % (_sa_bad[:4], _sa_err))
+        bad += 1
+    else:
+        print("[OK  ] %d per-negative scanner matrices through SMPTE ST 2065-2 "
+              "Pi_APD reproduce the stored literal (inert: SCAN_DI keeps its "
+              "reader)" % len(_sl))
 
     # ⚠⚠ INVERTED 2026-09-20 BY OWNER DECISION. This guard used to FAIL on
     # adoption, which was right while adoption was nobody's decision to take.

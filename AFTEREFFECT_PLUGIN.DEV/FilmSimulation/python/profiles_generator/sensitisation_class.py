@@ -81,6 +81,7 @@ CLASS = {
     "KODAK_SUPER_SPEED_ORTHO_1956": "ortho",
 
     # -- sensitised past the visible; the derivation refuses these ----------
+    "KODAK_HIE": "ir",                  # 2026-10-01e: «Современные» Рис. 3.365, to 920 nm
     "KONICA_INFRARED_750": "ir",
     "ROLLEI_INFRARED_400": "ir",
 
