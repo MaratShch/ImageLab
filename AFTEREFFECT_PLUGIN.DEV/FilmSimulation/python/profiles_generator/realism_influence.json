@@ -1,0 +1,139 @@
+{
+  "schema_version": 61,
+  "model_hash": "3290a59f8c8d8b8c",
+  "scene_px": [
+    1536,
+    864
+  ],
+  "px_per_mm": 61.71,
+  "scenes": [
+    "chart",
+    "pictorial"
+  ],
+  "metric": "mean CIE76 delta-E, display-referred, clipped at 1.0",
+  "sample": [
+    "EASTMAN_EXR_50D_5245",
+    "EASTMAN_EXR_100T_5248",
+    "KODAK_VISION2_50D_5201",
+    "KODAK_VISION2_500T_5218",
+    "KODAK_VISION_200T_5274",
+    "KODAK_VISION_500T_5279",
+    "AGFA_OPTIMA_100",
+    "AGFA_OPTIMA_200",
+    "FUJI_PROVIA_100F",
+    "FUJI_PROVIA_400F",
+    "KODAK_EKTACHROME_100D_5285",
+    "KODAK_TRI_X_400TX",
+    "AGFA_APX_25",
+    "AGFA_APX_100",
+    "AGFA_APX_400",
+    "AGFA_SCALA_200X",
+    "EASTMAN_DOUBLE_X_5222",
+    "EASTMAN_PLUS_X_5231"
+  ],
+  "axes": {
+    "tone_curve": {
+      "what": "traced characteristic curve",
+      "stocks_measured": 18,
+      "delta_e_median": 13.30389015715618,
+      "delta_e_max": 31.362086614455194,
+      "worst_stock": "KODAK_VISION2_50D_5201",
+      "render_settings": {}
+    },
+    "grain_amplitude": {
+      "what": "published rms granularity",
+      "stocks_measured": 18,
+      "delta_e_median": 0.6996794287704347,
+      "delta_e_max": 2.165517855621987,
+      "worst_stock": "EASTMAN_EXR_50D_5245",
+      "render_settings": {}
+    },
+    "grain_shape": {
+      "what": "measured sigma(D) shape",
+      "stocks_measured": 10,
+      "delta_e_median": 0.40853625852258635,
+      "delta_e_max": 1.3662107031243913,
+      "worst_stock": "KODAK_EKTACHROME_100D_5285",
+      "render_settings": {}
+    },
+    "sharpness_mtf": {
+      "what": "measured MTF",
+      "stocks_measured": 18,
+      "delta_e_median": 0.21996542634755795,
+      "delta_e_max": 1.2443672045723544,
+      "worst_stock": "FUJI_PROVIA_400F",
+      "render_settings": {}
+    },
+    "edge_effects": {
+      "what": "measured adjacency overshoot",
+      "stocks_measured": 17,
+      "delta_e_median": 0.3937261069968875,
+      "delta_e_max": 1.2829446022078101,
+      "worst_stock": "KODAK_VISION_500T_5279",
+      "render_settings": {}
+    },
+    "spectral_sensitivity": {
+      "what": "traced spectral sensitivity",
+      "stocks_measured": 18,
+      "delta_e_median": 2.1321152065672937,
+      "delta_e_max": 6.669448864344484,
+      "worst_stock": "EASTMAN_EXR_50D_5245",
+      "render_settings": {
+        "spectral_balance": true,
+        "spectral_mono": true,
+        "scene_kelvin": 3200.0,
+        "wb_strength": 1.0
+      }
+    },
+    "dye_density": {
+      "what": "traced spectral dye density",
+      "stocks_measured": 11,
+      "delta_e_median": 2.9230071119076717,
+      "delta_e_max": 7.4417315590178035,
+      "worst_stock": "KODAK_EKTACHROME_100D_5285",
+      "render_settings": {}
+    },
+    "dye_matrix": {
+      "what": "measured reader/status matrix",
+      "stocks_measured": 11,
+      "delta_e_median": 1.6594902756215417,
+      "delta_e_max": 2.3516341281370123,
+      "worst_stock": "KODAK_EKTACHROME_100D_5285",
+      "render_settings": {}
+    },
+    "interimage": {
+      "what": "interimage coefficients",
+      "stocks_measured": 11,
+      "delta_e_median": 5.024358895331693,
+      "delta_e_max": 10.771830901989858,
+      "worst_stock": "KODAK_EKTACHROME_100D_5285",
+      "render_settings": {}
+    },
+    "halation": {
+      "what": "halation gain",
+      "stocks_measured": 10,
+      "delta_e_median": 0.6502464692327184,
+      "delta_e_max": 0.8947951155371946,
+      "worst_stock": "KODAK_VISION_500T_5279",
+      "render_settings": {}
+    },
+    "callier": {
+      "what": "measured Callier Q",
+      "stocks_measured": 7,
+      "delta_e_median": 5.746709362232096,
+      "delta_e_max": 6.010503203695679,
+      "worst_stock": "EASTMAN_DOUBLE_X_5222",
+      "render_settings": {}
+    },
+    "reciprocity": {
+      "what": "published reciprocity table",
+      "stocks_measured": 18,
+      "delta_e_median": 4.711163061515512,
+      "delta_e_max": 19.908052110613603,
+      "worst_stock": "KODAK_TRI_X_400TX",
+      "render_settings": {
+        "exposure_time_s": 8.0
+      }
+    }
+  }
+}

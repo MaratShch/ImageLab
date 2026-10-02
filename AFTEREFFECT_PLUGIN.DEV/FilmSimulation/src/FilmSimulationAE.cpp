@@ -1,5 +1,6 @@
 #include "FilmSimulation.hpp"
-#include "FilmSimulationEnum.hpp"
+#include "AlgoControlEnums.hpp"
+#include "AlgoAdobeControlEnums.hpp"
 
 
 PF_Err FilmSimulation_InAE_8bits
@@ -10,6 +11,7 @@ PF_Err FilmSimulation_InAE_8bits
 	PF_LayerDef* output
 ) noexcept
 {
+    const double fpsRate = image_lab_get_fps(in_data);
 	return PF_Err_NONE;
 }
 
@@ -21,6 +23,7 @@ PF_Err FilmSimulation_InAE_16bits
 	PF_LayerDef* output
 ) noexcept
 {
+    const double fpsRate = image_lab_get_fps(in_data);
 	return PF_Err_NONE;
 }
 
@@ -32,6 +35,7 @@ PF_Err FilmSimulation_InAE_32bits
     PF_LayerDef* output
 ) noexcept
 {
+    const double fpsRate = image_lab_get_fps(in_data);
     return PF_Err_NONE;
 }
 
@@ -47,7 +51,7 @@ inline PF_Err FilmSimulation_InAE_DeepWorld
     PF_Err	err = PF_Err_NONE;
     PF_PixelFormat format = PF_PixelFormat_INVALID;
     AEFX_SuiteScoper<PF_WorldSuite2> wsP = AEFX_SuiteScoper<PF_WorldSuite2>(in_data, kPFWorldSuite, kPFWorldSuiteVersion2, out_data);
-    if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* __restrict>(&params[UnderlyingType(EFilmSimulation::IMAGE_FILM_SIMULATION_INPUT)]->u.ld), &format))
+    if (PF_Err_NONE == wsP->PF_GetPixelFormat(reinterpret_cast<PF_EffectWorld* __restrict>(&params[UnderlyingType(FilmSimulationCtrl::VIDEO_INPUT)]->u.ld), &format))
     {
         err = (format == PF_PixelFormat_ARGB128 ?
             FilmSimulation_InAE_32bits (in_data, out_data, params, output) : FilmSimulation_InAE_16bits (in_data, out_data, params, output));

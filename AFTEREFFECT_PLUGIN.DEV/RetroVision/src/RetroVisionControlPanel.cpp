@@ -14,7 +14,7 @@ SetupControlElements
     PF_Err		err = PF_Err_NONE;
 
     constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE;
-    constexpr PF_ParamUIFlags ui_flags = PF_PUI_NONE;
+    constexpr PF_ParamUIFlags ui_flags = PF_PUI_CONTROL;
     constexpr PF_ParamUIFlags ui_disabled_flags = ui_flags | PF_PUI_DISABLED;
 
     // Setup 'Gamma Adjust' slider

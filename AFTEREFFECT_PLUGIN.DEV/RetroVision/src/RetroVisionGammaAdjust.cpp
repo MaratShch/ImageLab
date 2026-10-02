@@ -104,7 +104,7 @@ PF_Err AdjustGammaValue
                 const bool isBT709 = (PrPixelFormat_VUYA_4444_8u_709 == destinationPixelFormat);
                 constexpr float fCoeff{ static_cast<float>(u8_value_white) };
 
-     //         err = AdjustGammaValue(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fGamma, fCoeff);
+                err = AdjustGammaValue(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fGamma, fCoeff);
             }
             break;
 
@@ -117,7 +117,7 @@ PF_Err AdjustGammaValue
                 const bool isBT709 = (PrPixelFormat_VUYA_4444_32f_709 == destinationPixelFormat);
                 constexpr float fCoeff{ static_cast<float>(1) };
 
-    //          err = AdjustGammaValue(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fGamma, fCoeff);
+                err = AdjustGammaValue(localSrc, localDst, sizeX, sizeY, linePitch, linePitch, fGamma, fCoeff);
             }
             break;
 

@@ -137,6 +137,8 @@
     <ClCompile Include="src\ImageLab2GpuObj.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp" />
+    <ClInclude Include="..\Common\AlignedAllocator.hpp" />
     <ClInclude Include="..\Common\ClassRestrictions.hpp" />
     <ClInclude Include="..\Common\ColorTransform.hpp" />
     <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />

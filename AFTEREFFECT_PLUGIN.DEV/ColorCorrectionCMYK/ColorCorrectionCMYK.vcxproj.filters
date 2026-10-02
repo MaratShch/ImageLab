@@ -122,6 +122,15 @@
     <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonSmartRender.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ColorCorrectionCMYK.rc">

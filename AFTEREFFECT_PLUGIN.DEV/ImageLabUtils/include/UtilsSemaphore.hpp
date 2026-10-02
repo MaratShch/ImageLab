@@ -18,19 +18,24 @@ public:
 	explicit CSemaphore(uint32_t initial_count) noexcept :
 	m_maxCnt(initial_count)
 	{
-		m_atomicCount = initial_count;
-		m_hSemaphore = CreateSemaphore (NULL, m_atomicCount, m_atomicCount, NULL);
+        m_atomicCount = initial_count;
+        m_hSemaphore = CreateSemaphoreW (nullptr, static_cast<LONG>(initial_count), static_cast<LONG>(initial_count), nullptr);
 	};
+
+    bool IsValid (void) const noexcept { return INVALID_HANDLE_VALUE != m_hSemaphore; }
 
 	~CSemaphore() noexcept
 	{
-		while (m_maxCnt - m_atomicCount)
-		{
-			ReleaseSemaphore (m_hSemaphore, 1, nullptr);
-			m_atomicCount++;
-		}
-		CloseHandle(m_hSemaphore);
-		m_hSemaphore = INVALID_HANDLE_VALUE;
+        if (nullptr != INVALID_HANDLE_VALUE)
+        {
+            while (m_maxCnt - m_atomicCount)
+            {
+                ReleaseSemaphore(m_hSemaphore, 1, nullptr);
+                m_atomicCount++;
+            }
+            CloseHandle(m_hSemaphore);
+            m_hSemaphore = INVALID_HANDLE_VALUE;
+        }
 	}
 
 	bool Wait (int32_t timeWait = -1) noexcept

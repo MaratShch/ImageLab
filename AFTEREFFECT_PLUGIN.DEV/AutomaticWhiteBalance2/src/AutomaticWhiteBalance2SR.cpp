@@ -67,6 +67,7 @@ AuthomaticWhiteBalance_PreRender
 
             handleSuite->host_unlock_handle(paramsHandler);
 
+            PF_CHECKIN_PARAM (in_data, paramVal);
         } // if (nullptr != paramsStrP)
         else
             err = PF_Err_INTERNAL_STRUCT_DAMAGED;

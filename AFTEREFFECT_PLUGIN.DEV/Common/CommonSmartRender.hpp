@@ -21,8 +21,8 @@ inline void UnionLRect (const PF_LRect* src, PF_LRect* dst) noexcept
     {
         dst->left   = FastCompute::Min(dst->left,   src->left);
         dst->top    = FastCompute::Min(dst->top,    src->top);
-        dst->right  = FastCompute::Min(dst->right,  src->right);
-        dst->bottom = FastCompute::Min(dst->bottom, src->bottom);
+        dst->right  = FastCompute::Max(dst->right, src->right);
+        dst->bottom = FastCompute::Max(dst->bottom, src->bottom);
     }
     return;
 }

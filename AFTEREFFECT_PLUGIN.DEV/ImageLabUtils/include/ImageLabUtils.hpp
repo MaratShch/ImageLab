@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <cstdint>
 #include "LibExport.hpp"
 
 DLL_API_EXPORT void*   CreateMemoryHandler (void);

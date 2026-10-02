@@ -1,0 +1,526 @@
+// ---------------------------------------------------------------------------
+//  AlgoControl.cpp
+//
+//  Default control values.
+//
+//  These are not arbitrary starting points. They mirror film_sim.RenderSettings
+//  field for field, so a C++ render with getAlgoControlsDefault() is directly
+//  comparable to a Python render with default settings. That comparability is the
+//  whole basis of the verification harness: if these drift from the reference, the
+//  two implementations stop being measurable against each other and every
+//  discrepancy becomes ambiguous.
+//
+//  Anything changed here must be changed in film_sim.py's RenderSettings too, and
+//  the reference re-run.
+// ---------------------------------------------------------------------------
+
+#include "AlgoControl.hpp"
+
+
+// ---------------------------------------------------------------------------
+//  The Batch Position range is declared twice and must agree.
+//
+//  AlgoControlEnums.hpp (BatchPositionMin / Max / Def / Step) is the authority;
+//  film_enum.hpp carries the same four values, copied from it by cpp_codegen.py,
+//  for a host that holds only the database headers. AlgoControl.hpp includes
+//  both, so a hand edit to either -- or a film_enum.hpp left stale by a skipped
+//  regeneration -- fails here instead of shipping two different sliders.
+// ---------------------------------------------------------------------------
+static_assert(film::eBATCH_POSITION_MIN  == BatchPositionMin,
+              "film_enum.hpp Batch Position MIN differs from AlgoControlEnums.hpp -- regenerate with cpp_codegen.py");
+static_assert(film::eBATCH_POSITION_MAX  == BatchPositionMax,
+              "film_enum.hpp Batch Position MAX differs from AlgoControlEnums.hpp -- regenerate with cpp_codegen.py");
+static_assert(film::eBATCH_POSITION_DEF  == BatchPositionDef,
+              "film_enum.hpp Batch Position DEF differs from AlgoControlEnums.hpp -- regenerate with cpp_codegen.py");
+static_assert(film::eBATCH_POSITION_STEP == BatchPositionStep,
+              "film_enum.hpp Batch Position STEP differs from AlgoControlEnums.hpp -- regenerate with cpp_codegen.py");
+
+
+namespace {
+
+}  // anonymous namespace
+
+
+// ---------------------------------------------------------------------------
+//  getFilmDamageDefault
+//
+//  A COMPLETE, WORKING DAMAGE SET, and the master flag is now true as well, so a
+//  default render shows damage rather than clean film.
+//
+//  THE SCALE: 1.0 = THE MEASURED CENTRAL FIGURE
+//
+//  Every level is anchored, not aesthetic. 1.0 means "as much of this class as was
+//  measured on real film", so dustLevel 1.0 places the measured areal density of
+//  embedded particles and nothing more. It is not a maximum - the controls run
+//  above 1.0 for material in worse condition than the reference scans - and it is
+//  not a slider position that happened to look right.
+//
+//  This set describes AMATEUR-PROCESSED, MODERATELY HANDLED film: developed outside
+//  a professional laboratory, run through a projector or scanner a few times,
+//  stored in ordinary conditions. The classes below 1.0 are the ones whose measured
+//  central figure implies worse treatment than that.
+//
+//  WHAT THESE LEVELS ARE NOT
+//
+//  They are amounts, not descriptions of appearance. Sizes, size distributions,
+//  contrast amplitudes, orientation statistics, spectral slopes, opacity
+//  distributions and temporal population shares are all measured properties of
+//  dirt rather than user choices, and they live as named constants in the defect
+//  stage headers. Nothing here can make an individual speck look a particular way,
+//  which is the intended design: loading a roll of film does not let you choose
+//  where the dirt lands.
+//
+//  THE ERA BASELINE IS NOT AVAILABLE YET, SO THESE ARE ABSOLUTE
+//
+//  The intent was that each level would SCALE the era-typical figure the profile
+//  carries in AgingSpec, so a 1943 Agfacolor at dustLevel 1.0 would be dirtier
+//  than a modern stock at the same setting with nobody authoring two presets.
+//
+//  That cannot work today: all 142 stocks in the generated database ship AgingSpec
+//  entirely zero, documented as "fresh". Multiplying by dust_area_ppm would
+//  silence the defect layer on every single stock and look exactly like a broken
+//  control. So the levels are absolute for now - dustLevel 1.0 means the measured
+//  density whatever the stock - and when AgingSpec is populated it should enter as
+//  an ADDITIVE era term rather than a multiplier, so that fresh stock keeps
+//  behaving as it does today and only aged stock gains dirt nobody asked for.
+// ---------------------------------------------------------------------------
+FilmDamage getFilmDamageDefault (void) noexcept
+{
+    FilmDamage damage{};
+
+    // ----------------------------------------------------------------------
+    //  MASTER
+    // ----------------------------------------------------------------------
+
+    // Global severity. 1.0 means "the class levels below, as stated". It scales
+    // everything, so it is the one control to reach for when the whole look is
+    // right but too strong or too weak.
+    damage.damageStrength    = 1.0;
+
+    // Roll seed, deliberately independent of AlgoControls::seed so that
+    // re-rolling the grain does not also re-roll the dirt.
+    damage.damageSeed        = 20250803;
+
+    // ----------------------------------------------------------------------
+    //  A COMPLETE WORKING DAMAGE SET: "amateur-processed, moderately handled".
+    //
+    //  These are not a demo and not decoration. Each one is the level at which
+    //  that class reproduces the amount of damage measured on real film of this
+    //  kind - film developed outside a professional laboratory, projected or
+    //  scanned a handful of times, and stored in ordinary conditions. It is the
+    //  condition the great majority of surviving material is actually in, which is
+    //  why it is the useful starting point rather than pristine or ruined.
+    //
+    //  1.0 always means "the measured central figure for this class". So a level
+    //  of 1.0 is not maximum and not arbitrary: dustLevel 1.0 puts the measured
+    //  areal density of embedded particles on the negative, no more. Levels below
+    //  1.0 below are classes whose measured central figure is higher than this
+    //  grade of film warrants.
+    //
+    //  WHICH OF THESE DO SOMETHING TODAY
+    //
+    //  !! RE-AUDITED 2026-09-11. This section said NINE live and EIGHT inert;
+    //  the two scratch controls went live at stage 9b with queue row P44 and
+    //  the count is now ELEVEN live and SIX inert, verified by a tree-wide grep
+    //  of all seventeen identifiers across both instruction-set trees. The
+    //  previous re-audit's own lesson was that a class went live and nobody
+    //  came back here, so this is the same walk done again rather than a patch
+    //  to the sentence.
+    //
+    //  LIVE (11):
+    //     damageStrength, damageSeed          the master pair, all three stages
+    //     dustLevel, debrisLevel, fibreLevel  stage 9b, the particulate classes
+    //     dirtClumping                        stage 9b, their spatial process
+    //     scratchTransport, scratchHandling   stage 9b, the abrasion classes
+    //     weaveAmount                         stage 15
+    //     gateDirt, damageEvents              stage 16
+    //
+    //  INERT (6) - no reader anywhere in the engine:
+    //     processingQuality, dryingMarks, storageSeverity, colourVeil,
+    //     flickerStops, scannerArtifacts
+    //
+    //  flickerStops is the one worth calling out: its intended consumer, stage
+    //  3c, is a genuine pass-through that voids all five of its arguments, so
+    //  that control has nowhere to act even in principle today.
+    //
+    //  The inert six are populated anyway, and deliberately, for two reasons:
+    //  the value is the correct one for this grade of film, so when each stage
+    //  lands it is immediately right rather than needing a second pass over
+    //  this file; and a zero here would be indistinguishable from a considered
+    //  decision that this grade of film has no drying marks, which is false.
+    //
+    //  ⚠ THE TWO SCRATCH VALUES DID NOT CHANGE WHEN THEY WENT LIVE, AND THAT IS
+    //  WORTH KNOWING RATHER THAN ASSUMING. 0.40 and 0.30 were written here on
+    //  the argument below, against a stage that did not exist; the stage was
+    //  then built to consume them in the units that argument implies - an
+    //  expected simultaneous tramline count and an areal density of handling
+    //  marks - rather than the numbers being retuned to suit an implementation.
+    //  If they turn out wrong it will be because the anchors in
+    //  AlgoNegativeDefects.hpp are definitions and not measurements, which
+    //  those constants say plainly.
+    //
+    //  So a render with these defaults shows dust, debris, fibres, scratches,
+    //  gate dirt, gate events and weave, and nothing else. That is the honest
+    //  current state of the pipeline rather than a fault in these numbers.
+    // ----------------------------------------------------------------------
+
+    // ---- Particulate: LIVE, rendered by stage 9b --------------------------
+
+    // Fine dust at the measured central density. The dominant class and the one
+    // that carries the look; everything else is detail on top of it.
+    //
+    // Stage 9b renders only the EMBEDDED share of this, which is the part actually
+    // baked into the negative. The loose one-frame population and the gate
+    // population are machine-side and belong to stage 16, so until that exists a
+    // level of 1.0 puts roughly six tenths of the measured total on the frame.
+    damage.dustLevel         = 1.0;
+
+    // Coarse debris at its measured rate - a couple of conspicuous opaque blobs
+    // per frame of this size. Rare enough that a lower level would simply mean
+    // most frames have none, which is not what was measured.
+    damage.debrisLevel       = 1.0;
+
+    // Fibres at their measured rate, which is well under one per frame. On any
+    // given frame this usually renders nothing; across a sequence it produces the
+    // occasional hair. That is the correct behaviour and not a level worth
+    // raising to "see it work".
+    damage.fibreLevel        = 1.0;
+
+    // ---- Scratches: LIVE, rendered by stage 9b ----------------------------
+
+    // Transport scratches - the continuous longitudinal grooves a fixed burr
+    // ploughs along moving film. Below 1.0 because a full measured rate implies a
+    // damaged transport, not ordinary handling.
+    damage.scratchTransport  = 0.40;
+
+    // Random handling scratches and abrasions, from film rubbing against itself
+    // and against surfaces. Slightly rarer than transport damage on material that
+    // has not been through a bad projector.
+    damage.scratchHandling   = 0.30;
+
+    // ---- Processing and drying: INERT ------------------------------------
+
+    // Development mottle from uneven agitation. Low, but deliberately non-zero:
+    // hand-processed film essentially always carries some, and it is one of the
+    // strongest cues that a frame was not developed in a machine.
+    damage.processingQuality = 0.30;
+
+    // Water spots, tide lines and squeegee marks from drying. Same source event as
+    // much of the embedded dust, which is why the two levels sit close together.
+    damage.dryingMarks       = 0.25;
+
+    // ---- Age and storage: INERT ------------------------------------------
+
+    // Dye fade, crossover and age fog. Kept low, because this is the one group
+    // that says how OLD the film is rather than how it was treated, and the
+    // profile's own era should drive most of it once AgingSpec is populated.
+    damage.storageSeverity   = 0.20;
+
+    // Overall colour veil. Lower still: a heavy veil reads as a grade rather than
+    // as damage, and it is the fastest of all these controls to overdo.
+    damage.colourVeil        = 0.15;
+
+    // ---- Machine side: INERT ---------------------------------------------
+
+    // Gate dirt, and with it the one-frame sparkle population. The highest of the
+    // inert levels on purpose - this class holds the loose and gate share of the
+    // dust, which is the larger part of the total, and it is what makes dirt read
+    // as MOTION rather than as a still overlay.
+    damage.gateDirt          = 0.60;
+
+    // Gate weave and registration instability. Mid-range, matching a serviceable
+    // but not precision transport.
+    damage.weaveAmount       = 0.50;
+
+    // Discrete events: splices, torn perforations, edge damage. Sparse by nature;
+    // this is a rate, and a frame containing one should be an event.
+    damage.damageEvents      = 0.20;
+
+    // Exposure flicker between frames. Low, because a modern shutter is steady and
+    // audible flicker belongs to the silent era, where the profile's TemporalSpec
+    // supplies the era figure this multiplies.
+    damage.flickerStops      = 0.15;
+
+    // ---- Scanner layer: INERT -------------------------------------------
+
+    // Shading non-uniformity, banding, fixed-pattern noise, Newton's rings. Low:
+    // these are artifacts of the digitisation and not of the film, so they should
+    // be perceptible only when looked for.
+    damage.scannerArtifacts  = 0.20;
+
+    // ----------------------------------------------------------------------
+    //  THE ONE EXCEPTION, AND WHY IT IS NOT A LEVEL
+    //
+    //  Clumpiness is a MODIFIER on how the particulate classes are distributed,
+    //  not an amount of anything. It does nothing at all while the three levels
+    //  above are zero.
+    //
+    //  It defaults to 1.0 -- the measured behaviour of real film, a coefficient
+    //  of variation of 0.88 in the local particle rate -- rather than to 0,
+    //  because 0 means a uniform Poisson scatter. Uniform scatter is the single
+    //  most recognisable failure of existing film-emulation products: real dirt
+    //  arrives in patches, with some regions of a frame carrying five times the
+    //  average and others almost none. Defaulting this to zero would make the
+    //  first thing anyone sees when they enable dust the wrong thing.
+    // ----------------------------------------------------------------------
+    damage.dirtClumping      = 1.0;
+
+    return damage;
+}
+
+
+// ---------------------------------------------------------------------------
+//  getAlgoControlsDefault
+//
+//  Mirrors film_sim.RenderSettings, and `cross_component.py` diffs the two
+//  field by field on every build instead of leaving them to be compared by
+//  eye. The comments still give the reference field each value corresponds to.
+//
+//  !! ONE FIELD IS DELIBERATELY NOT MIRRORED, AND IT IS DECLARED RATHER THAN
+//  LEFT TO BE NOTICED: `frameRate` is 24.0 here and `RenderSettings.frame_rate`
+//  is 0.0. Requirement R-T3 forbids a silent fps only in the MOTION grain
+//  path, which the Python reference implements and neither engine does; on
+//  this side frameRate feeds flicker, negative defects, gate weave and gate
+//  defects, every one of whose published rates is quoted at 24 fps, so a zero
+//  would not be a refusal here, it would be a division by nothing. The
+//  reference can refuse because it is the only side with something to refuse.
+//  cross_component.py carries the same sentence and fails if the difference
+//  stops being the only one.
+// ---------------------------------------------------------------------------
+AlgoControls getAlgoControlsDefault (void) noexcept
+{
+    AlgoControls controls{};
+
+    // ----------------------------------------------------------------------
+    //  Stock, gauge and the printing chain
+    // ----------------------------------------------------------------------
+
+    // Index zero, which is alphabetically first in the database. There is no
+    // "default film" in any meaningful sense, so the first entry is as good a
+    // starting point as any - and the caller is expected to set this.
+    controls.filmProfile = static_cast<film::eFILM_PROFILE>(0);
+
+    // Frames per second OF FILM. 24 is the sound-film standard and the rate every
+    // defect figure in the damage group would be tuned against.
+    // !! FROM THE SHARED CONSTANT, NOT A LITERAL (2026-09-26). This line read
+    // a bare 24.0 while every neighbouring default already came from
+    // AlgoControlEnums.hpp, so the header's FrameRateDef could have moved
+    // without this following it -- which is exactly the drift the shared
+    // header was introduced to end.
+    controls.frameRate   = FrameRateDef;
+
+    // These three are strongly typed enumerators, defined once in
+    // AlgoControlEnums.hpp and shared by the scalar build, the AVX2 build and
+    // the host. An enumerator serialises into an After Effects or Premiere
+    // project as a stable integer and needs no runtime string comparison to
+    // resolve, which is why the earlier character-array form was replaced.
+    controls.filmFormat = FilmFormatCtrlDef;   // super35
+
+    // The sentinel, not a stock: use the selected film's own default_print.
+    controls.printStock = PrintStockCtrlDef;
+
+    controls.dupeStock = DupeStockCtrlDef;     // DUPE_FINE_GRAIN
+
+    // ----------------------------------------------------------------------
+    //  ⚠⚠ THREE SENTINELS THAT WERE NEVER ASSIGNED, ADDED 2026-09-09.
+    //
+    //  `AlgoControls controls{}` zero-initialises, and for these three ZERO IS
+    //  NOT THE SENTINEL:
+    //
+    //    * processVariant's sentinel is eAS_SHIPPED (-1) and zero is a REAL
+    //      enumerator -- AGFA_REFINAL. It was variant INDEX ZERO until the
+    //      control became an enumeration on 2026-09-17; the hazard is the
+    //      same and is now worse, because zero names a specific development
+    //      on every stock rather than the first entry of whatever list is
+    //      loaded.
+    //      AlgorithmMain.cpp states "processVariant is -1 unless the caller
+    //      selects" and the header's item 7 says DEFAULT -1; neither was true.
+    //      ⚠ IT WAS HARMLESS BY ACCIDENT, NOT BY DESIGN: variant[0] on all 8
+    //      stocks that carry variants is the as-shipped row (REFINAL, "EI 800
+    //      (box speed)", "C-41 cross-process, as shipped", ...), each with no
+    //      curves and gamma_scale 1.0, so no pixel moved. The first stock
+    //      whose variant[0] is a push would have shipped silently wrong.
+    //    * developmentMinutes and developmentCelsius test strictly < 0, so
+    //      zero would read as "0 minutes / 0 degrees" rather than "as the
+    //      stock was developed". Inert today because no stock's traced family
+    //      is consulted at 0, but inert for the wrong reason.
+    // ----------------------------------------------------------------------
+    controls.processVariant     = ProcessVariantCtrlDef;
+    controls.developmentMinutes = -1.0;
+    controls.developmentCelsius = -1.0;
+    //    * developerIndex (schema v60): -1 is the sentinel and 0 is a REAL
+    //      developer row, so zero-init would select one. Assigned explicitly.
+    controls.developerIndex     = -1;     // == DeveloperIndexDef
+    //    * storageYears' sentinel is 0 and means FRESH, so the zeroed
+    //      default is already correct -- set explicitly all the same, so a
+    //      reader of this function sees every control accounted for.
+    controls.storageYears       = 0.0;
+    //    * storageCelsius (schema v57) is NOT zero-safe: 0 degC is a real
+    //      storage temperature, 28x slower than room temperature by Table
+    //      5.3. Its default is 24.0, the reference temperature of every
+    //      stored dark-fade record, which is the identity.
+    controls.storageCelsius     = 24.0;   // == StorageCelsiusDef
+
+    // film_sim: generations = 0 -- camera negative straight to print.
+    controls.generations = 0;
+
+    // ----------------------------------------------------------------------
+    //  No output-buffer defaults, deliberately.
+    //
+    //  The reference model film_sim.py carries bit_depth = 16 and max_dim = 0,
+    //  and both used to be mirrored here. Neither is set any longer, because
+    //  neither exists in AlgoControls any more.
+    //
+    //  In the reference those two are properties of a COMMAND-LINE TOOL that
+    //  writes a PNG file: it owns its output, so it may choose the depth it
+    //  encodes and may downscale before encoding. This engine owns nothing. It
+    //  is handed planar buffers by a host and must hand back the same shape, so
+    //  a depth or an extent chosen HERE could only contradict the buffers the
+    //  host actually supplied.
+    //
+    //  The equivalent of bit_depth is the host's own repack, which is symmetric
+    //  with its unpack by construction. The equivalent of max_dim is passing
+    //  smaller sizeX and sizeY to Algorithm_Main.
+    //
+    //  This is therefore one of the few places where the C++ engine intentionally
+    //  does NOT mirror a field of the reference model, and the reason is that the
+    //  field was never algorithmic.
+    // ----------------------------------------------------------------------
+
+    // ----------------------------------------------------------------------
+    //  Exposure and colour
+    // ----------------------------------------------------------------------
+
+    // film_sim: exposure_stops = 0.0
+    controls.exposureStops = 0.0;
+
+    // film_sim: scene_kelvin = 5500.0 -- nominal daylight.
+    controls.sceneKelvin   = 5500.0;
+
+    // film_sim: wb_strength = 0.0 -- no correction, so a tungsten stock shot in
+    // daylight goes blue, which is the correct answer rather than an error.
+    controls.wbStrength    = 0.0;
+
+    // film_sim: grey_target = 0.18 -- display-linear value an 18 per cent scene
+    // grey must reach. This is what both anchor solves aim at.
+    controls.greyTarget    = 0.18;
+
+    // 1.0 reproduces every render made before this control existed: at exactly
+    // one the stage-14 expression is arithmetically what it always was. See the
+    // field's own block in AlgoControl.hpp before moving it -- it is a look
+    // decision across all 191 stocks, not a shadow tweak.
+    controls.blackPointStretch = 1.0;
+
+    // ----------------------------------------------------------------------
+    //  Effect scales. 1.0 means "as the stock specifies".
+    // ----------------------------------------------------------------------
+
+    controls.grainScale    = 1.0;   // film_sim: grain_scale
+    controls.halationScale = 1.0;   // film_sim: halation_scale
+    controls.couplerScale  = 1.0;   // film_sim: coupler_scale
+    controls.misregScale   = 1.0;   // film_sim: misreg_scale
+    controls.coatingScale  = 1.0;   // film_sim: coating_scale
+
+    // film_sim: scanner_specular = 0.853
+    //
+    // ⚠⚠ THIS LINE IS NEW ON 2026-09-06 AND ITS ABSENCE WAS A LATENT TWIN
+    // DIVERGENCE. Until today this field was never assigned here at all: it
+    // took 0.0 from the `AlgoControls controls{}` zero-initialisation above,
+    // which happened to equal the reference default, so the twins agreed BY
+    // COINCIDENCE rather than by construction. The moment the reference default
+    // moved off zero, an unassigned field here would have rendered every
+    // monochrome stock differently in C++ than in Python, silently, with no
+    // parity test necessarily catching it -- cpp_parity drives the stage
+    // directly and would not have exercised getAlgoControlsDefault().
+    //
+    // ⚠ THE VALUE IS AN OWNER DECISION, NOT A MEASUREMENT OF ANY SCANNER.
+    // 0.853 is 1 - E with E = 0.1471, the collected-scatter fraction fitted to
+    // Trumpy & Gschwind 2015 Fig. 5 (after Streiffert 1947) -- the same fit that
+    // produced the beta 1.6746 the monochrome profiles carry. E belongs to
+    // STREIFFERT'S DENSITOMETER; adopting it as the shipped reader geometry is a
+    // stated provisional stand-in, chosen 2026-09-06 in preference to shipping
+    // the stage inert.
+    //
+    // ⚠ 0.0 STILL REPRODUCES THE STORED CHARACTERISTIC CURVES EXACTLY, because
+    // those are DIFFUSE densities. Any comparison of a render against a
+    // datasheet must set this back to 0.
+    // Schema v52. 0.0 = the curve as the database stores it; see
+    // AlgoBatchPosition.hpp for why the anchor is the stored value and not the
+    // band centre.
+    controls.batchPosition = BatchPositionDef;
+    controls.scannerSpecular = 0.853;  // film_sim: scanner_specular
+    controls.scannerFixedPattern = 0.0;  // film_sim: scanner_fixed_pattern (v49)
+
+    // ----------------------------------------------------------------------
+    //  The two "auto" controls.
+    //
+    //  A NEGATIVE value means "use the stock's own era figure" rather than "off".
+    //  That distinction matters: zero would disable the effect, which for flare and
+    //  vignette would silently give every period stock modern blacks and a
+    //  perfectly even field.
+    // ----------------------------------------------------------------------
+
+    controls.flare    = -1.0;   // film_sim: flare = -1.0
+    controls.vignette = -1.0;   // film_sim: vignette = -1.0
+
+    // ----------------------------------------------------------------------
+    //  Booleans
+    // ----------------------------------------------------------------------
+
+    // film_sim: print_grain = True. Print grain lands after the print curve, so
+    // unlike negative grain it is not compressed by the shoulder.
+    controls.printGrain = true;
+
+    // film_sim: reseau = True -- allow the additive colour grid where a stock has
+    // one and the render resolves it.
+    controls.reseau     = true;
+
+    // ----------------------------------------------------------------------
+    //  Time base and determinism
+    // ----------------------------------------------------------------------
+
+    // film_sim: frame_index = 0. CLIP relative, so damage stays glued to the film
+    // rather than to the timeline position. May be negative.
+    controls.frameIndex = 0;
+
+    // film_sim: seed = 12345. Every random quantity in the engine is a pure
+    // function of this and the frame index, so a render is reproducible and the
+    // host may render out of order.
+    controls.seed       = 12345;
+
+    // ----------------------------------------------------------------------
+    //  Damage: OFF, with the working set still populated by getFilmDamageDefault().
+    //
+    //  ⚠ CHANGED FROM true TO false ON 2026-09-04, WHICH SETTLES A CONFLICT THIS
+    //  FILE AND AlgoControl.hpp HAD BOTH BEEN RECORDING RATHER THAN RESOLVING.
+    //  The project requirements state that a clean render is the default and that
+    //  damage is opt-in; the code asserted the opposite, and the header carried the
+    //  disagreement under "DEFAULT CONFLICT - REPORTED, NOT RESOLVED". The owner
+    //  has now asked for the defect layer to be explicitly switchable, so the
+    //  requirement wins and the two agree again.
+    //
+    //  WHAT A CALLER GETS NOW. A default render is the pure film-stock simulation:
+    //  no embedded dust, no coarse debris, no fibres, no gate dirt, no splices.
+    //  Numerically identical to a build with no defect layer at all, and that is
+    //  why the flag is tested ONCE PER FRAME rather than per pixel - a clean render
+    //  pays exactly one branch for the whole subsystem.
+    //
+    //  TO TURN THE DEFECT LAYER ON, one line:
+    //
+    //      controls.filmDamageEnabled = true;
+    //
+    //  and the working set already sitting in controls.damage takes effect. The
+    //  three-level gate chain is unchanged: this flag, then damageStrength > 0,
+    //  then at least one class level > 0.
+    //
+    //  It also removes a divergence from film_sim.RenderSettings, which carries no
+    //  damage group at all. Every other field in this function mirrors the
+    //  reference so the two implementations stay diffable; with the flag clear this
+    //  one mirrors it too, and the verification harness no longer has to clear it
+    //  by hand before comparing - though it still does, harmlessly.
+    // ----------------------------------------------------------------------
+    controls.filmDamageEnabled = false;
+    controls.damage            = getFilmDamageDefault();
+
+    return controls;
+}

@@ -2,7 +2,7 @@
 #define __IMAGE_LAB_IMAGE_FILM_SIMULATION_FILTER__
 
 #include "CommonAdobeAE.hpp"
-
+#include "AlgoControl.hpp"
 
 constexpr char strName[] = "Film Simulation";
 constexpr char strCopyright[] = "\n2019-2026. ImageLab2 Copyright(c).\rFilm Simulation plugin.";
@@ -19,10 +19,10 @@ constexpr int FilmSimulation_VersionBuild = 1;
 
 PF_Err ProcessImgInPR
 (
-	PF_InData*   __restrict in_data,
-	PF_OutData*  __restrict out_data,
-	PF_ParamDef* __restrict params[],
-	PF_LayerDef* __restrict output
+	PF_InData*    in_data,
+	PF_OutData*   out_data,
+	PF_ParamDef*  params[],
+	PF_LayerDef*  output
 ) noexcept;
 
 PF_Err
@@ -34,5 +34,42 @@ ProcessImgInAE
 	PF_LayerDef*	output
 ) noexcept;
 
+PF_Err
+FilmSimulation_PreRender
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_PreRenderExtra	*extra
+);
+
+PF_Err
+FilmSimulation_SmartRender
+(
+    PF_InData				*in_data,
+    PF_OutData				*out_data,
+    PF_SmartRenderExtra		*extraP
+);
+
+PF_Err DrawEvent
+(
+    PF_InData		*in_data,
+    PF_OutData		*out_data,
+    PF_ParamDef		*params[],
+    PF_LayerDef		*output,
+    PF_EventExtra	*event_extra
+);
+
+PF_Err SetupControlElements
+(
+    PF_InData* in_data, 
+    PF_OutData* out_data
+);
+
+AlgoControls getAlgoControls
+(
+    PF_ParamDef* params[],
+    const double fps,
+    const int32_t idx
+);
 
 #endif // __IMAGE_LAB_IMAGE_FILM_SIMULATION_FILTER__

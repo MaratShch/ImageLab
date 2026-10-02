@@ -1,11 +1,14 @@
-#include "AlgoRules.hpp"
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
-#include "ColorTemperatureAlgo.hpp"
 #include "CompileTimeUtils.hpp"
 #include "CommonAuxPixFormat.hpp"
-#include "ImageLabMemInterface.hpp"
-#include "cct_interface.hpp"
+#include "AlgoControl.hpp"
+#include "AlgoMemHandler.hpp"
+#include "ColorLocus.hpp"
+#include "AlgoSuperPixel.hpp"
+#include "LinearLut/LinearLut.hpp"
+#include "AlgoPrFormatIngest.hpp"
+#include "AlgoPrFormatEgress.hpp"
 
 
 PF_Err ColorTemperature_InAE_8bits
@@ -16,61 +19,67 @@ PF_Err ColorTemperature_InAE_8bits
 	PF_LayerDef* output
 ) noexcept
 {
-    PF_Err err = PF_Err_OUT_OF_MEMORY;
+    static const auto& lut8  = LinLut_srgb_8bit_double ::LINEARIZE_LUT_SRGB_8BIT_F64;
+    static const auto& lut16 = LinLut_srgb_16bit_double::LINEARIZE_LUT_SRGB_16BIT_F64;
+    static const auto& lut10 = LinLut_srgb_10bit_double::LINEARIZE_LUT_SRGB_10BIT_F64;
 
-    const PF_EffectWorld*   __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+    PF_EffectWorld*   __restrict input = reinterpret_cast<PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+
     const PF_Pixel_ARGB_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* __restrict>(input->data);
-          PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
+    PF_Pixel_ARGB_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* __restrict>(output->data);
 
-    // --- Acquire controls values --- //
-    const strControlSet cctSetup = GetCctSetup(params);
-    const AlgoProcT targetCct    = cctSetup.Cct;
-    const AlgoProcT targetDuv    = cctSetup.Duv;
-    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
-    const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
-
-    if (0.f == targetCct && 0.f == targetDuv)
-    {
-        auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
-        return worldTransformSuite->copy(in_data->effect_ref, const_cast<PF_EffectWorld*>(input), output, NULL, NULL);
-    }
+    PF_Err err = PF_Err_NONE;
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
 
-    const pHandle* pStr = static_cast<const pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-    if (nullptr != pStr)
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
+    if (true == mem_handler_valid(algoMemHandler))
     {
-        AlgoCCT::CctHandleF32* cctHandle = pStr->hndl;
-        if (nullptr != cctHandle)
-        {
-            void* pMemoryBlock = nullptr;
-            const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
-            A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+        const AlgoControls algoCtrl = getAlgoControlsDefault();
+        const auto& locusGate = getLocusGate(obs_CIE_1931_2deg == algoCtrl.observer);
 
-            if (nullptr != pMemoryBlock)
-            {
-                PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT>* __restrict>(pMemoryBlock);
-                constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
-                const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
-                const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+        SuperPixel<double> super{};     // computed in double, max accuracy
+        CctDuv<double> cct_duv{};       // computed in double, max accuracy
 
-                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
+        AlgoPrIngest::ingest_and_superpixel
+        (
+            localSrc,
+            sizeX,
+            sizeY,
+            src_pitch,
+            AlgoPrIngest::fmt_ARGB_4444_8u,
+            lut8, lut16, lut10,
+            locusGate,
+            algoMemHandler.srcRGB_f32,
+            super,
+            algoCtrl.confidenceMap
+        );
 
-                AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, src_pitch, dst_pitch, static_cast<AlgoProcT>(u8_value_white));
+        Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-                ::FreeMemoryBlock(blockId);
-                blockId = -1;
-                pMemoryBlock = nullptr;
+        AlgoPrIngest::egress_from_linear_f32
+        (
+            (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+            sizeX,
+            sizeY,
+            localDst,
+            dst_pitch,
+            AlgoPrIngest::fmt_ARGB_4444_8u,
+            lut8, lut16, lut10,
+            localSrc,
+            sizeX,
+            src_pitch
+        );
 
-                err = PF_Err_NONE;
-            } // if (nullptr != pMemoryBlock)
-
-        } // if (nullptr != cctHandle)
-
-    } // if (nullptr != pStr)
+        free_memory_buffers(algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
 
     return err;
 }
@@ -84,62 +93,68 @@ PF_Err ColorTemperature_InAE_16bits
 	PF_LayerDef* output
 ) noexcept
 {
-    PF_Err err = PF_Err_OUT_OF_MEMORY;
+    static const auto& lut8  = LinLut_srgb_8bit_double ::LINEARIZE_LUT_SRGB_8BIT_F64;
+    static const auto& lut16 = LinLut_srgb_16bit_double::LINEARIZE_LUT_SRGB_16BIT_F64;
+    static const auto& lut10 = LinLut_srgb_10bit_double::LINEARIZE_LUT_SRGB_10BIT_F64;
 
-    const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+    PF_EffectWorld*   __restrict input = reinterpret_cast<PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+
     const PF_Pixel_ARGB_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* __restrict>(input->data);
           PF_Pixel_ARGB_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* __restrict>(output->data);
 
-    // --- Acquire controls values --- //
-    const strControlSet cctSetup = GetCctSetup(params);
-    const AlgoProcT targetCct    = cctSetup.Cct;
-    const AlgoProcT targetDuv    = cctSetup.Duv;
-    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
-    const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
-
-    if (0.f == targetCct && 0.f == targetDuv)
-    {
-        auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
-        return worldTransformSuite->copy_hq(in_data->effect_ref, const_cast<PF_EffectWorld*>(input), output, NULL, NULL);
-    }
+    PF_Err err = PF_Err_NONE;
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
 
-    const pHandle* pStr = static_cast<const pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-    if (nullptr != pStr)
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
+    if (true == mem_handler_valid(algoMemHandler))
     {
-        AlgoCCT::CctHandleF32* cctHandle = pStr->hndl;
-        if (nullptr != cctHandle)
-        {
-            void* pMemoryBlock = nullptr;
-            const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
-            A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+        const AlgoControls algoCtrl = getAlgoControlsDefault();
+        const auto& locusGate = getLocusGate(obs_CIE_1931_2deg == algoCtrl.observer);
 
-            if (nullptr != pMemoryBlock)
-            {
-                PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT>* __restrict>(pMemoryBlock);
+        SuperPixel<double> super{};     // computed in double, max accuracy
+        CctDuv<double> cct_duv{};       // computed in double, max accuracy
 
-                constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u16_value_white);
-                const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
-                const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+        AlgoPrIngest::ingest_and_superpixel
+        (
+            localSrc,
+            sizeX,
+            sizeY,
+            src_pitch,
+            AlgoPrIngest::fmt_ARGB_4444_16u,
+            lut8, lut16, lut10,
+            locusGate,
+            algoMemHandler.srcRGB_f32,
+            super,
+            algoCtrl.confidenceMap
+        );
 
-                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
-                
-                AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, src_pitch, dst_pitch, static_cast<AlgoProcT>(u16_value_white));
+        Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-                ::FreeMemoryBlock(blockId);
-                blockId = -1;
-                pMemoryBlock = nullptr;
+        AlgoPrIngest::egress_from_linear_f32
+        (
+            (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+            sizeX,
+            sizeY,
+            localDst,
+            dst_pitch,
+            AlgoPrIngest::fmt_ARGB_4444_16u,
+            lut8, lut16, lut10,
+            localSrc,
+            sizeX,
+            src_pitch
+        );
 
-                err = PF_Err_NONE;
-            } // if (nullptr != pMemoryBlock)
+        free_memory_buffers(algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
 
-        } // if (nullptr != cctHandle)
-
-    } // if (nullptr != pStr)
     return err;
 }
 
@@ -152,62 +167,67 @@ PF_Err ColorTemperature_InAE_32bits
     PF_LayerDef* output
 ) noexcept
 {
-    PF_Err err = PF_Err_OUT_OF_MEMORY;
+    static const auto& lut8  = LinLut_srgb_8bit_double ::LINEARIZE_LUT_SRGB_8BIT_F64;
+    static const auto& lut16 = LinLut_srgb_16bit_double::LINEARIZE_LUT_SRGB_16BIT_F64;
+    static const auto& lut10 = LinLut_srgb_10bit_double::LINEARIZE_LUT_SRGB_10BIT_F64;
 
-    const PF_EffectWorld*    __restrict input    = reinterpret_cast<const PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+    PF_EffectWorld*   __restrict input = reinterpret_cast<PF_EffectWorld* __restrict>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+
     const PF_Pixel_ARGB_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* __restrict>(input->data);
           PF_Pixel_ARGB_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* __restrict>(output->data);
 
-    // --- Acquire controls values --- //
-    const strControlSet cctSetup = GetCctSetup(params);
-    const AlgoProcT targetCct    = cctSetup.Cct;
-    const AlgoProcT targetDuv    = cctSetup.Duv;
-    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
-    const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
-
-    if (0.f == targetCct && 0.f == targetDuv)
-    {
-        auto const& worldTransformSuite{ AEFX_SuiteScoper<PF_WorldTransformSuite1>(in_data, kPFWorldTransformSuite, kPFWorldTransformSuiteVersion1, out_data) };
-        return worldTransformSuite->copy_hq(in_data->effect_ref, const_cast<PF_EffectWorld*>(input), output, NULL, NULL);
-    }
+    PF_Err err = PF_Err_NONE;
 
     const A_long src_pitch = input->rowbytes  / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
     const A_long dst_pitch = output->rowbytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
     const A_long sizeY = output->height;
     const A_long sizeX = output->width;
 
-    const pHandle* pStr = static_cast<const pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-    if (nullptr != pStr)
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
+    if (true == mem_handler_valid(algoMemHandler))
     {
-        AlgoCCT::CctHandleF32* cctHandle = pStr->hndl;
-        if (nullptr != cctHandle)
-        {
-            void* pMemoryBlock = nullptr;
-            const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr32)), CACHE_LINE);
-            A_long blockId = ::GetMemoryBlock(totalProcMem, 0, &pMemoryBlock);
+        const AlgoControls algoCtrl = getAlgoControlsDefault();
+        const auto& locusGate = getLocusGate(obs_CIE_1931_2deg == algoCtrl.observer);
 
-            if (nullptr != pMemoryBlock)
-            {
-                PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT>* __restrict>(pMemoryBlock);
+        SuperPixel<double> super{};     // computed in double, max accuracy
+        CctDuv<double> cct_duv{};       // computed in double, max accuracy
 
-                constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
-                const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, src_pitch, dst_pitch, coeff);
-                const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+        AlgoPrIngest::ingest_and_superpixel
+        (
+            localSrc,
+            sizeX,
+            sizeY,
+            src_pitch,
+            AlgoPrIngest::fmt_ARGB_4444_32f,
+            lut8, lut16, lut10,
+            locusGate,
+            algoMemHandler.srcRGB_f32,
+            super,
+            algoCtrl.confidenceMap
+        );
 
-                AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
-                
-                AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, src_pitch, dst_pitch, static_cast<AlgoProcT>(1));
+        Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-                ::FreeMemoryBlock(blockId);
-                blockId = -1;
-                pMemoryBlock = nullptr;
+        AlgoPrIngest::egress_from_linear_f32
+        (
+            (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+            sizeX,
+            sizeY,
+            localDst,
+            dst_pitch,
+            AlgoPrIngest::fmt_ARGB_4444_32f,
+            lut8, lut16, lut10,
+            localSrc,
+            sizeX,
+            src_pitch
+        );
 
-                err = PF_Err_NONE;
-            } // if (nullptr != pMemoryBlock)
-
-        } // if (nullptr != cctHandle)
-
-    } // if (nullptr != pStr)
+        free_memory_buffers(algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
 
     return err;
 }

@@ -2,7 +2,6 @@
 #define __IMAGE_LAB_IMAGE_COLOR_TEMPERATURE_ENUMS_AND_DEFINES__
 
 #include <cstdint>
-#include "ColorTemperatureControls.hpp"
 
 constexpr double  algoColorTempScale  = 1000.0;
 constexpr int32_t algoColorTempMin    = -4000;
@@ -34,12 +33,6 @@ constexpr WaveLengthT wavelengthStepFine   = 1.00;
 constexpr WaveLengthT wavelengthStepFinest = 0.50;
 constexpr WaveLengthT wavelengthStepScientific = 0.10;
 constexpr WaveLengthT wavelengthStepDefault  = wavelengthStepDecent;
-
-constexpr size_t waveVectorSizeWorst  = static_cast<size_t>((waveLengthStop - waveLengthStart) / wavelengthStepWorst      + 1.0);
-constexpr size_t waveVectorSizeDecent = static_cast<size_t>((waveLengthStop - waveLengthStart) / wavelengthStepDecent     + 1.0);
-constexpr size_t waveVectorSizeFine   = static_cast<size_t>((waveLengthStop - waveLengthStart) / wavelengthStepFine       + 1.0);
-constexpr size_t waveVectorSizeFinest = static_cast<size_t>((waveLengthStop - waveLengthStart) / wavelengthStepFinest     + 1.0);
-constexpr size_t waveVectorSizeScient = static_cast<size_t>((waveLengthStop - waveLengthStart) / wavelengthStepScientific + 1.0);
 
 constexpr double colorTemperature2Slider  (const int32_t& val) noexcept { return static_cast<double>(val) / algoColorTempScale;  }
 constexpr int32_t slider2ColorTemperature (const double& val)  noexcept { return static_cast<int32_t>(val * algoColorTempScale); }

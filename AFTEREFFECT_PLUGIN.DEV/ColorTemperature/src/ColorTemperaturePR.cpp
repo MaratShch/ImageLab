@@ -1,13 +1,14 @@
-#include "AlgoRules.hpp"
 #include "ColorTemperature.hpp"
 #include "ColorTemperatureEnums.hpp"
-#include "ColorTemperatureAlgo.hpp"
-#include "ColorTemperatureDraw.hpp"
 #include "ColorTemperatureControlsPresets.hpp"
 #include "CompileTimeUtils.hpp"
 #include "CommonAuxPixFormat.hpp"
-#include "ImageLabMemInterface.hpp"
 #include "PrSDKAESupport.h"
+#include "ColorLocus.hpp"
+#include "AlgoSuperPixel.hpp"
+#include "LinearLut/LinearLut.hpp"
+#include "AlgoPrFormatIngest.hpp"
+#include "AlgoPrFormatEgress.hpp"
 
 
 PF_Err ProcessImgInPR
@@ -18,173 +19,1271 @@ PF_Err ProcessImgInPR
 	PF_LayerDef* output
 ) 
 {
-	PF_Err err{ PF_Err_OUT_OF_MEMORY };
-    PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
+    PF_Err err{ PF_Err_NONE };
 
-    // --- Acquire controls values --- //
-    const strControlSet cctSetup = GetCctSetup (params);
-    const AlgoProcT targetCct = cctSetup.Cct;
-    const AlgoProcT targetDuv = cctSetup.Duv;
-    const eCOLOR_OBSERVER observer = static_cast<eCOLOR_OBSERVER>(cctSetup.observer);
-    const eCctType cctValueType = static_cast<eCctType>(cctSetup.cctType);
+    // This plugin called from PR - check video fomat
+    const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
+    const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
+    const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
+    const A_long rowBytes = pfLayer->rowbytes;
 
-    if (0.f == targetCct && 0.f == targetDuv)
-        return PF_COPY(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld, output, NULL, NULL);
+    static const auto& lut8  = LinLut_srgb_8bit_double ::LINEARIZE_LUT_SRGB_8BIT_F64;
+    static const auto& lut16 = LinLut_srgb_16bit_double::LINEARIZE_LUT_SRGB_16BIT_F64;
+    static const auto& lut10 = LinLut_srgb_10bit_double::LINEARIZE_LUT_SRGB_10BIT_F64;
 
-    // This plugin called frop PR - check video fomat
-    auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
-
-    const pHandle* pStr = static_cast<const pHandle*>(GET_OBJ_FROM_HNDL(in_data->global_data));
-
-    if ((nullptr != pStr) && PF_Err_NONE == (err = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+    MemHandler algoMemHandler = alloc_memory_buffers(sizeX, sizeY);
+    if (true == mem_handler_valid(algoMemHandler))
     {
-        AlgoCCT::CctHandleF32* cctHandle = pStr->hndl;
-        if (nullptr != cctHandle)
+        // will be replaced byreal control values captured from effect control items
+        const AlgoControls algoCtrl = getAlgoControlsDefault();
+
+        /* This plugin called frop PR - check video fomat */
+        auto const pixelFormatSuite{ AEFX_SuiteScoper<PF_PixelFormatSuite1>(in_data, kPFPixelFormatSuite, kPFPixelFormatSuiteVersion1, out_data) };
+        PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
+        PF_Err errFormat{ PF_Err_INVALID_INDEX };
+
+        if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
         {
-            const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[COLOR_TEMPERATURE_FILTER_INPUT]->u.ld);
-            const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
-            const A_long sizeX = pfLayer->extent_hint.right - pfLayer->extent_hint.left;
+            const auto& locusGate = getLocusGate(obs_CIE_1931_2deg == algoCtrl.observer);
 
-            // Allocate memory storage for store temporary results
-            const A_long totalProcMem = CreateAlignment(sizeX * sizeY * static_cast<A_long>(sizeof(PixComponentsStr<AlgoProcT>)), CACHE_LINE);
+            SuperPixel<double> super{};     // computed in double, max accuracy
+            CctDuv<double> cct_duv{};       // computed in double, max accuracy
 
-            void* pMemoryBlock = nullptr;
-            A_long blockId = ::GetMemoryBlock (totalProcMem, 0, &pMemoryBlock);
-
-            if (nullptr != pMemoryBlock && blockId >= 0)
+            switch (destinationPixelFormat)
             {
-                PixComponentsStr<AlgoProcT>* __restrict pTmpBuffer = static_cast<PixComponentsStr<AlgoProcT> *__restrict> (pMemoryBlock);
-
-                switch (destinationPixelFormat)
+                case PrPixelFormat_BGRA_4444_8u:
                 {
-                    case PrPixelFormat_BGRA_4444_8u:
-                    {
-                        const PF_Pixel_BGRA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* __restrict>(pfLayer->data);
-                              PF_Pixel_BGRA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* __restrict>(output->data);
-                        const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
-                        constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
-                        const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
-                        const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+                    const PF_Pixel_BGRA_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRA_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
 
-                        const AdaptationMatrixT matrix = computeAdaptationMatrix (cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc, 
+                        sizeX, 
+                        sizeY, 
+                        srcLinePitch, 
+                        AlgoPrIngest::fmt_BGRA_4444_8u, 
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32, 
+                        super, 
+                        algoCtrl.confidenceMap
+                    );
 
-                        AdjustCct (localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(u8_value_white));
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-                        // Draw CCT/Duv values on Effect Panel
-                        SetGUI_CCT(cct_duv);
-                    }
-                    break;
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRA_4444_8u,
+                        lut8, lut16, lut10, 
+                        localSrc, 
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
 
-                    case PrPixelFormat_BGRA_4444_16u:
-                    {
-                        const PF_Pixel_BGRA_16u* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* __restrict>(pfLayer->data);
-                              PF_Pixel_BGRA_16u* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* __restrict>(output->data);
-                        const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
-                        constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u16_value_white);
-                        const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
-                        const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
-  
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
+                case PrPixelFormat_BGRA_4444_16u:
+                {
+                    const PF_Pixel_BGRA_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRA_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
 
-                        AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(u16_value_white));
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc, 
+                        sizeX, 
+                        sizeY, 
+                        srcLinePitch, 
+                        AlgoPrIngest::fmt_BGRA_4444_16u, 
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super, 
+                        algoCtrl.confidenceMap
+                    );
 
-                        // Draw CCT/Duv values on Effect Panel
-                        SetGUI_CCT(cct_duv);
-                    }
-                    break;
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-                    case PrPixelFormat_BGRA_4444_32f:
-                    case PrPixelFormat_BGRA_4444_32f_Linear:
-                    {
-                        const PF_Pixel_BGRA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* __restrict>(pfLayer->data);
-                              PF_Pixel_BGRA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* __restrict>(output->data);
-                        const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
-                        constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
-                        const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
-                        const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRA_4444_16u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
 
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
+                case PrPixelFormat_BGRA_4444_32f:
+                {
+                    const PF_Pixel_BGRA_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRA_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
 
-                        AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(1));
-                        
-                        // Draw CCT/Duv values on Effect Panel
-                        SetGUI_CCT(cct_duv);
-                    }
-                    break;
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX, 
+                        sizeY, 
+                        srcLinePitch, 
+                        AlgoPrIngest::fmt_BGRA_4444_32f, 
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
 
-                    case PrPixelFormat_VUYA_4444_8u_709:
-                    case PrPixelFormat_VUYA_4444_8u:
-                    {
-                        const PF_Pixel_VUYA_8u* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* __restrict>(pfLayer->data);
-                              PF_Pixel_VUYA_8u* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* __restrict>(output->data);
-                        const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
-                        constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u8_value_white);
-                        const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
-                        const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRA_4444_32f,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
 
-                        AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(u8_value_white));
-                        
-                        // Draw CCT/Duv values on Effect Panel
-                        SetGUI_CCT(cct_duv);
-                    }
-                    break;
+                case PrPixelFormat_BGRA_4444_32f_Linear:
+                {
+                    const PF_Pixel_BGRA_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRA_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRA_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRA_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRA_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
 
-                    case PrPixelFormat_VUYA_4444_32f_709:
-                    case PrPixelFormat_VUYA_4444_32f:
-                    {
-                        const PF_Pixel_VUYA_32f* __restrict localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* __restrict>(pfLayer->data);
-                              PF_Pixel_VUYA_32f* __restrict localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* __restrict>(output->data);
-                        const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
-                        constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1);
-                        const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
-                        const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc, 
+                        sizeX, 
+                        sizeY, 
+                        srcLinePitch, 
+                        AlgoPrIngest::fmt_BGRA_4444_32f_Linear, 
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32, 
+                        super, 
+                        algoCtrl.confidenceMap
+                    );
 
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-                        AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(1));
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRA_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
 
-                        // Draw CCT/Duv values on Effect Panel
-                        SetGUI_CCT(cct_duv);
-                    }
-                    break;
+                case PrPixelFormat_BGRP_4444_8u:
+                {
+                    const PF_Pixel_BGRP_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRP_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRP_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRP_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRP_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
 
-                    case PrPixelFormat_RGB_444_10u:
-                    {
-                        const PF_Pixel_RGB_10u* __restrict localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* __restrict>(pfLayer->data);
-                              PF_Pixel_RGB_10u* __restrict localDst = reinterpret_cast<      PF_Pixel_RGB_10u* __restrict>(output->data);
-                        const A_long linePitch = pfLayer->rowbytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
-                        constexpr AlgoProcT coeff = static_cast<AlgoProcT>(1) / static_cast<AlgoProcT>(u10_value_white);
-                        const std::pair<AlgoProcT, AlgoProcT> uv = Convert2PixComponents(localSrc, pTmpBuffer, sizeX, sizeY, linePitch, sizeX, coeff);
-                        const std::pair<AlgoProcT, AlgoProcT> cct_duv = cctHandle->ComputeCct(uv, observer);
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc, 
+                        sizeX, 
+                        sizeY, 
+                        srcLinePitch, 
+                        AlgoPrIngest::fmt_BGRP_4444_8u, 
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
 
-                        AdaptationMatrixT matrix = computeAdaptationMatrix(cctHandle, observer, cctValueType, cct_duv, std::make_pair(targetCct, targetDuv));
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-                        AdjustCct(localSrc, localDst, matrix, sizeX, sizeY, linePitch, linePitch, static_cast<AlgoProcT>(u10_value_white));
-                        
-                        // Draw CCT/Duv values on Effect Panel
-                        SetGUI_CCT(cct_duv);
-                    }
-                    break;
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRP_4444_8u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
 
-                    default:
-                        err = PF_Err_INTERNAL_STRUCT_DAMAGED;
-                    break;
-                } // switch (destinationPixelFormat)
+                case PrPixelFormat_BGRP_4444_16u:
+                {
+                    const PF_Pixel_BGRP_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRP_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRP_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRP_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRP_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
 
-                ::FreeMemoryBlock(blockId);
-                blockId = -1;
-                pMemoryBlock = nullptr;
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY, 
+                        srcLinePitch, 
+                        AlgoPrIngest::fmt_BGRP_4444_16u, 
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
 
-                err = PF_Err_NONE;
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-            } // if (nullptr != pMemoryBlock && blockId >= 0)
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRP_4444_16u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
 
+                case PrPixelFormat_BGRP_4444_32f:
+                {
+                    const PF_Pixel_BGRP_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRP_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRP_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRP_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRP_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
 
-        } // if (nullptr != cctHandle)
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_BGRP_4444_32f,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
 
-    } // if (nullptr != pStr && PF_Err_NONE == (err = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
 
-	return err;
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRP_4444_32f,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_BGRP_4444_32f_Linear:
+                {
+                    const PF_Pixel_BGRP_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRP_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRP_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRP_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRP_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_BGRP_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRP_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_8u:
+                {
+                    const PF_Pixel_BGRX_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRX_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRX_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRX_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRX_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_BGRX_4444_8u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRX_4444_8u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_16u:
+                {
+                    const PF_Pixel_BGRX_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRX_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRX_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRX_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRX_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_BGRX_4444_16u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRX_4444_16u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_32f:
+                {
+                    const PF_Pixel_BGRX_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRX_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRX_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRX_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRX_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_BGRX_4444_32f,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRX_4444_32f,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_BGRX_4444_32f_Linear:
+                {
+                    const PF_Pixel_BGRX_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_BGRX_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_BGRX_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_BGRX_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_BGRX_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_BGRX_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_BGRX_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_VUYA_4444_8u_709:
+                case PrPixelFormat_VUYA_4444_8u:
+                {
+                    const PF_Pixel_VUYA_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYA_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYA_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYA_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYA_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYA_4444_8u_709 ? AlgoPrIngest::fmt_VUYA_4444_8u_709 : AlgoPrIngest::fmt_VUYA_4444_8u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYA_4444_8u_709 ? AlgoPrIngest::fmt_VUYA_4444_8u_709 : AlgoPrIngest::fmt_VUYA_4444_8u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_VUYA_4444_32f_709:
+                case PrPixelFormat_VUYA_4444_32f:
+                {
+                    const PF_Pixel_VUYA_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYA_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYA_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYA_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYA_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYA_4444_32f_709 ? AlgoPrIngest::fmt_VUYA_4444_32f_709 : AlgoPrIngest::fmt_VUYA_4444_32f,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYA_4444_32f_709 ? AlgoPrIngest::fmt_VUYA_4444_32f_709 : AlgoPrIngest::fmt_VUYA_4444_32f,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_VUYP_4444_8u_709:
+                case PrPixelFormat_VUYP_4444_8u:
+                {
+                    const PF_Pixel_VUYP_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYP_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYP_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYP_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYP_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYP_4444_8u_709 ? AlgoPrIngest::fmt_VUYP_4444_8u_709 : AlgoPrIngest::fmt_VUYP_4444_8u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYP_4444_8u_709 ? AlgoPrIngest::fmt_VUYP_4444_8u_709 : AlgoPrIngest::fmt_VUYP_4444_8u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_VUYP_4444_32f_709:
+                case PrPixelFormat_VUYP_4444_32f:
+                {
+                    const PF_Pixel_VUYP_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYP_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYP_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYP_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYP_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYP_4444_32f_709 ? AlgoPrIngest::fmt_VUYP_4444_32f_709 : AlgoPrIngest::fmt_VUYP_4444_32f,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYP_4444_32f_709 ? AlgoPrIngest::fmt_VUYP_4444_32f_709 : AlgoPrIngest::fmt_VUYP_4444_32f,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_VUYX_4444_8u_709:
+                case PrPixelFormat_VUYX_4444_8u:
+                {
+                    const PF_Pixel_VUYX_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYX_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_VUYX_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYX_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYX_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYX_4444_8u_709 ? AlgoPrIngest::fmt_VUYX_4444_8u_709 : AlgoPrIngest::fmt_VUYX_4444_8u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYX_4444_8u_709 ? AlgoPrIngest::fmt_VUYX_4444_8u_709 : AlgoPrIngest::fmt_VUYX_4444_8u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_VUYX_4444_32f_709:
+                case PrPixelFormat_VUYX_4444_32f:
+                {
+                    const PF_Pixel_VUYX_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_VUYX_32f* RESTRICT>(pfLayer->data);
+                    PF_Pixel_VUYX_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_VUYX_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_VUYX_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYX_4444_32f_709 ? AlgoPrIngest::fmt_VUYX_4444_32f_709 : AlgoPrIngest::fmt_VUYX_4444_32f,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        destinationPixelFormat == PrPixelFormat_VUYX_4444_32f_709 ? AlgoPrIngest::fmt_VUYX_4444_32f_709 : AlgoPrIngest::fmt_VUYX_4444_32f,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_ARGB_4444_8u:
+                {
+                    const PF_Pixel_ARGB_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_ARGB_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_ARGB_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_ARGB_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_ARGB_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_ARGB_4444_8u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_ARGB_4444_8u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_PRGB_4444_8u:
+                {
+                    const PF_Pixel_PRGB_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_PRGB_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_PRGB_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_PRGB_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_PRGB_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_PRGB_4444_8u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_PRGB_4444_8u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_XRGB_4444_8u:
+                {
+                    const PF_Pixel_XRGB_8u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_XRGB_8u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_XRGB_8u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_XRGB_8u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_XRGB_8u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_XRGB_4444_8u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_XRGB_4444_8u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_ARGB_4444_16u:
+                {
+                    const PF_Pixel_ARGB_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_ARGB_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_ARGB_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_ARGB_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_ARGB_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_ARGB_4444_16u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_ARGB_4444_16u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_PRGB_4444_16u:
+                {
+                    const PF_Pixel_PRGB_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_PRGB_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_PRGB_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_PRGB_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_PRGB_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_PRGB_4444_16u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_PRGB_4444_16u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_XRGB_4444_16u:
+                {
+                    const PF_Pixel_XRGB_16u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_XRGB_16u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_XRGB_16u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_XRGB_16u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_XRGB_16u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_XRGB_4444_16u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_XRGB_4444_16u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_ARGB_4444_32f:
+                {
+                    const PF_Pixel_ARGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_ARGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_ARGB_4444_32f,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_ARGB_4444_32f,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_PRGB_4444_32f:
+                {
+                    const PF_Pixel_PRGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_PRGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_PRGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_PRGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_PRGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_PRGB_4444_32f,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_PRGB_4444_32f,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_XRGB_4444_32f:
+                {
+                    const PF_Pixel_XRGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_XRGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_XRGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_XRGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_XRGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_XRGB_4444_32f,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_XRGB_4444_32f,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_ARGB_4444_32f_Linear:
+                {
+                    const PF_Pixel_ARGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_ARGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_ARGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_ARGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_ARGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_ARGB_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main(getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_ARGB_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_PRGB_4444_32f_Linear:
+                {
+                    const PF_Pixel_PRGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_PRGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_PRGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_PRGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_PRGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_PRGB_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_PRGB_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_XRGB_4444_32f_Linear:
+                {
+                    const PF_Pixel_XRGB_32f* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_XRGB_32f* RESTRICT>(pfLayer->data);
+                          PF_Pixel_XRGB_32f* RESTRICT localDst = reinterpret_cast<      PF_Pixel_XRGB_32f* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_XRGB_32f_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_XRGB_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_XRGB_4444_32f_Linear,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                case PrPixelFormat_RGB_444_10u:
+                {
+                    const PF_Pixel_RGB_10u* RESTRICT localSrc = reinterpret_cast<const PF_Pixel_RGB_10u* RESTRICT>(pfLayer->data);
+                          PF_Pixel_RGB_10u* RESTRICT localDst = reinterpret_cast<      PF_Pixel_RGB_10u* RESTRICT>(output->data);
+                    const A_long srcLinePitch = rowBytes / static_cast<A_long>(PF_Pixel_RGB_10u_size);
+                    const A_long dstLinePitch = srcLinePitch;
+
+                    AlgoPrIngest::ingest_and_superpixel
+                    (
+                        localSrc,
+                        sizeX,
+                        sizeY,
+                        srcLinePitch,
+                        AlgoPrIngest::fmt_RGB_444_10u,
+                        lut8, lut16, lut10,
+                        locusGate,
+                        algoMemHandler.srcRGB_f32,
+                        super,
+                        algoCtrl.confidenceMap
+                    );
+
+                    Algorithm_Main (getCctHndl(), super, algoMemHandler, sizeX, sizeY, algoCtrl, cct_duv);
+
+                    AlgoPrIngest::egress_from_linear_f32
+                    (
+                        (0 == algoCtrl.confidenceMap ? algoMemHandler.dstRGB_f32 : algoMemHandler.srcRGB_f32),
+                        sizeX,
+                        sizeY,
+                        localDst,
+                        dstLinePitch,
+                        AlgoPrIngest::fmt_RGB_444_10u,
+                        lut8, lut16, lut10,
+                        localSrc,
+                        sizeX,
+                        srcLinePitch
+                    );
+                }
+                break;
+
+                default:
+                    err = PF_Err_INVALID_INDEX;
+                break;
+            } // switch (destinationPixelFormat)
+
+        } // if (PF_Err_NONE == (errFormat = pixelFormatSuite->GetPixelFormat(output, &destinationPixelFormat)))
+        else
+        {
+            // error in determine pixel format
+            err = PF_Err_UNRECOGNIZED_PARAM_TYPE;
+        }
+
+        free_memory_buffers (algoMemHandler);
+    }
+    else
+    {
+        err = PF_Err_OUT_OF_MEMORY;
+    }
+
+    return err;
 }

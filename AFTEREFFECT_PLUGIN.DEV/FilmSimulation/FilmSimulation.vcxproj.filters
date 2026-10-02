@@ -16,6 +16,15 @@
     <Filter Include="include_common">
       <UniqueIdentifier>{b7a20539-10d8-459a-9ea2-0c5b6477a2ef}</UniqueIdentifier>
     </Filter>
+    <Filter Include="python">
+      <UniqueIdentifier>{fcf44b00-4966-4e0e-80be-e29b1305dec6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\profiles_generator">
+      <UniqueIdentifier>{3885724c-b99f-4d32-ab19-e983828461f3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\old_films_analyzing">
+      <UniqueIdentifier>{cab7ce8a-9303-4d53-bf80-a13e32f37eae}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
@@ -84,7 +93,181 @@
     <ClInclude Include="include\FilmSimulation.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\FilmSimulationEnum.hpp">
+    <ClInclude Include="include\AlgorithmMain.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControl.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoMemHandler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoTypes.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControlValues.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControlEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\ImageLabMemInterface.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCharacteristicCurve.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCoatingField.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCornerDefocus.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCounterRng.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDefectField.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDirCoupler.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDuplication.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDyeImpurity.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoEdgeFog.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoEmulsionMtf.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoEmulsionRecord.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoFilmCoord.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoFinalClamp.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoGateDefects.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoGateWeave.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoGrain.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoHalation.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoInterimage.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoNegativeDefects.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoRelativeExposure.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoReseauReconstruct.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoScanMtf.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoSeparableBlur.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoSilverTone.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoStockColourBalance.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoTakingFilters.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoTemporalFlicker.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoTransmittance.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoVeilingFlare.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoSpectralSensitivity.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\film_enum.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\film_profiles.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\film_profiles_detail.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\LoadFilmDataBase.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCallier.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoReciprocity.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoEgressAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoIngestAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatAVX2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatEgress.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatIngest.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoPrFormatMath.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoCurveLut.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoProcessVariant.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoBromideDrag.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoAdobeControlEnums.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoDevelopmentTime.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoStorageAge.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\film_schema_version.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\film_params_mask.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoControlAdobe.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoBatchPosition.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -98,6 +281,207 @@
     <ClCompile Include="src\FilmSimulationPR.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\FilmSimulationSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgorithmMain.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoControl.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabMemInterface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulationGUI.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_02_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_03_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_04_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_05_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_06_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_07_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_08_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_09_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_10_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_11_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_12_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_13_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_14_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_15_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_16_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Algo_17_Sim.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoDefectField.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoSeparableBlur.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulationControlPanel.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoSpectralSensitivity.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_01.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_02.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_03.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_04.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_05.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_06.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_07.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_08.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_09.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_10.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_11.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_12.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_13.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_14.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_15.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_16.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\LoadFilmDataBase.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_17.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_18.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_19.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_20.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoControlAdobe.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_21.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_22.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_23.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_24.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_25.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_26.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_27.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_28.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_29.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_30.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_31.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_32.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_33.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_34.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_35.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_36.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_37.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_38.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FilmSimulation.rc">
@@ -108,5 +492,465 @@
     <CustomBuild Include="FilmSimulation.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="python\profiles_generator\cpp_codegen.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\film_profiles.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\film_sim.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_ref.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\make_period_chart.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\make_test_chart.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\README.md">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\run.cmd">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sheet.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sort_profiles.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\verify.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\old_films_analyzing\analyze_film_scans.py">
+      <Filter>python\old_films_analyzing</Filter>
+    </None>
+    <None Include="python\profiles_generator\digitize_plot.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\empirical_import.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_active_profiles.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_film_curves_md.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_film_names.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\iso5_3_density.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\old_films_analyzing\README_v21.md">
+      <Filter>python\old_films_analyzing</Filter>
+    </None>
+    <None Include="python\profiles_generator\build.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\dashtrace.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\dye_density.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\mees_granularity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\plot_inventory.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\render.cmd">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\vision3_granularity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_vista.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\cpp_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gevaert_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\granularity_vector.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\interimage_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_sensitometry.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\mtf_vector.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\spectral_vector.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_2004_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\di_2254.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\doc_consistency.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1952_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_still_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_time_gamma.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\spectral_mono_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\spectral_weight_provenance.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\callier_silberstein_tuttle.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\dye_matrix_from_spectra.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\iso_5_3_status.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_aim_density.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\konica_raster.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\mees_callier_q.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\polaroid_spectral.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ti0835_plates.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\adopt_agfa_1998.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\adopt_agfa_full.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_1998_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_2003_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_2003_sheet.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_p16c.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_scala_sheet.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\bbc_t101_2.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\flueckiger_2018.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_neopan_ss.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_t3_2026.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gevachrome_1968_raster.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\jp_jps_1965_269.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\MANIFEST.md">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ooue_1959_granularity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sayanagi_callier.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sehlin_kennel_1985.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\takano_1968_mottle.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\takano_1969_granularity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\trumpy_callier_q.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_mpt_1937.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\pse_jones_1958.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\smpte_1953_hanson_kisner.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\smpte_1954_5382.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\anscochrome_1957.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\bromide_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_konica_dye.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_project_state.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\scan_repeat.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\spectral_sampling.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\_fujivec_probe.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_1998_gamma_time.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_1998_sharpness.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_vista_mtf.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfaphoto_vista_plus.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\field_coverage.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_spectral4_2026.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\h24_variations.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\stage_delivery.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\superia_2026.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\png_compare.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\profiles_generator\png_compare.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\stage_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\algo_control_enums.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_control_enums.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_film_control_matrix.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1938.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1956.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1956_curves.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1956_spectro.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1956_trace.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_5293_1982.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\orwo_nc3_1972.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sovremennye_2004.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sovremennye_dev_tables.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_film_params_mask.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_realism_score.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\holdout_predict.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\holdout_predictions.json">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\realism_ablation.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\realism_influence.json">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1942_eastman.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_1957_storage.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_databook_fm.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_h1_5302.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_papers_g1.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\realism_axes.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\soviet_tu_1986_90.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\soviet_tu_corpus.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\color_checker.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfaphoto_apf_panels.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\batch_position_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\cinestill_cs2.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\cross_component.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ferrania_p30_alfa_report.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ferrania_p30_best_practices.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ferrania_p30_colour_target.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ferrania_vendor_sheets.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\measured_curve_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\mono_primary_width.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\retro_ru_books.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sehlin_kennel_5294_curve.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sensitisation_class.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\chain_parity.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\fuji_pdg_2005.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\groet_calibration.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_2026_09_29b.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\af3_608e_text_2026_09_29d.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\batch_position_headers.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\combined_mtf.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gurlev_1986_2026_09_29g.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\harvest_2026_09_29c.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\ilford_sheets_2026_09_29f.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_spectral_regrid.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sovremennye_kinetics.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sovremennye_push_tables.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\sovremennye_tmax_push.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="python\profiles_generator\Readme!.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="include\film_names.txt">
+      <Filter>include</Filter>
+    </Text>
+    <Text Include="python\profiles_generator\MANIFEST.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="python\profiles_generator\README.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
+    <Text Include="python\profiles_generator\README_ARCHIVES.txt">
+      <Filter>python\profiles_generator</Filter>
+    </Text>
   </ItemGroup>
 </Project>

@@ -1,0 +1,3163 @@
+"""Build and audit driver for the film-profile generator.
+
+WHY THIS EXISTS
+---------------
+Before this file there was no entry point for the generator chain. `run.cmd`
+contained one line -- `python film_sim.py Lady.png -p all` -- which renders an
+image and regenerates nothing. The regeneration sequence existed only as a
+loose command list in `doc/README.md`, and the extraction scripts existed only
+as prose references. Every consequence of that has actually happened at least
+once in this project:
+
+  * the project-root and profile_generator copies of the generated C++ drifted a
+    whole generation apart, and nothing noticed;
+  * `film_names.txt` has two competing generators and the documented order runs
+    the DEPRECATED one last, silently replacing the file the effect panel loads;
+  * `sigma_shape_toe/mid/dmax` sat in the schema for weeks, populated and
+    validated, while no renderer read it;
+  * a delivery was reported as applied when the files had not in fact changed;
+  * the hand-written status docs fell behind the data, so the owner had to read a
+    sweep of twenty-two files to work out where things stood.
+
+None of those is a coding mistake. They are all the same missing thing: no
+single command that regenerates everything in the right order and fails loudly
+when an invariant breaks. That is what this is.
+
+    python build.py                 # full regeneration + audit
+    python build.py --check         # READ-ONLY: audits, and reports drift
+    python build.py --only verify   # one stage
+    python build.py --skip compile  # everything but one stage
+    python build.py --list          # stages and what each needs
+
+Stdlib only, no third-party imports at module level, Windows and POSIX. The
+stages themselves need numpy/Pillow (and PyMuPDF for the PDF audits); a stage
+whose dependency or input is missing SKIPS with a reason and does not fail the
+build.
+
+STAGE ORDER IS NOT COSMETIC
+---------------------------
+  audit    re-derive adopted numbers from the source documents. First, because
+           if the stored data no longer matches its own sources there is no
+           point regenerating anything from it.
+  verify   the check suite. Second, for the same reason.
+  codegen  film_profiles.{hpp,cpp}, film_enum.hpp, film_names.txt. Must run
+           before `sync`, and `film_names.txt` must be written by THIS step --
+           see the note on gen_film_names.py below.
+  sync     copy the four generated artefacts to the project root and assert
+           both copies are byte-identical. Closes the drift trap.
+  docs     FilmActiveProfiles.md, FilmCurves.md -- regenerated from the data,
+           so they cannot describe a database that no longer exists. Also gates
+           doc/PROGRESS.md, the hand-written status board: it carries a
+           build-facts stamp (schema version, stock count, film_names digest) and
+           the stage FAILS if the stamp disagrees with the live database. The
+           generated docs cannot go stale; a hand-written one silently can, and
+           the owner reads it to see where the project stands.
+  compile  g++ -std=c++14 -Wall -Wextra on the generated table. Gated on the
+           compiler's own exit code AND an empty stderr, not on a piped head:
+           that mistake once reported "clean" while a string literal was broken.
+
+DELIBERATELY NOT RUN: gen_film_names.py
+---------------------------------------
+`doc/README.md` line 548 records it as "Deprecated. Superseded by
+cpp_codegen.write_film_names(), which derives order from the emitted .cpp
+instead of from FILM_PROFILES." It is nonetheless still listed in the README's
+own command block, AFTER cpp_codegen.py -- so following the documented sequence
+overwrites `film_names.txt` with a different set of display names (19 of 154
+differ: "KODAK T-MAX 100" against "KODAK TMAX 100", and so on). The owner's
+in-service file is cpp_codegen's version. This driver never invokes the
+deprecated script and asserts afterwards that the file still matches what
+cpp_codegen produces.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+import cpp_codegen
+
+HERE = Path(__file__).resolve().parent
+
+#: What identifies a directory as the project root: it holds the PDF corpus the
+#: audits are pointed at. Cheap, and true on every layout this has run on.
+_ROOT_SENTINEL = "PDF"
+
+
+def _default_root() -> Path:
+    """Project root, which holds the second copy of the generated C++.
+
+    On the owner's layout HERE is <root>\\PYTHON\\profile_generator, so the root
+    is two levels up. Overridable with --root (or FILMSIM_ROOT) so the driver
+    can be exercised against a staged copy of the corpus.
+
+    ⚠ THE ARITHMETIC ALONE IS NOT SAFE, AND THIS COST A DAY ON 2026-08-23.
+    `HERE` is `Path(__file__).resolve().parent`, and `.resolve()` follows
+    symlinks. Where `PYTHON/profile_generator` is a symlink -- which is how the
+    tree was laid out in one working copy -- two-levels-up lands somewhere else
+    entirely. The sync stage then wrote the generated C++ into a directory nobody
+    compiles and reported "both copies identical" about files that did not
+    matter, while the real root kept a schema-v10 `film_profiles.hpp` for five
+    days. The plugin failed to compile with "HalationSpec has no member named
+    radius_scale_r" and the header looked correct in the generator directory.
+        So: try the candidates in order of trust and take the first that actually
+    looks like the root. If none does, return the arithmetic answer anyway and
+    let `stage_sync` say so loudly -- guessing silently is what caused the bug.
+    """
+    env = os.environ.get("FILMSIM_ROOT")
+    if env:
+        return Path(env).resolve()
+    # ⚠ abspath, NOT resolve: abspath makes the path absolute against the CWD
+    # without following symlinks, so a symlinked checkout keeps its own path.
+    # ⚠ AND NOT `Path(__file__).parent.parent.parent` EITHER -- invoked as a bare
+    # `python3 build.py` that degenerates, because Path('.').parent is Path('.'),
+    # which is how the first version of this fix still landed on the wrong root
+    # and tripped its own warning.
+    here_unresolved = Path(os.path.abspath(__file__)).parent
+    candidates = [here_unresolved.parent.parent,      # as invoked, symlink kept
+                  HERE.parent.parent]                 # resolved, symlink followed
+    # Last resort: walk up from the file's own directory looking for the corpus.
+    for up in list(here_unresolved.parents):
+        if up not in candidates:
+            candidates.append(up)
+    # ⚠ AND IT CAN STILL FAIL, LEGITIMATELY. If the generator directory lives
+    # OUTSIDE the project tree -- a symlinked working copy, which is how this has
+    # actually been run -- no arithmetic on __file__ can reach the root, because
+    # Linux getcwd() returns the physical path and the symlink is already gone by
+    # the time this code runs. That case is not solvable here and is not supposed
+    # to be: FILMSIM_ROOT (or --root) is the answer, and stage_sync WARNS loudly
+    # when the root it was handed has no corpus in it. A visible wrong answer is
+    # the whole design goal; the silent one cost five days.
+    for c in candidates:
+        try:
+            if (c / _ROOT_SENTINEL).is_dir():
+                return c
+        except OSError:                              # pragma: no cover
+            continue
+    return candidates[0]
+
+ROOT = _default_root()
+
+#: The machine-generated artefacts, and the two places each must exist.
+#: 2026-08-18: the profile table is split across 16 data-slot TUs plus the
+#: explicit-initialisation API (LoadFilmDataBase), because a single 676 KB
+#: init-list function was beyond VS2015 SP3 / ICC -- see cpp_codegen.py's
+#: "Split emission" banner. film_names.txt is unchanged in format and order.
+#: film_display_order.txt joined this list on 2026-08-28, with the identifier
+#: freeze. It is GENERATED presentation order -- database indices sorted by
+#: natural name -- and the panel needs it beside film_names.txt, so it has to
+#: reach the project root like every other artefact. Leaving it out of this
+#: tuple would have made it the one generated file that silently went stale.
+#: ⚠ film_id_migration.txt JOINED THIS LIST ON 2026-09-08, and for a stronger
+#: reason than the others: it is the only artefact that can repair a saved
+#: After Effects or Premiere project after the alphabetical re-sort moved 177
+#: of 184 indices. A stale copy of it at the project root would be worse than
+#: an absent one -- it would map a project to a plausible wrong film. Note that
+#: film_display_order.txt is now the IDENTITY permutation and is kept purely as
+#: a checkable invariant; the paragraph above describes what it used to do.
+GENERATED = ("film_profiles.hpp", "film_profiles.cpp",
+             # ⚠ film_schema_version.h IS THE ONE GENERATED HEADER THAT IS
+             # VALID C AS WELL AS C++ (2026-09-18e). It holds the schema
+             # version literal and both accessors; film_profiles.hpp includes
+             # it rather than restating the number. It syncs like any other
+             # artefact -- a stale copy in the project root would be a header
+             # claiming one schema against a database built to another.
+             "film_schema_version.h",
+             "film_enum.hpp", "film_names.txt", "film_display_order.txt",
+             "film_id_migration.txt",
+             "film_profiles_detail.hpp",
+             "LoadFilmDataBase.h", "LoadFilmDataBase.cpp") + tuple(
+    f"film_profiles_data_{i:02d}.cpp"
+    for i in range(1, cpp_codegen.N_DATA_SLOTS + 1))
+#: Generated C++ that ships WITH the database but is NOT written by
+#: cpp_codegen.py. It syncs exactly like GENERATED and is regenerated in the
+#: same stage, but it is kept in its own tuple because stage_codegen's --check
+#: branch compares GENERATED against a fresh cpp_codegen run, and a file that
+#: emitter never writes would report as missing there forever.
+#: ⚠ film_params_mask.hpp IS DERIVED FROM THE SAME PREDICATES AS
+#: doc/FilmControlMatrix.md, by importing them rather than restating them, so
+#: the panel's greying rules and the corpus's own availability report cannot
+#: come apart. It is regenerated on every build for the same reason every other
+#: file here is: it is not source, and a mask kept because it was already
+#: shipped is a mask that is wrong the next time a datasheet lands.
+GENERATED_SIDECAR = ("film_params_mask.hpp",)
+
+# ⚠ THE SLOT COUNT IS READ FROM THE EMITTER, NOT REPEATED HERE. It was a literal
+# 17 in this expression until 2026-09-02e -- a second copy of a constant that
+# only ever changes together with the .vcxproj, and one that would have silently
+# stopped syncing the newest slot file the moment they disagreed.
+
+#: Audit scripts: re-derive adopted values from the original documents and exit
+#: non-zero if they stop reproducing. ONE LINE PER SCRIPT -- this table is the
+#: thing that was missing, and it is why a new extraction script now becomes
+#: part of the build instead of an orphan.
+#:   script, argv, the input it needs, what it guards
+#: Where the ENGINE tree lives, which is NOT necessarily the generator root.
+#:
+#: ⚠⚠ THIS EXISTS BECAUSE ALL THREE TWIN AUDITS WERE SILENTLY SKIPPING IN
+#: THE ORDINARY BUILD, which is a worse version of the defect they were written
+#: to prevent. `interimage_parity`, `bromide_parity` and `stage_parity` were
+#: each registered with `root / "Algo_..._Sim.cpp"` as their needs-file, where
+#: `root` is FILMSIM_ROOT -- the GENERATOR directory. The engine sources live
+#: elsewhere, so the needs-file was never present and a plain build printed:
+#:
+#:     [SKIP] interimage_parity.py  --  source not present: Algo_08_Sim.cpp
+#:     [SKIP] bromide_parity.py     --  source not present: Algo_09_Sim.cpp
+#:     [SKIP] stage_parity.py       --  source not present: AlgorithmMain.cpp
+#:
+#: ⚠ SO THE DEFAULT BUILD HAD NUMERIC TWIN COVERAGE OF ZERO STAGES, not the
+#: three that every document in this project claimed. They only ran when
+#: someone passed `--root` at an engine tree by hand, which the gate never
+#: does. That is how the stage-14 Schraudolph error and the stage-13
+#: print-curve error both reached a delivery.
+#:
+#: Resolution order, first hit wins: FILMSIM_ENGINE, the generator root itself
+#: (a combined checkout), then the conventional sibling tree. If none holds an
+#: AlgorithmMain.cpp there is genuinely no engine to audit and the needs-file
+#: gate skips as designed -- but when one IS on disk, the audits now run.
+def engine_root(root: Path) -> Path:
+    candidates = []
+    env = os.environ.get("FILMSIM_ENGINE")
+    if env:
+        candidates.append(Path(env))
+    candidates.append(root)
+    candidates.append(Path("/root/work/tst"))
+    for c in candidates:
+        try:
+            if (c / "AlgorithmMain.cpp").is_file():
+                return c
+        except OSError:
+            continue
+    return root
+
+
+def audits(root: Path):
+    eng = engine_root(root)
+    return (
+        ("vision3_granularity.py",
+         ["--pdfdir", str(root / "PDF" / "PROFILES" / "KODAK")],
+         root / "PDF" / "PROFILES" / "KODAK",
+         "the four VISION3 sigma(D) triples, traced from the Kodak TI sheets"),
+        ("mees_granularity.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "RETRO"
+              / "THE THEORY OF THE Photographic PROCESS.pdf",
+         "B&W silver-negative sigma(D) shape, Mees Fig. 302"),
+        # ⚠ THE ONLY AUDIT WHOSE SOURCE IS DELIBERATELY NOT ADOPTED. Every other
+        # entry in this list re-derives a number the database stores. This one
+        # re-derives a SHAPE the database cannot express -- Q rising from unity
+        # at the toe -- from a figure whose caveats (no stated collection angle,
+        # one motion-picture POSITIVE stock, "O. Sandvik, private
+        # communication") disqualify it as a source for `callier_q`. It is
+        # registered anyway because that shape is the standing argument for
+        # replacing the constant-Q model, and an argument resting on a trace
+        # nobody re-runs decays into a remembered impression.
+        ("mees_callier_q.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "mees_fig179_p643.png",
+         "Callier Q against diffuse density at five development gammas, Mees "
+         "FIG. 179 -- five curves traced by columns above D 0.25, the shared "
+         "toe traced by rows below it. REFERENCE ONLY: it touches no profile, "
+         "and must not until a source states a collection angle"),
+        # ⚠ THE FIRST AUDIT THAT MAKES A STORED NUMBER *RENDER* RATHER THAN
+        # CHECKING ONE THAT ALREADY DID. Every colour `dye_matrix` in this
+        # database was built by `_dye(k)` from a single scalar and was therefore
+        # SYMMETRIC -- so every colour stock crosstalked the same way and
+        # differed only in how much, while twelve of them carried traced dye
+        # spectra that nothing read. These two audits close that: the first
+        # verifies the ISO 5-3 status responses, the second integrates each
+        # stock's own dye panel against them and asserts the ten adopted
+        # matrices, the two refused panels, and the sign pattern.
+        # ⚠ GUARDED ON ITSELF, NOT ON THE PDF IT CAME FROM, AND THAT IS
+        # DELIBERATE. The tables are literals transcribed once from the page
+        # images; the check is a SELF-check of those literals -- peaks, unit
+        # peaks, monotone flanks, status M longer than status A in every band.
+        # Guarding it on the source PDF would make it SKIP on any tree without
+        # the corpus, which is precisely where a mistranscribed constant would
+        # otherwise travel unnoticed.
+        ("iso_5_3_status.py",
+         ["--root", str(root), "--assert"],
+         HERE / "iso_5_3_status.py",
+         "the ISO status A and status M spectral responses transcribed from "
+         "ANSI/ISO 5-3-1995 tables 3 and 4 -- peaks at 440/530/620 and "
+         "450/540/640 nm, unit peaks, monotone flanks. ⚠ Read off the PAGE "
+         "IMAGES, because the scan's OCR floats two red entries free of their "
+         "wavelength rows and shifts the status A red response by 10 nm"),
+        ("dye_matrix_from_spectra.py",
+         ["--root", str(root), "--assert"],
+         HERE / "film_profiles.py",
+         "the 25 dye matrices derived by integrating each stock's traced "
+         "spectral dye density against the ISO 5-3 response its own "
+         "density_metric names, checked against the literals the database "
+         "stores, against the sign pattern every real dye set obeys, and "
+         "against four Soviet manufacturing specifications the derivation "
+         "never saw -- plus the four panels it refuses by name. ⚠ 23 -> 25 "
+         "on 2026-09-06b: adopting a dye panel OBLIGES a row here, and this "
+         "audit is what enforces it -- the batch's first gate run died on "
+         "KeyError: 'FUJI_PROVIA_400F' rather than filing evidence unread"),
+        # ⚠ AN AUDIT OF A LAW WE DO **NOT** SHIP, KEPT FOR THE SAME REASON as
+        # mees_callier_q: the case for changing the Callier law rests on a
+        # measured divergence, and a divergence nobody re-measures decays into a
+        # remembered impression. It also pins the two things that must stay true
+        # of any replacement -- exact inertness at specular 0, and exact
+        # inertness for every colour stock at any setting.
+        ("callier_silberstein_tuttle.py",
+         ["--root", str(root), "--assert"],
+         HERE / "film_profiles.py",
+         "Silberstein & Tuttle's published specular/diffuse relation (Mees "
+         "printed p644) against the linear law film_sim and AlgoCallier ship: "
+         "both exactly inert at specular 0 and at Q = 1.0, identical at both "
+         "ENDPOINTS, and diverging by up to 0.21 D in between -- the shipped "
+         "law interpolates the multiplier, the published one interpolates "
+         "transmittance, which is what light actually does"),
+        # ⚠ QUEUE B4. Four plates that sat unread for a year behind a blocker
+        # recorded as "axis calibration is not solved". It was two things and
+        # neither was calibration: the outermost gridline on each axis is
+        # fainter than the interior ones and fell under the ink threshold, and
+        # the embedded raster is stored UPSIDE DOWN behind the page's own flip
+        # transform. Registered because the adopted MTF, base+fog triple and
+        # dye pair all come off these traces.
+        ("ti0835_plates.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "5247.pdf",
+         "the four TI0835 plates for EASTMAN_5247_1983 -- MTF, characteristic, "
+         "spectral and spectral dye density -- each calibrated on its own grid "
+         "landing on round steps, traced by exact plate ink, and guarded on "
+         "the properties an upside-down or legend-contaminated read breaks: "
+         "records stacked blue > green > red, spectral peaks in order and "
+         "within 18 nm of the stored set, and a D-min trace that FALLS towards "
+         "the red because it is the orange mask"),
+        ("dye_density.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK",
+         "the 12 adopted spectral dye density sets, re-derived from the "
+         "sheets' vector paths (5285 and 2383 are the validation pair; 7239, "
+         "5217 and 5218 were recovered on 2026-08-18 from the FAILED list; "
+         "5201 on 2026-08-25 by the ink-based family C)"),
+        ("fuji_pdg_2005.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FUJI" / "ProfessionalFilmDataGuide.pdf",
+         "Fujifilm PROFESSIONAL DATA GUIDE AF3-207U (2005): the seventeen stocks adopted from its "
+         "vector panels on 2026-09-29, the nine shared drawings cross-checked against their own "
+         "data sheets, VELVIA 50's generation argument, and rd046 Fig. 5 re-traced for PROVIA 100F/400F"),
+        ("kodak_2026_09_29b.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "e27.pdf",
+         "KODAK sub-folder harvest 2026-09-29b: E-190 (2006) identity of 160nc.pdf, the PORTRA "
+         "160- and 400-speed spectral panels re-read on every printing, the NC/VC reciprocity bound, "
+         "E-27 (EKTACHROME 100 EPN) curves / spectral / dyes / MTF, the H-1-5219 Revised 3-26 AHU "
+         "generation and its identical bitmaps, and Vitale 2009 Table 4"),
+        ("gurlev_1986_2026_09_29g.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Справочник по фотографии (светотехника и материалы).pdf",
+         "2026-09-29g/30: Гурлев 1986 raster figures re-traced -- Рис. 197 ЦНЛ-32 / ДС-4 / ЦНД-32 / "
+         "ЦНЛ-65, Рис. 199 ЛН-8, Рис. 198 ЦО-32Д, Рис. 200 ЦО-Т-90ЛМ, Рис. 178 ОЧ-45 12 min against "
+         "the stored curves, Рис. 176 СТ-2 kinetics against the stored gamma points, and the "
+         "owner decisions of 2026-09-30 kept visible"),
+        ("kodak_spectral_regrid.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "KODAK" / "f2350-T400CN.pdf",
+         "2026-09-30 (queue P95): the 2026-08-16 Kodak still-film spectral panels re-read "
+         "against the DRAWN gridlines (raster-located, vector curves) -- 12 stocks, with PORTRA "
+         "100T's 29b vector-grid reading as the cross-check"),
+        ("sovremennye_push_tables.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Современные фотоматериалы и их обработка.pdf",
+         "2026-09-30 (queue P98): «Современные фотоматериалы» push tables 3.198-3.200, "
+         "3.212-3.214, 3.227-3.229, 3.247-3.251 re-read from word coordinates WITH their "
+         "exposure index; every cell must be on its profile at its EI, vessel and format"),
+        ("sovremennye_tmax_push.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Современные фотоматериалы и их обработка.pdf",
+         "2026-10-01 (queue P98b): «Современные фотоматериалы» T-MAX push tables "
+         "3.164-3.171 / 3.180-3.189 and Kodak's chapter-5 tables 5.149-5.154, 5.158-5.159, "
+         "5.162-5.167 re-read from their ruled grids WITH their exposure index; every "
+         "series passes the physical check and every cell is on its profile at its EI"),
+        ("combined_mtf.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Современные фотоматериалы и их обработка.pdf",
+         "2026-10-01d (batch item 4): single combined colour MTF curves -- every stored "
+         "per-layer f50 re-solved from its traced curve (luminance-weighted layer sum, "
+         "corpus-measured layer ratios, blue sharpest / red softest)"),
+        ("sovremennye_kinetics.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "SOVIET" / "Современные фотоматериалы и их обработка.pdf",
+         "2026-10-01d (batch item 2): «Современные фотоматериалы» development-kinetics "
+         "panels -- every stored contrast/time point re-rasterised back onto the panel's "
+         "ink against displaced nulls, the developer labels against the printed normal "
+         "times, рис. 3.259/3.260 against the 3.256/3.257 drawing, every panel accounted for"),
+        ("ilford_sheets_2026_09_29f.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "ILFORD" / "HP5+-200407.pdf",
+         "2026-09-29f: ILFORD HP5 Plus / DELTA 3200 sheets (2002, 2004, 2018, 2025) -- the "
+         "development tables re-parsed, the 2004 / 2002 vector characteristic curves "
+         "re-traced, the DD-X / Microphen laws against the contrast-time graphs, reciprocity"),
+        ("af3_608e_text_2026_09_29d.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FUJI" / "datasheet_neopan1600superpresto_en_01.pdf",
+         "2026-09-29d: AF3-608E (NEOPAN 1600 / SUPER PRESTO) read from its clean text layer -- "
+         "the p2 development tables cell for cell (101 held equal, 52 new), the p3 "
+         "processing-capacity table and its merged-cell spans, identity with the 2012 copy"),
+        ("harvest_2026_09_29c.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FUJI" / "datasheet_neopan400presto120_01.pdf",
+         "2026-09-29c harvest: NEOPAN 400 PRESTO (120) as NEOPAN 400 (curves, spectral, "
+         "time-G, 110 shared table cells), its reciprocity ladder and new developers; "
+         "Popular Photography 2003 rms / resolving power; Classic Camera 2014's Ilford "
+         "powder-developer and Tri-X push tables; the «Современные» label repair"),
+        ("fuji_konica_dye.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FUJI" / "provia_100f_datasheet.pdf",
+         "the 7 dye sets adopted 2026-09-04 from the FUJI and KONICA house "
+         "styles, which dye_density.py cannot read: three RASTER panels "
+         "(PROVIA 100F by process ink, SENSIA 100 and VELVIA 50 by "
+         "slope-predictive tracking), two VECTOR panels with no rotated axis "
+         "caption (the Konica pair), one whose three dyes are a single path of "
+         "three subpaths (PROVIA 400X), and VISION3 200T 5213, whose Kodak "
+         "layout still needed the frame chosen by TICK COUNT because three "
+         "curve bounding boxes sit closer to the caption than the plot does. "
+         "⚠ It also asserts the TWO SHARED DRAWINGS -- PROVIA 100F = "
+         "SENSIA 100, and the Konica pair's magenta and cyan -- so seven "
+         "profiles cannot start reading as seven independent measurements. "
+         "EXTENDED 2026-09-04c: the two RASTER VISION3 panels 5203 and 5207, "
+         "whose recorded blocker was that they are raster and whose real one "
+         "was a DASHED D-min; and the SIX neutral + D-min panels the sweep had "
+         "classified as wrong-shape and left unread -- PRO 400H, SUPERIA X-TRA "
+         "400, CENTURIA SUPER 1600, VX 100, IMPRESA 50, ULTRAMAX 800 -- each "
+         "gated on the orange mask FALLING towards the red, and all six "
+         "asserted to be six drawings rather than fewer"),
+        # ⚠ QUEUE #214/#215, 2026-09-05. Registered because SUPER_ANSCOCHROME_
+        # 1957 is a stock whose ENTIRE numeric content -- its own curves, three
+        # ProcessVariant curve sets and all four ProcessingFamily gammas -- comes
+        # off ONE traced figure, so nothing else in the tree can notice if the
+        # trace stops reproducing.
+        ("anscochrome_1957.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "PSE"
+         / "sim_journal-of-imaging-science_1957-07_1_1.pdf",
+         "the four development curves of Super Anscochrome from Gifford & "
+         "Gerhardt, PS&E 1(1) p12 Fig. 4 -- the only four-point development "
+         "ladder on a reversal stock in this database, and the source that "
+         "made ProcessVariant.push_stops a float at schema v26 because its "
+         "ratings are EI 80 / 100 / 150 / 200 and not whole stops. Guards the "
+         "three things a bad re-trace breaks: the A > B > C > D ordering at "
+         "every shared column (these curves never cross, so a violation is a "
+         "swap), curve B against the SOLID connected component that drew it, "
+         "and all six ToneCurve parameters plus the straight-line gamma of "
+         "each of the four against what the profile carries. ⚠ It also prints "
+         "the EI-ladder cross-check that shows the abscissa is log10 -- the "
+         "paper states no unit for it -- and that curve D traces 0.02-0.08 "
+         "decade FASTER than its printed EI 200, which is recorded and not "
+         "corrected"),
+        ("spectral_vector.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "Kodak VISION2 50D 5201.pdf",
+         "KODAK_VISION2_50D_5201's three spectral sensitivity curves, the "
+         "first VECTOR-traced spectral set in the database -- layers assigned "
+         "by Kodak's ink convention (the red record being a yellow-under-"
+         "magenta overprint), peaks pinned at 470 / 540 / 650 nm and the "
+         "absolute peak sensitivities the schema's per-layer normalisation "
+         "throws away -- plus 12 further panels read as cross-checks against "
+         "sets already adopted, and the three C37 disagreements C38 settled on "
+         "2026-08-31: 5218 was the BROCHURE read against the technical sheet, "
+         "5231 was this reader pairing a criterion caption with the wrong "
+         "curve, and only 5245's blue tail was a defect in the data"),
+        ("polaroid_spectral.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "POLAROID" / "664fds.pdf",
+         "the four POLAROID spectral sensitivity panels, two of them new data "
+         "(Type 52 and Type 55 P/N) and two cross-checks that reproduce "
+         "hand-read sets from 1999 sheets to rms 0.034 and 0.027 decades. ⚠ "
+         "Queue item E2 prescribed NEGATING these curves -- the sheets' prose "
+         "says they plot 'the equivalent energy needed' -- and negating them is "
+         "exactly the mirrored reading that row warned about. The axis is "
+         "sensitivity: the 667 edition captions it 'Spectral Sensitivity "
+         "(cm^2/erg)', area per unit energy. The decisive check is asserted "
+         "here rather than argued: peak plotted value must RISE with exposure "
+         "index across all four sheets (EI 50 -> 9.8, 100 -> 15.6, 400 -> 98.0, "
+         "3000 -> 233.1), which under the inverted reading would have the ISO "
+         "3000 film needing fifteen times more light than the ISO 100 one"),
+        # ---- queue E3, 2026-08-31 -----------------------------------------
+        # ---- queue G2, 2026-09-02 -----------------------------------------
+        ("gevachrome_1968_raster.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "GEVAERT"
+              / "Rens_vanBets1968Gevachr6.00.pdf",
+         "J. E. Rens and K. Van Bets, «Gevachrome-Farbumkehrfilme für "
+         "Farbfernsehen», KINO-TECHNIK 1968 Nr. 10, printed pp. 260-266 -- the "
+         "four RASTER plot sets, the paper's text having been harvested by hand "
+         "in G1. ⚠ EVERY PAGE IS ONE EMBEDDED JPEG at about 115 ppi with no "
+         "curve paths and no tick text, and the sheet CURLS at its right edge, "
+         "so Bild 1's abscissa decade width runs 174 px between 2 and 10 c/mm "
+         "and about 99 px in the last stretch; the reader interpolates "
+         "PIECEWISE between the nine printed gridlines rather than fitting one "
+         "log scale, which is why an earlier pass that fitted one scale put "
+         "100 c/mm off the panel and stopped. The ordinate does not curl -- all "
+         "three panels independently return 176.5 px per decade -- which is "
+         "what a sheet curling about a vertical axis does and is the reason to "
+         "trust the abscissa anchors. ADOPTED: Bild 2a/2b spectral "
+         "sensitisation for both types, Bild 4 image-dye absorption (ONE curve "
+         "set captioned for both, so it is one measurement stored twice and "
+         "verify.py asserts the two arrays are identical), and Bild 1a/b/c MTF "
+         "in green / red / blue light. ⚠ THE MTF REPLACES [T3] CLASS ESTIMATES "
+         "THAT WERE TWO TO THREE TIMES TOO HIGH -- measured 20.4/23.5/44.4 and "
+         "15.8/20.3/35.9 c/mm against a stored 58/62/66 and 50/54/58 -- and "
+         "what licenses that is three things the tracer was not told: blue "
+         "comes out sharpest and red softest on both films, which is the "
+         "printed Tab. I layer order at a ratio of 2.2 where the estimates had "
+         "1.14; Typ 6.05, the faster film, comes out softer in every channel; "
+         "and the adopted rolloff law fits all six curves at q 1.90-2.12, rms "
+         "0.006-0.025. ⚠ L/mm IS CYCLES/mm: the text states the test object had "
+         "a SINUSOIDAL density variation, which settles the unit question queue "
+         "G6 raises for this paper. ⚠ BILDER 7a/7b ARE MEASURED AND NOT STORED: "
+         "the interimage separation A - B on the cyan record is about 0.15 D at "
+         "the foot, and CouplerSpec.strength has no published calibration "
+         "against a measured Delta-D, so converting one into the other would be "
+         "inventing the conversion rather than reading it"),
+        ("konica_raster.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KONICA" / "IMP50.pdf",
+         "the seven KONICA plot panels, which are the first RASTER-ONLY sheets "
+         "in this corpus to be adopted from: every figure in IMP50.pdf and "
+         "INF750.pdf is an embedded bitmap with no paths and no tick text, so "
+         "calibration is geometric off the printed grid and every panel "
+         "re-detects its own gridlines before a curve is traced. ⚠ The bitmaps "
+         "are also stored UPSIDE DOWN -- rotating them 180 degrees leaves the "
+         "text mirror-reversed, which is how the flip announces itself. What it "
+         "adopted: IMPRESA 50's characteristic curves, whose Dmin triple was a "
+         "family template shared with two other KONICA stocks and wrong in blue "
+         "by 0.32 D, and its visual-filter MTF (f50 64.9, not the estimated 72; "
+         "121.4 % overshoot at 6.88 c/mm; power-law rolloff q 2.20 beating the "
+         "Gaussian 2x); and INFRARED 750's curve at the sheet's own standard "
+         "condition, Konicadol DP 6 min at 20 C, which moved gamma 0.72 -> 1.70 "
+         "because all FIFTEEN printed curves are steeper than the value held. "
+         "The decisive check is asserted rather than argued: IMPRESA 50's Dmin "
+         "is read off TWO figures on TWO pages -- the characteristic plateau and "
+         "the minimum-density spectrum sampled at the status M band centres -- "
+         "and they agree to 0.005-0.015 D"),
+        ("granularity_vector.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "Ektachrome_100d.pdf",
+         "the EKTACHROME 100D 5285 sigma(D) triple -- the only MEASURED "
+         "granularity shape for a colour REVERSAL stock in the database, and the "
+         "one that contradicts _grain_v2's reversal heuristic in sign"),
+        ("mtf_vector.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "5231-PLUS-X.pdf",
+         "PLUS-X 5231's f50 and adjacency overshoot, read off the sheet's own "
+         "vector MTF path (41.3 cycles/mm and +0.034, against a stored estimate "
+         "of 60.0 and 0.08)"),
+        ("kodak_sensitometry.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "Kodak VISION2 50D 5201.pdf",
+         "KODAK_VISION2_50D_5201's three characteristic curves, least-squares "
+         "fitted to the DENSE curves inside the sheet's granularity panel (100 / "
+         "125 / 121 samples, rms 0.005-0.007 D) rather than to the six-vertex "
+         "polylines the sensitometric panel actually draws -- plus the abscissa "
+         "origin (+1.9932 decades) that only the coarse panel states, and the "
+         "cross-check that the sheet's two printed abscissae agree"),
+        ("agfa_vista.py",
+         ["--root", str(root / "PDF" / "PROFILES"), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA"
+              / "AGFACOLOR Vista 100, 200, 400, 800.pdf",
+         "AGFA_VISTA_200's spectral sensitivity, and the dash-pattern legend "
+         "it depends on: the extractor re-checks the solid/dashed/dash-dot to "
+         "green/blue/red mapping against Agfa's own printed labels and against "
+         "the per-layer absorption bands, for all three films on the page"),
+        ("gevaert_curves.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "GEVAERT"
+              / "Verpoort_Stapp1980_NewGevacolNeg682.pdf",
+         "GEVACOLOR_NEG_682's three characteristic curves, re-traced from the "
+         "1980 SMPTE paper's Fig. 10 at native scan resolution (589/513/437 "
+         "samples, fit rms 0.004-0.011 D) -- and re-checked against the gamma "
+         "0.57 the figure itself prints, which the trace reproduces at 0.5677"),
+        ("kodak_time_gamma.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK"
+              / "EASTMAN DOUBLE-X Negative Film 5222.pdf",
+         "EASTMAN DOUBLE-X's printed five-point time-gamma family, re-derived "
+         "from the five DRAWN curves on H-1-5222 p2 rather than from the text "
+         "labels that state it. Reproduces 0.500 / 0.558 / 0.652 / 1.060 "
+         "against the printed 0.50 / 0.56 / 0.66 / 1.05, and records the one "
+         "that does NOT reproduce -- 9 minutes, measured 0.798 against a "
+         "printed 0.84 -- as a named exemption, so a NEW disagreement on any "
+         "other curve fails instead of hiding inside a loose tolerance. Also "
+         "measures base+fog per development time (0.231 / 0.233 / 0.233 / "
+         "0.275 / 0.296), which is what corrected the profile's dmin"),
+        ("agfa_2004_curves.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "AGFA stocks.pdf",
+         "Agfa F-PF-E4 (4th edition, 08/2004) read as VECTOR: 12 spectral "
+         "curves and 12 colour-density curves across four film columns, with "
+         "the three layers separated by DASH ARRAY and the keying checked "
+         "against the sheet's own printed Blue/Green/Red words. Fits the "
+         "corpus's six-parameter ToneCurve to each density curve at rms "
+         "0.005-0.016 D and cross-checks every fitted gamma against an "
+         "independent steepest-chord slope. ⚠ Reports the Sharpness panel's "
+         "overshoot (109-114 %) as adoptable adjacency but REFUSES its f50: "
+         "the abscissa says 'Lines per mm' and whether that is line pairs is "
+         "open queue item G6"),
+        ("agfa_p16c.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "agfa_film_chem.pdf",
+         "Agfa «Technical Data P-16-C» (08/1999), the processing companion "
+         "`agfa_films.pdf` p11 names in its last line -- and which sat in the "
+         "corpus under a filename that reads like a chemistry catalogue with "
+         "nothing connecting it to the film sheet. Parses TEXT, not curves: 64 "
+         "printed developing-time cells giving the time to reach gamma 0.55 / "
+         "0.65 / 0.75 for each AGFAPAN film in each of six developers, for "
+         "drum and small tank, plus 15 push rows. ⚠ It SUPERSEDES the traced "
+         "gamma-time panel for the same three films -- same physics, printed "
+         "instead of digitised -- and the two agree where they overlap, which "
+         "is the check that makes the supersession safe rather than a swap. "
+         "⚠ The audit's real work is the MONOTONICITY test: a longer "
+         "development cannot give less contrast, so every (developer, method, "
+         "film) triple must ascend with gamma. P-16-C passes on all of them; "
+         "the 2004 handbook's RODINAL table fails, which is how a typesetting "
+         "fault was told from a product revision. It also asserts the "
+         "cross-document row RODINAL 1+25 / small tank / gamma 0.65 = 6 / 8 / "
+         "7 min, which agfa_films.pdf p11 prints independently. ⚠ AND IT "
+         "RECORDS A NEGATIVE RESULT: this document was read specifically to "
+         "see whether it could fill `grain.clump_um*` or the sigma(D) shape, "
+         "and it cannot -- no granularity plot, no aperture series, no Wiener "
+         "spectrum. Those cells stay estimated for a checked reason"),
+        ("agfa_1998_curves.py",
+         ["--root", str(root)],
+         root / "PDF" / "PROFILES" / "AGFA" / "agfa_films.pdf",
+         "Agfa «Technical Data PF» (1st edition, 09/1998) read as VECTOR -- a "
+         "DIFFERENT DOCUMENT from the F-PF-E4 sheet the audit above reads, "
+         "though NotFound.md row 5 and queue G6 both recorded the four Agfa "
+         "candidates as one publication. The byte-identical pair is real; "
+         "agfa_films.pdf (md5 edb3dd17...) is not part of it, and it is the "
+         "ONLY document in the corpus that plots AGFACOLOR ULTRA 50 or the "
+         "AGFACHROME RSX II line. Reads all TWELVE film columns x four panels: "
+         "spectral sensitivity, spectral density, sharpness and characteristic "
+         "curves, plus the APX gamma-time families and SCALA's five push/pull "
+         "steps. ⚠ Three things this reader had to do differently from the "
+         "2004 one, each of which produced plausible output when done the 2004 "
+         "way: the panel is calibrated from its own printed LABELS rather than "
+         "a frame rect (the frame is an inner grid box a decade narrower than "
+         "the plot, and frame containment returned 'no curve' on six of twelve "
+         "columns); the label fit rejects outliers iteratively (the ordinate's "
+         "single-glyph '0' bridges the 4 pt clustering gap to the abscissa's "
+         "'-4.0' and dragged in 2.22 D of residual on a 3 D axis); and data is "
+         "separated from furniture by SHAPE, not stroke width, because the "
+         "Portrait spectral panel draws its curves at 0.503 pt -- THINNER than "
+         "one of its own frames. Reversal records are fitted on a NEGATED "
+         "abscissa as ToneCurve requires; fitted the sheet's way they return "
+         "dmin 3.0 and gamma 2.0-2.5, in range for a slide film and wholly "
+         "wrong. ⚠ Reports f50 and REFUSES to adopt it (queue G6) while "
+         "adopting the overshoot, which is unit-free -- but files the evidence "
+         "G6 asked for: this sheet prints an MTF and a resolving power for the "
+         "same film on the same page, and f50/RP runs 0.19-0.52 with a median "
+         "of 0.30 against Tani's predicted 0.5. ⚠ CORRECTED 2026-09-01b -- THIS "
+         "AUDIT USED TO CONCLUDE \"so reading the axis as HALF-cycles would move "
+         "it further from the relation, not closer\", WHICH OVERSTATED WHAT THE "
+         "RATIO SHOWS. It is true of the one hypothesis it tested (the MTF "
+         "ABSCISSA half-cycles, the resolving-power TABLE cycles -> 0.15) and it "
+         "addressed neither of the other two: BOTH half-cycles leaves the ratio "
+         "unchanged at 0.30, because it is a ratio of two quantities in the same "
+         "unit, and the TABLE half-cycles with the abscissa in cycles gives 0.60, "
+         "which is CLOSER to 0.5 than 0.30 is. The scale test in "
+         "`agfa_2003_sheet.py` is what actually bounds it -- Agfa's "
+         "RP x sqrt(RMS) invariant sits with every other maker's, so the table "
+         "is on the line-pair scale and is kept as printed"),
+        ("agfa_2003_curves.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "agfa-aERRKF-Datenblatt_F_PF_D4.pdf",
+         "Pages 8 and 9 of the 4th-edition Agfa sheet -- the six film columns "
+         "`agfa_2004_curves.py` never read, because it stops at p7. RSX II 50 "
+         "/ 100 / 200 as reversal, APX 100 / 400 as monochrome, SCALA 200x as "
+         "B&W reversal. ⚠ ITS REAL WORK IS THE CROSS-EDITION COMPARISON, and "
+         "the answer it returns is NEGATIVE IN THE USEFUL SENSE: the printed "
+         "resolving power of the RSX II line was revised upward between 1998 "
+         "and 2003 (125/125/110 -> 135/130/120 lines/mm) but the CURVES DID "
+         "NOT MOVE. Once each edition's label offset is removed the two "
+         "editions agree to 0.001-0.006 D rms on every density record and "
+         "0.001-0.004 lg on every spectral one, because Agfa reused the "
+         "identical artwork -- so the revision is a later measurement of an "
+         "unchanged emulsion and a 2003 number may sit beside a 1998-traced "
+         "curve. ⚠ THAT DE-BIAS IS ITSELF A FINDING. A text box's centre is "
+         "not a digit's optical centre, and the two editions set their axis "
+         "labels at different point sizes (7.69 pt box against 6.01 pt), so "
+         "the error does not cancel between documents: measured against the "
+         "RSX II 100 panel's own 0-to-4.0 axis rectangle the 1998 fit reads "
+         "0.020 D LOW and the 2003 fit 0.015 D HIGH, and that 0.035 D is "
+         "essentially the whole 0.038 D by which the editions appeared to "
+         "disagree. ⚠ It also asserts the GERMAN TWIN relationship rather "
+         "than assuming it -- pp7-8 must be byte-identical drawings in both "
+         "files -- and turns Agfa's own typo into a check: the RSX II 50 "
+         "spectral ordinate is printed «- 0.1» where the uniform 31.80 pt "
+         "tick pitch and both sibling columns require -1.0, so that label is "
+         "vetoed and the fit made without it is required to PREDICT -1.000 "
+         "there. ⚠⚠ AND ON 2026-09-07 IT GAINED THE PANEL IT HAD ONLY "
+         "DESCRIBED: slot 4 of the Scala column, «Gradation/Maximaldichte "
+         "bei push/pull-Verarbeitung», was named in a comment above a "
+         "`SCALA_BANDS` dict of three entries and traced by nothing, so "
+         "`push.gamma_gain_per_stop` sat at 0.0 while the sheet plotted the "
+         "contrast of all five processing steps. Both mini-plots are now "
+         "read frame-anchored -- contrast 0.796 / 1.395 / 1.695 / 1.795 / "
+         "1.845 and D-max 3.095 / 2.994 / 2.744 / 2.494 / 2.245 over Pull 1 "
+         "/ Standard / Push 1 / 2 / 3, landing within 0.006 of Agfa's own "
+         "0.05 grid, which is the calibration proof because the trace is "
+         "told nothing about the grid. Its abscissa is CATEGORICAL, so "
+         "markers are matched to printed step labels and the joining "
+         "polyline is refused -- on the density box it covers three of the "
+         "five points and following it would silently return three values. "
+         "The D-max ladder is NOT averaged with the 1998 density-curve "
+         "reading it duplicates; both are named and the 0.004-0.074 D "
+         "spread is reported"),
+        ("agfa_2003_sheet.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "agfa-aERRKF-Datenblatt_F_PF_D4.pdf",
+         "Every PRINTED TABLE on the 4th-edition Agfa sheet, in BOTH "
+         "languages, against the 1st edition's. ⚠ The English file has been "
+         "in the corpus since 2026-08-29 and only its curves were ever read: "
+         "not one of its tables had been harvested, although they carry the "
+         "resolving power at two contrasts, the layer thickness, the base "
+         "thickness per format, the DX and negative codes, the development-"
+         "time matrices at 18/20/22/24 C and the exposure index per "
+         "developer for all ten films. Reads all ten spec blocks in English "
+         "and German and requires every numeric cell to agree across the two "
+         "typesettings; keeps the measurement conditions in Agfa's own words "
+         "(«Bezug: Energiegleiches Spektrum», «Diffuse Dichte 1,0; 48 µm "
+         "Meßblende», «Densitometrie: Status A bzw. Status M»). ⚠ THE TWO "
+         "ASSERTIONS THAT CARRY THE WEIGHT ARE A MATCHED PAIR: APX 100's "
+         "processing tables must be IDENTICAL across the editions in all 7 "
+         "comparable rows, and APX 400's must DIFFER in all 7. That is what "
+         "turns «Neue Generation (ab 2003)» from a footnote into evidence, "
+         "and it is why AGFA_APX_400 is left as the pre-2003 film. It also "
+         "found the Optima 200 provenance defect -- the database stores RMS "
+         "4.3 citing the 1998 sheet, which prints 4.5 in that column. "
+         "⚠⚠ AND ON 2026-09-07 IT LEARNED TO DATE THE THREE ROWS ITS TEXT "
+         "PATH CANNOT. APX 400's processing block continues past Agfa's "
+         "six developers with three they did not make -- Tetenal Ultrafin "
+         "Plus 16, Kodak T-MAX 12, Kodak D76/Ilford ID11 12 min -- each "
+         "printed with ONE time where the others carry four, so in TEXT "
+         "that time has no temperature and `proc_tables` still refuses to "
+         "give it one. `third_party_column` reads the geometry instead: "
+         "Agfa CENTRE these cells, and all three land on the same block's "
+         "20 C column to 0.09 pt with Agfa's own four-column rows as the "
+         "control at 0.12, in both independently typeset editions. It "
+         "asserts the asymmetry in both directions too: APX 100 and APX 25 "
+         "must NOT acquire them, because only the fast film gets "
+         "third-party guidance"),
+        ("agfaphoto_vista_plus.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "agfafilms-Vista.pdf",
+         "AgfaPhoto «Product Information -- Color Negative Film», Vista plus "
+         "200 and Vista plus 400 -- eight VECTOR panels, and a sheet that is "
+         "NOT Agfa-Gevaert's. ⚠⚠ IT SAYS SO ITSELF: «Neither Agfa-Gevaert NV "
+         "& Co KG nor Agfa-Gevaert NV manufacture this product», «Produced "
+         "for and distributed by Lupus Imaging & Media GmbH Co. KG». The two "
+         "stocks are therefore SEPARATE from AGFA_VISTA_200 and nothing here "
+         "is written onto it -- the owner asked whether these curves could "
+         "replace that profile's estimates, and the answer is in the "
+         "provenance. ⚠⚠ AND THE DYE SET NAMES THE MAKER: against all 26 "
+         "stored 31-sample spectral dye density sets, both films' traced "
+         "neutral matches FUJICOLOR_SUPERIA_XTRA_400 to a mean 0.0177 D where "
+         "the next-nearest sits at 0.154 -- nine times further -- and the "
+         "D-min mask to 0.015-0.030 D. With the document on the Fuji template "
+         "(process CN-16, cellulose triacetate 122 um, «mid-scale neutral ... "
+         "D-mini» verbatim, the J/cm2 sensitivity footnote) these are "
+         "Fuji-made films in AgfaPhoto packaging. ⚠ EVERY AXIS NUMERAL ON "
+         "THIS SHEET IS A GLYPH OUTLINE -- get_text returns 131 words on p4 "
+         "and not one numeral -- so the printed-ladder half of the 2026-09-06i "
+         "rule is unavailable and each calibration is frame-anchored and then "
+         "required to PREDICT the panel's own gridlines, which it does to "
+         "0.56-1.76 pt. That check is what caught the characteristic "
+         "abscissa, whose right frame edge IS lg H 0.0 while its left edge is "
+         "half a division beyond -4.0. ⚠⚠ THE MTF IS READ AND REFUSED: one "
+         "47-point path serves BOTH films, translated dx +0.143 dy -0.076 pt "
+         "with spreads of 0.0010 / 0.0020 pt, which is NotFound row 5d's "
+         "refusal exactly -- while the characteristic, spectral and dye "
+         "records differ between the two films by 8-17 pt, so the shared "
+         "drawing is a finding and not a reader fault"),
+        ("ferrania_p30_alfa_report.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FERRANIA"
+              / "Ferrania-P30-alfa_D-76_1+1.pdf",
+         "FERRANIA P30 alfa -- the 14-page sensitometric test report of "
+         "05/13/17, read WHOLE at schema v54. ⚠⚠ THE DATABASE USED TO KEEP "
+         "FIVE CURVES AND TWO NUMBERS OUT OF ABOUT SIXTY: the 2026-09-24 pass "
+         "fitted the page-2 step tablet (21 steps x 5 legs, 105 printed "
+         "densities) and put Avg. G and SBR in prose, while the effective "
+         "film speed each development meters at, the Zone N number, the "
+         "operator's measured B+F, the log-exposure interval and the paper "
+         "target were read and dropped. `SensitometryReport` is where they "
+         "live now. ⚠ TWO QUANTITIES ARE TRACED RATHER THAN PRINTED -- the N "
+         "number, which the report only plots, and the sub-step part of the "
+         "speed, printed only as «32+», «50-», «64--» -- AND THE TRACE IS "
+         "CHECKED BEFORE IT IS BELIEVED: the same marker-finder over pages 9 "
+         "and 10 returns the PRINTED SBR to 0.04 and the PRINTED Avg. G to "
+         "0.00, the speed ladder fits its own nine rungs to 0.08 px, and N is "
+         "plotted TWICE (against time and against speed) and the two agree to "
+         "0.002. The module FAILS if any of those checks stops holding. "
+         "⚠ IT ALSO ASSERTS THE REPORT'S OWN N CONVENTION, derived and not "
+         "assumed: N = 0 at SBR 7.01 at 0.57 N per stop, which is the "
+         "Zone-System normal and NOT the one-N-per-stop rule of thumb -- "
+         "which is exactly why the numbers are stored rather than computed. "
+         "⚠ AND IT PRINTS THE TWO PAIRS KEPT BECAUSE THEY DISAGREE: printed "
+         "B+F against fitted dmin (up to 0.053 D apart) and printed Avg. G "
+         "against ToneCurve.gamma (up to 2.22x apart)"),
+        ("ferrania_p30_best_practices.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FERRANIA" / "FP3011_Datasheet.pdf",
+         "FERRANIA P30 «BEST PRACTICES» v 2.5 -- the manufacturer's own "
+         "processing chart, and the first manufacturer processing data this "
+         "profile has ever carried. ⚠⚠ IT HAD FIVE ProcessVariants AND NO "
+         "MANUFACTURER TIME: those five are a named third party's D-76 1+1 "
+         "test on PRE-PRODUCTION stock the tester's notes call «Pellicola di "
+         "pre-produzione, stage alfa, difettata». This chart is Ferrania's, "
+         "covers eight developers and uses D-76 at STOCK strength, so the two "
+         "sets do not overlap and the module FAILS if a later pass tidies "
+         "either away. ⚠ NO GAMMA IS PRINTED ANYWHERE ON THE SHEET, so all "
+         "eleven points are time-only and none can confirm or contradict the "
+         "stored curve; the module fails if one acquires a contrast. ⚠ "
+         "`vessel` is empty on all eleven because the caption is "
+         "«RECOMMENDED TECHNIQUES for Handheld and Rotary Tanks» and each row "
+         "gives ONE time for both. ⚠⚠ PAGE 3'S THIRTEEN ROWS ARE NOT POINTS: "
+         "they are under Ferrania's own heading «Additional "
+         "Community-Submitted Processing Techniques», `DevelopmentPoint` has "
+         "no evidence tier, and mixing them in would make a user submission "
+         "indistinguishable from a manufacturer recommendation to "
+         "`resolve_development_time`. The module asserts they stay outside "
+         "the family, keyed on (developer, dilution) because R09 is on both "
+         "pages at different dilutions. ⚠ THE SHEET CONTRADICTS ITSELF: two "
+         "rows print «24ºC/72.5ºF» where 24 C is 75.2 F, and a third prints "
+         "«24ºC/75ºF» correctly, which is what identifies the error. All "
+         "three strings are re-read every build so a corrected reissue "
+         "reopens the decision instead of aging quietly"),
+        ("ferrania_vendor_sheets.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FERRANIA"
+              / "Curve caratteristiche e sensibilita spettrali.pdf",
+         "FERRANIA's two vendor sheets -- four characteristic curves and "
+         "THREE wedge spectrograms, re-read whole. ⚠⚠ THIS MODULE EXISTS "
+         "BECAUSE ONE PROFILE WAS CARRYING TWO FILMS: until 2026-09-25 "
+         "FERRANIA_P30's tone curve was a 2017 third-party test of "
+         "pre-production ORIGINAL stock while its spectral sensitivity was "
+         "the spectrogram captioned «P 30 New» -- the Mk2 -- so a film the "
+         "maker describes as having «bassa sensibilita al rosso» rendered "
+         "with a flat panchromatic response to 650 nm. The split produced "
+         "FERRANIA_P30_MK2, FERRANIA_P33_160 and FERRANIA_ORTO_50. ⚠ EVERY "
+         "WAVELENGTH AXIS IS RE-DERIVED FROM THE STRIP'S OWN PRINTED MAJOR "
+         "TICKS on every build, and the module asserts that the Orto ruler "
+         "ends at 550 nm and the other two at 650 -- because the 2026 P.F.G. "
+         "range sheet reprints the ORTO strip cropped at 584 nm under a "
+         "yellow overlay whose labels stop at 550, and reading that copy as "
+         "if it ran to 650 yields almost exactly the Mk2's shape. ⚠ ONLY THE "
+         "ORTO STRIP CARRIES A PRINTED SENSITIVITY LADDER; the other two are "
+         "cross-calibrated through their own ruler scales, which assumes one "
+         "instrument and one wedge for all three and says so. ⚠ THE WEDGE IS "
+         "ABOUT 0.8 DECADE DEEP, so the deepest value in each record is a "
+         "bound and not a measurement. ⚠ P33 IS DRAWN TWICE on the sheet and "
+         "the two independent traces agree to 0.004 D -- that agreement is "
+         "what licenses the dashed «P30» member of the same plot to be read "
+         "as the ORIGINAL emulsion's only manufacturer curve"),
+        ("retro_ru_books.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO"
+              / "753285859-V-A-Yashtold-Govorko-Pechat-fotosnimkov-1967.pdf",
+         "Two Russian books read for what the schema can hold -- В. А. "
+         "Яштолд-Говорко «Печать фотоснимков» (1967, 214 pp., 23 tables) and "
+         "Э. Митчел «Фотография» (Мир 1988, 225 pp.), the Russian translation "
+         "of Mitchell's «Photographic Science». ⚠⚠ MOST OF WHAT THEY CONTAIN "
+         "CANNOT BE STORED AND SAYING SO IS HALF THE VALUE: between them 31 "
+         "numbered tables, of which four produced database changes; the rest "
+         "is photographic PAPER as a graded product (a carrier this schema "
+         "does not have), generic science with no named stock, or a worse "
+         "copy of something already measured. Refusals in "
+         "EMULSION_KNOWLEDGE_BASE.md §23t. ⚠ ADOPTED: Mitchell p.179 gives "
+         "KODACHROME_64 and EKTACHROME_64 their resolving power in ONE "
+         "sentence -- equal at 80 lp/mm low contrast, 125 against 100 high -- "
+         "and all four fields were 0.0 before; and Табл. 8.4 gives "
+         "KODAK_PLUS_X_125 the ONLY contrast-carrying development points it "
+         "has, five rungs of time, CONTRAST INDEX and EXPOSURE INDEX "
+         "together, where all 274 points it already held are Kodak's own "
+         "time-only tables. ⚠⚠ AND THOSE FIVE DISAGREE WITH KODAK BY 21 %: "
+         "Kodak put D-76 1:1 at 20 C between 6.25 and 7.00 min, Mitchell "
+         "needs 8.0 for the same CI 0.56 aim. Both sets are kept, the "
+         "disagreement is asserted at its measured size, and a later pass "
+         "that averages them fails. ⚠ CROSS-CHECKED RATHER THAN ADOPTED, "
+         "which is the stronger result: ГОСТ 5554-63's minimum resolving "
+         "powers (116/92/75/70 lp/mm) and its recommended gamma (0.8) for "
+         "Фото-32/65/130/250 are now GUARDS over four SVEMA curves this "
+         "project traced from elsewhere -- every one clears its floor by "
+         "16-33 % and the four gammas fit at 0.80/0.83/0.80/0.85. ⚠ The "
+         "standard's FOG ceiling is printed and only loosely asserted: "
+         "ToneCurve.dmin includes the support and «вуаль» does not, so two "
+         "of four sit above the bare cap and that is a support, not a defect"),
+        ("ferrania_p30_colour_target.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FERRANIA"
+              / "analogica_sensibilita_cromatica_vs_tri-x.png",
+         "FERRANIA P30 (original): the red deficiency, MEASURED off a "
+         "colour target rather than asserted. ⚠⚠ NO WEDGE SPECTROGRAM OF THE "
+         "ORIGINAL EMULSION EXISTS, so this frame -- one 24-patch target "
+         "photographed on Tri-X and on P-30 and printed side by side, posted "
+         "to analogica.it on 01/12/2019 -- is the only quantitative record "
+         "of its colour response. Each panel is calibrated on ITS OWN six "
+         "neutral patches, which inverts that panel's whole tone chain and "
+         "leaves only the difference between the films: blue +0.39, cyan "
+         "+0.33, green -0.16, yellow -0.48, orange -0.49, red -0.54 decade. "
+         "⚠ THE INVERSION IS MONOTONE (PCHIP) AND THAT IS NOT COSMETIC: a "
+         "cubic through the six neutrals curls back outside the calibrated "
+         "span and returned +1.62 and +0.76 decade for P30's orange and red, "
+         "the two patches the whole measurement is about. ⚠ THE CALIBRATION "
+         "USES THE TARGET'S PUBLISHED LUMINANCES, not the reference chart "
+         "printed in the frame, whose own neutral ramp spans 2.3 decades "
+         "against the physical target's 1.46 and stretches every result by "
+         "1.6x. ⚠ AN INDEPENDENT CHECK FROM A DIFFERENT YEAR: analogica.it "
+         "user «ometto», 10/10/2020, needed +5 stops through an orange/red "
+         "filter where the nominal factor is +3. The module rebuilds the "
+         "stored curve as Tri-X's F-4017 artwork plus the fitted logistic "
+         "and FAILS if the engines stop rendering P30's red weight below "
+         "half of Tri-X's"),
+        ("cinestill_cs2.py",
+         ["--root", str(root), "--assert"],
+         HERE / "doc" / "thirdparty" / "cinestill_cs41vscs2_raw_px.txt",
+         "CineStill 800T's SECOND figure, `cs41vscs2curves2`, which "
+         "NotFound.md 7.2 and the 800T ledger both held as «VENDOR, but "
+         "UNIDENTIFIED -- which curve is which process is unknown». ⚠⚠ IT IS "
+         "ANSWERED WITHOUT A NEW DOCUMENT: the FIRST figure from the same page "
+         "is already adopted on this profile, so a «CS41 against CS2» "
+         "comparison must plot, as one of its two curves, a record the "
+         "database already holds. Placed on figure 1's abscissa -- the same "
+         "+1.51681 decade, FIXED IN ADVANCE rather than fitted, or the test "
+         "would buy its own answer -- the six pairings separate 3.2 to 1: the "
+         "red dashed trace matches the stored GREEN record at 0.0848 D rms "
+         "against a next-best 0.2748, and its own refit returns gamma 0.6112 "
+         "where the stored green holds 0.6214. Red is CS41; by elimination "
+         "neutral is CS2. ⚠ THE SIGN OF THE RESULT IS ITS OWN CHECK and the "
+         "module FAILS if it flips: Cs2 is CineStill's ECN-2 kit, ECN-2 "
+         "develops a colour negative flatter than C-41, and the "
+         "identification returns CS2 17.7 % flatter -- the direction the "
+         "chemistry predicts, from a test that knew nothing about it. ⚠ "
+         "STORED AS A DELTA ON ONE RECORD, NOT AS A ProcessVariant: the "
+         "figure prints one record per process, a variant needs three, and "
+         "spreading a green delta over red and blue is what "
+         "`_PROCESS_VARIANTS` exists to prevent"),
+        ("agfaphoto_apf_panels.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "AgfaPhoto_filmrange_en0.pdf",
+         "AgfaPhoto «Technical Data Sheet AP-F» 07/2007, page 5 -- the six "
+         "RASTER panels, three Sharpness and three colour-density, for Vista "
+         "100 / 200 / 400. ⚠⚠ NOTHING IS ADOPTED FROM THIS SHEET INTO A "
+         "NUMERIC FIELD and the module exists to keep two things honest. "
+         "FIRST, THE CROSS-DOCUMENT IDENTITY TEST, which is load-bearing: the "
+         "AP-F colour-density panels reproduce the Vista plus profiles' "
+         "stored characteristic curves at 0.024-0.076 D rms under TWO free "
+         "parameters, one lg-E shift and one density offset, and the offset "
+         "is a SINGLE constant of +0.192..+0.243 D across all six records "
+         "rather than three different ones -- a changed zero reference, not a "
+         "changed emulsion. That is what licenses attaching a «Vista» sheet "
+         "to a «Vista plus» profile at all, and therefore what licenses the "
+         "2026-09-24 rms-granularity correction (4.5 -> 4.0) the same sheet "
+         "supplied; if it ever fails, that correction has to be backed out. "
+         "SECOND, THE THREE-WAY MTF DISAGREEMENT, printed on every build so "
+         "it cannot go quiet: Agfa-Gevaert 06/2000 reads +0.0978 overshoot / "
+         "f50 47.83, this sheet reads +0.1012 / 51.28 for the same film seven "
+         "years later, and the Vista plus vector sheet -- which is what the "
+         "profiles STORE -- reads +0.1842 / 58.68 off ONE drawing shared by "
+         "both films. Two independent documents against the one that is "
+         "known not to be per-film. The stored value is kept because it is a "
+         "vector trace of the right product; queue P93 names what would "
+         "settle it. ⚠ THE PANELS HAVE NO TEXT LAYER AT ALL, so every "
+         "calibration is anchored on the drawn gridlines -- six verticals and "
+         "five horizontals per panel, worst residual 3.0 px on a 550 px axis "
+         "-- and the module proves the three Sharpness drawings are three "
+         "drawings (41.5-52.4 % curve-pixel mismatch at the best of 225 "
+         "alignments) before reading anything off them"),
+        ("agfa_scala_sheet.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "agfa_scala.pdf",
+         "«AGFA SCALA 200x PROFESSIONAL -- Technical Data», F-SW12-E6, 6th "
+         "edition 08/2000: the film's OWN four-page sheet, published between "
+         "the two range sheets and new to the corpus. Reproduces all 17 "
+         "stated values and checks them against the stored profile. What only "
+         "this document gives: exposure latitude as a speed-dependent NUMBER "
+         "(+-1/2 stop at ISO 200-1600, +-1 stop at ISO 100), the granularity "
+         "viewing condition (\"equivalent to a 12-fold magnification\", and "
+         "\"only in SCALA process\"), the five-layer emulsion design, the "
+         "film base BY STANDARD -- safety film (acetyl cellulose) to DIN "
+         "15551 -- which is the only per-film base material statement in the "
+         "whole Agfa set, and the anti-halation construction in words. ⚠ ITS "
+         "\"Total thickness: 12 um\" IS NOT THE RANGE SHEETS' "
+         "«Schichtdicke 7 um» and the audit says so: 7 um is the emulsion "
+         "layer, 12 um the whole coating including the retouchable gelatine "
+         "backing. Two quantities, not a conflict, and not averaged. ⚠ AND A "
+         "RECORDED NEGATIVE: no granularity plot, no aperture series, no "
+         "Wiener spectrum, no gamma-time family, so this sheet cannot fill "
+         "sigma(D) or clump size for SCALA either"),
+        ("bbc_t101_2.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "BBC Photographic film grain. 1964-04.pdf",
+         "BBC Research Report T-101/2 (1964/4), K. Hacking -- the sequel to a "
+         "T-101 this corpus already cites on three stocks, and the document "
+         "that prints the whole measurement set in one table. Reads Table 1's "
+         "four measured grain Wiener spectra (Ilford Pan F 0.10, Kodak Plus-X "
+         "0.14, Kodak Tri-X 0.555, Ilford H.P.S. 0.62 square microns) and "
+         "TRACES Fig. 8 from the page raster to check them. ⚠ THE TRACE IS NOT "
+         "DECORATION: it reproduces the printed means to 0.1-0.7 %, and it "
+         "measures the flatness the closed-form conversion depends on -- "
+         "W(25.4 c/mm)/W(0) is 0.978-0.999, so sigma^2 = W/area holds by "
+         "Parseval and no numerical integral is needed. ⚠ A WIENER SPECTRUM IS "
+         "NOT AN rms GRANULARITY and this audit is where that stops being "
+         "skated over: the BBC figures are at D 0.48 and gamma 1.0, not at the "
+         "net density 1.0 and gamma 0.65 the project's rms convention means, "
+         "and the three-step chain (Parseval, sqrt(gamma) from the report's own "
+         "section 5.2, D^0.4 from Higgins and Stultz) is asserted against a "
+         "CONTROL -- Kodak's own published 17.0 for Tri-X against the chain's "
+         "18.9, 11 %. Plus-X and H.P.S. are adopted on that licence at -4.9 % "
+         "and +5.3 %; ⚠ ILFORD PAN F IS REFUSED at +61 %, because its ASA 16 "
+         "doubles under the table's own pre-revision footnote to about 32 "
+         "against a profile rated EI 50, which is Pan F PLUS -- one trade name, "
+         "two products, the same trap the corpus documents for TRI-X 5223"),
+        ("flueckiger_2018.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO"
+              / "flueckigeretal_investigationfilmmaterialscannerinteraction_2018_v_1-1b.pdf",
+         "Flueckiger, Pfluger, Trumpy, Croci, Aydin and Smolic, «Investigation "
+         "of Film Material-Scanner Interaction», University of Zurich / "
+         "DIASTOR, v1.1 2018, 88 pages. ⚠ MOST OF IT IS A SCANNER STUDY AND "
+         "IRRELEVANT HERE; four figures are not. §2.8.2 Fig. 16 gives the "
+         "analytical densities of the THREE-STRIP TECHNICOLOR transfer dyes, "
+         "measured on a 1949 SAMSON AND DELILAH print with a SHIMADZU UV-1800 "
+         "and separated by the Ohta PCA method -- the FIRST measurement "
+         "TECHNICOLOR_THREE_STRIP has ever carried, it being one of the nine "
+         "stocks NotFound.md lists as having no source of any kind. ⚠ Figure "
+         "16's ordinate has no scale, ticks or label, so only the SHAPE is "
+         "taken, peak-normalised with the axis assumed to be zero; what "
+         "validates it is the peak list printed in the running text and never "
+         "seen by the trace -- 460 / 540 / 660 / 720 nm, returned exactly. "
+         "§2.8.3 Figs. 21 and 22 give the Dufaycolor réseau: the transmittance "
+         "of the three filter elements at 16 wavelengths, and the integral "
+         "transmittance of the same sample on a bench spectrophotometer. "
+         "⚠ THE CHECK THIS READER RESTS ON is that the two figures are "
+         "separately calibrated and separately traced, and recomputing the "
+         "report's own equation (7) -- 0.28 B + 0.32 G + 0.40 R -- from Fig. "
+         "21 reproduces Fig. 22's markers to rms 0.29 transmittance points "
+         "with no free parameter; the same inversion recovers the two markers "
+         "Fig. 21 occludes. ⚠ FIGURE 21'S CAPTION SAYS «absorbance» AND THE "
+         "FIGURE'S OWN ORDINATE SAYS «TRANSMITTANCE %» -- the figure is right. "
+         "§4.1 Fig. 61 and Table 3 give the MEASURED MTF of eight film "
+         "scanners at 10-40 lp/mm plus their sampling resolutions, checked "
+         "against Fig. 62 through the report's equation (9); ⚠ THAT IS "
+         "SCANNER DATA AND IS DELIBERATELY WRITTEN TO NO FILM PROFILE -- it "
+         "lives in doc/SCANNER_CHARACTERISTICS.md. ⚠ AND Fig. 15 IS NOT "
+         "COUNTED AS EVIDENCE: it is the same Callier artwork as "
+         "trumpy_callier_q.py's Fig. 5 (shared author, both after Streiffert "
+         "1947), used only as a pipeline reproducibility check -- two PDFs, "
+         "two scans, one drawing, rms 0.0053 Q"),
+        # ---- queue N1, 2026-09-02 -----------------------------------------
+        ("fuji_neopan_ss.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "FUJI" / "SS35.pdf",
+         "FUJIFILM DATA SHEET \"NEOPAN SS (135)\", Ref. No. AF3-411E(N) "
+         "(EIGI-99.3-HB4-8), four pages, supplied by the owner 2026-09-02 -- "
+         "and it closed a question three other documents could not. "
+         "EMULSION_KNOWLEDGE_BASE.md §23k.8 had recorded, the same day, that "
+         "FUJI NEOPAN could not be profiled because three papers here measure "
+         "its GRAIN and nothing measured its TONE SCALE. This sheet is the "
+         "tone scale: §3 ISO 100/21°, §4 «Orthopanchromatic», §7 a full "
+         "development matrix over three Fuji and twelve non-Fuji developers at "
+         "five temperatures, §8 a spectral sensitivity curve, §9 a "
+         "characteristic-curve family and §10 time-Gbar curves. ⚠ §9 IS "
+         "SELF-CHECKING BECAUSE IT PRINTS THE AVERAGE GRADIENT ON EVERY CURVE "
+         "-- 4 min 0.28, 6 min 0.37, 8 min 0.45, 10 min 0.53, 12 min 0.61 -- "
+         "and nothing in the trace is told them. ⚠ TWO CALIBRATION TRAPS, both "
+         "found the hard way: the abscissa FRAME is logH -4.0 and the leftmost "
+         "PRINTED label is -3.0, so reading the frame as the first label "
+         "shifts every exposure by a decade while leaving every density and "
+         "slope untouched -- the Gbar check still passes and nothing "
+         "complains; and the ordinate's LABEL CENTROIDS disagree with its "
+         "GRIDLINES (152.1 against 158.7 px per 0.5 D) because the axis title "
+         "contaminates the label band, the gridlines being right because they "
+         "make one density unit 317.5 px against one exposure decade at 318.4, "
+         "the 1:1 aspect a sensitometric plot is drawn at. Five curves are "
+         "followed TOGETHER with per-track coasting, because they converge at "
+         "the toe and a single-track follower swaps them there; ⚠ THE TWO "
+         "SHALLOWEST ARE THEN REFUSED, reconstructing Gbar at 0.67 and 0.87 of "
+         "the printed value against 0.99-1.11 for the other three, and the GAP "
+         "between those groups is what the 12 %% gate reads. ADOPTED: "
+         "FUJI_NEOPAN_SS, stock 172, appended at frozen id 171 so no ListBox "
+         "index moves -- the 10 min curve (the drawn member nearest the "
+         "sheet's own 9 1/2 min recommendation for Microfine at 20 C, EI 100) "
+         "fitted to rms 0.0234 D over 709 columns, whose model Gbar over dlogH "
+         "2.0 is 0.552 against a printed 0.53; the §8 spectral curve at 10 nm "
+         "pitch, peak-normalised at 410 nm with no absolute level claimed, "
+         "reproducing the orthopanchromatic signature §4 states in words "
+         "(blue peak 410, trough 490, secondary red lobe 590, cut past 650); "
+         "and §7's Microfine 10 min at 20 C as the ProcessingSpec. ⚠ dmin "
+         "0.245 is the sheet's printed «Base Density» rule, not a fitted "
+         "value, and THE SHOULDER IS NOT MEASURED -- the panel stops at D 1.82 "
+         "with the curve still straight, so Dmax is pinned at a class 2.70 and "
+         "refitting at 2.5 or 3.0 moves the rms by 0.0002 D. ⚠ AND THE GRAIN "
+         "BLOCK IS A FLAGGED CLASS ESTIMATE, NOT A MEASUREMENT, FOR A REASON "
+         "THAT IS A DATE. The sheet has no image-structure section at all (no "
+         "rms, no resolving power, no MTF, no reciprocity; all four pages "
+         "searched), and this corpus DOES hold four granularity measurements "
+         "of a film called Neopan SS -- Ooue 1959 Part 2 Fig. 26, Ooue's 23_7 "
+         "Fig. 7 and Takano 1969 Fig. 8 -- which measure the coating sold in "
+         "1959-1969 where this sheet is dated 1999 by its own printer's code. "
+         "One trade name, two products, forty years apart: the trap already on "
+         "file for EASTMAN_5247 (1974 against 1983) and ILFORD PAN F against "
+         "PAN F PLUS. Grain and f50 sit in the band AGFA_APX_100 and "
+         "KODAK_PLUS_X_125 occupy, and are labelled estimates"),
+        # ---- queue E5, 2026-09-02 -----------------------------------------
+        ("sehlin_kennel_1985.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK"
+         / "Sehlin_Kennel_etal_1983_ChoosingECN5247or52941.pdf",
+         "R. Sehlin, G. Kennel et al., \"Choosing between EASTMAN Color "
+         "Negative Films 5247 and 5294\", SMPTE Journal 94(7) 724-731, JULY "
+         "1985 -- ⚠ the file name in this corpus says 1983 and is wrong. "
+         "NotFound.md row 2 has asked since 2026-08-17 for a "
+         "granularity-against-density curve on a named stock, and every one "
+         "found since has been a Kodak VENDOR SHEET for a VISION-family film. "
+         "This is a JOURNAL plate, and its Fig. 8 puts DENSITY and RMS "
+         "GRANULARITY on ONE shared log-exposure abscissa for EASTMAN_5294_1983 "
+         "-- the sigma(D) construction complete on one figure, no second "
+         "document needed. ⚠ THE TWO ORDINATES ARE NOT THE SAME SCALE (218 px "
+         "per density unit against 242 px per granularity decade) so each is "
+         "calibrated on its own labels, and ⚠ THE TWO CURVES CROSS near D = 1.0, "
+         "which no single-track follower survives: they are walked TOGETHER and "
+         "the candidate pair assigned to the prediction pair by least cost, "
+         "which works because they cross with opposite slopes. 735 of 799 "
+         "columns survive the |dD/dlogE| >= 0.25 conditioning gate, giving toe "
+         "1.571 @ D 0.44 / mid 1.000 / dmax 0.703 @ D 2.08 with an interior "
+         "peak 1.664 @ D 0.53 -- inside the eleven vendor-sheet negatives' "
+         "1.20-1.62 and 0.50-0.90, on a plate none of them came from, which "
+         "validates the trace. ⚠ AND NOTHING IS STORED. Written to the "
+         "profile, cpp_parity.py rejected it in the next build at 5.7e-01 "
+         "against a 2e-05 tolerance, and chasing that established a "
+         "convention nobody had written down: sigma_shape_*_at are PER-LAYER "
+         "ANALYTICAL densities, evidenced by toe_at equalling the GREEN "
+         "curve's dmin on every measured stock (5219 0.59 against 0.58, 5201 "
+         "0.62 against 0.62, 5245 0.57 against 0.64). Fig. 8's ordinate is "
+         "the film's plotted density and its traced toe at D 0.44 sits BELOW "
+         "5294's green dmin of 0.68 and far below its blue 1.09 -- the whole "
+         "shape under the layer's own dmin. ⚠ WITHDRAWN, NOT PATCHED: "
+         "re-anchoring needs a correspondence the paper does not print, and "
+         "SHAPE AND SPACE ARE AS SEPARATE AS SHAPE AND LEVEL. ⚠ THE LEVEL IS "
+         "REFUSED TOO: the ordinate is labelled \"RMS Granularity\" with no "
+         "unit, no aperture and no densitometry. ⚠ AND SO IS FIG. 12. Its MTF "
+         "for 5247 crosses 50 %% at 45-58 c/mm against a stored ESTIMATE of "
+         "24/28/33, i.e. 1.6x to 2.1x, and is still not adopted: the running "
+         "text calls it \"the SYSTEM modulation transfer function\" -- which "
+         "carries the printer and the lens -- where the panel says \"5247 "
+         "Film\", and the curve DOES NOT OVERSHOOT, staying at 100 %% to 18 "
+         "c/mm where every colour-negative MTF traced from a vendor sheet here "
+         "rises above 100 %% first. Three refusals on one document, each with "
+         "its own cause"),
+        # ---- queue TK1-TK5, 2026-09-02 --------------------------------------
+        ("takano_1969_granularity.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "JAPAN" / "23_13.pdf",
+         "Kiyoshi Takano (高野潔), «写真フィルムの粒状性» / \"Granularity of "
+         "Photographic Film\", テレビジョン / J. Inst. Telev. Engrs. Japan "
+         "23(1) 13-23 (1969). A review like Ooue's, so none of its samples is "
+         "a stock here, and FIVE ITEMS ARE STILL HARVESTED -- two of which the "
+         "corpus was carrying as assumptions. Fig. 8 plots SELWYN GRANULARITY "
+         "AGAINST SCANNING APERTURE for a colour negative and Neopan-SS, and "
+         "⚠ IT IS THE FIRST MEASUREMENT THIS PROJECT HAS EVER CHECKED ITS "
+         "APERTURE TERM AGAINST: film_sim.grain_reference_energy integrates "
+         "(h*a)^2 with a Gaussian aperture of sigma = size/4, and that law, "
+         "unchanged, with nothing tuned but one overall constant and "
+         "clump_um, reproduces both traces to rms 0.007-0.020 in G over a "
+         "0.2-1.04 range. Selwyn's constant is supposed to be "
+         "aperture-independent; both curves saturate, which is why rms "
+         "granularity replaced it. ⚠ WHAT THE FIT DOES NOT DETERMINE IS THE "
+         "SIZE: across the corpus's clump_gain range 0.30-1.50 the fitted "
+         "clump_um moves 6.20 -> 2.38 um while the residual moves only 0.020 "
+         "-> 0.007 G. Fig. 13 measures the OPTICAL AUTOCORRELATION of two "
+         "more named samples (Neopan-SSS D 2.0 in Minidol, cine positive D "
+         "1.7 in D-16), half-widths 1.33 and 0.65 um, i.e. clump_um 1.77 and "
+         "0.87 um -- and ⚠ NEITHER GOES NEGATIVE where Ooue's Fig. 24 does, a "
+         "disagreement between two instruments that is left standing rather "
+         "than resolved in the engine's favour. ⚠ TOGETHER THE TWO PAPERS NOW "
+         "MAKE THE CENSUS QUEUE C45 WAS MISSING: every direct measurement of "
+         "grain correlation length on file is 0.87, 1.77, 2.46, 3.22, 4.64 "
+         "um, median 2.46, against 171 stored clump_um_g values with median "
+         "13.0 -- THE STORED SCALE IS 5.3x EVERY MEASUREMENT IN THE CORPUS, "
+         "and it is NOT changed here because clump_um moves a pixel on 168 "
+         "stocks and C45 owns that decision. Fig. 9 traces sigma_D against "
+         "integral colour density per layer and turns over -- a FOURTH "
+         "independent confirmation of the 2026-08-17 correction to GrainSpec's "
+         "docstring, on a Japanese colour negative rather than a Kodak sheet "
+         "-- while ⚠ DISAGREEING ON WHERE: it peaks at D 1.04 at 1.00x where "
+         "all eleven measured colour negatives here peak at D 0.65-0.80 at "
+         "1.20-1.62x, which is what sigma_shape_measured already refuses to "
+         "generalise. ⚠ AND TWO PRINTED EQUATIONS ARE THE PART THAT TOUCHES "
+         "CODE. eq (2) gives sigma(D) from sigma(T) TO FOURTH ORDER and is "
+         "exactly the correction that withdrew sigma_D = 0.648*D^0.665 -- BBC "
+         "T-101 Fig. 26 runs sigma(T)/T from 0.39 to 1.64 where the "
+         "first-order form the corpus was using is 1.3 % to 31 % low. ADOPTED "
+         "as film_sim.sigma_density_from_transmittance plus its Newton "
+         "inverse, ⚠ INERT: no render path calls either. eq (13) gives the "
+         "print chain F_pr = F_pos + F_neg*R_pr^2*gamma^2 with R_pr the "
+         "response of the printing optics AND the positive film; the engine "
+         "satisfies all three terms by construction, and ⚠ DEPARTS IN ONE "
+         "PLACE -- stage 14 band-limits the print stock's OWN grain by that "
+         "same transfer, which eq (13) does not and which the duplication "
+         "chain in the same function explicitly avoids. Recorded, not changed: "
+         "it is correct whenever scanner_f50 is set and it moves a pixel on "
+         "every print render"),
+        # ---- owner addendum, 2026-09-03: the PS&E 1957-61 batch -------------
+        ("pse_jones_1958.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" /
+         "Photographic Science and Engineering",
+         "R. Clark Jones, «On the Quantum Efficiency of Photographic "
+         "Negatives», PHOTOGRAPHIC SCIENCE AND ENGINEERING 2(2) 57-65, August "
+         "1958. ⚠ THE FILE ON THE OWNER'S MACHINE IS MIS-NAMED "
+         "`sim_journal-of-imaging-science_1958-08_2_2.pdf`; the Journal of "
+         "Imaging Science is the SAME journal's name from 1987 on, and this "
+         "issue's running foot reads `P S & E, Vol. 2, 1958`. Cite PS&E. "
+         "Table C is Eastman Kodak's own sigma at four densities x three "
+         "apertures for Royal-X, Tri-X, Plus-X and Pan-X, coatings of "
+         "FEBRUARY 1957, 2000 density readings behind each of the 40 values. "
+         "⚠ TWO THINGS COME OUT OF IT. (1) THE APERTURE LAW IS DIRECTLY "
+         "TESTED FOR THE FIRST TIME IN THIS CORPUS: Selwyn needs sigma "
+         "proportional to 1/DIAMETER, i.e. sigma10 = 2sigma20 = 4sigma40, "
+         "which is how Jones tabulates it, and over 24 pairs the mean ratio "
+         "is 0.929 -- the paper predicts the sign and size itself, from "
+         "diffraction and finite layer thickness. That confirms "
+         "`grain_reference_energy`'s aperture term from a third source and a "
+         "different decade, and is NOT a licence to model the 7 %, which is "
+         "an instrument effect. (2) THE sigma(D) CLASS SHAPE FOR B&W "
+         "NEGATIVES, which queue row F2b opened for: normalised at D 1.0 the "
+         "four films agree to sd 0.042-0.058 across roughly ASA 32 to 1250. "
+         "⚠ ADOPTED AS A CLASS SHAPE AND NOT PER STOCK -- Royal-X and Pan-X "
+         "are absent from this database, and its Tri-X and Plus-X are a "
+         "modern still and a 1999 cine coating, not the February 1957 films. "
+         "⚠ AND STILL INERT: `sigma_measured_usable` gates on "
+         "`sigma_shape_measured`, which means measured on THAT stock. The "
+         "stored numbers are now true; against the legacy sqrt(D) law these "
+         "stocks actually render on, the measurement says -48 % at D 0.07 and "
+         "+17 % at D 1.40"),
+        # ---- owner addendum, 2026-09-03b: the two new AGFA documents -------
+        ("agfa_mpt_1937.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "agfamotionpictur00ckin.pdf",
+         "Agfa Motion Picture Topics, Agfa Ansco, volumes I-IV 1937-1940, an "
+         "Internet Archive scan the owner supplied on 2026-09-03. ⚠ IT IS THE "
+         "FIRST SOURCE IN THIS CORPUS FROM INSIDE THE 1929-1956 GAP that "
+         "NotFound.md records. Two harvests and one refusal. (1) TRACED: page "
+         "13's characteristic panel, three D vs log E curves for AGFA DIRECT "
+         "DUPLICATING (descending -- a direct-reversal material, and the "
+         "article says so), CINE POSITIVE 35 mm and CONVIRA PAPER. Straight-"
+         "line slopes +1.88, +2.05 and -2.01. ⚠ NOT ADOPTED, and the reason "
+         "is structural rather than a data problem: of 175 profiles this "
+         "database holds NOT ONE print or positive stock -- its highest "
+         "non-reversal gamma is 1.70, on an infrared camera film -- so these "
+         "are the only measured positive/print gradations in the corpus and "
+         "there is nothing for them to correct. (2) READ AS PRINTED NUMBERS: "
+         "Goetz & Gould, «The Graininess of Photographic Emulsions» Part IV, "
+         "Caltech on the Agfa Ansco Research Fund, March-April 1939. G "
+         "against density for AGFA SUPERPAN at five densities, and a six-way "
+         "class ladder at matched density. ⚠ THE SUPERPAN SERIES HAS AN "
+         "INTERIOR MAXIMUM AND FALLS AT BOTH ENDS -- 0.62 / 0.81 / 1.00 / "
+         "0.99 / 0.61 of its own peak -- WHICH CONTRADICTS the Jones 1958 "
+         "class shape adopted the same day, which FLATTENS above D 1.0 at "
+         "1.016 of its D 1.0 value. Both are measured; the module asserts the "
+         "disagreement persists rather than reconciling it. ⚠ AND G IS NOT "
+         "rms GRANULARITY: its definition is in Parts I-III, which are not in "
+         "this volume, and the only scale statement is that G is 'multiplied "
+         "by the factor 1000 to avoid the use of decimals' -- the same "
+         "PRESENTATION convention this database uses, which says nothing "
+         "about the measurand. "
+         "⚠ (3) EXTENDED 2026-09-04, AND THE SECOND PASS FOUND WHAT THE FIRST "
+         "ONE FILED WITHOUT READING. Pages 44-53 are «The New Agfacolor "
+         "Process» by Prof. Dr. J. EGGERT, the process's own inventor; the "
+         "first pass recorded it in ERA_FACTS as a provenance citation. It is "
+         "a technical article and it prints construction figures. ADOPTED onto "
+         "AGFA_NEU_1936 -- the first measured numbers that profile has "
+         "ever held, against a provenance that until today asserted no "
+         "photometric figure for the film existed anywhere: three emulsion "
+         "layers 0.005 mm each separated by plain gelatine layers 0.002 mm "
+         "(p48) giving 19 um coated, cross-checked against p53's independent "
+         "statement that the tripack is 'only about' as thick as a normal "
+         "one-layer film; and the coating order blue/green/red, STATED rather "
+         "than assumed from convention, by where p48 puts the yellow filter "
+         "layer. ⚠ RECORDED AND REFUSED: p53's sunshine exposure 'F:4.5 to "
+         "F:5.6' for 16 mm gives ISO 2.5-3.9 at 16 fps or 4.0-6.1 at 24 fps "
+         "and the article does not say which -- the stored EI 8 sits above "
+         "BOTH ranges, so the analogy is 0.4 to 1.7 stops fast and the two "
+         "readings agree on that while disagreeing with each other. A speed "
+         "inferred from exposure advice is not a measured speed, so 8 stands "
+         "and the conflict is asserted (method rule 4). ⚠ (4) THE 1937 SPEED "
+         "CONVERSION TABLE, p38: Weston / H&D / Scheiner / DIN / relative "
+         "sensitivity, 13 rows, the only period speed-conversion table in the "
+         "corpus, stored because several stocks here convert a pre-1957 DIN or "
+         "a Weston with a MODERN formula. It validates against the note "
+         "printed beneath it, and doing so found exactly ONE departure in the "
+         "whole table -- H&D 24 -> 50 where the doubling ladder wants 48 -- "
+         "which is named in SPEED_TABLE_ROUNDINGS so a second departure still "
+         "fails"),
+        # ---- owner addendum, 2026-09-03d -----------------------------------
+        ("smpte_1953_hanson_kisner.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" /
+         "sim_smpte-motion-imaging-journal_1953-12_61_6.pdf",
+         "W. T. Hanson, Jr. and W. I. Kisner, «Improved Color Films for Color "
+         "Motion-Picture Production», Journal of the SMPTE 61(6) pp 667-701, "
+         "December 1953 -- the primary paper for EASTMAN COLOR NEGATIVE 5248, "
+         "which this database carries as EASTMANCOLOR_5248_1953. ⚠ IT WAS "
+         "ACQUIRED ON A RECOMMENDATION THAT WAS WRONG ABOUT ITS CONTENTS AND "
+         "THE MODULE SAYS SO: it was fetched to fill 5248's empty spectral and "
+         "dye_density fields and contains NEITHER -- no spectral sensitivity "
+         "panel anywhere, and its two spectral figures are the DENSITOMETER "
+         "FILTERS, not the film's dyes. ⚠ AND ALL FOUR OF ITS D-log E FIGURES "
+         "HAVE AN UNLABELLED EXPOSURE AXIS -- the abscissa reads 'Log E' with "
+         "no numbers, verified at 400 dpi on each -- so gamma, speed and "
+         "latitude are not in this paper and `refuse_gamma()` raises rather "
+         "than letting a later caller fit one anyway. ⚠ Fig. 4 is additionally "
+         "the author's own 'idealized set of curves', not a measurement; Figs "
+         "7, 8 and 9 (5382 print, 5216 separation, 5245 internegative) carry "
+         "conditions with no such qualifier, and the distinction is stored per "
+         "figure. WHAT IS TRACED: Fig. 3, the printing-density filter set -- "
+         "blue min D 0.849 at 437 nm, green 1.320 at 542, red 1.252 at 644, "
+         "each clipped at D 3.0 by its own flanks because a filter passband is "
+         "a MINIMUM. That is the era's answer to the `M_reader` question the "
+         "database answers for exactly one stock while 164 of 165 render "
+         "through SCAN_DI. ⚠ Green's pin was first taken from contaminated "
+         "data -- the printed words 'Green combination' sit under the "
+         "minimum -- and the label filter caught it. Tables I and III "
+         "transcribed. Nothing adopted",),
+        # ---- owner addendum, 2026-09-03c -----------------------------------
+        ("smpte_1954_5382.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" /
+         "sim_smpte-motion-imaging-journal_1954-11_63_5.pdf",
+         "Lovick and White, «Factors in Applying Color Soundtrack "
+         "Developers», Journal of the SMPTE 63(5) p.189, November 1954, "
+         "Figure 2: 'Spectral density of dye deposits of Eastman Color Print "
+         "Film, Type 5382'. Three dye spectra traced 400-1000 nm -- yellow "
+         "0.876 at 458 nm, magenta 0.870 at 553, cyan 1.118 at 667. ⚠ THE "
+         "FIRST SPECTRAL DYE SET FOR A PRINT FILM IN THIS CORPUS, and it runs "
+         "to 1000 nm because the paper's whole argument is that dye alone "
+         "gives no infrared density for an S-1 phototube -- a product sheet "
+         "would have stopped at 700. ⚠ ADOPTED 2026-09-03d onto the print "
+         "stock EASTMANCOLOR_5382_1953, 410-700 nm at 5 nm -- the first "
+         "spectral dye set on a PrintStock in this database -- WITH THE "
+         "METROLOGY CAVEAT CARRIED IN THE RECORD: the caption says 'dye "
+         "deposits' with no concentration, no reference density, no status "
+         "and no illuminant (1954 predates Status A/M), so shape and the "
+         "three peaks' ratio are what it fixes and the level must never be "
+         "rescaled to a stated density. The paper carries no characteristic "
+         "curve, speed or granularity for 5382 at all. ⚠ THE MERGE COAST HAD "
+         "TO BE WIDENED to 55 px against a 32-36 px merged run, because the "
+         "INK merges well before the PREDICTIONS do: at 10, 20 and 30 px "
+         "magenta died at 502 nm and never reached its printed 553 nm peak. "
+         "⚠ AND THAT SAME 55 px THEN BROKE THE TWO LOW CROSSINGS, which is "
+         "why the module now runs two extra single-crossing tail passes: the "
+         "joint trace ended yellow at 526.7 nm still at 0.158 D (it had "
+         "re-acquired on the drawn axis after the cyan crossing at ~537 nm), "
+         "and it missed the magenta/cyan crossing at ~430 nm entirely, "
+         "holding cyan at a frozen 0.103 and 0.049 across 410-455 nm. Twelve "
+         "column readings taken off the raw page by code that shares nothing "
+         "with the tracker now pin both repaired tails to 0.001 D"),
+        # ---- owner addendum, 2026-09-02e -----------------------------------
+        ("takano_1968_mottle.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "JAPAN" / "31_209.pdf",
+         "Masao TAKANO (高野正雄), Fuji Photo Film Research Laboratories "
+         "Ashigara, «写真像の粒状性(第2報)» / \"Granularity of Photographic "
+         "Image (II): Wiener Spectrum at a Constant Density Level with Various "
+         "Exposure and Time of Development\", J. Soc. Phot. Sci. Japan 31(4) "
+         "209-214 (1968). ⚠ NOT THE TAKANO ALREADY HELD: 23_13.pdf is Kiyoshi "
+         "Takano's REVIEW, this is Masao Takano's ORIGINAL EXPERIMENT, a "
+         "different author and a different journal. Byte-compared against all "
+         "96 PDFs: no duplicate; figure-compared against §23i, §23j and §23k: "
+         "no overlap. ⚠ ITS SUBJECT IS A VARIABLE THIS ENGINE DOES NOT HAVE. "
+         "One unnamed ASA 100 B&W negative is brought to the SAME DENSITY two "
+         "ways -- [VTD] by developing longer at fixed exposure, [VE] by "
+         "exposing more at fixed development -- and the two grain patterns "
+         "differ. Fig. 11 is the only panel whose ordinate is a LENGTH, and it "
+         "is traced: Expected mottle size 3.98-6.81 um over four developers, "
+         "with the D=0 envelopes running [VE] 5.22 -> 7.29 um and [VTD] 3.35 "
+         "-> 4.37 um. ⚠ REACHING A DENSITY BY DEVELOPING LONGER GIVES A "
+         "36-40 %% SMALLER CLUMP than reaching it by exposing more -- on the "
+         "envelopes; on the density-0.5-1.5 markers the same ratio is 10-28 %%, "
+         "mean 17 %%, and the paper's prose quotes only the first. Developer "
+         "ordering, finest first: para-phenylenediamine < PQ < Monol < MQ. ⚠ "
+         "AND THE NUMBER THAT MATTERS TO THIS DATABASE: mottle is stated to be "
+         "5-8x the mean developed grain size, so 3.98-6.81 um of mottle implies "
+         "0.50-1.36 um of grain -- which lands INSIDE BBC T-101's independently "
+         "measured 0.59-1.43 um band, from a different maker, country and "
+         "decade. Two documents, one answer, and the stored clump_um median of "
+         "13.0 is outside both. ⚠ NOTHING IS WRITTEN TO A PROFILE: the film is "
+         "unnamed, so this is class evidence and is stored as inert reference "
+         "constants only. Figs. 3-8 and 10 are REFUSED for adoption -- their "
+         "ordinate is an unlabelled instrument unit with no printed constant"),
+        # ---- queue J1 + J2, 2026-09-02 ------------------------------------
+        ("ooue_1959_granularity.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "JAPAN" / "22_91.pdf",
+         "Shingo Ooue, Fuji Photo Film Research Laboratory, «写真感光材料の粒状"
+         "性» Parts 1 and 2, J. Soc. Phot. Sci. Japan 22(1) 38-47 and 22(2) "
+         "91-99 (1959) -- the two companion papers EMULSION_KNOWLEDGE_BASE.md "
+         "§23i named as the ones that would settle the mean-square / rms "
+         "ambiguity on his third. They do, in the author's own words: Part 2 "
+         "§4.2.2 is headed «濃度変化の標準偏差による方法», the method using the "
+         "STANDARD DEVIATION of density variation, and every granularity in "
+         "the paper is built from it. ⚠ FOUR ITEMS ARE HARVESTED. Part 2 "
+         "Fig. 26 is a measured WIENER SPECTRUM on three NAMED samples with "
+         "stated developer, time and density -- Neopan SS / Minidol at D 1.03 "
+         "and D 0.45 and Process Plate / D-72 at D 0.44 -- and it says two "
+         "things about this engine's grain model. First, fitting a generalised "
+         "Gaussian to the falling limbs returns exponents 0.71 / 0.89 / 1.36, "
+         "ALL BELOW THE 2 THE MODEL ASSUMES, with a pure Gaussian fitting "
+         "three to six times worse: real grain spectra have FATTER "
+         "high-frequency tails than exp(-(f/f_hi)^2), the same defect MTFSpec "
+         "already records for the MTF tail. Second, and needing no "
+         "calibration at all, the SAME FILM at two densities gives f_half 45.6 "
+         "against 70.8 with developer and time held fixed -- the clump grows "
+         "with density and GrainSpec carries one clump size per stock. Part 2 "
+         "Fig. 24 measures the AUTOCORRELATION of the same quantity "
+         "independently (Neopan S, D 1.04, half-width 3.48 um, i.e. clump_um "
+         "4.65 um under the engine's own law) and ⚠ REFUTES THE SHAPE FROM THE "
+         "OTHER SIDE: past about 12 um it goes NEGATIVE, an anti-correlated "
+         "ring that neither a Gaussian autocorrelation nor Sayanagi's Poisson "
+         "placement can produce. Part 1 Fig. 2 measures MEAN DEVELOPED GRAIN "
+         "AREA against density and it FALLS -- 1.10 to 0.93 um^2 at 32 min, "
+         "1.16 to 0.57 at 1 min, equivalent diameters 1.21 down to 0.85 um, "
+         "the same direction BBC T-101 Table 3 measures from another "
+         "laboratory and ⚠ BELOW THE 1.3 um FLOOR OF ALL 17 STORED "
+         "emulsion.grain_um VALUES, which come from one third-party "
+         "aggregator. ⚠ NOTHING IS WRITTEN TO ANY PROFILE: none of the samples "
+         "is a stock in this file, Fig. 26's ordinate is an unlabelled «POWER "
+         "LEVEL» and its abscissa says «LINES/mm» without defining a line, so "
+         "shape is usable and level is not. And Part 2 §4.2.1 supplies the "
+         "EMPIRICAL half of queue C45 -- measured Q on commercial materials "
+         "shows no correlation with graininess, because two emulsions of "
+         "different grain size are coated as two layers"),
+        # ---- queue C43 + C44, both closed 2026-09-02 ----------------------
+        ("sayanagi_callier.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "JAPAN" / "23_20.pdf",
+         "Kazuo Sayanagi, Canon Camera Co., «Callier Q Factor と粒状» / \"A "
+         "Theory on Callier Q Factor and Granularity\", J. Soc. Phot. Sci. "
+         "Japan 23(1) 20-24 (1959). He derives Q from grain optics: base "
+         "transmittance Ib, a developed grain of FINITE transmittance Ig "
+         "(finite because the electron microscope shows it filamentary), "
+         "circular grains Poisson-distributed at coverage 𝔅, and Savelli's "
+         "Poisson averages for the mean intensity and the mean amplitude. His "
+         "(10) is Q_II = 2/(1+Ig^½). ⚠ IT CONTAINS NO DENSITY -- not D, not the "
+         "coverage, not the grain radius -- so on BASE-SUBTRACTED density "
+         "Sayanagi's Q is flat, and the toe collapse this project had recorded "
+         "as a MODEL DEFECT since 2026-09-01 has no mechanism in the only "
+         "theory that derives Q from first principles. With the base left in "
+         "it collapses exactly as measured, and the reader FITS THAT BASE TO "
+         "BOTH MEASURED CURVES INDEPENDENTLY: Trumpy/Streiffert Fig. 5 gives "
+         "Db 0.045 (whole-curve rms 0.019 Q against the shipped no-base fit's "
+         "0.156, toe error +0.49 -> -0.014 with one parameter), and Mees "
+         "FIG. 179 needs Db 0.050 to reconcile its five gamma curves with the "
+         "shared toe stroke. ⚠ TWO LABORATORIES, TWO DECADES, THE SAME BASE "
+         "DENSITY, and it explains the one feature of FIG. 179 nothing else "
+         "could -- why five emulsions of five different contrasts are drawn as "
+         "ONE stroke below D 0.25. ⚠ SO C44 CLOSES WITH A NULL CODE CHANGE: "
+         "the engine's argument is NET density, the base is already gone, and "
+         "a toe term fitted to base-inclusive data would remove it twice and "
+         "darken the shadows -- the region C44 was opened to protect. ⚠ WHAT "
+         "IT DOES CHANGE IS C43: refitting Mees's five curves with the base "
+         "modelled gives beta 1.491/1.495/1.729/1.822/1.828 RISING WITH GAMMA, "
+         "so `callier_q` is no longer the undocumented class constant 1.3 but "
+         "beta(gamma) = 1 + 0.9706 g/(g+0.2558) evaluated on each stock's own "
+         "mid slope, 1.64-1.87 across the 68 monochrome stocks. Colour stays "
+         "1.0. The form was chosen for its ENDPOINTS -- beta(0)=1 exactly and "
+         "beta(inf)=1.971, just under Sayanagi's own ceiling of 2 -- not for "
+         "its residual. ⚠ THE CEILING IS A REAL TEST AND IT PASSES: inverting "
+         "Ig = (2/beta-1)^2 turns the five betas into grain transmittances of "
+         "11.7 % falling to 0.9 % as development proceeds, which is his "
+         "assumption (II) and was not fitted. ⚠ BBC T-101 Fig. 25's 2.00-2.34 "
+         "at 0.0016 sr sits ABOVE the ceiling and is recorded as an open "
+         "tension, not explained away"),
+        ("trumpy_callier_q.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO"
+              / "Optical_Detection_of_Dust_and_Scratches_on_Photogr.pdf",
+         "G. Trumpy and R. Gschwind, ACM JOCCH 8(2) Art. 7 (2015), Fig. 5 -- "
+         "Callier Q against DIFFUSE DENSITY for a typical silver film, redrawn "
+         "after Streiffert 1947 (J. SMPTE 49(6), not in this corpus). ⚠ WHAT IT "
+         "IS FOR IS NOT WHAT THE PAPER IS ABOUT: the paper is a dust-and-"
+         "scratch detection method, and Fig. 5 is the SECOND measured Q(D) in "
+         "the corpus after Mees FIG. 179. Digitised 573 points, axes calibrated "
+         "on the printed ticks (the frame then reads D 0.000-2.005 and Q "
+         "0.996-1.698 against a printed 0-2 and 1.0-1.7), traced BY COLUMN "
+         "where the stroke is thin and BY ROW on the near-vertical toe, with "
+         "edge-touching runs rejected. Peak Q 1.5568 at D 0.354. ⚠ IT LETS THE "
+         "PROJECT'S OWN LAW BE FITTED TO A MEASUREMENT FOR THE FIRST TIME: "
+         "Silberstein and Tuttle, as film_sim.callier_net implements it, fits "
+         "these points to rms 0.0087 Q over D 0.3-2.0 with E 0.1471 and beta "
+         "1.6746, and E and beta are jointly identifiable (holding E at 0.10 "
+         "or 0.20 raises the rms 2.4x and 2.9x). ⚠ AND IT QUANTIFIES THE KNOWN "
+         "TOE DEFECT the callier_net docstring already admits: the law's "
+         "small-D limit is the CONSTANT E+(1-E)*beta = 1.575, against a "
+         "measured 1.081 at D 0.05 -- +0.491 Q. Mees FIG. 179 independently "
+         "reads 1.042 at D 0.055, so two laboratories two decades apart witness "
+         "the same collapse. ⚠ NOTHING IS CHANGED: beta IS FilmProfile."
+         "callier_q, the 55 B&W negative stocks all carry the class constant "
+         "1.3, this curve says 1.675 and BBC T-101 Fig. 25 says 2.0-2.34 at "
+         "0.0016 sr where Q -> beta -- a real disagreement on a field that "
+         "moves a pixel, recorded and left for a decision"),
+        ("jp_jps_1965_269.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "RETRO" / "1965.1_269.pdf",
+         "大上進吾 and 高野正雄 (Fuji Photo Film Research Labs), Physical "
+         "Society of Japan abstract 10p-A-2 (1965) p269 -- the only source in "
+         "the corpus that indexes granularity by CRYSTAL SIZE rather than by "
+         "product: five emulsions at AgX 0.3 / 0.4 / 0.5 / 1.5 / 1.8 um, one "
+         "apparatus, one density (測定濃度 D_H = 0.5). One handwritten page "
+         "whose OCR layer is useless, so both figures are read from the "
+         "raster. ⚠ ITS ORDINATE IS 相対値 -- RELATIVE -- SO NO rms "
+         "GRANULARITY CAN COME FROM IT AND NONE IS TAKEN; what is absolute is "
+         "the abscissa, and the half-power frequency is a measured BANDWIDTH "
+         "in cycles/mm, which is exactly what GrainSpec.clump_um sets through "
+         "grain_shape. ⚠ THE CHECK IS THAT THE PAGE DRAWS F(20,0) TWICE, as "
+         "Fig. 1's plateau and as Fig. 3's solid curve, in two hand-drawn "
+         "figures with independent axes: they agree to 0.0-4.5 %. The x "
+         "calibration comes from the decade ticks and is validated by the "
+         "markers reproducing the PRINTED crystal sizes to 0.4-10 %. ⚠ SAMPLE "
+         "B IS A BRACKET, NOT A POINT -- the two curves cross there and its "
+         "markers are one blob -- and the markers are classified by WHICH "
+         "TRACED CURVE THEY SIT ON, because 'the upper one' swaps sides at "
+         "that crossing. The abstract does not state its reading aperture, so "
+         "the reader BOUNDS it instead: the curves run past 869 c/mm with no "
+         "transfer zero, hence a circular aperture under 1.4 um whose MTF^2 "
+         "is still 0.945 at 108 c/mm. ⚠ NOTHING IS ADOPTED AND THAT IS THE "
+         "RESULT: both fitted laws are too flat to invert (1 % in the "
+         "bandwidth is 8 % in crystal size), and the bandwidths it does "
+         "measure -- clump_um 2.73-3.69 um -- disagree with BOTH the corpus's "
+         "estimates (median 13.0 um, implying 23 c/mm) and the two "
+         "BBC-derived measured values (PAN_F 0.655, HPS 1.431). Three "
+         "sources, three answers, recorded as a conflict"),
+        ("kodak_1952_curves.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "kodak-films-5.pdf",
+         "All FOUR 1952 Data Book curve families -- VERICHROME, TRI-X SHEET, "
+         "PANATOMIC-X SHEET, ORTHO-X SHEET -- re-derived from the page "
+         "RASTER, because these plots are not vector: queue E1 said they were "
+         "and the 30 'drawing objects' on the Tri-X page are all zero-height "
+         "table rules left by the Acrobat Paper Capture OCR. Traces all 20 "
+         "curves at 150 dpi scan grade and reproduces every printed gamma, 18 "
+         "of 20 within 2 %. ⚠ Also pins the ESTIMATOR: gamma is the steepest "
+         "0.6-decade chord, and the fixed net-density window that works on "
+         "H-1-5222 reads 5 % low here because the 1952 toes are far longer"),
+        ("di_2254.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK"
+              / "KODAK-VISION3-2254-technical-information.pdf",
+         "KODAK_VISION3_DI_2254's three characteristic curves, traced from the "
+         "RASTER sensitometric figure on H-1-2254 p3 (474 samples per record, "
+         "fit rms 0.006-0.012 D) -- and the physical check that comes free with "
+         "an INTERMEDIATE film: nothing in the trace was told that this stock "
+         "exists to change nothing, and the fitted gammas come out 1.05 / 0.96 "
+         "/ 1.04. It also re-checks the origin placement (the exposure at which "
+         "the green record reaches D-min + 1.0, which is the reference the "
+         "sheet's own dye-stability table is quoted at)"),
+        ("kodak_still_curves.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK"
+              / "KODAK PROFESSIONAL PORTRA - 2003 year.pdf",
+         "The 2026-08-26 KODAK still-film harvest, re-derived from all eleven "
+         "E-series sheets: 30 characteristic dmin/gamma pairs, 12 MTF f50 "
+         "readings and 10 dye-pair peaks. Three things in it are audits of the "
+         "READER rather than of one number. (1) PORTRA 160NC is read from BOTH "
+         "E-190 vintages -- two files, different md5 -- and must return the "
+         "same six values from each, which exercises the tick fitting, the "
+         "subpath splitting and the letter matching together. (2) E-2468's "
+         "characteristic panel is pinned to PORTRA 160VC's figure "
+         "F009_0154AC, because it IS that figure: the defect stays visible, and "
+         "the day a corrected edition appears the assertion fires. (3) The two "
+         "dye-pair REFUSALS are asserted as refusals, so a change that starts "
+         "accepting a crossing pair has to say so rather than adopt it quietly. "
+         "One f50 is asserted to remain CENSORED (E-190 2003 p9 blue is still "
+         "at 55 % where the plot stops), which keeps 'never reaches 50 %' "
+         "distinguishable from a number. ⚠ EXTENDED 2026-08-31 (queue K3) to "
+         "the ten PUSH panels: two adopted pairs, the EI 800 anchor that makes "
+         "them a push rather than an edition difference, and five readings "
+         "pinned precisely because they are NOT adopted -- three editions of "
+         "PORTRA 800 give red gamma at EI 1600 as 0.6883, 0.6100 and 0.6341, "
+         "and an unpinned disagreement is a claim nobody can re-check. A "
+         "sixth check asserts a panel stays UNREADABLE: E-4040 (2016) p4's EI "
+         "800 axis is printed -4.0 / -2.0 / -3.0 / -1.0 / 0.0 / 1.0, two "
+         "labels transposed in Kodak's artwork, and a tick fitter that ever "
+         "accepts it would be wrong by a decade mid-plot"),
+        ("kodak_aim_density.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK"
+              / "KODAK PROFESSIONAL PORTRA - 2003 year.pdf",
+         "the sixteen published AIM DENSITY tables -- the red Status M "
+         "densities Kodak says a correctly exposed negative reads on a gray "
+         "card, a paper gray scale and a lit forehead -- read off thirteen "
+         "sheets by geometry rather than page order, because the two table "
+         "layouts emit their forehead pairs in opposite orders. Five of the "
+         "twenty-one checks are cross-document: PORTRA 400 must read the same "
+         "in E-4050's 2010 and 2016 editions, ULTRA MAX 400 the same in E-7019 "
+         "(2007) and E-7023 (2016), GOLD 200 the same in E-7022's 2007 "
+         "two-column and 2022 one-column layouts, every pushed aim must RISE "
+         "with the push, and E-190 (2003)'s PORTRA 800 table must keep showing "
+         "BOTH of its defects -- an aim that falls as the film is pushed, and "
+         "an EI 800 forehead pair copied verbatim from the 160NC/400NC column "
+         "four inches above it. ⚠ That last assertion is inverted on purpose: "
+         "it fails if the broken table ever starts agreeing, because that "
+         "would mean the reader moved and not the document",),
+        # ⚠ NOT A DOCUMENT AUDIT -- a CODE audit, and it belongs in this stage
+        # anyway. Its "source" is the GENERATED header rather than a PDF, and what
+        # it re-derives is that the Python reference law and the emitted C++ law
+        # still agree. Added 2026-08-18 (C1b): that convention change had to be
+        # made twice, in two languages, and the previous cross-check was a manual
+        # one-off from a finished session -- i.e. it guarded nothing.
+        ("cpp_parity.py",
+         ["--assert", "--root", str(root)],
+         HERE / "film_profiles.hpp",
+         "Python grain_sigma() vs the generated FilmGrainSigma(): 4770 probes "
+         "over 159 stocks x 3 channels x 10 densities, including net 1.0 and "
+         "absolute 1.0 (equal only for an unmasked stock), with a coverage "
+         "assertion that all 11 measured shapes really differ from the legacy "
+         "law. SINCE 2026-08-23 (C8) also the RECIPROCITY law: "
+         "film_sim.reciprocity_log_shift() against the plugin's own "
+         "AlgoReciprocityLogShift, 159 stocks x 12 exposure times from 1e-5 s "
+         "to 3600 s -- the inertness of exposure_time_s = 0, the held-flat ends "
+         "outside every measured table, and the CC-filter chromatic branch. "
+         "That third family SKIPS when the plugin tree is not on disk"),
+        # ⚠ NOT A DOCUMENT AUDIT EITHER, and it probes the PLUGIN'S OWN C++ rather
+        # than generated code -- the only audit that does. Added 2026-08-20: the
+        # two DIR-coupler stages are the largest COLOUR effect in the chain
+        # (disabling them moves Velvia's saturated patches by up to 143/255) and
+        # they exist twice, in two languages, with nothing comparing them.
+        # cpp_parity covers the grain and MTF laws only.
+        ("interimage_parity.py",
+         ["--root", str(eng), "--assert"],
+         eng / "Algo_08_Sim.cpp",
+         "Python apply_interimage()/apply_dir_couplers() vs the plugin's own "
+         "AlgoStage08b_Interimage()/AlgoStage09_DirCoupler(): 5 stocks covering "
+         "both interimage mechanisms plus a monochrome control, flat and ramp "
+         "fields, at two pixel scales. Reads sizeof(AlgoType) from the compiled "
+         "probe and picks its tolerance from it, so the switchable double/float "
+         "typedef stays switchable"),
+        # ⚠ THE FOURTH CODE AUDIT, ADDED 2026-09-11, AND IT EXISTS BECAUSE THE
+        # THREE ABOVE COVER THREE STAGES OUT OF TWENTY-SEVEN. interimage_parity
+        # runs 8b and 9 in both flavours, bromide_parity runs 9c in both, and
+        # cpp_parity's only look at the vector twins is a textual token grep,
+        # which cannot see a number. The other twenty-four stages had NO
+        # automated numeric comparison between the scalar and AVX2 builds.
+        # ⚠ THAT GAP LET A DEFECT SHIP: AVX2 stage 14 evaluated 10^-d with a raw
+        # Schraudolph bit-hack -- 2.98 % relative, 5.57 eight-bit code values,
+        # the white point at 0.9782 instead of 1.0 -- and it was found by the
+        # owner looking at a rendered frame, which is the slowest instrument in
+        # the project. test_stage_parity.cpp existed the whole time and would
+        # not have caught it either: it prints per-stage MEANS, and a mean is an
+        # integral, so a signed divergence that cancels across the frame leaves
+        # no trace in it. This audit compares the raw retained planes pixel by
+        # pixel instead, and reports the coordinate.
+        # ⚠ IT SKIPS ON EXACTLY ONE CONDITION -- no AVX2 tree on disk -- and
+        # FAILS on everything else, including the case where both builds report
+        # the same sizeof(AlgoType), which means the vector tree never shadowed
+        # the scalar one and the run proved nothing. A [SKIP] in a green log is
+        # how the missing-header defect stayed hidden once already.
+        # ⚠⚠ ADDED 2026-09-28: THE WHOLE CHAIN, PYTHON AGAINST BOTH ENGINES.
+        # Two defects shipped on 2026-09-27 that every per-stage audit passed:
+        # stage 13 re-timed the print against a mid grey the Callier stage had
+        # not corrected, and B&W negatives printed through a colour stock's
+        # three curves. Both were wiring errors BETWEEN correct stages, so only
+        # an end-to-end render could see them. Like stage_parity it FAILS,
+        # rather than skips, when the engine is present and the harness is not.
+        ("chain_parity.py",
+         ["--root", str(eng), "--assert"],
+         eng / "AlgorithmMain.cpp",
+         "EVERY stock rendered through film_sim, the scalar engine and the AVX2 "
+         "engine on a 24-patch ColorChecker at default controls, stochastic "
+         "stages off on both sides; the median of every patch interior on all "
+         "three channels must agree to 2e-3 (Python vs C++) and 5e-4 (scalar "
+         "vs AVX2). Measured floor 2.65e-4 / 5.96e-5 over 200 stocks. Against "
+         "the pre-2026-09-28 engines it fails 65 stocks by up to 0.67 (the "
+         "Callier mid-grey defect) and 41 checks by 0.0155 (the neutral-print "
+         "cast alone). The C++ side is the engine tree's own "
+         "test_chain_dump.cpp; this script holds no C++"),
+        ("stage_parity.py",
+         ["--root", str(eng), "--assert"],
+         eng / "AlgorithmMain.cpp",
+         "the scalar (double) and AVX2 (float) builds against each other on ALL "
+         "27 pipeline stages: both engines compiled from the same sources, one "
+         "frame rendered per stock in each, and every retained stage plane "
+         "compared PER PIXEL -- max |scalar - avx2| over 3 channels with the "
+         "coordinate where it occurs, never a mean. 5 stocks chosen for the "
+         "paths they take: a colour negative that prints, a reversal that does "
+         "not, a monochrome, the only stock with a reseau, and a cine negative. "
+         "Tolerance is 512 float32 ULPs of each plane's own magnitude, times "
+         "ln10 on the transmittance stages because T = 10^-d amplifies a "
+         "density error by that much; the measured floor is 3.2e-05. ⚠ IT "
+         "FOUND A REAL DIVERGENCE ON ITS FIRST RUN, AND THAT DIVERGENCE IS NOW "
+         "FIXED: the vector stage 13 print curve kept a fast approximate "
+         "softplus where the scalar twin called the exact one, costing 1.03e-02 "
+         "to 1.37e-02 D per pixel -- four to five times the 2.4e-03 to 3.2e-03 "
+         "that stage's own comment quoted, because the quoted figure was a "
+         "plane MEAN and a mean is an integral that cancels a signed error. It "
+         "reached the screen as about 2 code values on every stock that prints. "
+         "Stage 13 now uses an accurate exp and log and comes back at 5.90e-06 "
+         "D, so ALL 125 PLANES ACROSS 5 STOCKS AGREE INSIDE THE STRICT FLOAT32 "
+         "BUDGET WITH ZERO PINNED EXCEPTIONS"),
+        # ⚠ QUEUE M1a, 2026-09-05d -- A MODULE AUDITING ITS OWN REFUSAL.
+        # dye_matrix_from_spectra declines to adopt its derived matrices on the
+        # ground that the crosstalk is already inside the stored status
+        # densities. Worked through, that is true on the NEUTRAL RAY and false
+        # off it, because the per-channel curves are evaluated independently and
+        # nothing couples them. This mode derives the operator that is identity
+        # ON the neutral and carries the measured asymmetry OFF it, and pins
+        # what it found. Registered because the SIGN result is a physical
+        # impossibility check, not a tolerance: unwanted absorption can only add
+        # density to a neighbouring band, so a negative derived off-diagonal
+        # means the panel, the layer assignment or the status response is wrong.
+        ("dye_matrix_from_spectra.py",
+         ["--nonneutral", "--assert"],
+         HERE / "film_profiles.py",
+         "queue M1a's test of this module's own refusal: T = rownorm(M.diag(u)) "
+         "fixes a neutral to 2.2e-16 by construction and carries the measured "
+         "asymmetry off it. ⚠ All 29 derived off-diagonals are POSITIVE -- dye "
+         "impurity can only DESATURATE -- against only 1 of 29 stored, so 28 "
+         "stocks store a SEPARATION BOOST their own dyes cannot produce. "
+         "Derived |T-I| median 0.223 against a stored 0.077, asymmetry 0.082 "
+         "against 0.000. ⚠ NOT ADOPTED: rendering with T costs Velvia 58 % of "
+         "its saturation, because _dye(k) stands in for the NET of impurity and "
+         "interimage, and interimage is measured on 0 of 107 colour stocks"),
+        # ⚠ QUEUE F3, CLOSED 2026-09-05b AS A MEASURED REFUSAL, AND REGISTERED
+        # BECAUSE A REFUSAL NEEDS GUARDING MORE THAN AN ADOPTION DOES. Nothing
+        # in the tree consumes this module's output -- that is the point of it,
+        # the answer being "no" -- so nothing would notice if the premise
+        # stopped holding. The premise is that spectral sampling barely moves
+        # the one render-path consumer, and the day that stops being true is the
+        # day F3 should reopen. Pinning both figures is how that day announces
+        # itself instead of passing unnoticed.
+        # ⚠ QUEUE T4, 2026-09-06e -- THREE SHEETS OF ONE HOUSE TEMPLATE WITH
+        # THREE DIFFERENT LADDERS, which is the whole reason this is registered
+        # rather than run once. X-TRA 400's characteristic ordinate reaches 4.0
+        # and its abscissa +0.5; the other two reach 3.5 and +1.0. Its dye
+        # ordinate reaches an UNLABELLED 2.5, X-TRA 800's 3.0, REALA's 2.0. Two
+        # of the three panels carry stray caption rules inside their ladders.
+        # A reader that assumed the family would produce three plausible wrong
+        # databases, so the assignment is re-derived on every build.
+        # ⚠⚠ QUEUE T5, 2026-09-06f -- FIVE PANELS THAT DRAW FOUR LAYERS INTO A
+        # SCHEMA THAT HOLDS THREE. Registered because the stored sets are
+        # deliberately INCOMPLETE by owner decision, and an incomplete store is
+        # exactly the kind that drifts into being treated as complete. This
+        # re-derives all four vector panels every build, asserts that the three
+        # SOLID records ascend B < G < R, and re-emits the cyan curve that
+        # doc/FUJI_FOURTH_LAYER.md carries.
+        # ⚠⚠ QUEUE A5, 2026-09-06h -- THE HARVEST QUEUE ROW G6's CLOSURE
+        # LICENSED. Every AGFA stock carried a red estimated f50 while its own
+        # sheet printed a "Sharpness" panel, because a guard FORBADE adopting
+        # one until it was settled whether Agfa's "Lines (mm)" were cycles or
+        # line pairs. Registered because the adoption rests on three separate
+        # things that must keep holding: the panel-by-panel ladder fit, the
+        # edition comparison, and the shared-artwork refusal.
+        ("agfa_1998_sharpness.py",
+         ["--root", str(root), "--assert"],
+         HERE / "film_profiles.py",
+         "the twelve AGFA «Sharpness» panels, re-derived from both editions of "
+         "Agfa's Technical Data. ⚠⚠ CORRECTED TWICE ON 2026-09-06i, and every "
+         "f50 and q it publishes moved: the frequency ladder had been fitted "
+         "THROUGH the \"100\" tick label, which Agfa nudge 3.37 pt off its own "
+         "tick, and the 2004 response column is set 0.9 pt low as a block. "
+         "Each panel is now calibrated on its DRAWN FRAME -- the printed "
+         "ladder says which values the axis spans, the ink says where. ⚠ It "
+         "re-runs the EDITION COMPARISON, and that comparison now runs on the "
+         "ARTWORK rather than on f50: seven of the nine comparable panels "
+         "agree to 0.0009 of frame height and are ONE DRAWING REPRINTED, so "
+         "they take the 1998 reading; only the three Optima panels were "
+         "redrawn and take 2004. ⚠⚠ It re-runs the DUPLICATE-ARTWORK CHECK, "
+         "which reproduces the known APX 100 / APX 400 shared drawing in BOTH "
+         "editions. ⚠⚠ AND IT CROSS-CHECKS AGAINST agfa_1998_curves.py, which "
+         "reads the same twelve panels independently -- the two disagreed by "
+         "4 % for four days because nothing had ever compared them, and that "
+         "is what the defect above actually was",),
+        # ⚠⚠ 2026-09-06i -- THE LAST UNREAD CURVE SET IN «Technical Data PF».
+        # Digitised since 2026-09-01, printed on every build, adopted by
+        # nothing, because the ProcessingFamily it belongs to had been filled
+        # from a different Agfa publication and the two were never compared.
+        # ⚠⚠ 2026-09-06j -- THE THIRTEENTH AGFA PANEL, IN A DOCUMENT THE
+        # 2026-09-06h SWEEP OF «Technical Data PF» could not reach, and the
+        # page that retires a refusal standing since 2026-08-18.
+        ("agfa_vista_mtf.py",
+         ["--root", str(root), "--assert"],
+         HERE / "film_profiles.py",
+         "AGFA_VISTA_200's «Sharpness» panel, and the sentence on page 4 of "
+         "its own sheet that licenses reading it: «Sharpness -- International "
+         "name of the chart: MTF (Modulation Transfer Function)». ⚠ That is "
+         "the MANUFACTURER naming the quantity, which is a stronger authority "
+         "than queue G6's inference from the ICO's 1961 nomenclature, and the "
+         "two agree. The module re-reads that sentence every build and FAILS "
+         "if it goes: the adoption's primary authority is a line of prose, so "
+         "its disappearance has to be loud. ⚠ It also re-runs the cross-reader "
+         "check against mtf_vector.py, which reads the same panel from the "
+         "printed labels and fits the same q 2.63",),
+        ("agfa_1998_gamma_time.py",
+         ["--root", str(root), "--assert"],
+         HERE / "film_profiles.py",
+         "the three AGFAPAN gamma / developing-time panels, and the VESSEL "
+         "identification the whole adoption rests on. «Technical Data P-16-C» "
+         "prints each contrast table twice -- rotary drum and small tank -- "
+         "with three gamma rows for the drum and ONE for the tank; the 1998 "
+         "panel plots one vessel and captions neither. Over fifteen film x "
+         "developer combinations its gamma 0.65 time sits 0.112 min from the "
+         "printed small-tank figure and 1.152 min from the drum's, every one "
+         "closer to the tank, worst tank miss under best drum agreement. So "
+         "the curve supplies exactly the 28 gamma 0.55 and 0.75 times P-16-C "
+         "omits for that vessel, and its own 0.65 reading is spent on the "
+         "identification rather than stored as a second answer",),
+        ("fuji_spectral4_2026.py",
+         ["--root", str(root), "--assert"],
+         HERE / "film_profiles.py",
+         "the four-layer Fuji spectral panels, re-derived. Each separates its "
+         "records by DASH PATTERN rather than position: cyan is the only "
+         "dashed stroke and its peak, 516-519 nm on all four sheets, falls "
+         "BETWEEN blue's and green's -- so sorting the four curves by "
+         "wavelength would name cyan green and demote the real green record "
+         "to red, and no geometric rule could break that tie. ⚠ Cyan lands "
+         "within 3 nm across four different films and four separately "
+         "calibrated panels, against 8 nm for blue and 28 for green, which is "
+         "both what an engineered interlayer looks like and the best evidence "
+         "the separation picks out one physical record every time. ⚠ The "
+         "stored sets are THREE OF FOUR by the owner's decision of "
+         "2026-09-06f; the fourth curve is written out as numbers to "
+         "doc/FUJI_FOURTH_LAYER.md and verify.py G-SUP1b/c assert that both "
+         "the declaration and the document survive",),
+        ("superia_2026.py",
+         ["--root", str(root), "--assert"],
+         HERE / "film_profiles.py",
+         "the three FUJICOLOR SUPERIA sheets re-read from their own vector "
+         "paths: three characteristic panels on three different ladders, "
+         "three MTF panels, three neutral+D-min pairs, every ladder assigned "
+         "by fitting an arithmetic progression over the detected rules and "
+         "REFUSED rather than guessed when none fits. ⚠ The orange-mask test "
+         "is asserted on all three pairs -- D-min below the neutral at every "
+         "wavelength and falling towards the red -- because nothing on those "
+         "panels labels the two curves by position and a swapped pair passes "
+         "every other check. ⚠ It also pins the CROSS-METHOD agreement on "
+         "SUPERIA X-TRA 400, the one stock here that was re-read rather than "
+         "added: this reader shares no extraction step with the 2026-09-02e "
+         "colour-separation trace and lands within 0.019 on every curve "
+         "parameter and 1.3 % on f50, with q identical",),
+        # ⚠ REGISTERED FOR WHAT IT REFUSES AS MUCH AS FOR WHAT IT READS.
+        # This is the first processing-side reader in the tree: H-24 is a
+        # PROCESS manual, and its variation charts are the only quantified
+        # processing data the corpus holds. Four independent calibrations run
+        # every build, and the fourth is the one that earns the registration --
+        # Kodak's HD-LD row is HD minus LD, but it is DRAWN as a third panel
+        # with its own ladder and its own channel letters, so recomputing it
+        # from the other two tests three separately assembled panels at once.
+        # It discriminates: 0.0014-0.0052 D on Figure 8-5's 5213 against
+        # 0.064-0.070 D on Figure 8-2's 5242, twelve times worse. Only the
+        # agreeing sets are eligible for adoption, and the day that stops
+        # being true the build says so.
+        # ⚠ THE FIRST COLOUR STOCK IN THIS CORPUS WITH A DEVELOPMENT-TIME
+        # FAMILY, and it closes from a different direction the gap h24
+        # below could not: of the six H-24 figures that reader digitises,
+        # the time and temperature panels are exactly the two its own
+        # identity gate refuses. Tamm & Weisflog print the kinetics
+        # directly, and the trace validates against the running text --
+        # green 0.559 at 6.5 min against the printed 0.55.
+        # ⚠ REGISTERED BECAUSE A REVIEW OF THIS BOOK GOT IT WRONG ONCE. The
+        # volume was searched for TABLE captions naming granularity, resolving
+        # power or characteristic curves, found none, and was written off as a
+        # processing manual. The tables really are processing tables; the
+        # sensitometry is in 708 FIGURES the search never looked at. This
+        # reader indexes all of them, calibrates each panel against a digit
+        # template bank it cuts from ten axes in the same PDF, and refuses any
+        # characteristic-curve trace whose base densities do not come out an
+        # orange ladder. It adopts three numbers and reports the rest: the
+        # nine traces that reproduce manufacturer data already in the database
+        # are the check on the three that do not.
+        ("sovremennye_2004.py",
+         ["--assert"],
+         HERE / "sovremennye_2004.py",
+         "В. Л. Лихачев, «Современные фотоматериалы и их обработка» "
+         "-- the plot atlas of the late-film-era catalogue, 717 pp and 708 "
+         "figures, every one an embedded bitmap with no vector paths. ADOPTED: "
+         "the Vericolor III and EKTAPRESS PJ400 orange-mask ladders, both of "
+         "which stood as FLAT placeholders asserting that a C-41 negative has "
+         "no mask, and the Technical Pan f50, which stood as an estimate "
+         "reasoned from granularity because P-255 prints no resolving power. "
+         "⚠ CORROBORATED AND DELIBERATELY NOT WRITTEN: nine traces reproduce "
+         "vendor figures already stored, to within 0.008-0.036 D on the Portra "
+         "ladders and 1.3-5.6 c/mm on the Agfa monochrome MTF, and seven more "
+         "colour f50 readings fall inside the stored r/g/b bracket -- the book "
+         "is [T2] reference data and never displaces a vendor sheet. "
+         "⚠ READ AND NOT STORED: the 42 development-kinetics panels, which are "
+         "exactly the shape ProcessingFamily wants and would close the "
+         "Development Time gap, because their curves are named by a legend or "
+         "by crowded in-plot labels and the curve-to-developer assignment is "
+         "not unambiguous -- a DevelopmentPoint carries a developer name and a "
+         "wrong one is worse than none (queue P49); and the 232 dye spectra, "
+         "because dye_matrix is a coupling matrix and no published calibration "
+         "turns a spectrum into one (queue P50)"),
+        # ⚠ TWO MODULES FOR ONE BOOK, AND THE SPLIT IS THE TIER. Kodak
+        # labelled every characteristic curve in the 1956 Data Book with its
+        # own development time and gamma, so `kodak_1956.py` TRANSCRIBES a
+        # manufacturer's printed statement and `kodak_1956_trace.py` digitises
+        # the panels beside it. Keeping them in one file would let a later
+        # reader take the second for the first.
+        ("kodak_1956.py",
+         [],
+         HERE / "kodak_1956.py",
+         "Eastman Kodak Company, «Kodak Films», Kodak Data Book, SEVENTH "
+         "EDITION, 1956 -- seventeen data sheets, and the densest "
+         "gamma-against-time material in this corpus. ADOPTED: 45 printed "
+         "(time, gamma) pairs across twelve emulsions, TIER T1 BY "
+         "TRANSCRIPTION rather than by trace, because Kodak labelled each "
+         "curve of each family IN FRAME with both numbers. Four stocks gained "
+         "a processing family that had none -- PANATOMIC-X, ROYAL PAN 4141, "
+         "ROYAL-X PAN 4166 and SUPER-XX PAN 4142. ⚠ SEVEN OF THE TWELVE ARE "
+         "AN EARLIER GENERATION of a stock whose profile holds the 1979 or "
+         "2016 coating, and both readings are manufacturer data, so "
+         "DevelopmentPoint.edition was added at schema v35 to carry the "
+         "generation with the point rather than choose between two T1 "
+         "sources. ⚠ THE GUARD IS PHYSICS: every family is fitted to the "
+         "Mees-Sheppard law on every build and refused above a 0.035 "
+         "residual, which no misread digit survives; all twelve pass and "
+         "every asymptote lands inside the 1.0-1.6 band Glafkides §211 gives "
+         "for negatives. ⚠ CORROBORATED AND NOT WRITTEN: the Fifth Edition "
+         "of 1952 supplied the DK-50 families on TRI-X SHEET 1952 and "
+         "PANATOMIC-X SHEET 1952 with its own warning that the labels came "
+         "from an Acrobat Paper Capture layer and had never been read twice; "
+         "the Seventh Edition reprints both plates and all ten pairs read "
+         "back identically at 400 dpi, which retires the warning. ⚠ HELD, "
+         "NOT STORED: five sheet emulsions with a complete data set and no "
+         "profile to attach it to (queue P63)"),
+        ("kodak_1956_trace.py",
+         [],
+         HERE / "kodak_1956_trace.py",
+         "The same book's TIME-GAMMA insets, which plot two to five "
+         "developers per film and on four sheets plot the whole set twice, "
+         "once per agitation regime -- the axis DevelopmentPoint.vessel "
+         "exists for and that is empty almost everywhere outside Agfa. "
+         "⚠⚠ NOTHING IS ADOPTED, AND THE REASON IS COVERAGE RATHER THAN "
+         "ACCURACY. The reader calibrates ONE of the fourteen pages: it takes "
+         "its axis VALUES from the PDF's OCR layer, and thirteen pages have "
+         "lost the tick row -- page 49 yields no row of five numeric tokens "
+         "anywhere, page 46 recovers five ticks of about fifteen, page 63 "
+         "returns the neighbouring time-temperature chart's logarithmic axis. "
+         "⚠ THE RASTER HALF WORKS: on the one page that calibrates, the "
+         "traced D-76 curve reads gamma 0.676 at 11 min and 0.907 at 19 "
+         "against Kodak's own printed 0.70 and 0.92, with no knowledge of "
+         "those labels. Two curves off one panel is not a harvest, and "
+         "loosening the agreement tolerance until that panel passes would be "
+         "choosing a tolerance to fit a result -- so the module runs, reports "
+         "what it can calibrate, and writes nothing (queue P61)"),
+        ("kodak_1956_spectro.py",
+         ["--root", str(root)],
+         HERE / "kodak_1956_spectro.py",
+         "The same book's THIRTY WEDGE SPECTROGRAMS -- the only measured "
+         "spectral response this corpus holds for the 1950s Kodak "
+         "black-and-white line, and the first measurement in the project "
+         "that is the POSITION OF A DENSITY BOUNDARY IN A SCREENED GREY "
+         "FIELD rather than the centre of a drawn stroke. \u26a0\u26a0 THE "
+         "QUEUE ROW ASKED FOR A READER WITH ITS OWN VALIDATION AND THE BOOK "
+         "SUPPLIES A BETTER TEST THAN THE ROW IMAGINED: page 12 prints "
+         "Kodak's canonical NON-COLOR-SENSITIZED / ORTHOCHROMATIC / "
+         "PANCHROMATIC stack with the wavelengths labelled in words, so the "
+         "reader is checked on a three-way class separation -- 490 / 587 / "
+         "655 nm in that order -- before any data-sheet plate is believed. "
+         "\u26a0\u26a0 AND THE VERTICAL AXIS HAD NO SCALE, WHICH THE SAME PLATE "
+         "FIXES. Kodak states the wedge is neutral and image height is "
+         "therefore linear in log exposure, but never publishes the "
+         "gradient -- so the shape was known only up to a multiplicative "
+         "constant, which peak normalisation does not remove. The page-12 "
+         "SENSITIVITY OF THE EYE record draws a function published "
+         "elsewhere and exactly, CIE 1924 V(lambda); fitting it gives 59.5 "
+         "px per log unit at 600 dpi at r=0.979, and the resulting "
+         "dimensionless constant makes every one of the thirty plates come "
+         "out 4.70-5.25 log units tall -- one wedge, fifteen pages, nothing "
+         "fitted to make that happen. \u26a0\u26a0 AND A WEDGE SPECTROGRAM IS "
+         "NOT A SPECTRAL SENSITIVITY: it records S(lambda) x E(lambda), "
+         "which is why the book prints each emulsion twice. Dividing out a "
+         "Planck radiator at 5500 K and 2850 K brings an emulsion's two "
+         "independent plates from 0.427 log apart to 0.266 -- the "
+         "justification for the correction and the honest accuracy of the "
+         "result, both measured rather than asserted. \u26a0 SEVEN EMULSIONS "
+         "GAIN A MEASURED SPECTRAL RESPONSE, two keep the sensitometric "
+         "sheet that outranks a 1956 plate and store the wedge reading "
+         "beside it, and eight are read and held for profiles that do not "
+         "exist yet (queue P62)"),
+        ("kodak_1956_curves.py",
+         ["--root", str(root)],
+         HERE / "kodak_1956_curves.py",
+         "The same book's CHARACTERISTIC CURVES for the five sheet emulsions "
+         "queue P63 had a complete data set for and no profile to put it in "
+         "-- SUPER PANCHRO-PRESS TYPE B, PORTRAIT PANCHROMATIC, ROYAL ORTHO, "
+         "SUPER SPEED ORTHO PORTRAIT and COMMERCIAL. 26 curves off five "
+         "plates. \u26a0\u26a0 KODAK LETTERS EVERY CURVE WITH ITS OWN "
+         "DEVELOPMENT TIME AND ITS OWN GAMMA AND THE TRACE NEVER SEES EITHER, "
+         "so the comparison against those labels is free and it is the gate: "
+         "23 of 26 agree to 3.9 % with a mean of 1.1 %, five times better "
+         "than the same project's read of the 1952 edition, which is a fact "
+         "about the scan and not about the method. \u26a0 THE THREE THAT DO "
+         "NOT ARE PINNED RATHER THAN COVERED BY A WIDER TOLERANCE, and all "
+         "three sit where a label is lettered ALONG a curve that nearly "
+         "touches its neighbour -- the one place a follower can change "
+         "branch invisibly. The chord width was checked against the "
+         "alternative explanation: 0.4 to 0.8 decades all give the same "
+         "three outliers, so no definition of gamma removes them. \u26a0 A "
+         "SECOND, FREE CHECK COMES FROM THE DRAUGHTSMAN: these grids are "
+         "isotropic, one decade of log exposure to one unit of density, and "
+         "the density and log-exposure tick ladders are measured "
+         "independently and agree to 0.5 %. \u26a0 THE CURVE ADOPTED FOR "
+         "EACH PROFILE IS THE ONE KODAK'S OWN PROCESSING TABLE RECOMMENDS -- "
+         "the \"For Normal Use\" row, intermittent agitation, for the "
+         "developer the family is drawn in -- and the first version of that "
+         "table GUESSED two of the five and had both wrong, by 0.10 and 0.22 "
+         "of gamma. \u26a0 THE ToneCurve ABSCISSA IS RE-ANCHORED ON THE "
+         "SPEED POINT, because the database's own x axis is normalised "
+         "relative log exposure: over its 69 monochrome stocks `toe_x` "
+         "correlates with log10(exposure_index) at r = -0.01 and density "
+         "reaches dmin + 0.10 at x = -1.46, so a curve dropped in at Kodak's "
+         "own attenuation origin would be a curve placed at random. Five "
+         "fits at 0.0019-0.0148 RMS density (queue P63)"),
+        ("kodak_1938.py",
+         ["--root", str(root)],
+         HERE / "kodak_1938.py",
+         "\u00abEastman Professional Films\u00bb, Eastman Kodak Company, 1938 -- "
+         "fifteen sheet-film speeds and a braced filter-factor matrix, and the "
+         "conversion queue P65 was blocked on. \u26a0\u26a0 THE SPEEDS ARE NOT "
+         "ASA AND THE BOOKLET SAYS SO: page 8 states they were obtained \"according "
+         "to the standard system of speed evaluation employed in the Kodak "
+         "Research Laboratories\" and are \"for light of sunlight quality and "
+         "are not valid\" under tungsten -- which is both why they were "
+         "unusable and why the conversion must be derived against a DAYLIGHT "
+         "index. \u26a0 THREE FILMS ARE RATED ON BOTH THIS SCALE AND THE 1956 "
+         "AMERICAN STANDARD. The two panchromatic ones give exactly 4.00 and "
+         "4.00 -- and they are not one measurement twice, because the 1956 "
+         "Super Panchro-Press is a Type B re-coating while Portrait "
+         "Panchromatic carries no type suffix, so two different eighteen-year "
+         "histories land on the same ratio, which is the signature of a scale "
+         "and not of an emulsion. \u26a0 THE THIRD GIVES 1.60 AND IS RECORDED "
+         "RATHER THAN AVERAGED IN: Commercial is the one non-colour-sensitive "
+         "film of the three, so the conversion is adopted for PANCHROMATIC "
+         "sheet film only. \u26a0 NONE OF THE FIFTEEN IS IN THE DATABASE and "
+         "none becomes one here -- the booklet prints no curve of any kind -- "
+         "so what closes the row is that the scale converts and the table is "
+         "stored instead of lost (queue P65)"),
+        ("kodak_5293_1982.py",
+         ["--root", str(root)],
+         HERE / "kodak_5293_1982.py",
+         "Kennel, Sehlin, Reinking, Spakowsky and Whittier, \u00abEastman Color "
+         "High-Speed Negative Film 5293\u00bb, SMPTE Journal 91(10), October "
+         "1982, 922-930 -- the EI 250T emulsion, and NOT the 1992 EXR 200T "
+         "film that reuses the same catalogue number. Nine pages, a pure "
+         "raster scan with NO TEXT LAYER AT ALL, so every axis is calibrated "
+         "from tick-label centroids against values transcribed by eye. Six "
+         "figures traced: the characteristic curves, the spectral "
+         "sensitivities, the spectral dye densities, the push-1 sensitometry, "
+         "the MTF, and the granularity. \u26a0\u26a0 THE PAPER CHECKS ITS OWN "
+         "TRACES AND THE MODULE FAILS THE BUILD IF IT STOPS DOING SO. Every "
+         "figure draws 5293 beside 5247 and the text makes three quantitative "
+         "claims about the pair -- 0.40 log E faster, the same contrast, "
+         "similar MTF -- of which the first two are a horizontal displacement "
+         "and a slope, independent of each other and exactly what a "
+         "mis-calibrated axis gets wrong. A fourth check is free: Fig. 12 "
+         "redraws Fig. 4's normally-processed curves five pages and one "
+         "calibration later, and the two traces must agree to 0.02 D. "
+         "\u26a0 FIG. 13 IS READ IN A WAY ITS BARE ABSCISSA WOULD SEEM TO "
+         "FORBID: captioned \"Log E\" with no numbers, it draws the density "
+         "curve in the same frame as the two granularity curves, so log E is "
+         "ELIMINATED between them and every column becomes a point of "
+         "sigma(D) -- which is the form GrainSpec wants anyway. \u26a0 FIG. 3 "
+         "(microdensitometer line scans, both axes bare) and Fig. 16's "
+         "ordinate (\"OVERALL PICTURE QUALITY\", two reference lines and no "
+         "scale) are REFUSED and recorded as refusals (queue P67)"),
+        ("soviet_tu_1986_90.py",
+         ["--root", str(root)],
+         HERE / "soviet_tu_1986_90.py",
+         "Eight Soviet \u0422\u0423 manufacturing specifications from \u041f\u041e "
+         "\u00ab\u0421\u0432\u0435\u043c\u0430\u00bb and \u00ab\u0422\u0430\u0441\u043c\u0430\u00bb, 1986-1990, 161 sheets -- and the "
+         "module audits the CITATION TRAIL rather than re-parsing the "
+         "values, which is a deliberate limit and is stated as one: the OCR "
+         "of a Soviet typescript confuses 8 with 6 and 2 with \u0441 and "
+         "detaches table cells from their labels, so the numbers in the "
+         "database were read from rendered page images by eye and a "
+         "pretended re-parse would be worse than none. What OCR DOES get "
+         "right is \u00ab3200\u00bb, \u00ab5500\u00bb, \u00ab\u041e\u0422\u0411-14\u00bb and \u00ab\u0413\u0430\u0440\u0430\u043d\u0442\u0438\u0439\u043d\u044b\u0439 "
+         "\u0441\u0440\u043e\u043a\u00bb, and every claim the database makes on one of these "
+         "sheets is asserted to be present on the page the record cites. "
+         "\u26a0\u26a0 THE DECISIVE RESULT IS A PATTERN OF PRESENCE AND ABSENCE "
+         "THAT NO SINGLE DOCUMENT COULD GIVE: \u00ab3200\u00bb appears in the "
+         "sensitometry clause of all four \u041b (\u043b\u0430\u043c\u043f\u044b \u043d\u0430\u043a\u0430\u043b\u0438\u0432\u0430\u043d\u0438\u044f) sheets and "
+         "in none of the \u0414\u0421 ones, \u00ab5500\u00bb appears in \u0414\u0421-5\u041c alone, and "
+         "\u0426\u041d\u0414-64 contains NEITHER -- which is what condemned the stored "
+         "balance_kelvin of 5500 on \u041b\u041d-8, \u041b\u041d-9 and \u041b\u041d-9\u0421. That is a "
+         "RENDERED colour cast on three stocks, not a labelling slip: "
+         "balance_kelvin feeds balance_gains on the render path. "
+         "\u26a0 THE SECOND RESULT IS AN ABSENCE AND IT IS PERMANENT: not one of "
+         "the eight sheets prints a characteristic curve, a spectral "
+         "sensitivity curve, a spectral dye density or an MTF curve. Three "
+         "carry a figure at all and all three are engineering drawings of "
+         "perforations. \u041b\u041d-8's own appendix instructs the TESTER to plot "
+         "\u0433\u0440\u0430\u0434\u0430\u0446\u0438\u043e\u043d\u043d\u044b\u0435 \u043a\u0440\u0438\u0432\u044b\u0435 on graph paper and prints none. So no "
+         "further reading in this class of source can promote a Soviet curve "
+         "SHAPE above tier 3: the specifications fix scalars and the shapes "
+         "stay analogy. \u26a0 AND EVERY NUMBER IS AN ACCEPTANCE LIMIT: a \u0422\u0423 is "
+         "a contract between a factory and its inspectorate, so "
+         "\u00ab\u043d\u0435 \u043c\u0435\u043d\u0435\u0435 100\u00bb means a roll failing at 99 is rejected and says "
+         "nothing about what a good roll did -- the rendered film is the "
+         "worst legal example of itself wherever a one-sided limit is all "
+         "there is. Two stocks added from it, \u0426\u041e-\u0422-90\u041b\u041c and \u0426\u041d\u0414-64"),
+        ("batch_position_headers.py",
+         ["--root", str(root)],
+         HERE / "batch_position_headers.py",
+         "2026-09-30: the Batch Position control is the same control in every "
+         "place it is represented -- AlgoControlEnums.hpp's range equals "
+         "film_enum.hpp's film::eBATCH_POSITION_*, film_params_mask.hpp carries "
+         "eCTRL_BIT_BATCH_POSITION at the panel position and sets it on exactly "
+         "the stocks whose resolver moves, every other bit of every film equals "
+         "its shared predicate, AlgoControls declares and defaults the field, "
+         "the mockup draws the mask's controls in the mask's order, and a g++ "
+         "probe static_asserts the bit of every film against the shipped header"),
+        ("batch_position_parity.py",
+         ["--root", str(root)],
+         HERE / "batch_position_parity.py",
+         "PYTHON vs SCALAR vs AVX2 for `batchPosition`, the schema-v52 control "
+         "that renders the roll the SPECIFICATION allows rather than only the "
+         "roll the database stores. Ten stocks carry a manufacturing "
+         "acceptance band -- the nine Soviet ТУ films and the one ГОСТ film -- "
+         "and until this control existed the band was carried, validated and "
+         "read by nothing. "
+         "⚠⚠ THE INTERESTING PROPERTY IS NEGATIVE, AND IT IS WHY THIS AUDIT "
+         "IS SHORT: AlgoBatchPosition.hpp contains no AlgoType, no intrinsics "
+         "and no pixel loop, so the two C++ engines compile THE SAME CODE and "
+         "the defect class that has cost this project three engine bugs -- the "
+         "Schraudolph white point, the unread anisotropy, the NaN-to-white "
+         "clamp -- cannot arise here. The probe is still built twice against "
+         "each project's own include path and still prints sizeof(AlgoType), "
+         "because «cannot arise» is a claim about today's source. "
+         "⚠ THE OFF PATH IS TESTED AS CAREFULLY AS THE MOVED ONE: at position "
+         "0 the resolver must return the profile BY REFERENCE, so the C++ side "
+         "prints the address and Python checks object identity -- an "
+         "equal-but-copied profile would pass a value comparison and still "
+         "break the bit-identity a default render depends on. "
+         "⚠ AND IT ASSERTS THE TWO RESULTS THAT LOOK LIKE BUGS: ДС-5М's "
+         "band is ASYMMETRIC (+1 moves its blue gamma 0.06 and -1 moves it "
+         "0.04, because the ТУ prints «+0,06 / -0,04»), and Фото ЦНД-32's "
+         "green gamma does not move toward -1 AT ALL while red and blue do, "
+         "because ГОСТ 25120-82 табл. 6 prints that one cell «0,60 + 0,08» "
+         "where the cells above and below it read «±»"),
+        ("sehlin_kennel_5294_curve.py",
+         ["--assert"],
+         HERE / "sehlin_kennel_5294_curve.py",
+         "EASTMAN 5294's GREEN CHARACTERISTIC CURVE, off Fig. 14 of a paper "
+         "this build had already been opening for three weeks. ⚠⚠ THE «READ "
+         "ALL OF IT» FAILURE, FOR THE THIRD TIME: `sehlin_kennel_1985.py` has "
+         "been registered since 2026-09-02 for this paper's Fig. 8, examined "
+         "Figs. 9, 11 and 12 and refused two of them with measured reasons, "
+         "and never looked at Fig. 14 -- a characteristic curve for a stock "
+         "whose curve this database was carrying as pure analogy. "
+         "⚠ SHAPE ONLY, AND THE LIMIT IS MEASURED RATHER THAN ASSUMED. The "
+         "solid G_N trace fits a softplus at rms 0.0093 D over 1194 columns, "
+         "giving gamma, toe_k and a 2.281-decade toe-to-shoulder separation. "
+         "D-MIN IS REFUSED: Fig. 13 on the same page plots 5247 in the same "
+         "«Green Density (Status M)» ordinate, and reads 0.409 at its "
+         "left-hand edge against that film's TIER-1 datasheet D-min of 0.531 "
+         "-- a curve cannot go below its own base plus fog, so the paper's "
+         "zero is not this database's. The SCALE is sound, which is the "
+         "other half of the test: the traced slope over the coincident "
+         "region is 0.604 against the analogy's own 0.559. A constant offset "
+         "changes no slope, so the shape transfers and the level does not. "
+         "⚠ toe_x IS REFUSED TOO -- the abscissa is «Relative Log Exposure» "
+         "with a 0.30 scale bar and no origin, and this database reads toe_x "
+         "as a speed. ⚠ RED AND BLUE STAY ANALOGY: the figure prints one "
+         "layer, and three records carrying one measured gamma would assert "
+         "a crossover nobody drew. "
+         "⚠ THE ORDINATE IS KEYSTONED and the correction is per panel: "
+         "Fig. 14's four density ticks space 370.5 / 317.5 / 312.5 px while "
+         "Fig. 13's space 293.5 / 301.5 / 301.0, so a quadratic is fitted to "
+         "each. A linear map would be 0.066 D out at mid-scale, four times "
+         "this project's raster tolerance"),
+        ("mono_primary_width.py",
+         ["--assert"],
+         HERE / "mono_primary_width.py",
+         "THE MONO-PRIMARY LOBE WIDTH -- GEOMETRY, AND THE RECORD OF A FIT "
+         "THAT WAS WITHDRAWN. ⚠⚠ THIS MODULE FITTED THE WIDTH FROM 2026-09-26 "
+         "TO 2026-09-27 AND SHIPPED 15.0 nm, AND THE FIT WAS NOT AN "
+         "INSTRUMENT. It was CIRCULAR -- P30's spectral curve and this width "
+         "were fitted to the same thirteen probes off the same forum frame, "
+         "and the module's own header said so and dismissed it. Its objective "
+         "REWARDED DISCARDING DATA: the residual fell as the lobes narrowed, "
+         "and so did the fraction of the emulsion the basis can see, 70 % at "
+         "55 nm to 41 % at 15 nm to 30 % at 11 nm, with wavelengths inside "
+         "400-680 nm carrying literally zero weight. And its «independent "
+         "check» -- ortho red weights falling toward zero -- could not have "
+         "come out any other way, because narrowing any lobe reduces "
+         "cross-talk. ⚠ THE COST: green weight fell on 29 of 43 derivable "
+         "stocks, worst -0.203, because the 540 nm primary lands in the "
+         "sensitisation dip between a silver halide's intrinsic blue lobe and "
+         "its green sensitiser; KODAK_COMMERCIAL_1956 reached green 0.0011 "
+         "and FERRANIA_P30 (0.076, 0.166, 0.758), less green than a red-blind "
+         "film. Found by the owner rendering a ColorChecker through P30 on "
+         "the AVX2 engine and seeing the blue patch come out white. ⚠⚠ WHAT "
+         "SHIPS IS 34.0 nm AND IT IS DERIVED FROM THE CENTRES: adjacent lobes "
+         "must cross at half maximum or the basis has a hole, which needs "
+         "sigma = d / 2.3548 on the widest spacing, 80 / 2.3548 = 33.98. No "
+         "photograph enters it. The module now asserts the geometry and that "
+         "the degeneracy still reproduces, so nobody re-runs the sweep and "
+         "re-adopts its minimum"),
+        ("sensitisation_class.py",
+         ["--assert"],
+         HERE / "sensitisation_class.py",
+         "EVERY MONOCHROME STOCK'S WEIGHTS AGAINST ITS SENSITISATION CLASS, "
+         "added 2026-09-27. ⚠⚠ IT EXISTS BECAUSE A PANCHROMATIC FILM SHIPPED "
+         "WITH LESS GREEN RESPONSE THAN AN ORTHOCHROMATIC ONE AND NOTHING "
+         "NOTICED: FERRANIA_P30 at (0.076, 0.166, 0.758) against "
+         "FERRANIA_ORTO_50's (0.015, 0.544, 0.441), both derived by the same "
+         "function from curves in the same database. 45 stocks classified by "
+         "hand -- blue / ortho / pan / pan_weak_red / ir -- because a string "
+         "match gets KODAK_ROYAL_ORTHO_1956 and KODAK_TECHNICAL_PAN wrong. "
+         "Gates: the basis has no hole and sees at least 60 % of a typical "
+         "emulsion; a non-colour-sensitised film has next to no green; an "
+         "orthochromatic film is red-blind AND green-sensitised; a "
+         "panchromatic film has red, green and a curve still alive at 600 nm; "
+         "and the weakest panchromatic red weight still exceeds the strongest "
+         "orthochromatic one. ⚠ THERE IS DELIBERATELY NO CROSS-CLASS GREEN "
+         "COMPARISON: the first version had one and it failed THIRTEEN "
+         "measured panchromatic stocks including TRI-X, because these weights "
+         "are shares of one and a pan film divides its response three ways "
+         "where an ortho film divides it two"),
+        ("measured_curve_parity.py",
+         ["--root", str(root)],
+         HERE / "measured_curve_parity.py",
+         "PYTHON vs SCALAR vs AVX2 for the MEASURED characteristic curve, "
+         "the schema-v55 carrier. ⚠⚠ THIS IS THE FIRST TIME THE THREE ENGINES "
+         "EVALUATE SOMETHING OTHER THAN ONE CLOSED FORM. Until v55 a "
+         "disagreement between them could only be floating point; a measured "
+         "curve is a piecewise cubic over a table and a piecewise anything "
+         "has three ways to diverge that a softplus does not -- the interval "
+         "search (which interval owns a knot?), the derivative estimator, and "
+         "the fall-back offset outside the samples, the one number in the "
+         "feature that is computed twice. The derivative is not one of them "
+         "BY DESIGN: the Fritsch-Carlson slopes are computed once in "
+         "film_profiles._hermite_slopes and SHIPPED in the generated tables, "
+         "so what this audit checks is that they arrived intact -- it "
+         "compares the emitted arrays element by element against the "
+         "database. "
+         "⚠ AND A FOURTH DIVERGENCE PECULIAR TO THE VECTOR BUILD: AVX2 does "
+         "not evaluate the cubic per lane. AlgoBuildCurveLut bakes the "
+         "measured curve into the 4097-entry shared table and the lanes do a "
+         "clamped linear interpolation of THAT, so the vector path is allowed "
+         "a table error the scalar path has not got, and this file measures "
+         "it instead of assuming it is small. The same builder had to have "
+         "its DOMAIN WIDENED: it chose its range from the knees alone, which "
+         "on FERRANIA_P30 would have clamped every sample below -1.9 and "
+         "erased the whole measured toe -- the part that motivated storing "
+         "the table. The widening is asserted here by probing 0.3 decade "
+         "below the lowest sample. "
+         "⚠ IT ALSO REFUSES A TABLE THAT BUYS NOTHING: if the softplus "
+         "reproduces its own samples to better than 1e-4 D rms the audit "
+         "FAILS, because samples that close to the fit were almost certainly "
+         "generated FROM it and storing them would dress a model up as a "
+         "measurement"),
+        ("soviet_tu_corpus.py",
+         ["--root", str(root)],
+         HERE / "soviet_tu_corpus.py",
+         "THE FULL SOVIET CORPUS, nine documents and 176 sheets, and it is "
+         "the module that RE-DERIVES VALUES where the older "
+         "soviet_tu_1986_90.py could only check citations. Three things that "
+         "one cannot do. (1) IT INCLUDES THE NINTH DOCUMENT: ГОСТ 25120-82, "
+         "the umbrella state standard, was read on 2026-09-23 and was in no "
+         "audit at all. (2) IT RE-PARSES табл. 6 CELL FOR CELL -- all 13 "
+         "rows × 3 quality-grade columns -- and compares every cell against "
+         "the database, which is honest for this document and for no other in "
+         "the corpus because it is a TYPESET state standard rather than a "
+         "typescript. (3) IT AUDITS THE ACCEPTANCE BANDS, FilmProfile."
+         "tolerance, added at schema v51 in the same batch. "
+         "⚠⚠ THE OCR SPLIT IS MEASURED HERE RATHER THAN ASSERTED. The older "
+         "module states that these typescripts cannot be parsed for values "
+         "and takes it as given; a statement like that decays, because it was "
+         "true of one scan on one day and nobody re-checks it. This one "
+         "COUNTS, per document, how many of the numbers the database stores "
+         "from it survive verbatim in its own OCR layer, so if a better scan "
+         "ever lands the gate says so instead of the limit quietly outliving "
+         "its reason. ⚠⚠ AND THE STRONGEST RESULT IS A VOCABULARY CENSUS NO "
+         "SINGLE SHEET COULD GIVE: «средний градиент» occurs in exactly "
+         "the three masked-cine-negative ТУ and «коэффициент "
+         "контрастности» in exactly the reversal ones, the still negative "
+         "and the ГОСТ, and NO DOCUMENT USES BOTH -- the Soviet industry "
+         "named the quantity by the polarity of the film. "
+         "«разрешающая способность» occurs in the three reversal ТУ and "
+         "the ГОСТ and in NO negative ТУ, which is precisely why the "
+         "R↔f50 bridge may not cross polarity. And ТУ 6-17-1371-86 contains "
+         "none of the ten tokens, so «this document states nothing "
+         "photographic» is a measurement rather than an impression. "
+         "⚠ ITS FIRST RUN CAUGHT A REAL DEFECT: SVEMA_CNL_65 stored gammas "
+         "0,70 / 0,70 / 0,85 from Gurlev 1986 while its own state standard "
+         "prints 0,55 / 0,60 / 0,65 ± 0,08 -- above the upper edge of all "
+         "three bands, i.e. the profile was rendering a roll the "
+         "specification would have rejected"),
+        ("kodak_h1_5302.py",
+         ["--root", str(root)],
+         HERE / "kodak_h1_5302.py",
+         "KODAK Publication H-1-5302, \u00abEASTMAN Fine Grain Release "
+         "Positive Film 5302 / 7302\u00bb, Minor Revision 2/99 -- the print "
+         "stock's OWN manufacturer sheet, which had never been read. "
+         "KODAK_5302 has been in the database since 2026-08-24 as a [T2] "
+         "record built from two BBC research reports that print no "
+         "characteristic curve, no MTF and no resolving power for any of "
+         "their six emulsions, so four of its numbers were class estimates. "
+         "\u26a0\u26a0 ONE OF THEM WAS WRONG BY A FACTOR OF 2.2: mtf_f50 was "
+         "85.0 cycle/mm and panel F010_0025AC crosses 50 % at 38.2. The file "
+         "is VECTOR, so there is no scanning error term at all -- the three "
+         "panels are read out of the PDF path data and the only errors are "
+         "the draughtsman's and the axis fit's, worst 0.015 of a decade on "
+         "any of the eight ladders. \u26a0 THE ONE JUDGEMENT ON THE PAGE IS "
+         "REMOVED RATHER THAN MADE: Kodak letters the five development times "
+         "BESIDE the curves with no leader, and the module sorts the traces "
+         "by steepness (gamma rises with development time, which is not in "
+         "dispute) and then CORROBORATES that ordering against the "
+         "Time-Gamma inset read from the same frame with no reference to the "
+         "traces -- they agree to 0.121 of gamma and every alternative "
+         "assignment is worse, reversal by 6.1x. \u26a0 WHICH TRACE IS "
+         "ADOPTED IS ALSO NOT A PREFERENCE: the PROCESSING table prints no "
+         "development time, only \"develop to the recommended control gamma "
+         "of 2.4 to 2.6\", and that band spans 3.18-3.99 min, inside which "
+         "the 3 1/2-minute trace is the ONLY drawn one. \u26a0 THE TWO "
+         "SPECTRAL CRITERIA CHECK EACH OTHER ACROSS PANELS: D 0.3 and D 1.0 "
+         "above gross fog come out 0.252 log apart where 0.7/gamma predicts "
+         "0.275, gamma coming from the characteristic frame. \u26a0 AND THE "
+         "GRANULARITY DECISION IS THE HPS ONE TAKEN THE OTHER WAY: Kodak's 8 "
+         "is at this file's own defined condition (48 um aperture, net "
+         "density 1.0) where the BBC-derived 4.7 is at D 0.48 above base, so "
+         "8 is adopted -- and the 1.70 ratio is deliberately NOT propagated "
+         "to the other five T-101 stocks, because it was measured on a "
+         "gamma-2.5 positive and they are gamma-0.6 negatives"),
+        # ---- the 2026-09-23 closure batch --------------------------------
+        # Four modules that existed, passed standalone, and were invisible to
+        # the gate. ⚠ AN UNREGISTERED AUDIT IS WORSE THAN NO AUDIT: it reads
+        # as coverage in the file listing and re-checks nothing, so a later
+        # edit can quietly contradict a finding nobody re-runs.
+        ("kodak_1957_storage.py",
+         ["--root", str(root)],
+         HERE / "kodak_1957_storage.py",
+         "Eastman Kodak, \u00abStorage and Preservation of Motion-Picture "
+         "Film\u00bb, 1957, 82 pages with NO TEXT LAYER, read off renders. "
+         "\u26a0\u26a0 IT PRODUCED A SCHEMA CHANGE RATHER THAN A ROW OF "
+         "NUMBERS, and the reason is structural: read against AgingSpec and "
+         "DyeStabilitySpec it yields nothing either can hold, because those "
+         "describe damage already done to an IMAGE and this book is about the "
+         "plastic, the can and the room -- hence v50's BaseSpec. \u26a0 MOST "
+         "OF WHAT IT GIVES IS CLASS DATA AND STAYS IN A TABLE: a specific "
+         "gravity belongs to cellulose triacetate, not to PLUS-X. Six "
+         "statements name a product line and those six went onto profiles. "
+         "\u26a0\u26a0 ONE FOUND A DEFECT: KODACHROME_1938 and "
+         "KODACHROME_TYPE_A_1938 carried Feature.NITRATE_BASE against p.6's "
+         "\u00abKodachrome and Eastman Color Films were never made on "
+         "nitrate base\u00bb, and Table I p.8 both corroborates that and "
+         "BOUNDS it, so EASTMAN_SUPER_XX_1938 keeps its flag as a 35 mm "
+         "negative. \u26a0 THE p.42 SHRINKAGE RATIO IS ON NO PROFILE: it is "
+         "a RATE and shrinkage_pct is a STATE"),
+        ("kodak_papers_g1.py",
+         ["--root", str(root)],
+         HERE / "kodak_papers_g1.py",
+         "Kodak Data Book G-1, the print-contrast model. \u26a0 IT BUILDS NO "
+         "PAPER PROFILE AND THAT IS THE POINT: the book's papers are "
+         "blue-sensitive single records, 45/0 reflection density is not "
+         "transmission density, and its curve families are captioned by CLASS "
+         "rather than by product, so a profile would assert three things the "
+         "source does not support. What it does carry is the GRADE LADDER "
+         "(scale index 1.7 at grade 0 falling 0.2 per grade, exactly linear "
+         "on all six), the fitting offset 0.2 reproducing all four closed "
+         "bands on p.13, the enlarger geometry as OPEN-ENDED bands rather "
+         "than points, 33 per-paper scale indexes agreeing with the ladder "
+         "exactly, and the two variable-contrast filter sets stepping by 0.1. "
+         "\u26a0 ITS 0.15 OF NEGATIVE GAMMA PER PAPER GRADE IS "
+         "INDEPENDENTLY CORROBORATED by kodak_databook_fm.py from a different "
+         "book in a different country"),
+        ("kodak_1942_eastman.py",
+         ["--root", str(root)],
+         HERE / "kodak_1942_eastman.py",
+         "\u00abEastman Motion Picture Films for Professional Use\u00bb "
+         "(Kodak, 1942), 98 pages, no text layer, read off 560 dpi renders. "
+         "\u26a0\u26a0 THE BOOKLET IS FULL OF PLOTTED CURVES, the opposite "
+         "of what this project's other wartime sources give: all 24 "
+         "specification sheets carry a characteristic-curve family with a "
+         "time-gamma inset, three multi-film comparison panels sit at printed "
+         "40, 58 and 64, and every one is a letterpress line drawing with a "
+         "5-7 px stroke at 560 dpi, i.e. about 0.013 D -- digitisable far "
+         "below the 0.05 D bar. 26 time-gamma families were read off the "
+         "insets. \u26a0 EXACTLY ONE IS WIRED: Type 1232 is "
+         "EASTMAN_SUPER_XX_1938, which now carries 7/9/12/18 min -> "
+         "0.46/0.54/0.65/0.87 in Kodak SD-21 at 65 degF, and whose "
+         "12-minute member reproduces the 0.65 aim the SAME PAGE states in "
+         "prose -- two transcriptions from different parts of one page that "
+         "agree exactly. \u26a0 THE OTHER 25 ARE HELD AND WIRED NOWHERE "
+         "because they belong to 1942 emulsions this database does not "
+         "model. \u26a0 AND THE BOOKLET REFUSES TO CALL THEM PROCESS TIMES "
+         "(printed p.17)"),
+        ("kodak_databook_fm.py",
+         ["--root", str(root)],
+         HERE / "kodak_databook_fm.py",
+         "The FM section of the \u00abKodak Data Book of Applied "
+         "Photography\u00bb, pp.1140-1495. \u26a0\u26a0 IT IS KODAK "
+         "LIMITED, LONDON, AND THAT REWRITES TASK #502, which expected "
+         "development tables for 125PX, 400TX, 4166 and EASTMAN 5231: none "
+         "of those designations occurs in 356 pages. The sheets are British "
+         "coatings of the middle 1960s and the section proves the gap itself "
+         "-- FM-36 carries 'Plus-X' at ASA 160 in D-61a and 'Plus-X PAN' at "
+         "ASA 125 in DK-50 under ONE FM number -- so no table here is written "
+         "onto a profile sourced from a 2005-2007 American sheet. \u26a0 "
+         "WHAT IT CLOSED: the D-76/gamma-0.7 sentence is on exactly three "
+         "sheets and qualifies a SPEED rather than prescribing a process, "
+         "with Verichrome the sheet that could have carried it and does not; "
+         "Royal-X contradicts it by naming DK-50 as the only acceptable "
+         "developer, and is the only film in the section with no safelight at "
+         "all; Weston is absent from every monochrome sheet; and Super-XX's "
+         "60 l/mm was found and DELIBERATELY NOT ADOPTED against the "
+         "database's Eastman Kodak 55 in SD-21. \u26a0\u26a0 AND THE BEST "
+         "FIND IS A COINCIDENCE THAT IS NOT ONE: its enlarger rubric puts "
+         "0.15 of negative gamma between a condenser and a diffuser chain, "
+         "and kodak_papers_g1 independently holds 0.15 per paper grade and "
+         "one grade between those two enlargers"),
+        ("orwo_nc3_1972.py",
+         ["--assert"],
+         HERE / "orwo_nc3_1972.py",
+         "Tamm & Weisflog, «NC 3 - ein neuer Color-Negativfilm», BILD UND TON "
+         "11/1972 -- the three ORWOCOLOR NC 3 plot panels, read off four pages "
+         "that are single embedded bitmaps with no vector paths and no tick "
+         "text, so every axis is calibrated geometrically. ⚠ NOT ON THE LABEL "
+         "CENTROIDS: a minus sign pulls «-1,0» about 7 px left of its own tick "
+         "against the unsigned «0», which on a 165 px decade would tilt the "
+         "whole abscissa, so three of the four axes are fitted on the tick "
+         "stubs and only Bild 6's -- single unsigned digits 6/7/8/9 -- is read "
+         "from labels. ⚠ THE UNLABELLED STROKES ARE NAMED TWICE, BY DIFFERENT "
+         "PHYSICS: Bild 5's records must order blue > green > red in D-min "
+         "because the orange mask is a positive yellow-plus-magenta image, and "
+         "Bild 7's must order blue > green > red in f50 because Tabelle 2 "
+         "prints k-Zahlen of 42/60/85 um. The two agree, which is what "
+         "licenses the assignment. ⚠ AND THE ORDINATE PROVES ITSELF: Bild 7 "
+         "carries only two ordinate ticks, and the scale fitted on them "
+         "extrapolates to M = 0 exactly on the abscissa stroke -- a third "
+         "point the fit was never given.",
+         ),
+        ("h24_variations.py",
+         ["--root", str(root), "--assert"],
+         HERE / "h24_variations.py",
+         "KODAK H-24 Module 8's ECN-2 variation charts, read as numbers -- the "
+         "first processing-side trace in this tree. ⚠ EVERY ROW HAS ITS OWN "
+         "ORDINATE SCALE (HD +/-0.25 D, MD +/-0.20, LD and D-min and HD-LD "
+         "+/-0.10) and a reader that assumes one ladder per figure reports the "
+         "LD rows 2.5x too large. ⚠ THE THREE TRACES SHARE ONE EXACT NODE, "
+         "because at the aim setting every channel's deviation from aim is "
+         "zero by definition -- so no drawing can say which departing stroke "
+         "continues which arriving one, and each panel is assembled as two "
+         "independent halves seeded by the letters at their own ends. ⚠ THE "
+         "ABSCISSA IS CHECKED ACROSS MODULES: Figure 8-5's traces converge at "
+         "1.20 g/L and Module 7 p30 prints the ECN-2 tank aim as «Sodium "
+         "Bromide (Anhydrous) ... 1.20 +/- 0.05 g/L», in a different file, by "
+         "a different table, neither reading told the other. ⚠⚠ AND IT READS "
+         "MORE THAN IT ADOPTS: 54 of 90 panels assemble, and only the "
+         "film/figure sets that reproduce the HD-LD identity are eligible. "
+         "NOTHING FROM THIS READER IS IN THE DATABASE -- Figures 8-1 (time) "
+         "and 8-2 (temperature), the two that ProcessVariant needs, are "
+         "refused by the identity gate, which is why the ECN-2 push/pull "
+         "variants stay unwritten. ⚠ It also pins the C23 reframing: Table "
+         "2-2's 1.0-1.5 s spray pass frequency plus the «Curtains ... "
+         "improper developer turbulation» entries make bromide drag a FAULT "
+         "MODE, so `bromide_drag` at zero on every stock is correct for "
+         "well-processed film rather than a missing value",),
+        # ⚠ ADDED 2026-09-08. The database-to-algorithm coverage census used to
+        # exist only as a hand-written Markdown table, written at schema v24 /
+        # 175 stocks. It was accurate and it went stale silently -- four schema
+        # versions later there was no way to tell WHICH of its rows had moved.
+        # This re-derives the counts on every build. It NEVER FAILS ON A GAP
+        # (rule 23: a gap is a research state, not a defect); it fails only if
+        # the engine tree it was pointed at is absent, i.e. if the audit itself
+        # is not actually looking at anything.
+        ("field_coverage.py",
+         ["--root", str(root), "--assert"],
+         HERE / "field_coverage.py",
+         "database-to-algorithm coverage, re-derived rather than remembered: "
+         "enumerates every dataclass field, checks emission against the "
+         "generated headers, and checks consumption in film_sim.py and in "
+         "every engine TU. ⚠ Reports the ASYMMETRIES separately from the "
+         "shared gaps, because only an asymmetry is a defect -- one field, two "
+         "engines, two pictures -- while a field neither engine reads is "
+         "research state. ⚠ Fields reached through an accessor rather than by "
+         "name (InterimageSpec.matrix(), GrainSpec.clumps()/rms_rgb(), "
+         "HalationSpec.gains(), fp.mtf_response(), fp.grain_sigma()) are "
+         "DECLARED in its INDIRECT table with the call site, because no grep "
+         "can find them and the first run reported all 21 of them as C++-only"),
+        ("spectral_sampling.py",
+         ["--assert"],
+         HERE / "spectral_sampling.py",
+         "queue F3's answer, re-derived: FUJI_NEOPAN_1600's 5 nm trace against "
+         "its own 10 nm decimation moves the monochrome weight triple by "
+         "0.005649 -- 0.56 % of a triple that sums to 1.0, inside the band the "
+         "row quoted and never owned -- and decimating every 10 nm set to 20 nm "
+         "moves the worst by 0.016885. ⚠ It also counts the population F3 could "
+         "move at all: 28 monochrome stocks, against 57 whose three-layer r/g/b "
+         "curves NOTHING ON THE RENDER PATH READS, so a 5 nm re-trace of a "
+         "colour sheet would change a stored array and zero pixels"),
+        # ⚠ AN AUDIT OF CODE THAT HAS NO DATA YET (queue D1/D2a, 2026-09-05b),
+        # AND THAT IS EXACTLY WHY IT IS REGISTERED. `scan_repeat.py` analyses
+        # repeat scans the owner has not taken. Analysis written ahead of its
+        # data is the single most rot-prone thing in this tree -- nothing
+        # exercises it, so nothing notices when a refactor breaks it, and the
+        # day the files arrive is the worst possible day to discover that. Its
+        # `--synthetic` mode builds scans whose truth is known by construction
+        # and checks every estimator against it, so the audit needs no external
+        # source at all. It has already earned its place: the self-test caught a
+        # flatness test that rejected every window in the frame, and a high-pass
+        # that INVERTED the anisotropy verdict by attenuating the two axes
+        # differently -- both before any of the owner's data existed.
+        ("scan_repeat.py",
+         ["--synthetic"],
+         HERE / "scan_repeat.py",
+         "the D1/D2a repeat-scan estimators against synthetic scans whose truth "
+         "is known: an injected scanner sigma recovered through a real JPEG "
+         "encoder, an injected grain anisotropy recovered and correctly "
+         "attributed to the film by the 90-degree rotation test, the "
+         "auto-exposure verdict, and the fraction of the noise the codec "
+         "absorbs. ⚠ It reports that JPEG at quality 92 eats 29 % of the "
+         "scanner variance, which is why every sigma_scanner the real run "
+         "prints will be a LOWER BOUND -- the owner's files are coarser than "
+         "quality 92"),
+        # ⚠ ADDED 2026-09-05 WITH THE STAGE IT GUARDS (queue C23), AND THAT IS
+        # THE POINT OF IT. Stage 9c is inert on every stock in the database, so
+        # nothing in a normal render exercises it -- which is exactly the
+        # condition under which three engines drift apart unnoticed and the
+        # first person to fit a real number inherits three different laws
+        # wearing one name. The probe injects a record into a COPY of a real
+        # profile and runs the shipped stage on it, so the law is tested at full
+        # strength while the database stays inert.
+        ("bromide_parity.py",
+         ["--root", str(eng), "--assert"],
+         eng / "Algo_09_Sim.cpp",
+         "Python apply_bromide_drag() vs AlgoStage09c_BromideDrag() in BOTH the "
+         "scalar and the AVX2 build: a negative and a reversal stock, both "
+         "transport directions, two drag lengths, two pixel scales, and the "
+         "inert record every shipped stock actually takes. ⚠ Also asserts the "
+         "two things a tolerance cannot say -- that the streak trails on the "
+         "side `direction` names and not the other, which no symmetric field "
+         "can distinguish, and that one `length_mm` renders the SAME PHYSICAL "
+         "streak at 25 and at 100 px/mm, which is the whole reason the record "
+         "is in millimetres and which a pixel-denominated length would miss by "
+         "the ratio of the two resolutions"),
+        # ⚠ THE THIRD CODE AUDIT, ADDED 2026-08-29, AND THE ONE THAT CAUGHT A
+        # DIVERGENCE THAT WAS ALREADY SHIPPING. Algo_07_Sim.cpp derives the
+        # monochrome collapse weights from the traced pan curve
+        # unconditionally; film_sim gated the identical derivation behind
+        # RenderSettings.spectral_mono, which defaulted to False. For the 24
+        # stocks with a curve the plugin and the reference renderer therefore
+        # produced different B&W images, worst case KODAK_PLUS_X_125 at blue
+        # 0.110 against 0.502. Neither cpp_parity (grain, MTF, reciprocity) nor
+        # interimage_parity (the DIR couplers) looks at stage 7.
+        # ⚠ --allow-guard-gap WAS REMOVED 2026-08-30, NOT LEFT IN AS A SAFETY
+        # NET. It accepted one known open defect: the gamut-reach guard existed
+        # only in Python, so KONICA_INFRARED_750 derived to a blue-dominant
+        # (0.1611, 0.1931, 0.6458) in the plugin against its authored and
+        # correct red-dominant (0.55, 0.15, 0.30). Queue C40 closed that by
+        # porting the two tests into AlgoSpectralMonoWeights(). Running WITHOUT
+        # the flag is what keeps it closed: a re-opened gap now fails the build
+        # instead of printing a line somebody has learned to skip.
+        ("spectral_mono_parity.py",
+         ["--algodir", str(eng), "--assert"],
+         eng / "AlgoSpectralSensitivity.cpp",
+         "film_sim.spectral_monochrome_weights() against the plugin's own "
+         "AlgoSpectralMonoWeights(), all 68 monochrome stocks walked out of "
+         "the real database, to 1e-9 -- including the gamut-reach guard, which "
+         "must refuse and fall back on the same stocks in both engines"),
+        # ⚠ NOT A DOCUMENT AUDIT EITHER: it re-derives the spectral_weights
+        # PROVENANCE from the live database. Added 2026-08-29 after 48 colour
+        # stocks were found labelled status='derived', 'integrated from the
+        # traced log-sensitivity curves', while every one of them still stored
+        # the (0.30, 0.59, 0.11) dataclass default -- Rec.601 luma, integrated
+        # from nothing. _PARAM_SOURCES_DERIVED's own header says "REGENERATE,
+        # do not hand-edit: the rules live in the task EM-A6 generator", and
+        # that generator is not in the repository, so for this parameter the
+        # rule now lives here and is checked.
+        ("spectral_weight_provenance.py",
+         ["--assert"],
+         HERE / "film_profiles.py",
+         "the spectral_weights ParamSource record of all 161 profiles against "
+         "the rule that produces it: derived where a monochrome stock's curve "
+         "is integrated at run time, refused-with-cause where the guard "
+         "declines, inert where the stock is colour and the field is never "
+         "read"),
+        ("doc_consistency.py",
+         ["--root", str(root / "PYTHON" / "profile_generator"), "--assert"],
+         root / "PYTHON" / "profile_generator" / "doc",
+         "every COUNT asserted in the documentation against the live database "
+         "-- added 2026-08-25 after an audit found four hardcoded counts in the "
+         "report generator wrong by up to 2.3x, a struct described as unread two "
+         "days after it was wired, and queue rows still saying 'no profile' for "
+         "stocks added the day before. A pattern that stops matching FAILS, "
+         "because an unmatched pattern silently stops checking"),
+        ("cross_component.py",
+         ["--assert"],
+         HERE / "cross_component.py",
+         "the SEAMS between the seven components -- reference, database, "
+         "scalar engine, AVX2 engine, Markdown, HTML mockup and the two "
+         "effect-control PDFs. Nothing checked the CONTROL surface across "
+         "them until 2026-09-26, and its first run found the mockup giving "
+         "filmProfile the range 0-190 against 200 stocks, processVariant a "
+         "maximum of 21 against 37, storageYears a step of 1 against 0.5, a "
+         "live control (batchPosition) absent from the table altogether, and "
+         "the engine's default-fill claiming to mirror RenderSettings while "
+         "writing a literal 24.0 into frameRate against the reference's 0.0"),
+        ("plot_inventory.py",
+         ["--root", str(root / "PDF" / "PROFILES"), "--assert"],
+         root / "PDF" / "PROFILES",
+         "the corpus plot inventory: 191 vector dye-density pages (57 under the narrow title pattern), 199 MTF, "
+         "101 granularity, 294 characteristic-curve, and the classifier's "
+         "three known-answer pages"),
+    )
+
+#: verify.py exits 1 whenever ANY check fails, and two checks fail BY DESIGN --
+#: the owner's instruction was explicit: "don't try to fix them". So the exit
+#: code alone is a useless gate. Compare the FAIL SET against this baseline
+#: instead: a new failure fails the build, and a baseline entry that starts
+#: passing also reports, so the baseline is shrunk deliberately rather than by
+#: accident.
+#: ⚠ WAS TWO ENTRIES UNTIL 2026-08-20, AND ONE OF THEM WAS NOT A DATA PROBLEM.
+#: "neighbour pairs couple harder than the far red-blue pair" asserted a
+#: PER-DISTANCE interimage asymmetry that the database deliberately does not
+#: store, because the evidence (US4725529A Table 1 -- inhibitor in the developer,
+#: three separate single-layer coatings, no layer stack, asymmetry persists) says
+#: the asymmetry is per RECEIVER. So it was unpassable by construction: a stale
+#: assertion parked in the baseline as "known, leave alone", which is how it
+#: survived. Replaced in verify.py with the assertion the evidence supports, and
+#: this mechanism is what reported the change rather than swallowing it.
+VERIFY_BASELINE = {
+    "saturation hierarchy is ordered clean -> impure dyes",
+}
+
+
+class Result:
+    __slots__ = ("name", "state", "detail")
+
+    def __init__(self, name, state, detail=""):
+        self.name, self.state, self.detail = name, state, detail
+
+    def __repr__(self):
+        return f"{self.state:4} {self.name}  {self.detail}"
+
+
+def sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(1 << 16), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+#: cpp_codegen stamps a UTC generation time into the three C++ files (never into
+#: film_names.txt -- that file is required to stay pure data). So a byte compare
+#: of a fresh run against the file on disk ALWAYS differs, on the stamp alone.
+#: Reporting that as drift would make --check warn every single time, and a gate
+#: that always warns is a gate that gets ignored. Compare content instead, with
+#: the stamp lines removed, so a real difference is the only thing that shows.
+_STAMP = ("// generated:", "Generated by cpp_codegen.py")
+
+
+def content_sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if any(m in line for m in _STAMP):
+                continue
+            h.update(line.encode("utf-8", "replace"))
+    return h.hexdigest()
+
+
+def run(argv, cwd=HERE, timeout=3600):
+    """Run a child process, capturing both streams. Never uses a shell."""
+    try:
+        p = subprocess.run(argv, cwd=str(cwd), timeout=timeout,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except FileNotFoundError as exc:
+        return None, "", f"{exc}"
+    except subprocess.TimeoutExpired:
+        return None, "", f"timed out after {timeout}s"
+    return p.returncode, p.stdout.decode("utf-8", "replace"), \
+        p.stderr.decode("utf-8", "replace")
+
+
+def py(*args):
+    """This interpreter, not whatever 'python' happens to resolve to."""
+    return [sys.executable, *args]
+
+
+# ---------------------------------------------------------------- stages -----
+
+def stage_audit(opts) -> list:
+    """Re-derive adopted numbers from the source documents."""
+    out = []
+    for script, argv, needs, guards in audits(opts.root):
+        if not (HERE / script).is_file():
+            out.append(Result(script, "SKIP", "script not present"))
+            continue
+        if not Path(needs).exists():
+            out.append(Result(script, "SKIP",
+                              f"source not present: {Path(needs).name}"))
+            continue
+        rc, so, se = run(py(script, *argv))
+        if rc is None:
+            out.append(Result(script, "SKIP", se))
+        elif rc == 0:
+            tail = [ln for ln in so.splitlines() if ln.startswith("[OK]")]
+            out.append(Result(script, "OK",
+                              tail[-1] if tail else f"reproduces {guards}"))
+        else:
+            bad = [ln for ln in (so + se).splitlines()
+                   if ln.startswith(("[!]", "[FAIL]"))]
+            out.append(Result(script, "FAIL",
+                              "; ".join(bad[:3]) or f"exit {rc}"))
+    if not out:
+        out.append(Result("audit", "SKIP", "no audit scripts registered"))
+    return out
+
+
+def stage_verify(opts) -> list:
+    """Run verify.py and compare the FAIL set against VERIFY_BASELINE."""
+    rc, so, se = run(py("verify.py"))
+    if rc is None:
+        return [Result("verify.py", "FAIL", se)]
+    fails = {ln[len("FAIL"):].strip().split("   ")[0].strip()
+             for ln in so.splitlines() if ln.startswith("FAIL")}
+    npass = sum(1 for ln in so.splitlines() if ln.startswith("PASS"))
+    res = [Result("verify.py", "OK" if fails == VERIFY_BASELINE else "FAIL",
+                  f"{npass} PASS / {len(fails)} FAIL")]
+    for extra in sorted(fails - VERIFY_BASELINE):
+        res.append(Result("  NEW FAILURE", "FAIL", extra))
+    for gone in sorted(VERIFY_BASELINE - fails):
+        res.append(Result("  baseline entry now PASSES", "WARN",
+                          f"{gone}  -- remove it from VERIFY_BASELINE"))
+    if not so.strip():
+        res.append(Result("  verify.py produced no output", "FAIL",
+                          se.splitlines()[-1] if se.strip() else f"exit {rc}"))
+    return res
+
+
+def stage_codegen(opts) -> list:
+    """Regenerate the C++ tables; assert film_names.txt is cpp_codegen's."""
+    if opts.check:
+        tmp = Path(tempfile.mkdtemp(prefix="fs_codegen_"))
+        try:
+            rc, so, se = run(py("cpp_codegen.py", "-o", str(tmp)))
+            if rc != 0:
+                return [Result("cpp_codegen.py", "FAIL", se.strip()[-200:])]
+            res = [Result("cpp_codegen.py", "OK", "generated into a temp dir")]
+            for name in GENERATED:
+                fresh, live = tmp / name, HERE / name
+                if not live.is_file():
+                    res.append(Result(f"  {name}", "FAIL", "missing on disk"))
+                elif content_sha256(fresh) == content_sha256(live):
+                    same_bytes = sha256(fresh) == sha256(live)
+                    res.append(Result(f"  {name}", "OK", "up to date"
+                                      if same_bytes
+                                      else "up to date (differs only in the "
+                                           "generation timestamp)"))
+                else:
+                    res.append(Result(f"  {name}", "WARN",
+                                      "CONTENT DIFFERS from a fresh run -- "
+                                      "regenerate (run without --check)"))
+            rc, so, se = run(py("gen_film_params_mask.py", "--check"))
+            res.append(Result("film_params_mask.hpp",
+                              "OK" if rc == 0 else "WARN",
+                              (so or se).strip()[-200:]))
+            return res
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    # Snapshot film_names.txt BEFORE regenerating. Checking it afterwards is
+    # vacuous: cpp_codegen has already rewritten it, so the check could never
+    # fail and gave a false all-clear. What is worth knowing is whether the file
+    # on disk was NOT cpp_codegen's before this run -- i.e. whether something
+    # (the deprecated gen_film_names.py) had clobbered the list the effect panel
+    # loads. That can only be seen from the pre-run state.
+    names = HERE / "film_names.txt"
+    before = sha256(names) if names.is_file() else None
+
+    rc, so, se = run(py("cpp_codegen.py", "-o", "."))
+    if rc != 0:
+        return [Result("cpp_codegen.py", "FAIL", se.strip()[-200:])]
+    res = [Result("cpp_codegen.py", "OK",
+                  f"wrote {len(GENERATED)} artefacts")]
+    missing = [n for n in GENERATED if not (HERE / n).is_file()]
+    if missing:
+        res.append(Result("  artefacts", "FAIL", f"not written: {missing}"))
+
+    after = sha256(names) if names.is_file() else None
+    if before is None:
+        res.append(Result("  film_names.txt", "OK", "created"))
+    elif before == after:
+        res.append(Result("  film_names.txt owner", "OK",
+                          "was already cpp_codegen's output"))
+    else:
+        res.append(Result("  film_names.txt owner", "WARN",
+                          "the file on disk was NOT cpp_codegen's output and "
+                          "has been CORRECTED -- the deprecated "
+                          "gen_film_names.py had probably been run over it"))
+
+    # ⚠ AFTER cpp_codegen, NEVER BEFORE. The mask header's static_assert is
+    # against film_enum.hpp's eTOTAL_FILMS_PROFILES and its row order is
+    # film_names.txt's, so generating it first would pin it to the PREVIOUS
+    # run's enumerators on any build that adds or removes a stock.
+    rc, so, se = run(py("gen_film_params_mask.py"))
+    res.append(Result("gen_film_params_mask.py",
+                      "OK" if rc == 0 else "FAIL",
+                      (so if rc == 0 else (se or so)).strip()[-200:]))
+    return res
+
+
+def stage_sync(opts) -> list:
+    """Keep the project-root copy of the generated C++ identical."""
+    res = []
+    # ⚠ SAY IT OUT LOUD IF THE ROOT LOOKS WRONG. See _default_root: a root that
+    # is not the project root makes every line below a lie -- the copies it
+    # reports on are not the ones anybody compiles.
+    if not (opts.root / _ROOT_SENTINEL).is_dir():
+        res.append(Result("project root", "WARN",
+                          f"{opts.root} has no {_ROOT_SENTINEL}/ -- this may not "
+                          f"be the project root; the C++ copies below would go "
+                          f"somewhere nothing compiles. Set FILMSIM_ROOT or pass "
+                          f"--root."))
+    for name in GENERATED + GENERATED_SIDECAR:
+        src, dst = HERE / name, opts.root / name
+        if not src.is_file():
+            res.append(Result(f"{name}", "FAIL", "not generated"))
+            continue
+        if not dst.exists():
+            if opts.check:
+                res.append(Result(f"{name}", "WARN",
+                                  f"absent at {opts.root} -- would be created"))
+                continue
+            shutil.copy2(src, dst)
+            res.append(Result(f"{name}", "OK", f"created at {opts.root}"))
+            continue
+        if sha256(src) == sha256(dst):
+            res.append(Result(f"{name}", "OK", "both copies identical"))
+        elif content_sha256(src) == content_sha256(dst):
+            res.append(Result(f"{name}", "OK",
+                              "same content, differs only in the timestamp"))
+        elif opts.check:
+            res.append(Result(f"{name}", "WARN",
+                              "root copy DIFFERS -- run without --check"))
+        else:
+            shutil.copy2(src, dst)
+            res.append(Result(f"{name}", "OK", "root copy refreshed"))
+
+    # ⚠⚠ THE ENGINE TREE IS A SECOND DESTINATION AND IT WAS NEVER SYNCED --
+    # ADDED 2026-09-18f. `engine_root()` has resolved the tree the audits and
+    # the compile gate use since 2026-09-02, and on this machine it is
+    # /root/work/tst while the generator root is /root/work/proot. The loop
+    # above only ever wrote to `opts.root`, so every generated artefact in the
+    # engine tree was whatever the last person put there by hand.
+    #
+    # ⚠ IT WENT UNNOTICED FOR SIXTEEN DAYS BECAUSE THE TWO TREES HAPPENED TO
+    # AGREE. Schema v44 broke that on 2026-09-18e by adding
+    # `film_schema_version.h` and making film_profiles.hpp include it: the
+    # .hpp reached the engine tree (it is edited there too) and the new .h
+    # never did, so `G-ENGINE-INCLUDES` failed with one unresolved include and
+    # three scratch probes failed to compile behind it. A generated file that
+    # the compiler needs and the build never places is exactly the class of
+    # defect this stage exists to prevent, and it was only prevented in one of
+    # the two places it can happen.
+    # ⚠ EVERY engine tree, not just the one `engine_root` would pick. There are
+    # two on this machine -- the generator root and the twin at /root/work/tst
+    # that `verify.py`'s G-ENGINE-INCLUDES scans by name -- and `engine_root`
+    # returns the FIRST hit, which is the root, so a first-hit sync would still
+    # have left the twin stale. A tree counts as an engine tree if it holds an
+    # AlgorithmMain.cpp.
+    seen = {opts.root.resolve()}
+    for cand in (os.environ.get("FILMSIM_ENGINE"), "/root/work/tst"):
+        if not cand:
+            continue
+        eng = Path(cand)
+        try:
+            if not (eng / "AlgorithmMain.cpp").is_file():
+                continue
+            key = eng.resolve()
+        except OSError:
+            continue
+        if key in seen:
+            continue
+        seen.add(key)
+        for name in GENERATED + GENERATED_SIDECAR:
+            src, dst = HERE / name, eng / name
+            if not src.is_file():
+                continue
+            if dst.exists() and content_sha256(src) == content_sha256(dst):
+                continue
+            if opts.check:
+                res.append(Result(f"{name} [engine]", "WARN",
+                                  f"missing or stale at {eng} -- run without "
+                                  f"--check"))
+                continue
+            shutil.copy2(src, dst)
+            res.append(Result(f"{name} [engine]", "OK",
+                              f"engine copy refreshed at {eng}"))
+    return res
+
+
+def stage_docs(opts) -> list:
+    """Regenerate the reports that describe the database."""
+    res = []
+    if opts.check:
+        tmp = Path(tempfile.mkdtemp(prefix="fs_docs_"))
+        try:
+            rc, so, se = run(py("gen_active_profiles.py",
+                                "-o", str(tmp / "FilmActiveProfiles.md")))
+            live = HERE / "doc" / "FilmActiveProfiles.md"
+            if rc != 0:
+                res.append(Result("gen_active_profiles.py", "FAIL",
+                                  se.strip()[-200:]))
+            elif not live.is_file():
+                res.append(Result("FilmActiveProfiles.md", "FAIL", "missing"))
+            else:
+                same = sha256(tmp / "FilmActiveProfiles.md") == sha256(live)
+                res.append(Result("FilmActiveProfiles.md",
+                                  "OK" if same else "WARN",
+                                  "up to date" if same else "stale"))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        res.append(Result("gen_film_curves_md.py", "SKIP",
+                          "no -o option, cannot run read-only"))
+        return res
+
+    for script, argv, produced in (
+            ("gen_active_profiles.py", [], "doc/FilmActiveProfiles.md"),
+            ("gen_film_curves_md.py", [], "doc/FilmCurves.md"),
+            # ⚠ THE ONLY DOCUMENT THAT STATES THE CURRENT STATE AS FACT, and it
+            # is generated for that reason. This tree has ~90 Markdown files and
+            # most are correctly HISTORICAL -- a dated RESULT_* record says what
+            # was true on its date and must not be rewritten, because it is the
+            # audit trail. Three bookkeeping failures in three days were all the
+            # same shape: a number restated somewhere else and never
+            # re-derived. This file is the structural answer, and it runs the
+            # release gate (ordering identity, scope preservation, carrier and
+            # provenance census) while it writes.
+            ("gen_project_state.py", ["--assert"], "doc/PROJECT_STATE.md"),
+            # The Python control enumerations are DERIVED from
+            # AlgoControlEnums.hpp rather than maintained beside it, so
+            # the reference pipeline and the two C++ builds cannot come
+            # to disagree about what a control value means. --check
+            # fails the build if the mirror is stale; regenerate with
+            # `python3 gen_control_enums.py`.
+            ("gen_control_enums.py", ["--check"], "algo_control_enums.py"),
+            # ⚠ ADDED 2026-09-19b, AND IT WAS A REAL DRIFT RISK RATHER THAN A
+            # TIDY-UP. `doc/FilmControlMatrix.md` is generated from the live
+            # module exactly like the three above it -- one row per stock, one
+            # column per drawn control, availability decided by the SAME
+            # predicate the engine uses -- and it was the only such document
+            # not regenerated by this stage. It happened to be current, which
+            # is the dangerous state: a generated file nothing regenerates is
+            # a hand-maintained file that nobody knows is hand-maintained.
+            ("gen_film_control_matrix.py", [], "doc/FilmControlMatrix.md"),
+            # ⚠ NO --assert, DELIBERATELY. The realism score is weighted by
+            # `realism_influence.json`, which is MEASURED by rendering and is
+            # hashed against film_sim.py and film_profiles.py. Those two change
+            # most days, so asserting on the hash would fail the build for
+            # staleness after every edit and force a ~15 minute re-measure to
+            # get green again. The generator prints [WARN] instead and the
+            # report carries the hash, so a stale weighting is visible without
+            # being a gate. ⚠ RE-RUN `python3 realism_ablation.py` after any
+            # change that moves a rendered pixel.
+            ("gen_realism_score.py", [], "doc/REALISM_SCORE.md"),
+            # ⚠ THE ONE CHECK IN THIS PROJECT THAT CAN CATCH A WRONG MODEL
+            # RATHER THAN A WRONG TRANSCRIPTION. It asks the shipped laws to
+            # predict printed numbers that were never fed to them -- development
+            # gamma at a held-out time, resolving power from the measured MTF --
+            # and writes the residuals. It runs in the docs stage rather than
+            # the audit stage because it PRODUCES A REPORT: the audits assert,
+            # this one measures, and turning a measurement into a gate before
+            # anyone has read a season of its output is how a tolerance gets
+            # invented to fit the data it was meant to judge.
+            ("holdout_predict.py", [], "doc/HOLDOUT_PREDICTIONS.md")):
+        rc, so, se = run(py(script, *argv))
+        if rc == 0:
+            res.append(Result(script, "OK", produced))
+        else:
+            res.append(Result(script, "FAIL", (se or so).strip()[-200:]))
+    res.extend(_progress_doc_check())
+    return res
+
+
+def _progress_doc_check() -> list:
+    """Fail if doc/PROGRESS.md no longer states the live facts.
+
+    WHY THIS IS A BUILD GATE AND NOT A GOOD INTENTION. The owner reads the
+    markdown to see where the project stands, and the failure mode is silent: a
+    document that was true last week reads exactly like one that is true now.
+
+    ⚠ IT READS A MACHINE STAMP, NOT THE PROSE, and the first version of this
+    check is why. Searching the body text for "v8" passed even after the status
+    line was edited to say v7, because the string "v8" also occurs in a sentence
+    about the struct layout. A gate that can be satisfied by an unrelated
+    sentence is worse than no gate: it reports OK on a stale document. So
+    PROGRESS.md carries one HTML-comment stamp line and this parses it:
+
+        <!-- build-facts: schema=v8 stocks=155 names_md5=<32 hex> -->
+
+    Formatting-independent, unambiguous, and trivially satisfiable -- update the
+    stamp when the facts move. Fault-injected against all three fields.
+    """
+    doc = HERE / "doc" / "PROGRESS.md"
+    if not doc.is_file():
+        return [Result("doc/PROGRESS.md", "FAIL",
+                       "missing -- the status board every task must update")]
+    text = doc.read_text(encoding="utf-8", errors="replace")
+    import re as _re
+    m = _re.search(r"<!--\s*build-facts:\s*schema=v(\d+)\s+stocks=(\d+)\s+"
+                   r"names_md5=([0-9a-fA-F]{32})\s*-->", text)
+    if not m:
+        return [Result("doc/PROGRESS.md", "FAIL",
+                       "no build-facts stamp line (see _progress_doc_check)")]
+    try:
+        sys.path.insert(0, str(HERE))
+        import film_profiles as _fp
+        live_schema, live_stocks = _fp.SCHEMA_VERSION, len(_fp.FILM_PROFILES)
+    except Exception as exc:                                # pragma: no cover
+        return [Result("doc/PROGRESS.md", "SKIP", f"cannot import: {exc}")]
+    names = HERE / "film_names.txt"
+    live_md5 = (hashlib.md5(names.read_bytes()).hexdigest()
+                if names.is_file() else "")
+    bad = []
+    if int(m.group(1)) != live_schema:
+        bad.append(f"schema v{m.group(1)} != live v{live_schema}")
+    if int(m.group(2)) != live_stocks:
+        bad.append(f"stocks {m.group(2)} != live {live_stocks}")
+    if live_md5 and m.group(3).lower() != live_md5:
+        bad.append(f"names_md5 {m.group(3)[:8]}... != live {live_md5[:8]}...")
+    if bad:
+        return [Result("doc/PROGRESS.md", "FAIL", "STALE: " + "; ".join(bad))]
+    return [Result("doc/PROGRESS.md", "OK",
+                   f"stamp matches live: schema v{live_schema}, "
+                   f"{live_stocks} stocks, names {live_md5[:8]}...")]
+
+
+def stage_compile(opts) -> list:
+    """Compile the generated table. Gate on exit code AND empty stderr."""
+    cxx = os.environ.get("CXX") or shutil.which("g++") or shutil.which("clang++")
+    if not cxx:
+        return [Result("compile", "SKIP",
+                       "no g++/clang++ on PATH (set CXX to override)")]
+    sources = [n for n in GENERATED if n.endswith(".cpp")]
+    missing = [n for n in sources if not (HERE / n).is_file()]
+    if missing:
+        return [Result("compile", "SKIP", f"not generated: {missing[:3]}")]
+    tmp = Path(tempfile.mkdtemp(prefix="fs_cc_"))
+    try:
+        res = []
+        for n in sources:
+            rc, so, se = run([cxx, "-std=c++14", "-Wall", "-Wextra",
+                              "-c", str(HERE / n),
+                              "-o", str(tmp / (n[:-4] + ".o"))], cwd=HERE)
+            if rc is None:
+                return [Result("compile", "SKIP", se)]
+            noise = len(se.encode()) + len(so.encode())
+            if rc != 0 or noise != 0:
+                first = (se or so).strip().splitlines()
+                res.append(Result(f"  {n}", "FAIL",
+                                  f"exit {rc}, {noise} bytes: "
+                                  f"{first[0][:140] if first else ''}"))
+        if res:
+            return res
+        return [Result("compile", "OK",
+                       f"{Path(cxx).name} -std=c++14 -Wall -Wextra on all "
+                       f"{len(sources)} TUs: exit 0 AND zero bytes of output")]
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# ⚠ STAGE ORDER IS LOAD-BEARING AND WAS WRONG UNTIL 2026-08-24.
+#
+# It used to run audit first. Two of the audits (`cpp_parity`, `interimage_parity`)
+# compile probes against the PLUGIN'S OWN C++ under `--root`, so on the first run
+# after any schema change they compiled against the PREVIOUS schema and failed --
+# a failure with nothing wrong in it, which passed on the next run and therefore
+# taught everyone to re-run rather than to read. Worse, it hid a real one: the
+# 2026-08-23 v11 bump reported `interimage_parity` "probe did not compile" while
+# the actual problem was a stale root the sync stage had never corrected.
+#
+# Now: verify gates everything (it reads only the Python database, so it needs no
+# artefacts), then codegen writes the C++, then sync places it, and only THEN do
+# the audits compile against it. `docs` and `compile` are unchanged at the end.
+#
+# The one thing that must NOT move back above codegen/sync is `audit`.
+STAGES = (
+    ("verify",  stage_verify,  "verify.py, FAIL set compared to the baseline"),
+    ("codegen", stage_codegen, "regenerate the four C++ artefacts"),
+    ("sync",    stage_sync,    "keep the project-root C++ copy identical"),
+    ("audit",   stage_audit,   "re-derive adopted numbers from source documents"),
+    ("docs",    stage_docs,    "regenerate FilmActiveProfiles.md, FilmCurves.md"),
+    ("compile", stage_compile, "g++ -std=c++14 -Wall -Wextra, gated strictly"),
+)
+
+
+def main() -> int:
+    names = [n for n, _, _ in STAGES]
+    ap = argparse.ArgumentParser(
+        description="Regenerate and audit the film-profile database.",
+        epilog="Stages run in the listed order; the order is load-bearing.")
+    ap.add_argument("--only", action="append", metavar="STAGE", choices=names,
+                    help="run only this stage (repeatable)")
+    ap.add_argument("--skip", action="append", metavar="STAGE", choices=names,
+                    help="skip this stage (repeatable)")
+    ap.add_argument("--check", action="store_true",
+                    help="READ-ONLY: audit and report drift, write nothing")
+    ap.add_argument("--list", action="store_true", help="list stages and exit")
+    ap.add_argument("--root", type=Path, default=ROOT,
+                    help="project root holding PDF/ and the second C++ copy "
+                         "(default: two levels above this script)")
+    opts = ap.parse_args()
+    opts.root = Path(opts.root).resolve()
+
+    if opts.list:
+        print("stages, in order:\n")
+        for n, _, why in STAGES:
+            print(f"  {n:8} {why}")
+        print("\naudit scripts registered:\n")
+        for script, _, needs, guards in audits(opts.root):
+            have = "present" if Path(needs).exists() else "SOURCE MISSING"
+            print(f"  {script:26} {guards}\n"
+                  f"  {'':26} needs {Path(needs).name}  [{have}]")
+        return 0
+
+    chosen = [s for s in STAGES if (not opts.only or s[0] in opts.only)
+              and (not opts.skip or s[0] not in opts.skip)]
+
+    mode = "CHECK (read-only)" if opts.check else "BUILD"
+    print(f"film-profile generator -- {mode}")
+    print(f"  generator : {HERE}")
+    print(f"  root      : {opts.root}")
+    print(f"  python    : {sys.version.split()[0]}")
+
+    failed = warned = 0
+    for name, fn, why in chosen:
+        print(f"\n=== {name} -- {why}")
+        try:
+            results = fn(opts)
+        except Exception as exc:                       # a stage must not abort
+            results = [Result(name, "FAIL", f"{type(exc).__name__}: {exc}")]
+        for r in results:
+            print(f"  [{r.state:4}] {r.name}"
+                  + (f"  --  {r.detail}" if r.detail else ""))
+            failed += r.state == "FAIL"
+            warned += r.state == "WARN"
+
+    print("\n" + "-" * 70)
+    if failed:
+        print(f"BUILD FAILED  --  {failed} failure(s), {warned} warning(s)")
+        return 1
+    print(f"OK  --  0 failures, {warned} warning(s)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

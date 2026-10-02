@@ -233,11 +233,11 @@ namespace FastCompute
 		ix = ix + (ix >> 4);
 		ix = ix + (ix >> 8);
 		ix = 0x2a5137a0 + ix;        // Initial guess.
-		x = reciproc3 * (2.0f * x + x0 / (x * x));  // Newton step.
-		x = reciproc3 * (2.0f * x + x0 / (x * x));  // Newton step again.
-		ix |= sign;
-		return x;
-	}
+        x = reciproc3 * (2.0f * x + xx0 / (x * x));
+        x = reciproc3 * (2.0f * x + xx0 / (x * x));
+        ix |= sign;
+        return x;
+    }
 
 	template <typename T>
 	inline constexpr T Cbrt (const T x) noexcept
@@ -319,12 +319,10 @@ namespace FastCompute
 		return conv.i;
 	}
 
-	inline int __int_as_float(const int in) noexcept
-	{
-		union fi { int i; float f; } conv;
-		conv.i = in;
-		return conv.f;
-	}
+    inline float __int_as_float(const int in) noexcept
+    {
+        float f; std::memcpy(&f, &in, sizeof(f)); return f;
+    }
 
 	inline float Log (const float a) noexcept
 	{
@@ -429,7 +427,7 @@ namespace FastCompute
 				if (y > 0.0f)
 				{
 					// atan2(y,x) = PI/2 - atan(x/y) if |y/x| > 1, y > 0
-					return PI_2 - Atan(z);
+					return -PI_2 - Atan(z);
 				}
 				else
 				{
@@ -606,7 +604,7 @@ namespace FastCompute
         int q = static_cast<int>(k & 3);
 
         // Branchless tables for cos(x)
-        constexpr double S[4] = { +1.0, +1.0, -1.0, +1.0 }; // for sin_poly
+        constexpr double S[4] = { +1.0, -1.0, -1.0, +1.0 }; // for sin_poly (cos variant)
         constexpr double C[4] = { +1.0, +1.0, -1.0, -1.0 }; // for cos_poly
         constexpr double use_cos[4] = { 1.0, 0.0, 1.0, 0.0 };     // pick cos_poly for cos(x)
 
@@ -689,10 +687,9 @@ namespace FastCompute
 		constexpr double p3 = -0.00019840903752;
 	#if defined(__cpp_lib_math_fma) || (defined(__FMA__) || defined(__AVX__))
 		// use fma if available: (((p3*x2 + p2)*x2 + p1)*x2)*xr + xr  (but written carefully)
-		double t = std::fma(p3, x2, p2);
-		t = std::fma(t, x2, p1);
-		t = std::fma(t, x2, 1.0);
-		double sin_poly = std::fma(t, x2, xr); // close Horner with fma
+        double t = std::fma(p3, x2, p2);
+        t = std::fma(t, x2, p1);
+        double sin_poly = std::fma(t * x2, xr, xr); // xr + xr*x2*(p1 + x2*(p2 + x2*p3))
 	#else
 		double sin_poly = xr + x2 * xr * (p1 + x2 * (p2 + x2 * p3));
 	#endif
@@ -891,4 +888,68 @@ namespace FastCompute
         return Sqrt (x * x + y * y);
     }
 
-} /* namespace FastCompute */
+    namespace Experimental
+    {
+
+        inline float bits_to_float(const uint32_t u) noexcept
+        {
+            float f; std::memcpy(&f, &u, 4); return f;
+        }
+
+        inline uint32_t float_to_bits(const float f) noexcept
+        {
+            uint32_t u; std::memcpy(&u, &f, 4); return u;
+        }
+
+        // round-to-nearest, branchless, no rintf. Valid for |t| < 2^22.
+        inline float round_nearest(const float t) noexcept
+        {
+            const float magic = 12582912.0f; return (t + magic) - magic;
+        }
+
+        inline float exp2_int(const int32_t n) noexcept
+        {
+            return bits_to_float(static_cast<uint32_t>((n + 127) << 23));
+        }
+
+        template <int DEG> inline float Exp2Poly(float x) noexcept;
+        template <> inline float Exp2Poly<4>(float x) noexcept
+        {
+            const float tr = round_nearest(x);
+            const float f = x - tr;
+            float p = 9.570028381e-03f;
+            p = p * f + 5.591769325e-02f;
+            p = p * f + 2.402474495e-01f;
+            p = p * f + 6.931218359e-01f;
+            p = p * f + 9.999992620e-01f;
+            return p * exp2_int(static_cast<int32_t>(tr));
+        }
+
+        template <int DEG = 4> inline float Exp2(float x) noexcept
+        {
+            if (x > 127.0f) x = 127.0f;
+            if (x < -126.0f) return 0.0f;
+            return Exp2Poly<DEG>(x);
+        }
+
+        template <int DEG = 4> inline float Exp(const float x) noexcept
+        {
+            return Exp2<DEG>(x * 1.44269504088896341f);
+        }
+
+        inline float Log2(const float x) noexcept { return Log(x) * 1.44269504088896341f; }
+        inline float Log10(const float x) noexcept { return Log(x) * 0.43429448190325176f; }
+
+        template <int DEG = 4> inline float Pow(const float a, const float b) noexcept
+        {
+            return Exp2<DEG>(b * Log2(a));
+        }
+
+        template <int DEG = 4> inline float Pow10(const float x) noexcept
+        {
+            return Exp2<DEG>(x * 3.321928094887362f);
+        }
+
+    } // namespace Experimental
+
+} // namespace FastCompute

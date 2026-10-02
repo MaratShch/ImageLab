@@ -11,10 +11,18 @@
 
 namespace ImageLabMemoryUtils
 {
-	inline int32_t CreateMemHanler(int32_t idx) noexcept { return idx  | 0xFF0000; }
-	inline int32_t CreateBlockIdx (int32_t hndl)noexcept { return hndl & 0x00FFFF; }
+    constexpr int32_t MEM_HANDLE_TAG = 0x00FF0000;
+    constexpr int32_t INVALID_MEMORY_BLOCK = -1;
 
-	constexpr int32_t INVALID_MEMORY_BLOCK = -1;
+	inline int32_t CreateMemHanler(int32_t idx) noexcept { return idx  | MEM_HANDLE_TAG; }
+
+    inline int32_t GetBlockIdx(int32_t hndl) noexcept
+    {
+        return ((hndl & static_cast<int32_t>(0xFFFF0000u)) == MEM_HANDLE_TAG)
+            ? (hndl & 0x0000FFFF) : INVALID_MEMORY_BLOCK;
+    }
+
+
 
 	class CMemoryHolder
 	{
@@ -28,10 +36,9 @@ namespace ImageLabMemoryUtils
 			int32_t AllocMemory(uint32_t memSize, void** ptr, const MemOwnedPolicy = MemOwnedPolicy::MEM_POLICY_NORMAL);
 			void ReleaseMemory(int32_t blockId);
 
-			const int64_t GetTotalAllocatedMem (void) const
+			const uint64_t GetTotalAllocatedMem (void) const noexcept
 			{
-				const int64_t totalBytes{ m_TotalAllocated };
-				return totalBytes;
+				return m_TotalAllocated;
 			}
 
 		private:

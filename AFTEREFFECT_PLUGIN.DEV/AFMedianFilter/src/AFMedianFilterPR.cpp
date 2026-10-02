@@ -19,7 +19,7 @@ PF_Err ProcessImgInPR
 	PF_Err errFormat{ PF_Err_INVALID_INDEX };
 	PrPixelFormat destinationPixelFormat{ PrPixelFormat_Invalid };
 
-	// This plugin called frop PR - check video fomat
+	// This plugin called from PR - check video fomat
     const PF_LayerDef* pfLayer = reinterpret_cast<const PF_LayerDef*>(&params[UnderlyingType(AFMF::eIMAGE_AFMEDIAN_INPUT)]->u.ld);
     const A_long sizeY = pfLayer->extent_hint.bottom - pfLayer->extent_hint.top;
     const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;

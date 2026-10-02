@@ -108,6 +108,12 @@
     <ClInclude Include="include\MosaicMemHandler.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\ImageStylization.cpp">

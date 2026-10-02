@@ -4,7 +4,7 @@
 #include "ImageLabMemInterface.hpp"
 #include "CommonAdobeAE.hpp"
 
-static HMODULE hLib = nullptr;
+static HMODULE hLib = NULL;
 static void* MemoryInterfaceHndl = nullptr;
 static MemoryManagerInterface memInterface{};
 
@@ -33,13 +33,18 @@ bool LoadMemoryInterfaceProvider(PF_InData* in_data)
             memInterface.MemoryInterfaceAllocBlock = reinterpret_cast<AllocMemBlock> (GetProcAddress(hLib, __TEXT("AllocMemoryBlock")));
             memInterface.MemoryInterfaceReleaseBlock = reinterpret_cast<FreeMemBlock>(GetProcAddress(hLib, __TEXT("ReleaseMemoryBlock")));
 
-            if (nullptr != memInterface.MemoryInterfaceOpen)
+            if (nullptr != memInterface.MemoryInterfaceOpen && nullptr != memInterface.MemoryInterfaceClose &&
+                nullptr != memInterface.MemoryInterfaceAllocBlock && nullptr != memInterface.MemoryInterfaceReleaseBlock)
             {
                 // open memory interface handler
                 MemoryInterfaceHndl = memInterface.MemoryInterfaceOpen();
                 memInterface._dbgLastError = ::GetLastError();
                 err = true;
             } // if (nullptr != memInterface.MemoryInterfaceOpen)
+            else
+            {
+                UnloadMemoryInterfaceProvider();
+            }
         } // if (NULL != hLib)
     } // if (PF_Err_NONE == extErr && 0 != pluginFullPath[0])
 
@@ -62,15 +67,15 @@ void FreeMemoryBlock(int32_t id) noexcept
     return;
 }
 
-A_long memGetLastError(void) noexcept
+int32_t memGetLastError(void) noexcept
 {
-    return static_cast<A_long>(memInterface._dbgLastError);
+    return static_cast<int32_t>(memInterface._dbgLastError);
 }
 
 
 void UnloadMemoryInterfaceProvider(void)
 {
-    if (nullptr != hLib)
+    if (NULL != hLib)
     {
         if (nullptr != memInterface.MemoryInterfaceClose)
             memInterface.MemoryInterfaceClose(MemoryInterfaceHndl);
@@ -79,7 +84,7 @@ void UnloadMemoryInterfaceProvider(void)
         memset(&memInterface, 0, sizeof(memInterface));
 
         ::FreeLibrary(hLib);
-        hLib = nullptr;
+        hLib = NULL;
     }
     return;
 }

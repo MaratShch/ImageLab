@@ -3,18 +3,26 @@
 #include "MemoryInterface.hpp"
 
 
-void* CreateMemoryHandler(void)
+void* CreateMemoryHandler (void)
 {
-	return reinterpret_cast<void*>(ImageLabMemoryUtils::CMemoryInterface::getInstance());
+    try { return ImageLabMemoryUtils::CMemoryInterface::getInstance(); }
+    catch (...) { return nullptr; }
 }
 
-void  ReleaseMemoryHandler(void* p)
+void  ReleaseMemoryHandler (void* p)
 {
 	// nothing to do
 	(void)p;
+
 	return;
 }
 
+void ReleaseMemoryHandlerEx (void)
+{
+    ReleaseMemoryHandler(nullptr);
+    ImageLabMemoryUtils::CMemoryInterface::destroyInstance();
+    return;
+}
 
 int32_t AllocMemoryBlock (void* pMemHandle, int32_t size, int32_t align, void** pMem)
 {
