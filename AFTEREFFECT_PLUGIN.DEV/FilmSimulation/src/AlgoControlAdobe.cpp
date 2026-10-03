@@ -7,18 +7,18 @@
 
 
 
-AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int32_t idx)
+AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int32_t idx)
 {
     CACHE_ALIGN AlgoControls algoParams = getAlgoControlsDefault();
 
     algoParams.filmProfile = get_list_box_value<film::eFILM_PROFILE>(params, FilmSimulationCtrl::FILM_STOCK);
-    algoParams.frameRate   = ((fps < 1.0) ? 24.0 : fps);
+    algoParams.frameRate = ((fps < 1.0) ? 24.0 : fps);
     algoParams.frameIndex = idx;
 
     const uint64_t filmMask = film::kFilmControlAvailability[UnderlyingType(algoParams.filmProfile)];
 
     if (is_control_available(film::eCTRL_BIT_FILM_FORMAT, filmMask))
-        algoParams.filmFormat  = get_list_box_value<FilmFormatCtrl>(params, FilmSimulationCtrl::FILM_FORMAT);
+        algoParams.filmFormat = get_list_box_value<FilmFormatCtrl>(params, FilmSimulationCtrl::FILM_FORMAT);
     if (is_control_available(film::eCTRL_BIT_PROCESS_VARIANT, filmMask))
         algoParams.processVariant = get_list_box_value<ProcessVariantCtrl>(params, FilmSimulationCtrl::PROCESS_VARIANT);
     if (is_control_available(film::eCTRL_BIT_EXPOSURE_STOPS, filmMask))
@@ -36,16 +36,21 @@ AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int
     if (is_control_available(film::eCTRL_BIT_STORAGE_YEARS, filmMask))
         algoParams.storageYears = get_slider_value(params, FilmSimulationCtrl::YEARS_OF_DARK_STORAGE);
     if (is_control_available(film::eCTRL_BIT_STORAGE_CELSIUS, filmMask))
-        algoParams.storageYears = get_slider_value(params, FilmSimulationCtrl::STORAGE_TEMPERATURE);
+        algoParams.storageCelsius = get_slider_value(params, FilmSimulationCtrl::STORAGE_TEMPERATURE);   // FIX: was storageYears
 
     if (is_control_available(film::eCTRL_BIT_SCENE_KELVIN, filmMask))
         algoParams.sceneKelvin = get_slider_value(params, FilmSimulationCtrl::SCENE_COLOUR_TEMPERATURE);
     if (is_control_available(film::eCTRL_BIT_PRINT_STOCK, filmMask))
         algoParams.printStock = get_list_box_value<PrintStockCtrl>(params, FilmSimulationCtrl::PRINT_STOCK);
-//    if (is_control_available(film::eCTRL_BIT_GENERATIONS, filmMask))
-//        algoParams.generations = get_slider_value(params, FilmSimulationCtrl::DUPLICATION_GENERATION);
+    if (is_control_available(film::eCTRL_BIT_GENERATIONS, filmMask))
+        algoParams.generations = static_cast<int32_t>(get_slider_value(params, FilmSimulationCtrl::DUPLICATION_GENERATION));
     if (is_control_available(film::eCTRL_BIT_DUPE_STOCK, filmMask))
-        algoParams.dupeStock = get_list_box_value<DupeStockCtrl>(params, FilmSimulationCtrl::INTERMEDIATE_STOCK);
+    {
+        const DupeStockCtrl dupe = get_list_box_value<DupeStockCtrl>(params, FilmSimulationCtrl::INTERMEDIATE_STOCK);
+        algoParams.dupeStock = ((dupe == DupeStockCtrl::eDUPE_FINE_GRAIN) || (dupe == DupeStockCtrl::eKODAK_VISION3_DI_2254))
+            ? dupe
+            : DupeStockCtrlDef;   // eDUPE_FINE_GRAIN
+    }
     if (is_control_available(film::eCTRL_BIT_PRINT_GRAIN, filmMask))
         algoParams.printGrain = get_check_box_value(params, FilmSimulationCtrl::PRINT_GRAIN);
 
