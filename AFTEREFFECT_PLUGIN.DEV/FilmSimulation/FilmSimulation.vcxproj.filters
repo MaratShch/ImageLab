@@ -270,6 +270,12 @@
     <ClInclude Include="include\AlgoBatchPosition.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoPassThrough.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\film_profile_serial.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -934,6 +940,18 @@
     </None>
     <None Include="python\profiles_generator\sovremennye_tmax_push.py">
       <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\field_usage.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\film_serial_check.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\serial_codegen.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\image_diff.py">
+      <Filter>python</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

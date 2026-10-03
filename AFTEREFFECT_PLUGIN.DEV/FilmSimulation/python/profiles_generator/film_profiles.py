@@ -86609,19 +86609,19 @@ _COMBINED_MTF_SRC = ("В. Л. Лихачев, «Современные фото�
                      "обработка» (Москва: СЛОН-ПРЕСС, 2003)")
 _COMBINED_MTF = {
     'KONICA_CENTURIA_SUPER_400': (94, '3.56', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0),
-        (1.176, 1.215, 1.215, 1.215, 1.176, 1.067, 0.953, 0.85, 0.759, 0.625, 0.531), (34.81, 56.61, 65.67), 0.0116),
+        (1.176, 1.215, 1.215, 1.215, 1.176, 1.067, 0.953, 0.85, 0.759, 0.625, 0.531), (35.13, 57.12, 66.26), 0.0081, 2.25),
     'KONICA_CENTURIA_SUPER_1600': (103, '3.68', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0),
-        (1.157, 1.195, 1.195, 1.195, 1.157, 1.05, 0.922, 0.823, 0.735, 0.595, 0.49, 0.43), (34.64, 56.33, 65.35), 0.0274),
+        (1.157, 1.195, 1.195, 1.195, 1.157, 1.05, 0.922, 0.823, 0.735, 0.595, 0.49, 0.43), (33.97, 55.23, 64.07), 0.0117, 2.01),
     'KONICA_VX_100': (106, '3.72', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 25.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0),
-        (1.237, 1.299, 1.342, 1.386, 1.386, 1.32, 1.103, 0.992, 0.809, 0.659, 0.51, 0.404, 0.321), (41.86, 68.07, 78.96), 0.0221),
+        (1.237, 1.299, 1.342, 1.386, 1.386, 1.32, 1.103, 0.992, 0.809, 0.659, 0.51, 0.404, 0.321), (41.45, 67.40, 78.18), 0.0094, 3.32),
     'KONICA_CHROME_R100': (285, '3.198', (2.0, 3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0),
-        (1.108, 1.108, 1.108, 1.076, 1.03, 0.936, 0.779, 0.625, 0.504, 0.409, 0.267, 0.188, 0.14), (24.08, 27.74, 40.14), 0.0406),
+        (1.108, 1.108, 1.108, 1.076, 1.03, 0.936, 0.779, 0.625, 0.504, 0.409, 0.267, 0.188, 0.14), (22.07, 25.43, 36.80), 0.0080, 2.17),
     'KODAK_VERICOLOR_III_160': (184, '3.74', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0),
-        (1.114, 1.131, 1.14, 1.14, 1.131, 1.055, 0.94, 0.851, 0.752, 0.611, 0.51, 0.419, 0.362, 0.322), (38.51, 62.62, 72.64), 0.0458),
+        (1.114, 1.131, 1.14, 1.14, 1.131, 1.055, 0.94, 0.851, 0.752, 0.611, 0.51, 0.419, 0.362, 0.322), (35.17, 57.19, 66.34), 0.0149, 1.97),
     'EKTACHROME_64': (238, '3.142', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0),
-        (1.09, 1.08, 1.071, 1.053, 1.017, 0.918, 0.8, 0.676, 0.577, 0.392, 0.278), (31.09, 35.82, 51.83), 0.0229),
+        (1.09, 1.08, 1.071, 1.053, 1.017, 0.918, 0.8, 0.676, 0.577, 0.392, 0.278), (31.09, 35.82, 51.83), 0.0526, 1.96),
     'KODACHROME_64': (265, '3.174', (3.0, 4.0, 5.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0),
-        (1.122, 1.163, 1.179, 1.214, 1.231, 1.098, 0.941, 0.806, 0.714, 0.478, 0.324, 0.227, 0.157, 0.115), (34.54, 39.8, 57.59), 0.0216),
+        (1.122, 1.163, 1.179, 1.214, 1.231, 1.098, 0.941, 0.806, 0.714, 0.478, 0.324, 0.227, 0.157, 0.115), (34.54, 39.8, 57.59), 0.0250, 2.67),
 }
 _UC_LAYER_MTF = (38.3, 64.0, 98.0)
 
@@ -86631,18 +86631,34 @@ def _apply_combined_mtf(p: "FilmProfile") -> "FilmProfile":
         keep = tuple(x for x in p.param_sources if x.param not in params)
         return keep + tuple(params[k] for k in sorted(params))
     if p.name in _COMBINED_MTF:
-        pg, fig, fq, resp, (r, g, b), rms = _COMBINED_MTF[p.name]
+        pg, fig, fq, resp, (r, g, b), rms, q = _COMBINED_MTF[p.name]
         assert not p.mtf.mtf_measured, p.name
         src = "%s, p%d рис. %s (single combined curve)" % (_COMBINED_MTF_SRC, pg, fig)
+        # 2026-10-04: the curve's ROLL-OFF SHAPE is adopted as well as its f50.
+        # A single Gaussian cannot follow these curves below 50 %: the tail is
+        # fatter (log10 rms 0.02-0.21 on the roll-off points); the measured law
+        # 1/(1+(f/f50)^q), which 70 other stocks already render with, fits them
+        # to 0.008-0.015 (0.025 / 0.053 on the two Vitale stocks, whose f50 is
+        # held). q and the re-solved f50 come from combined_mtf.solve_q.
+        q_rec = ParamSource(
+            param="mtf.mtf_rolloff_q", tier=2, status="derived", unit="dimensionless",
+            conditions="roll-off exponent solved on the printed combined curve from "
+                       "its peak to its last point (fit rms %.3f log10)" % rms,
+            source=src, confidence="medium",
+            note="Luminance-weighted sum of three layer 1/(1+(f/f50)^q) laws, "
+                 "corpus-measured layer ratios; combined_mtf.py, 2026-10-04.")
         # ⚠ VITALE'S STOCKS KEEP VITALE. Ektachrome 64 and Kodachrome 64 carry
         # f50 converted from a PUBLISHED MTF point (Vitale 2009 Table 4), not
         # an estimate, so the owner's rule -- solve only where f50 is an
         # estimate -- leaves them; the curve is stored and the solved triple is
         # the corroboration combined_mtf.py prints.
         if p.name in VITALE_2009_ADOPTED:
+            # f50 stays Vitale's; only the shape is read off the book's curve.
             return replace(p, mtf=replace(p.mtf, combined_freqs=fq,
                                           combined_response=resp,
-                                          combined_source=src))
+                                          combined_source=src,
+                                          mtf_rolloff_q=q, mtf_measured=True),
+                           param_sources=_ps({"mtf.mtf_rolloff_q": q_rec}))
         rec = {("mtf.f50_" + ch): ParamSource(
             param="mtf.f50_" + ch, tier=2, status="derived", unit="cycles/mm",
             conditions="solved to reproduce the printed combined curve (fit rms %.3f log10)" % rms,
@@ -86650,9 +86666,11 @@ def _apply_combined_mtf(p: "FilmProfile") -> "FilmProfile":
             note=("Luminance-weighted sum of three layer MTFs, corpus-measured "
                   "layer ratios; combined_mtf.py. Replaces an estimate, 2026-10-01d."))
             for ch in "rgb"}
+        rec["mtf.mtf_rolloff_q"] = q_rec
         return replace(p, mtf=replace(p.mtf, f50_r=r, f50_g=g, f50_b=b,
                                       combined_freqs=fq, combined_response=resp,
-                                      combined_source=src),
+                                      combined_source=src,
+                                      mtf_rolloff_q=q, mtf_measured=True),
                        param_sources=_ps(rec))
     if p.name == "KODAK_ULTRA_COLOR_400UC":
         r, g, b = _UC_LAYER_MTF
@@ -86856,6 +86874,11 @@ def grain_sigma(grain: GrainSpec, dmin: float, dmax: float, density):
 #: 10.0x. (22 rows until 2026-09-06; the two rows added then are among the best
 #: in the table, so the worst-row figure is unchanged.)
 _MTF_KERNEL_TABLE: dict[float, tuple[float, float, float]] = {
+    1.9600: (+0.303981, 0.381476, 1.296813),   # 2026-10-04, EKTACHROME_64 combined-curve q (Лихачев 2003), max|err| 0.0210 vs Gaussian 0.1424
+    1.9700: (+0.301478, 0.381937, 1.291144),   # 2026-10-04, KODAK_VERICOLOR_III_160 combined-curve q, max|err| 0.0206 vs Gaussian 0.1413
+    2.0100: (+0.291438, 0.383641, 1.269469),   # 2026-10-04, KONICA_CENTURIA_SUPER_1600 combined-curve q, max|err| 0.0192 vs Gaussian 0.1368
+    2.2500: (+0.235036, 0.392692, 1.172652),   # 2026-10-04, KONICA_CENTURIA_SUPER_400 combined-curve q, max|err| 0.0124 vs Gaussian 0.1116
+    3.3200: (+1.043905, 0.998957, 17.455699),   # 2026-10-04, KONICA_VX_100 combined-curve q, max|err| 0.0325 vs Gaussian 0.0686
     1.5800: (+0.387166, 0.348569, 1.585443),   # 2026-09-29, AF3-207U harvest
     1.5900: (+0.385411, 0.349902, 1.575874),   # 2026-09-29, AF3-207U harvest
     2.0200: (+0.288927, 0.384034, 1.264298),   # 2026-09-29, AF3-207U harvest

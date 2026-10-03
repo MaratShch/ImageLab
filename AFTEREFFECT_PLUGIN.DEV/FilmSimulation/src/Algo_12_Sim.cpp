@@ -96,7 +96,16 @@ bool AlgoIsIdentityMatrix (const film::Matrix3& m) noexcept
 // ---------------------------------------------------------------------------
 //  Apply a 3x3 density mixing matrix
 // ---------------------------------------------------------------------------
-void AlgoApplyDensityMatrix
+// ---------------------------------------------------------------------------
+//  2026-10-04: one kernel, two instantiations. FLOOR folds the clamp at zero
+//  into the store, so stage 12 no longer makes a second pass over its three
+//  output planes; max(x, 0) applied at the store is the same value the
+//  separate pass produced. Stage 13 keeps the unfloored exported form.
+// ---------------------------------------------------------------------------
+namespace
+{
+template <bool FLOOR>
+FORCE_INLINE void algoApplyDensityMatrixT
 (
     const AlgoType* RESTRICT pSrcR,
     const AlgoType* RESTRICT pSrcG,
@@ -110,6 +119,7 @@ void AlgoApplyDensityMatrix
     const film::Matrix3&     m
 ) noexcept
 {
+    const __m256 vZero = _mm256_setzero_ps();   // used when FLOOR
     // The nine coefficients are hoisted into named frame constants for two reasons:
     // the matrix is stored as float while the arithmetic is AlgoType, so converting
     // once removes nine conversions from the inner loop; and the compiler cannot
@@ -179,6 +189,7 @@ void AlgoApplyDensityMatrix
             oB = _mm256_fmadd_ps(inG, v21, oB);
             oB = _mm256_fmadd_ps(inB, v22, oB);
 
+            if (FLOOR) { oR = _mm256_max_ps(oR, vZero); oG = _mm256_max_ps(oG, vZero); oB = _mm256_max_ps(oB, vZero); }
             _mm256_storeu_ps(pOR + x, oR);
             _mm256_storeu_ps(pOG + x, oG);
             _mm256_storeu_ps(pOB + x, oB);
@@ -202,6 +213,7 @@ void AlgoApplyDensityMatrix
             oB = _mm256_fmadd_ps(inG, v21, oB);
             oB = _mm256_fmadd_ps(inB, v22, oB);
 
+            if (FLOOR) { oR = _mm256_max_ps(oR, vZero); oG = _mm256_max_ps(oG, vZero); oB = _mm256_max_ps(oB, vZero); }
             _mm256_maskstore_ps(pOR + x, mt, oR);
             _mm256_maskstore_ps(pOG + x, mt, oG);
             _mm256_maskstore_ps(pOB + x, mt, oB);
@@ -215,6 +227,47 @@ void AlgoApplyDensityMatrix
 // ---------------------------------------------------------------------------
 //  Stage 12: dye impurity and scanner crosstalk
 // ---------------------------------------------------------------------------
+}   // namespace
+
+
+void AlgoApplyDensityMatrix
+(
+    const AlgoType* RESTRICT pSrcR,
+    const AlgoType* RESTRICT pSrcG,
+    const AlgoType* RESTRICT pSrcB,
+    AlgoType* RESTRICT       pDstR,
+    AlgoType* RESTRICT       pDstG,
+    AlgoType* RESTRICT       pDstB,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const film::Matrix3&     m
+) noexcept
+{
+    algoApplyDensityMatrixT<false>(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB,
+                                   sizeX, sizeY, pitch, m);
+}
+
+
+void AlgoApplyDensityMatrixFloored
+(
+    const AlgoType* RESTRICT pSrcR,
+    const AlgoType* RESTRICT pSrcG,
+    const AlgoType* RESTRICT pSrcB,
+    AlgoType* RESTRICT       pDstR,
+    AlgoType* RESTRICT       pDstG,
+    AlgoType* RESTRICT       pDstB,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const film::Matrix3&     m
+) noexcept
+{
+    algoApplyDensityMatrixT<true>(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB,
+                                  sizeX, sizeY, pitch, m);
+}
+
+
 void AlgoStage12_DyeImpurity
 (
     const AlgoType* RESTRICT pSrcR,
@@ -240,49 +293,10 @@ void AlgoStage12_DyeImpurity
         return;
     }
 
-    AlgoApplyDensityMatrix(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB,
-                           sizeX, sizeY, pitch, m);
-
-    // ----------------------------------------------------------------------
-    //  Floor at zero.
-    //
-    //  A dye matrix can carry small NEGATIVE off-diagonal terms - a masking
-    //  correction, which is a real feature of a masked colour negative - so the mix
-    //  can drive a channel below zero where the other two are much denser.
-    //  Negative optical density has no physical meaning, and stage 14 raises ten to
-    //  its negative. A physical floor, not a display clamp.
-    // ----------------------------------------------------------------------
-    AlgoType* RESTRICT dstPlane[3] = { pDstR, pDstG, pDstB };
-
-    for (int32_t c = 0; c < 3; c++)
-    {
-        for (int32_t y = 0; y < sizeY; y++)
-        {
-            AlgoType* RESTRICT pRow =
-                dstPlane[c] + static_cast<std::ptrdiff_t>(y) * pitch;
-
-            // Non-negative floor. A max, not a branch: a negative optical density
-            // would be a material that emits light, and the stages downstream take
-            // its logarithm or its square root.
-            {
-                const __m256 vZero = _mm256_setzero_ps();
-
-                const int32_t nv = sizeX / ALGO_AVX2_LANES_LOCAL;
-                const int32_t nt = sizeX - nv * ALGO_AVX2_LANES_LOCAL;
-                const __m256i mt = algoTailMaskLocal(nt);
-
-                int32_t x = 0;
-
-                for (int32_t v = 0; v < nv; v++, x += ALGO_AVX2_LANES_LOCAL)
-                    _mm256_storeu_ps(pRow + x,
-                        _mm256_max_ps(_mm256_loadu_ps(pRow + x), vZero));
-
-                if (nt > 0)
-                    _mm256_maskstore_ps(pRow + x, mt,
-                        _mm256_max_ps(_mm256_maskload_ps(pRow + x, mt), vZero));
-            }
-        }
-    }
+    // The clamp at zero (a mixed density cannot be negative) is folded into
+    // the matrix store (2026-10-04); it used to be a second pass over the planes.
+    AlgoApplyDensityMatrixFloored(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB,
+                                  sizeX, sizeY, pitch, m);
 
     return;
 }

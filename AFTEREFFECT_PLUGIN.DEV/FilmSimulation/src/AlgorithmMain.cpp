@@ -130,6 +130,7 @@
 #include "AlgoGateWeave.hpp"             // stage 15   IMPLEMENTED
 #include "AlgoGateDefects.hpp"           // stage 16   IMPLEMENTED
 #include "AlgoFinalClamp.hpp"            // stage 17
+#include "AlgoPassThrough.hpp"           // 2026-10-04: pass-through forwarding
 
 
 namespace
@@ -426,9 +427,18 @@ void Algorithm_Main
     const MemHandler&    memHandler,
     const int32_t        sizeX,
     const int32_t        sizeY,
-    const AlgoControls&  algoCtrl
+    const AlgoControls&  algoCtrlIn
 ) noexcept
 {
+    // -----------------------------------------------------------------------
+    //  2026-10-02: every control forced into its documented range before any
+    //  stage reads it (AlgoControlsClamped, AlgoControl.cpp). Out-of-range host
+    //  values -- e.g. a percent passed as a factor -- rendered black-and-white
+    //  stocks as a near-binary image. In-range values pass through unchanged;
+    //  one copy of a small POD per frame.
+    // -----------------------------------------------------------------------
+    const AlgoControls algoCtrl = AlgoControlsClamped(algoCtrlIn, memHandler.profileCount);
+
     // -----------------------------------------------------------------------
     // 0. SETUP
     //
@@ -717,126 +727,164 @@ void Algorithm_Main
     // -----------------------------------------------------------------------
     // Raw pointers, pulled once.
     //
-    // RESTRICT on all of them: they address distinct arena planes that provably do
-    // not alias, and without the qualifier every store forces a reload of the source
-    // and no loop will vectorise.
+    // ⚠ NOT RESTRICT, 2026-10-02. With the default ALGO_RETAIN_ALL_STAGES = 0 the
+    // arena holds two alternating stage triples, so these stage-plane locals address only
+    // six planes (s02R == s03R == ... == s17R): restrict-qualified, that broke the
+    // C11 6.7.3.1 aliasing promise inside this function. It was harmless only
+    // because nothing here dereferences them and the stages live in other
+    // translation units - an LTO or unity build could have exploited it. The
+    // qualifier that matters is on each STAGE's parameters, where every call
+    // provably passes distinct planes (S(n) -> S(n+1) alternate parity).
     // -----------------------------------------------------------------------
-    const ImgType* RESTRICT iR = memHandler.Src_R;
-    const ImgType* RESTRICT iG = memHandler.Src_G;
-    const ImgType* RESTRICT iB = memHandler.Src_B;
+    const ImgType* iR = memHandler.Src_R;
+    const ImgType* iG = memHandler.Src_G;
+    const ImgType* iB = memHandler.Src_B;
 
-    ImgType* RESTRICT oR = memHandler.Dst_R;
-    ImgType* RESTRICT oG = memHandler.Dst_G;
-    ImgType* RESTRICT oB = memHandler.Dst_B;
+    ImgType* oR = memHandler.Dst_R;
+    ImgType* oG = memHandler.Dst_G;
+    ImgType* oB = memHandler.Dst_B;
 
-    AlgoType* RESTRICT s02R  = memHandler.S02_R;
-    AlgoType* RESTRICT s02G  = memHandler.S02_G;
-    AlgoType* RESTRICT s02B  = memHandler.S02_B;
+    AlgoType* s02R  = memHandler.S02_R;
+    AlgoType* s02G  = memHandler.S02_G;
+    AlgoType* s02B  = memHandler.S02_B;
 
-    AlgoType* RESTRICT s02bR = memHandler.S02b_R;
-    AlgoType* RESTRICT s02bG = memHandler.S02b_G;
-    AlgoType* RESTRICT s02bB = memHandler.S02b_B;
+    AlgoType* s02bR = memHandler.S02b_R;
+    AlgoType* s02bG = memHandler.S02b_G;
+    AlgoType* s02bB = memHandler.S02b_B;
 
-    AlgoType* RESTRICT s03R  = memHandler.S03_R;
-    AlgoType* RESTRICT s03G  = memHandler.S03_G;
-    AlgoType* RESTRICT s03B  = memHandler.S03_B;
+    AlgoType* s03R  = memHandler.S03_R;
+    AlgoType* s03G  = memHandler.S03_G;
+    AlgoType* s03B  = memHandler.S03_B;
 
-    AlgoType* RESTRICT s03bR = memHandler.S03b_R;
-    AlgoType* RESTRICT s03bG = memHandler.S03b_G;
-    AlgoType* RESTRICT s03bB = memHandler.S03b_B;
+    AlgoType* s03bR = memHandler.S03b_R;
+    AlgoType* s03bG = memHandler.S03b_G;
+    AlgoType* s03bB = memHandler.S03b_B;
 
-    AlgoType* RESTRICT s03cR = memHandler.S03c_R;
-    AlgoType* RESTRICT s03cG = memHandler.S03c_G;
-    AlgoType* RESTRICT s03cB = memHandler.S03c_B;
+    AlgoType* s03cR = memHandler.S03c_R;
+    AlgoType* s03cG = memHandler.S03c_G;
+    AlgoType* s03cB = memHandler.S03c_B;
 
-    AlgoType* RESTRICT s04R  = memHandler.S04_R;
-    AlgoType* RESTRICT s04G  = memHandler.S04_G;
-    AlgoType* RESTRICT s04B  = memHandler.S04_B;
+    AlgoType* s04R  = memHandler.S04_R;
+    AlgoType* s04G  = memHandler.S04_G;
+    AlgoType* s04B  = memHandler.S04_B;
 
-    AlgoType* RESTRICT s05R  = memHandler.S05_R;
-    AlgoType* RESTRICT s05G  = memHandler.S05_G;
-    AlgoType* RESTRICT s05B  = memHandler.S05_B;
+    AlgoType* s05R  = memHandler.S05_R;
+    AlgoType* s05G  = memHandler.S05_G;
+    AlgoType* s05B  = memHandler.S05_B;
 
-    AlgoType* RESTRICT s06R  = memHandler.S06_R;
-    AlgoType* RESTRICT s06G  = memHandler.S06_G;
-    AlgoType* RESTRICT s06B  = memHandler.S06_B;
+    AlgoType* s06R  = memHandler.S06_R;
+    AlgoType* s06G  = memHandler.S06_G;
+    AlgoType* s06B  = memHandler.S06_B;
 
-    AlgoType* RESTRICT s06bR = memHandler.S06b_R;
-    AlgoType* RESTRICT s06bG = memHandler.S06b_G;
-    AlgoType* RESTRICT s06bB = memHandler.S06b_B;
+    AlgoType* s06bR = memHandler.S06b_R;
+    AlgoType* s06bG = memHandler.S06b_G;
+    AlgoType* s06bB = memHandler.S06b_B;
 
-    AlgoType* RESTRICT s07R  = memHandler.S07_R;
-    AlgoType* RESTRICT s07G  = memHandler.S07_G;
-    AlgoType* RESTRICT s07B  = memHandler.S07_B;
+    AlgoType* s07R  = memHandler.S07_R;
+    AlgoType* s07G  = memHandler.S07_G;
+    AlgoType* s07B  = memHandler.S07_B;
 
-    AlgoType* RESTRICT s08R  = memHandler.S08_R;
-    AlgoType* RESTRICT s08G  = memHandler.S08_G;
-    AlgoType* RESTRICT s08B  = memHandler.S08_B;
+    AlgoType* s08R  = memHandler.S08_R;
+    AlgoType* s08G  = memHandler.S08_G;
+    AlgoType* s08B  = memHandler.S08_B;
 
-    AlgoType* RESTRICT s08bR = memHandler.S08b_R;
-    AlgoType* RESTRICT s08bG = memHandler.S08b_G;
-    AlgoType* RESTRICT s08bB = memHandler.S08b_B;
+    AlgoType* s08bR = memHandler.S08b_R;
+    AlgoType* s08bG = memHandler.S08b_G;
+    AlgoType* s08bB = memHandler.S08b_B;
 
-    AlgoType* RESTRICT s09R  = memHandler.S09_R;
-    AlgoType* RESTRICT s09G  = memHandler.S09_G;
-    AlgoType* RESTRICT s09B  = memHandler.S09_B;
+    AlgoType* s09R  = memHandler.S09_R;
+    AlgoType* s09G  = memHandler.S09_G;
+    AlgoType* s09B  = memHandler.S09_B;
 
-    AlgoType* RESTRICT s09bR = memHandler.S09b_R;
-    AlgoType* RESTRICT s09bG = memHandler.S09b_G;
-    AlgoType* RESTRICT s09bB = memHandler.S09b_B;
+    AlgoType* s09bR = memHandler.S09b_R;
+    AlgoType* s09bG = memHandler.S09b_G;
+    AlgoType* s09bB = memHandler.S09b_B;
 
-    AlgoType* RESTRICT s10R  = memHandler.S10_R;
-    AlgoType* RESTRICT s10G  = memHandler.S10_G;
-    AlgoType* RESTRICT s10B  = memHandler.S10_B;
+    AlgoType* s10R  = memHandler.S10_R;
+    AlgoType* s10G  = memHandler.S10_G;
+    AlgoType* s10B  = memHandler.S10_B;
 
-    AlgoType* RESTRICT s10bR = memHandler.S10b_R;
-    AlgoType* RESTRICT s10bG = memHandler.S10b_G;
-    AlgoType* RESTRICT s10bB = memHandler.S10b_B;
+    AlgoType* s10bR = memHandler.S10b_R;
+    AlgoType* s10bG = memHandler.S10b_G;
+    AlgoType* s10bB = memHandler.S10b_B;
 
-    AlgoType* RESTRICT s11R  = memHandler.S11_R;
-    AlgoType* RESTRICT s11G  = memHandler.S11_G;
-    AlgoType* RESTRICT s11B  = memHandler.S11_B;
+    AlgoType* s11R  = memHandler.S11_R;
+    AlgoType* s11G  = memHandler.S11_G;
+    AlgoType* s11B  = memHandler.S11_B;
 
-    AlgoType* RESTRICT s12R  = memHandler.S12_R;
-    AlgoType* RESTRICT s12G  = memHandler.S12_G;
-    AlgoType* RESTRICT s12B  = memHandler.S12_B;
+    AlgoType* s12R  = memHandler.S12_R;
+    AlgoType* s12G  = memHandler.S12_G;
+    AlgoType* s12B  = memHandler.S12_B;
 
-    AlgoType* RESTRICT s13R  = memHandler.S13_R;
-    AlgoType* RESTRICT s13G  = memHandler.S13_G;
-    AlgoType* RESTRICT s13B  = memHandler.S13_B;
+    AlgoType* s13R  = memHandler.S13_R;
+    AlgoType* s13G  = memHandler.S13_G;
+    AlgoType* s13B  = memHandler.S13_B;
 
-    AlgoType* RESTRICT s14R  = memHandler.S14_R;
-    AlgoType* RESTRICT s14G  = memHandler.S14_G;
-    AlgoType* RESTRICT s14B  = memHandler.S14_B;
+    AlgoType* s14R  = memHandler.S14_R;
+    AlgoType* s14G  = memHandler.S14_G;
+    AlgoType* s14B  = memHandler.S14_B;
 
-    AlgoType* RESTRICT s14bR = memHandler.S14b_R;
-    AlgoType* RESTRICT s14bG = memHandler.S14b_G;
-    AlgoType* RESTRICT s14bB = memHandler.S14b_B;
+    AlgoType* s14bR = memHandler.S14b_R;
+    AlgoType* s14bG = memHandler.S14b_G;
+    AlgoType* s14bB = memHandler.S14b_B;
 
-    AlgoType* RESTRICT s14cR = memHandler.S14c_R;
-    AlgoType* RESTRICT s14cG = memHandler.S14c_G;
-    AlgoType* RESTRICT s14cB = memHandler.S14c_B;
+    AlgoType* s14cR = memHandler.S14c_R;
+    AlgoType* s14cG = memHandler.S14c_G;
+    AlgoType* s14cB = memHandler.S14c_B;
 
-    AlgoType* RESTRICT s15R  = memHandler.S15_R;
-    AlgoType* RESTRICT s15G  = memHandler.S15_G;
-    AlgoType* RESTRICT s15B  = memHandler.S15_B;
+    AlgoType* s15R  = memHandler.S15_R;
+    AlgoType* s15G  = memHandler.S15_G;
+    AlgoType* s15B  = memHandler.S15_B;
 
-    AlgoType* RESTRICT s16R  = memHandler.S16_R;
-    AlgoType* RESTRICT s16G  = memHandler.S16_G;
-    AlgoType* RESTRICT s16B  = memHandler.S16_B;
+    AlgoType* s16R  = memHandler.S16_R;
+    AlgoType* s16G  = memHandler.S16_G;
+    AlgoType* s16B  = memHandler.S16_B;
 
-    AlgoType* RESTRICT s17R  = memHandler.S17_R;
-    AlgoType* RESTRICT s17G  = memHandler.S17_G;
-    AlgoType* RESTRICT s17B  = memHandler.S17_B;
+    AlgoType* s17R  = memHandler.S17_R;
+    AlgoType* s17G  = memHandler.S17_G;
+    AlgoType* s17B  = memHandler.S17_B;
+
+    // 2026-10-04: the stage triples as AlgoPlanes, and the "current image".
+    // Algorithm_Main forwards the current image past any stage that would only
+    // copy (AlgoPassThrough.hpp); `cur` is always the output of the last stage
+    // that actually ran, and each stage writes to AlgoStageDst(own, alt, cur),
+    // which is its own triple unless that triple is the one holding `cur`.
+    const AlgoPlanes t02  = { s02R,  s02G,  s02B  };
+    const AlgoPlanes t02b = { s02bR, s02bG, s02bB };
+    const AlgoPlanes t03  = { s03R,  s03G,  s03B  };
+    const AlgoPlanes t03b = { s03bR, s03bG, s03bB };
+    const AlgoPlanes t03c = { s03cR, s03cG, s03cB };
+    const AlgoPlanes t04  = { s04R,  s04G,  s04B  };
+    const AlgoPlanes t05  = { s05R,  s05G,  s05B  };
+    const AlgoPlanes t06  = { s06R,  s06G,  s06B  };
+    const AlgoPlanes t06b = { s06bR, s06bG, s06bB };
+    const AlgoPlanes t07  = { s07R,  s07G,  s07B  };
+    const AlgoPlanes t08  = { s08R,  s08G,  s08B  };
+    const AlgoPlanes t08b = { s08bR, s08bG, s08bB };
+    const AlgoPlanes t09  = { s09R,  s09G,  s09B  };
+    const AlgoPlanes t09b = { s09bR, s09bG, s09bB };
+    const AlgoPlanes t10  = { s10R,  s10G,  s10B  };
+    const AlgoPlanes t10b = { s10bR, s10bG, s10bB };
+    const AlgoPlanes t11  = { s11R,  s11G,  s11B  };
+    const AlgoPlanes t12  = { s12R,  s12G,  s12B  };
+    const AlgoPlanes t13  = { s13R,  s13G,  s13B  };
+    const AlgoPlanes t14  = { s14R,  s14G,  s14B  };
+    const AlgoPlanes t14b = { s14bR, s14bG, s14bB };
+    const AlgoPlanes t14c = { s14cR, s14cG, s14cB };
+    const AlgoPlanes t15  = { s15R,  s15G,  s15B  };
+    const AlgoPlanes t16  = { s16R,  s16G,  s16B  };
+    const AlgoPlanes t17  = { s17R,  s17G,  s17B  };
+    AlgoPlanes cur = t02;   // set by stage 02 below
+    AlgoPlanes dst = t02;
 
     // Log exposure, filled by stage 8 and RETAINED for stage 8b. Not scratch while
     // those two are in flight: the interimage effect reads it after stage 8 has
     // finished, and density cannot be inverted back to log exposure through the
     // shoulder. It IS reused as a scratch triple from stage 13 onward, by which point
     // nothing needs it any more.
-    AlgoType* RESTRICT logER = memHandler.Scr_LogE_R;
-    AlgoType* RESTRICT logEG = memHandler.Scr_LogE_G;
-    AlgoType* RESTRICT logEB = memHandler.Scr_LogE_B;
+    AlgoType* logER = memHandler.Scr_LogE_R;
+    AlgoType* logEG = memHandler.Scr_LogE_G;
+    AlgoType* logEB = memHandler.Scr_LogE_B;
 
     // -----------------------------------------------------------------------
     //  Scratch planes.
@@ -854,16 +902,16 @@ void Algorithm_Main
     //  planes, stage 5 needs five, stage 13 needs seven; every call below is given
     //  planes distinct from each other and from its own source and destination.
     // -----------------------------------------------------------------------
-    AlgoType* RESTRICT scrLuma     = memHandler.Scr_Luma;
-    AlgoType* RESTRICT scrBlurA    = memHandler.Scr_BlurA;
-    AlgoType* RESTRICT scrBlurB    = memHandler.Scr_BlurB;
-    AlgoType* RESTRICT scrDbar     = memHandler.Scr_Dbar;
-    AlgoType* RESTRICT scrDbarBlur = memHandler.Scr_DbarBlur;
-    AlgoType* RESTRICT scrField    = memHandler.Scr_Field;
-    AlgoType* RESTRICT scrFieldLo  = memHandler.Scr_FieldLo;
-    AlgoType* RESTRICT scrGrainR   = memHandler.Scr_Grain_R;
-    AlgoType* RESTRICT scrGrainG   = memHandler.Scr_Grain_G;
-    AlgoType* RESTRICT scrGrainB   = memHandler.Scr_Grain_B;
+    AlgoType* scrLuma     = memHandler.Scr_Luma;
+    AlgoType* scrBlurA    = memHandler.Scr_BlurA;
+    AlgoType* scrBlurB    = memHandler.Scr_BlurB;
+    AlgoType* scrDbar     = memHandler.Scr_Dbar;
+    AlgoType* scrDbarBlur = memHandler.Scr_DbarBlur;
+    AlgoType* scrField    = memHandler.Scr_Field;
+    AlgoType* scrFieldLo  = memHandler.Scr_FieldLo;
+    AlgoType* scrGrainR   = memHandler.Scr_Grain_R;
+    AlgoType* scrGrainG   = memHandler.Scr_Grain_G;
+    AlgoType* scrGrainB   = memHandler.Scr_Grain_B;
 
     // -----------------------------------------------------------------------
     // 1. LINEARISATION -- done by the caller before this function is entered.
@@ -891,6 +939,7 @@ void Algorithm_Main
     AlgoStage02_RelativeExposure(iR, iG, iB,
                                  s02R, s02G, s02B,
                                  sizeX, sizeY, pitch, algoCtrl);
+    cur = t02;
 
     // -----------------------------------------------------------------------
     // 2b. CAMERA TAKING FILTERS                            S02 -> S02b
@@ -904,9 +953,14 @@ void Algorithm_Main
     //     and has unit row sums. Same shape, opposite convention.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("02b  taking filters");
-    AlgoStage02b_TakingFilters(s02R, s02G, s02B,
-                               s02bR, s02bG, s02bB,
-                               sizeX, sizeY, pitch, profile);
+    if (false == AlgoPass02b(profile))
+    {
+        dst = AlgoStageDst(t02b, t02, cur);
+        AlgoStage02b_TakingFilters(cur.r, cur.g, cur.b,
+                                   dst.r, dst.g, dst.b,
+                                   sizeX, sizeY, pitch, profile);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 3. STOCK COLOUR BALANCE                              S02b -> S03
@@ -917,9 +971,14 @@ void Algorithm_Main
     //    answer rather than an error to be corrected.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("03   stock colour balance");
-    AlgoStage03_StockColourBalance(s02bR, s02bG, s02bB,
-                                   s03R, s03G, s03B,
-                                   sizeX, sizeY, pitch, profile, algoCtrl);
+    if (false == AlgoPass03(profile, algoCtrl))
+    {
+        dst = AlgoStageDst(t03, t02b, cur);
+        AlgoStage03_StockColourBalance(cur.r, cur.g, cur.b,
+                                       dst.r, dst.g, dst.b,
+                                       sizeX, sizeY, pitch, profile, algoCtrl);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 3b. VEILING FLARE                                    S03 -> S03b
@@ -932,11 +991,16 @@ void Algorithm_Main
     //     and the scattered component added in its place.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("03b  veiling flare");
-    AlgoStage03b_VeilingFlare(s03R, s03G, s03B,
-                              s03bR, s03bG, s03bB,
-                              scrLuma, scrBlurA, scrBlurB, scrDbar,
-                              sizeX, sizeY, pitch,
-                              profile, algoCtrl, pxPerMm);
+    if (false == AlgoPass03b(profile, algoCtrl))
+    {
+        dst = AlgoStageDst(t03b, t03, cur);
+        AlgoStage03b_VeilingFlare(cur.r, cur.g, cur.b,
+                                  dst.r, dst.g, dst.b,
+                                  scrLuma, scrBlurA, scrBlurB, scrDbar,
+                                  sizeX, sizeY, pitch,
+                                  profile, algoCtrl, pxPerMm);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 3c. TEMPORAL EXPOSURE FLICKER                        S03b -> S03c   STUB
@@ -953,11 +1017,16 @@ void Algorithm_Main
     //     the shoulder the way a genuine exposure change does.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("03c  temporal flicker");
-    AlgoStage03c_TemporalFlicker(s03bR, s03bG, s03bB,
-                                 s03cR, s03cG, s03cB,
-                                 sizeX, sizeY, pitch,
-                                 profile, algoCtrl,
-                                 frameIndex, frameRate, ALGO_SALT_FLICKER);
+    if (false == AlgoPass03c())
+    {
+        dst = AlgoStageDst(t03c, t03b, cur);
+        AlgoStage03c_TemporalFlicker(cur.r, cur.g, cur.b,
+                                     dst.r, dst.g, dst.b,
+                                     sizeX, sizeY, pitch,
+                                     profile, algoCtrl,
+                                     frameIndex, frameRate, ALGO_SALT_FLICKER);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 4 + 4b. COATING FIELD AND LENS VIGNETTE              S03c -> S04
@@ -973,13 +1042,18 @@ void Algorithm_Main
     //         Last stage before halation.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("04   coating + vignette");
-    AlgoStage04_CoatingAndVignette(s03cR, s03cG, s03cB,
-                                   s04R, s04G, s04B,
-                                   scrField, scrFieldLo,
-                                   sizeX, sizeY, pitch,
-                                   profile, algoCtrl,
-                                   negWidthMm, negHeightMm, framePitchMm,
-                                   frameIndex, ALGO_SALT_COATING);
+    if (false == AlgoPass04(profile, algoCtrl))
+    {
+        dst = AlgoStageDst(t04, t03c, cur);
+        AlgoStage04_CoatingAndVignette(cur.r, cur.g, cur.b,
+                                       dst.r, dst.g, dst.b,
+                                       scrField, scrFieldLo,
+                                       sizeX, sizeY, pitch,
+                                       profile, algoCtrl,
+                                       negWidthMm, negHeightMm, framePitchMm,
+                                       frameIndex, ALGO_SALT_COATING);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 5. HALATION                                          S04 -> S05
@@ -996,11 +1070,16 @@ void Algorithm_Main
     //    Five distinct working planes, for the aliasing reason set out above.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("05   halation");
-    AlgoStage05_Halation(s04R, s04G, s04B,
-                         s05R, s05G, s05B,
-                         scrLuma, scrField, scrFieldLo, scrBlurA, scrBlurB,
-                         sizeX, sizeY, pitch,
-                         profile, algoCtrl, pxPerMm);
+    if (false == AlgoPass05(profile, algoCtrl, pxPerMm))
+    {
+        dst = AlgoStageDst(t05, t04, cur);
+        AlgoStage05_Halation(cur.r, cur.g, cur.b,
+                             dst.r, dst.g, dst.b,
+                             scrLuma, scrField, scrFieldLo, scrBlurA, scrBlurB,
+                             sizeX, sizeY, pitch,
+                             profile, algoCtrl, pxPerMm);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 6. EMULSION MTF                                      S05 -> S06
@@ -1014,11 +1093,13 @@ void Algorithm_Main
     //    of a simulation whose stage order is wrong.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("06   emulsion MTF");
-    AlgoStage06_EmulsionMtf(s05R, s05G, s05B,
-                            s06R, s06G, s06B,
+    dst = AlgoStageDst(t06, t05, cur);
+    AlgoStage06_EmulsionMtf(cur.r, cur.g, cur.b,
+                            dst.r, dst.g, dst.b,
                             scrBlurA, scrBlurB,
                             sizeX, sizeY, pitch,
                             profile, pxPerMm);
+    cur = dst;
 
     // -----------------------------------------------------------------------
     // 6b. CORNER DEFOCUS                                   S06 -> S06b
@@ -1030,11 +1111,16 @@ void Algorithm_Main
     //     constantly and they live in different stages for exactly that reason.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("06b  corner defocus");
-    AlgoStage06b_CornerDefocus(s06R, s06G, s06B,
-                               s06bR, s06bG, s06bB,
-                               scrBlurA, scrBlurB,
-                               sizeX, sizeY, pitch,
-                               profile, algoCtrl);
+    if (false == AlgoPass06b(profile, algoCtrl))
+    {
+        dst = AlgoStageDst(t06b, t06, cur);
+        AlgoStage06b_CornerDefocus(cur.r, cur.g, cur.b,
+                                   dst.r, dst.g, dst.b,
+                                   scrBlurA, scrBlurB,
+                                   sizeX, sizeY, pitch,
+                                   profile, algoCtrl);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 7. EMULSION RECORD                                   S06b -> S07
@@ -1047,10 +1133,15 @@ void Algorithm_Main
     //    emulsion. LAST STAGE IN EXPOSURE SPACE.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("07   emulsion record");
-    AlgoStage07_EmulsionRecord(s06bR, s06bG, s06bB,
-                               s07R, s07G, s07B,
-                               sizeX, sizeY, pitch,
-                               profile, algoCtrl, pxPerMm);
+    if (false == AlgoPass07(profile, hasMosaic))
+    {
+        dst = AlgoStageDst(t07, t06b, cur);
+        AlgoStage07_EmulsionRecord(cur.r, cur.g, cur.b,
+                                   dst.r, dst.g, dst.b,
+                                   sizeX, sizeY, pitch,
+                                   profile, algoCtrl, pxPerMm);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     //  The anchor solve.
@@ -1122,11 +1213,13 @@ void Algorithm_Main
     //    Everything from here on is in the DENSITY domain.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("08   characteristic curve");
-    AlgoStage08_CharacteristicCurve(s07R, s07G, s07B,
-                                    s08R, s08G, s08B,
+    dst = AlgoStageDst(t08, t07, cur);
+    AlgoStage08_CharacteristicCurve(cur.r, cur.g, cur.b,
+                                    dst.r, dst.g, dst.b,
                                     logER, logEG, logEB,
                                     sizeX, sizeY, pitch,
                                     profile, anchor, recipShift);
+    cur = dst;
 
     // -----------------------------------------------------------------------
     // 8b. INTERIMAGE EFFECTS                               S08 -> S08b
@@ -1146,12 +1239,17 @@ void Algorithm_Main
     //     equation, solved by fixed-point iteration.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("08b  interimage");
-    AlgoStage08b_Interimage(s08R, s08G, s08B,
-                            s08bR, s08bG, s08bB,
-                            logER, logEG, logEB,
-                            scrLuma, scrField, scrFieldLo,
-                            sizeX, sizeY, pitch,
-                            profile, anchor);
+    if (false == AlgoPass08b(profile))
+    {
+        dst = AlgoStageDst(t08b, t08, cur);
+        AlgoStage08b_Interimage(cur.r, cur.g, cur.b,
+                                dst.r, dst.g, dst.b,
+                                logER, logEG, logEB,
+                                scrLuma, scrField, scrFieldLo,
+                                sizeX, sizeY, pitch,
+                                profile, anchor);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 9. DIR COUPLER LATERAL EFFECTS                       S08b -> S09
@@ -1166,11 +1264,16 @@ void Algorithm_Main
     //    function of density and not of exposure.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("09   DIR coupler lateral");
-    AlgoStage09_DirCoupler(s08bR, s08bG, s08bB,
-                           s09R, s09G, s09B,
-                           scrDbar, scrDbarBlur, scrBlurA, scrBlurB,
-                           sizeX, sizeY, pitch,
-                           profile, algoCtrl, pxPerMm);
+    if (false == AlgoPass09(profile, algoCtrl, pxPerMm))
+    {
+        dst = AlgoStageDst(t09, t08b, cur);
+        AlgoStage09_DirCoupler(cur.r, cur.g, cur.b,
+                               dst.r, dst.g, dst.b,
+                               scrDbar, scrDbarBlur, scrBlurA, scrBlurB,
+                               sizeX, sizeY, pitch,
+                               profile, algoCtrl, pxPerMm);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 9b. NEGATIVE-SIDE DEFECTS                            S09 -> S09b
@@ -1193,12 +1296,17 @@ void Algorithm_Main
     //     unless a class level is non-zero, so the clean pipeline pays one branch.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("09b  negative defects");
-    AlgoStage09b_NegativeDefects(s09R, s09G, s09B,
-                                 s09bR, s09bG, s09bB,
-                                 sizeX, sizeY, pitch,
-                                 profile, algoCtrl,
-                                 negWidthMm, negHeightMm, framePitchMm, pxPerMm,
-                                 frameIndex, frameRate, ALGO_SALT_NEG_DEFECTS);
+    if (false == AlgoPass09b(algoCtrl))
+    {
+        dst = AlgoStageDst(t09b, t09, cur);
+        AlgoStage09b_NegativeDefects(cur.r, cur.g, cur.b,
+                                     dst.r, dst.g, dst.b,
+                                     sizeX, sizeY, pitch,
+                                     profile, algoCtrl,
+                                     negWidthMm, negHeightMm, framePitchMm, pxPerMm,
+                                     frameIndex, frameRate, ALGO_SALT_NEG_DEFECTS);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 9c. BROMIDE DRAG                                     S09b -> S09b, in place
@@ -1228,8 +1336,8 @@ void Algorithm_Main
     //     the stage returns on its first branch. See queue row C23.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("09c  bromide drag");
-    (void)AlgoStage09c_BromideDrag(s09bR, s09bG, s09bB,
-                                   memHandler.Scr_Dbar, memHandler.Scr_DbarBlur,
+    (void)AlgoStage09c_BromideDrag(cur.r, cur.g, cur.b,   // in place on the current image
+                                   scrDbar, scrDbarBlur,   // 2026-10-02: the same locals as every other call
                                    sizeX, sizeY, pitch,
                                    profile, pxPerMm);
 
@@ -1247,12 +1355,17 @@ void Algorithm_Main
     //     absence.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("10   scan MTF + misreg");
-    AlgoStage10_ScanMtf(s09bR, s09bG, s09bB,
-                        s10R, s10G, s10B,
-                        scrBlurA, scrBlurB,
-                        sizeX, sizeY, pitch,
-                        profile, algoCtrl, scanF50, pxPerMm,
-                        frameIndex, ALGO_SALT_MISREG);
+    if (false == AlgoPass10(profile, algoCtrl, scanF50, pxPerMm))
+    {
+        dst = AlgoStageDst(t10, t09b, cur);
+        AlgoStage10_ScanMtf(cur.r, cur.g, cur.b,
+                            dst.r, dst.g, dst.b,
+                            scrBlurA, scrBlurB,
+                            sizeX, sizeY, pitch,
+                            profile, algoCtrl, scanF50, pxPerMm,
+                            frameIndex, ALGO_SALT_MISREG);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 10b. NARROW-GAUGE EDGE FOG                           S10 -> S10b
@@ -1263,10 +1376,15 @@ void Algorithm_Main
     //      carry the perforations and are cut away.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("10b  edge fog");
-    AlgoStage10b_EdgeFog(s10R, s10G, s10B,
-                         s10bR, s10bG, s10bB,
-                         sizeX, sizeY, pitch,
-                         profile, algoCtrl, negWidthMm);
+    if (false == AlgoPass10b(profile, algoCtrl, negWidthMm))
+    {
+        dst = AlgoStageDst(t10b, t10, cur);
+        AlgoStage10b_EdgeFog(cur.r, cur.g, cur.b,
+                             dst.r, dst.g, dst.b,
+                             sizeX, sizeY, pitch,
+                             profile, algoCtrl, negWidthMm);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 11. GRAIN                                            S10b -> S11
@@ -1281,13 +1399,18 @@ void Algorithm_Main
     //     produce coloured speckle on a black-and-white image.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("11   grain");
-    AlgoStage11_Grain(s10bR, s10bG, s10bB,
-                      s11R, s11G, s11B,
-                      scrDbar, scrDbarBlur, scrBlurA,
-                      scrGrainR, scrGrainG, scrGrainB,
-                      sizeX, sizeY, pitch,
-                      profile, algoCtrl, scanSigmaPx, pxPerMm,
-                      hasMosaic, frameIndex, ALGO_SALT_GRAIN);
+    if (false == AlgoPass11(algoCtrl))
+    {
+        dst = AlgoStageDst(t11, t10b, cur);
+        AlgoStage11_Grain(cur.r, cur.g, cur.b,
+                          dst.r, dst.g, dst.b,
+                          scrDbar, scrDbarBlur, scrBlurA,
+                          scrGrainR, scrGrainG, scrGrainB,
+                          sizeX, sizeY, pitch,
+                          profile, algoCtrl, scanSigmaPx, pxPerMm,
+                          hasMosaic, frameIndex, ALGO_SALT_GRAIN);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 12. DYE IMPURITY AND SCANNER CROSSTALK               S11 -> S12
@@ -1301,9 +1424,14 @@ void Algorithm_Main
     //     matrix. Grain acquires a slight chromatic correlation, and it should.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("12   dye impurity");
-    AlgoStage12_DyeImpurity(s11R, s11G, s11B,
-                            s12R, s12G, s12B,
-                            sizeX, sizeY, pitch, profile);
+    if (false == AlgoPass12(profile))
+    {
+        dst = AlgoStageDst(t12, t11, cur);
+        AlgoStage12_DyeImpurity(cur.r, cur.g, cur.b,
+                                dst.r, dst.g, dst.b,
+                                sizeX, sizeY, pitch, profile);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 12b. CALLIER: THE DENSITY THE READER'S OPTICS SEE      S12 -> S12 (in place)
@@ -1346,7 +1474,7 @@ void Algorithm_Main
         };
 
         ALGO_PROF_MARK("12b  Callier");
-        AlgoStage12b_Callier(s12R, s12G, s12B,
+        AlgoStage12b_Callier(cur.r, cur.g, cur.b,   // in place on the current image
                              sizeX, sizeY, pitch, s12Dmin, profile,
                              static_cast<HighPrecType>(algoCtrl.scannerSpecular));
     }
@@ -1371,16 +1499,21 @@ void Algorithm_Main
     film::RGBCurves finalCurves = profile.curves;
 
     ALGO_PROF_MARK("13   duplication + print");
-    AlgoStage13_Duplication(s12R, s12G, s12B,
-                            s13R, s13G, s13B,
-                            logER, logEG, logEB,
-                            scrDbar, scrDbarBlur, scrBlurA, scrGrainR,
-                            sizeX, sizeY, pitch,
-                            profile, algoCtrl,
-                            pPrint, pDupe,
-                            scanSigmaPx, pxPerMm,
-                            frameIndex, ALGO_SALT_DUPE,
-                            finalCurves);
+    if (false == AlgoPass13(profile, pPrint))
+    {
+        dst = AlgoStageDst(t13, t12, cur);
+        AlgoStage13_Duplication(cur.r, cur.g, cur.b,
+                                dst.r, dst.g, dst.b,
+                                logER, logEG, logEB,
+                                scrDbar, scrDbarBlur, scrBlurA, scrGrainR,
+                                sizeX, sizeY, pitch,
+                                profile, algoCtrl,
+                                pPrint, pDupe,
+                                scanSigmaPx, pxPerMm,
+                                frameIndex, ALGO_SALT_DUPE,
+                                finalCurves);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 14. PRINT GRAIN, THEN TRANSMITTANCE                  S13 -> S14
@@ -1396,14 +1529,16 @@ void Algorithm_Main
     //     LEAVES THE DENSITY DOMAIN. Everything after this is transmittance.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("14   print grain + transmit");
-    AlgoStage14_Transmittance(s13R, s13G, s13B,
-                              s14R, s14G, s14B,
+    dst = AlgoStageDst(t14, t13, cur);
+    AlgoStage14_Transmittance(cur.r, cur.g, cur.b,
+                              dst.r, dst.g, dst.b,
                               scrDbar, scrDbarBlur, scrBlurA, scrGrainR,
                               sizeX, sizeY, pitch,
                               profile, algoCtrl, pPrint, finalCurves,
                               profile.isReversal(),
                               scanSigmaPx, pxPerMm,
                               frameIndex, ALGO_SALT_PRINT_GRAIN);
+    cur = dst;
 
     // -----------------------------------------------------------------------
     // 14b. RESEAU RECONSTRUCTION, THEN RESIDUAL BASE TINT  S14 -> S14b
@@ -1417,12 +1552,17 @@ void Algorithm_Main
     //      travels between the two stages and none can go stale.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("14b  reseau reconstruct");
-    AlgoStage14b_ReseauReconstruct(s14R, s14G, s14B,
-                                   s14bR, s14bG, s14bB,
-                                   scrDbar, scrDbarBlur, scrField, scrFieldLo,
-                                   scrBlurA,
-                                   sizeX, sizeY, pitch,
-                                   profile, algoCtrl, pxPerMm);
+    if (false == AlgoPass14b(profile, hasMosaic))
+    {
+        dst = AlgoStageDst(t14b, t14, cur);
+        AlgoStage14b_ReseauReconstruct(cur.r, cur.g, cur.b,
+                                       dst.r, dst.g, dst.b,
+                                       scrDbar, scrDbarBlur, scrField, scrFieldLo,
+                                       scrBlurA,
+                                       sizeX, sizeY, pitch,
+                                       profile, algoCtrl, pxPerMm);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 14c. SILVER IMAGE TONE                               S14b -> S14c
@@ -1436,9 +1576,14 @@ void Algorithm_Main
     //      at all. This stage is downstream of that solve and therefore survives it.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("14c  silver tone");
-    AlgoStage14c_SilverTone(s14bR, s14bG, s14bB,
-                            s14cR, s14cG, s14cB,
-                            sizeX, sizeY, pitch, profile);
+    if (false == AlgoPass14c(profile))
+    {
+        dst = AlgoStageDst(t14c, t14b, cur);
+        AlgoStage14c_SilverTone(cur.r, cur.g, cur.b,
+                                dst.r, dst.g, dst.b,
+                                sizeX, sizeY, pitch, profile);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 15. GATE WEAVE                                       S14c -> S15
@@ -1456,13 +1601,18 @@ void Algorithm_Main
     //     positive, and its time base is the projection rate.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("15   gate weave");
-    AlgoStage15_GateWeave(s14cR, s14cG, s14cB,
-                          s15R, s15G, s15B,
-                          scrBlurA, scrBlurB,
-                          sizeX, sizeY, pitch,
-                          profile, algoCtrl,
-                          negWidthMm, negHeightMm, pxPerMm,
-                          frameIndex, frameRate, ALGO_SALT_WEAVE);
+    if (false == AlgoPass15(profile, algoCtrl, pxPerMm))
+    {
+        dst = AlgoStageDst(t15, t14c, cur);
+        AlgoStage15_GateWeave(cur.r, cur.g, cur.b,
+                              dst.r, dst.g, dst.b,
+                              scrBlurA, scrBlurB,
+                              sizeX, sizeY, pitch,
+                              profile, algoCtrl,
+                              negWidthMm, negHeightMm, pxPerMm,
+                              frameIndex, frameRate, ALGO_SALT_WEAVE);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 16. GATE-SIDE DEFECTS                                S15 -> S16
@@ -1479,12 +1629,17 @@ void Algorithm_Main
     //     then by its own class levels -- the call site is unconditional.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("16   gate defects");
-    AlgoStage16_GateDefects(s15R, s15G, s15B,
-                            s16R, s16G, s16B,
-                            sizeX, sizeY, pitch,
-                            profile, algoCtrl,
-                            negWidthMm, negHeightMm, pxPerMm,
-                            frameIndex, frameRate, ALGO_SALT_GATE_DEFECTS);
+    if (false == AlgoPass16(algoCtrl))
+    {
+        dst = AlgoStageDst(t16, t15, cur);
+        AlgoStage16_GateDefects(cur.r, cur.g, cur.b,
+                                dst.r, dst.g, dst.b,
+                                sizeX, sizeY, pitch,
+                                profile, algoCtrl,
+                                negWidthMm, negHeightMm, pxPerMm,
+                                frameIndex, frameRate, ALGO_SALT_GATE_DEFECTS);
+        cur = dst;
+    }
 
     // -----------------------------------------------------------------------
     // 17. THE SINGLE FINAL CLAMP                           S16 -> S17 -> Dst
@@ -1503,10 +1658,12 @@ void Algorithm_Main
     //     widening at stage 2.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("17   final clamp");
-    AlgoStage17_FinalClamp(s16R, s16G, s16B,
-                           s17R, s17G, s17B,
+    dst = AlgoStageDst(t17, t16, cur);
+    AlgoStage17_FinalClamp(cur.r, cur.g, cur.b,
+                           dst.r, dst.g, dst.b,
                            oR, oG, oB,
                            sizeX, sizeY, pitch);
+    cur = dst;
 
     // Close the last segment and write the table. Nothing after this point, so the
     // report is the final act of the frame and cannot be attributed to a stage.

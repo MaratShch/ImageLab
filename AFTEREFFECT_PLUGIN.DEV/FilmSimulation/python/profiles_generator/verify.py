@@ -7192,6 +7192,24 @@ if _sec_on():
         float(_small.max() - _small.min()) < 2e-3,
         "96 px mid grey %.4f / %.4f / %.4f (was 0.229 / 0.182 / 0.136)"
         % tuple(float(v) for v in _small))
+    # ---- 2026-10-02: the duplication chain uses an intermediate stock only --
+    _tx = get_profile("KODAK_TRI_X_400TX")
+    _ddet = dict(film_format="ff35", grain_scale=0.0, print_grain=False,
+                 flare=0.0, vignette=0.0, coating_scale=0.0, misreg_scale=0.0,
+                 generations=1)
+    _f8 = np.full((48, 64, 3), 0.18, np.float32)
+    _f8[:, 32:] *= 4.0
+    _g_ok = fs.simulate(_f8, _tx, fs.RenderSettings(dupe_stock="DUPE_FINE_GRAIN", **_ddet))
+    _g_rel = fs.simulate(_f8, _tx, fs.RenderSettings(dupe_stock="KODAK_2383_RELEASE", **_ddet))
+    _g_own = fs.simulate(_f8, _tx, fs.RenderSettings(dupe_stock=0, **_ddet))
+    chk("G-DUPE-INTERMEDIATE  a release print, SCAN_DI or STOCKS_OWN chosen as "
+        "the duplicating stock resolves to DUPE_FINE_GRAIN (gamma ~1), so "
+        "contrast does not compound over the generation chain",
+        float(np.abs(_g_rel - _g_ok).max()) < 1e-6
+        and float(np.abs(_g_own - _g_ok).max()) < 1e-6
+        and fs._dupe_stock_key("KODAK_VISION3_DI_2254") == "KODAK_VISION3_DI_2254",
+        "release / own vs fine-grain max diff %.2e / %.2e"
+        % (float(np.abs(_g_rel - _g_ok).max()), float(np.abs(_g_own - _g_ok).max())))
     # ...and the patent metric still holds: every colour negative's solved
     # coefficients reproduce its tier's IIE percentages under the new law.
     _iie_off = []
@@ -10561,7 +10579,9 @@ if _sec_on():
     # ⚠ 53 -> 70 ON 2026-09-29b: the sixteen AF3-207U colour stocks and
     # VELVIA 50, each off its own «MTF CURVE» panel in the 2005 guide.
     # ⚠ 70 -> 71 THE SAME DAY: KODAK_EKTACHROME_100_EPN, E-27 p5's own panel.
-    chk("exactly the 71 traced stocks are flagged mtf_measured",
+    # 2026-10-04: + the SEVEN combined-curve stocks (Лихачев 2003), whose
+    # roll-off exponent is now solved from the printed curve (combined_mtf.py).
+    chk("exactly the 78 traced stocks are flagged mtf_measured",
         _mmeas == [
                    # ⚠ 2026-09-06h, TEN AT ONCE: the AGFA «Sharpness» panels,
                    # readable ever since queue G6 closed on 2026-09-05 and
@@ -10620,6 +10640,7 @@ if _sec_on():
                    # the first read of that sheet missed; the stock carried
                    # the era-and-class heuristic 65 against a printed 19.5.
                    "EKTACHROME_160T",
+                   "EKTACHROME_64",   # 2026-10-04, combined-curve roll-off q (Лихачев 2003)
                    "FUJICHROME_64T_II",
                    # ⚠ 2026-09-06c, AND THE TWO ARE ONE MEASUREMENT. AF3-100E
                    # and AF3-177E print one MTF drawing; PRO 800Z's refusal was
@@ -10657,6 +10678,7 @@ if _sec_on():
                    "FUJI_VELVIA_50",   # 2026-09-29b, AF3-207U
                    "GEVACHROME_600",
                    "GEVACHROME_605",
+                   "KODACHROME_64",   # 2026-10-04, combined-curve roll-off q (Лихачев 2003)
                    "KODAK_EKTACHROME_100D_5285",
                    "KODAK_EKTACHROME_100_EPN",   # 2026-09-29b, E-27 p5
                    "KODAK_EKTAR_100",
@@ -10671,12 +10693,17 @@ if _sec_on():
                    # drawing -- see G-MTFBW5.
                    "KODAK_TMAX_400",
                    "KODAK_TRI_X_400TX",
+                   "KODAK_VERICOLOR_III_160",   # 2026-10-04, combined-curve roll-off q (Лихачев 2003)
                    "KODAK_VISION2_200T_5217",
                    "KODAK_VISION2_500T_5218",
                    "KODAK_VISION2_50D_5201",
                    "KODAK_VISION_200T_5274",
                    "KODAK_VISION_500T_5279",
+                   "KONICA_CENTURIA_SUPER_1600",   # 2026-10-04, combined-curve roll-off q (Лихачев 2003)
+                   "KONICA_CENTURIA_SUPER_400",   # 2026-10-04, combined-curve roll-off q (Лихачев 2003)
+                   "KONICA_CHROME_R100",   # 2026-10-04, combined-curve roll-off q (Лихачев 2003)
                    "KONICA_IMPRESA_50",
+                   "KONICA_VX_100",   # 2026-10-04, combined-curve roll-off q (Лихачев 2003)
                    "ORWOCOLOR_NC3",
         ],
         ", ".join(_mmeas))
@@ -11934,13 +11961,19 @@ if _sec_on():
     # 2026-09-29: EASTMAN_5247_1974 joins -- the same Kennel Fig. 14 draws
     # ONE curve for that film too.
     _POOLED_MTF = {"EASTMAN_5293_250T_1982", "EASTMAN_5247_1974"}
+    # 2026-10-04: the two Vitale stocks carry a MEASURED roll-off shape (q from
+    # the book's combined curve) but their per-layer f50 is Vitale's single
+    # published point spread by a ratio rule, not three measured layers, so
+    # their red/blue ratio says nothing about the estimating rule.
+    _COMBINED_Q_ONLY = {"EKTACHROME_64", "KODACHROME_64"}
     _meas_ratio = [(p.name, p.mtf.f50_r / p.mtf.f50_b)
                    for p in FILM_PROFILES
                    if p.mtf.mtf_measured and not p.is_monochrome
                    and p.mtf.f50_b > 0
                    and p.name not in _GREEN_ONLY_MEASURED
                    and p.name not in _VISUAL_FILTER_MEASURED
-                   and p.name not in _POOLED_MTF]
+                   and p.name not in _POOLED_MTF
+                   and p.name not in _COMBINED_Q_ONLY]
     chk("every measured colour stock is softer in red than the estimating rule",
         all(r < 0.65 for _, r in _meas_ratio) and len(_meas_ratio) >= 7,
         "; ".join("%s %.3f" % (n.split("_")[-1], r) for n, r in _meas_ratio)
@@ -13900,19 +13933,25 @@ if _sec_on():
 
     # ---- 2026-10-01d, batch item 4: combined colour MTF curves ------------
     _cm = film_profiles._COMBINED_MTF
+    # 2026-10-04: every combined-curve stock now carries the curve's roll-off
+    # exponent (mtf_measured True, q from combined_mtf.solve_q) and a kernel
+    # row for it; the two Vitale stocks keep their f50 and take q only.
     _cm_bad = [n for n in _cm
                if not ((n in film_profiles.VITALE_2009_ADOPTED
                         or get_profile(n).mtf.f50_r < get_profile(n).mtf.f50_g
                         < get_profile(n).mtf.f50_b)
                        and len(get_profile(n).mtf.combined_freqs)
                        == len(get_profile(n).mtf.combined_response) >= 10
-                       and not get_profile(n).mtf.mtf_measured)]
+                       and get_profile(n).mtf.mtf_measured
+                       and abs(get_profile(n).mtf.mtf_rolloff_q - _cm[n][6]) < 1e-9
+                       and film_profiles.mtf_kernel(_cm[n][6]) is not None)]
     _uc = get_profile("KODAK_ULTRA_COLOR_400UC").mtf
     chk("G-COMBINED-MTF  seven colour stocks printed with ONE combined MTF curve "
-        "store it; the five whose f50 were estimates carry per-layer f50 solved "
-        "to reproduce it (blue > green > red), the two Vitale stocks keep their "
-        "published point; Ultra Color 400UC carries its three READ layer f50",
-        len(_cm) == 7 and not _cm_bad and max(v[5] for v in _cm.values()) < 0.05
+        "store it and render its ROLL-OFF EXPONENT; the five whose f50 were "
+        "estimates carry per-layer f50 solved jointly with q (blue > green > red), "
+        "the two Vitale stocks keep their published point and take q only; "
+        "Ultra Color 400UC carries its three READ layer f50",
+        len(_cm) == 7 and not _cm_bad and max(v[5] for v in _cm.values()) < 0.06
         and (_uc.f50_r, _uc.f50_g, _uc.f50_b) == (38.3, 64.0, 98.0)
         and not any(p.mtf.combined_freqs for p in FILM_PROFILES
                     if p.name not in _cm)

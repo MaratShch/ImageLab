@@ -1578,7 +1578,9 @@ void AlgoStage09_DirCoupler
 
                 ALGO_VECTOR_HINT
                 for (int32_t x = 0; x < sizeX; x++)
-                    rO[x] += s * (rO[x] - rM[x]);
+                    rO[x] = wantEdge
+                          ? rO[x] + s * (rO[x] - rM[x])
+                          : MAX_VALUE(rO[x] + s * (rO[x] - rM[x]), ALGO_ZERO);   // floor folded in when this is the last term
             }
         }
     }
@@ -1613,7 +1615,7 @@ void AlgoStage09_DirCoupler
 
                 ALGO_VECTOR_HINT
                 for (int32_t x = 0; x < sizeX; x++)
-                    rO[x] += e * (rO[x] - rB[x]);
+                    rO[x] = MAX_VALUE(rO[x] + e * (rO[x] - rB[x]), ALGO_ZERO);   // floor folded in, 2026-10-04
             }
         }
     }
@@ -1628,19 +1630,8 @@ void AlgoStage09_DirCoupler
     //  This is a physical floor, not a display clamp, so it does not violate the
     //  single-final-clamp rule.
     // ----------------------------------------------------------------------
-    for (int32_t c = 0; c < 3; c++)
-    {
-        AlgoType* RESTRICT pO = dstPlane[c];
-
-        for (int32_t y = 0; y < sizeY; y++)
-        {
-            AlgoType* RESTRICT rO = pO + static_cast<std::ptrdiff_t>(y) * pitch;
-
-            ALGO_VECTOR_HINT
-            for (int32_t x = 0; x < sizeX; x++)
-                rO[x] = MAX_VALUE(rO[x], ALGO_ZERO);
-        }
-    }
+    // 2026-10-04: the floor at zero is applied inside the last term's own
+    // pass above (edge term if present, else the long-range term), not here.
 
     // pScrBlurB is not needed by this stage - both blurs here are single-lobe and
     // a single-lobe separable pass needs only one intermediate plane. It stays in

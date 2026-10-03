@@ -23,12 +23,22 @@ module:
      as the layer stack requires;
   3. with --assert, re-derives every stored f50 and fails on drift.
 
-The fit uses only the roll-off (0.25 <= response <= 0.90 after the adjacency
-hump -- the band f50 lives in; the deep tail is fatter than the Gaussian law
-these stocks render with, and fitting it would drag f50 down),
-because the engine applies development adjacency as a separate band-pass
-lift and the stored f50 must not absorb it. ⚠ UNCHANGED ON STOCKS WHOSE f50 IS
-MEASURED: a combined curve never overwrites a per-layer measurement.
+The f50-only fit (`solve`) uses only the roll-off band 0.25 <= response <= 0.90
+after the adjacency hump, because a Gaussian cannot follow the tail.
+
+2026-10-04: THE SHAPE IS ADOPTED TOO (`solve_q`). The deep tail of every one
+of these curves is fatter than the Gaussian law, by log10 rms 0.02-0.21 on
+the roll-off points; the measured law 1/(1+(f/f50)^q), which the engines
+already render for 70 other stocks through FilmMtfKernel, fits the whole
+roll-off (peak to last point, response <= 0.90) to 0.008-0.015. So each of
+the seven now carries `mtf_rolloff_q` and `mtf_measured = True`, with the
+per-layer f50 re-solved JOINTLY with q on the five estimated stocks and HELD
+at Vitale's published point on Ektachrome 64 and Kodachrome 64 (q alone is
+solved there; their fit is poorer, 0.053 / 0.025, because the book's curve
+and Vitale's point disagree slightly, and the published point outranks the
+trace). The adjacency hump above 100 % is still not fitted: the engine adds
+development adjacency as a separate band-pass. ⚠ UNCHANGED ON STOCKS WHOSE
+f50 IS MEASURED: a combined curve never overwrites a per-layer measurement.
 
 Usage:  python combined_mtf.py [--assert]
 """
@@ -86,6 +96,59 @@ def solve(curve, ratios):
             round(rms, 4), len(use))
 
 
+def model_q(f, s, q, ratios):
+    return sum(w / (1.0 + (f / (s * r)) ** q) for w, r in zip(LUMA, ratios))
+
+
+def _rms_q(use, s, q, ratios):
+    return math.sqrt(sum((math.log10(model_q(f, s, q, ratios)) - math.log10(m)) ** 2
+                         for f, m in use) / len(use))
+
+
+def solve_q(curve, ratios, fixed_s=None):
+    """(f50_r, f50_g, f50_b, q, rms of log10 residual, n points).
+
+    Joint (f50_g, q) fit of the luminance-weighted three-layer roll-off law to
+    every point from the curve's peak down to its last point with response
+    <= FIT_MAX. With `fixed_s` the green f50 is held (Vitale stocks) and only
+    q is solved. Deterministic: a coarse grid, then a bounded coordinate
+    descent, no random starts.
+    """
+    pts = [(f, p / 100.0) for f, p in curve]
+    peak_i = max(range(len(pts)), key=lambda i: pts[i][1])
+    use = [(f, m) for f, m in pts[peak_i:] if m <= FIT_MAX]
+    if fixed_s is not None:
+        qs = [1.2 + 0.001 * i for i in range(4801)]
+        q = min(qs, key=lambda qq: _rms_q(use, fixed_s, qq, ratios))
+        s = fixed_s
+    else:
+        best = (9.0, 0.0, 0.0)
+        for i in range(31):
+            q0 = 1.5 + 0.1 * i
+            for j in range(29):
+                s0 = 10.0 + 5.0 * j
+                e = _rms_q(use, s0, q0, ratios)
+                if e < best[0]:
+                    best = (e, s0, q0)
+        _e, s, q = best
+        ds, dq = 2.5, 0.05
+        while ds > 1e-4 or dq > 1e-4:
+            moved = False
+            for cs, cq in ((ds, 0.0), (-ds, 0.0), (0.0, dq), (0.0, -dq)):
+                if s + cs <= 0.0 or q + cq <= 0.0:
+                    continue
+                e = _rms_q(use, s + cs, q + cq, ratios)
+                if e < _rms_q(use, s, q, ratios) - 1e-12:
+                    s, q, moved = s + cs, q + cq, True
+            if not moved:
+                ds *= 0.5
+                dq *= 0.5
+    s = round(s, 2) if fixed_s is None else fixed_s
+    q = round(q, 2)
+    return (round(s * ratios[0], 2), round(s, 2), round(s * ratios[2], 2), q,
+            round(_rms_q(use, s, q, ratios), 4), len(use))
+
+
 def derive_all():
     import film_profiles as fp
     out = {}
@@ -107,25 +170,35 @@ def main(argv=None) -> int:
     for name, (r, g, b, rms, n) in sorted(got.items()):
         p = fp.get_profile(name)
         m = p.mtf
-        curve_ok = (tuple(m.combined_freqs) == tuple(float(f) for f, _ in COMBINED[name][2])
+        kind = "reversal" if p.is_reversal else "negative"
+        curve = COMBINED[name][2]
+        curve_ok = (tuple(m.combined_freqs) == tuple(float(f) for f, _ in curve)
                     and m.combined_source)
         if name in fp.VITALE_2009_ADOPTED:
-            # kept: a published MTF point outranks this solve; corroboration
+            # kept: a published MTF point outranks this solve; corroboration.
+            # The SHAPE (q) is solved at the held f50 and must match the store.
             dg = g / m.f50_g - 1.0
-            ok = curve_ok and abs(dg) < 0.25
+            _r, _g, _b, q, rq, nq = solve_q(curve, (m.f50_r / m.f50_g, 1.0, m.f50_b / m.f50_g),
+                                            fixed_s=m.f50_g)
+            ok = (curve_ok and abs(dg) < 0.25 and m.mtf_measured
+                  and abs(m.mtf_rolloff_q - q) < 0.011 and rq < 0.06)
             bad += not ok
             print("%s %-28s KEPT (Vitale 2009) %.2f / %.2f / %.2f; this curve "
-                  "solves to %.2f / %.2f / %.2f -- green %+.0f %%"
+                  "solves to %.2f / %.2f / %.2f -- green %+.0f %%; q %.2f (rms %.4f)"
                   % ("[OK  ]" if ok else "[FAIL]", name, m.f50_r, m.f50_g,
-                     m.f50_b, r, g, b, 100 * dg))
+                     m.f50_b, r, g, b, 100 * dg, q, rq))
             continue
-        drift = max(abs(m.f50_r - r), abs(m.f50_g - g), abs(m.f50_b - b))
-        ok = drift < 0.011 and curve_ok and not m.mtf_measured and r < g < b and rms < 0.05
+        rq_, gq, bq, q, rq, nq = solve_q(curve, RATIOS[kind])
+        drift = max(abs(m.f50_r - rq_), abs(m.f50_g - gq), abs(m.f50_b - bq))
+        ok = (drift < 0.011 and curve_ok and m.mtf_measured
+              and abs(m.mtf_rolloff_q - q) < 0.011 and rq_ < gq < bq and rq < 0.02)
         bad += not ok
-        print("%s %-28s f50 %.2f / %.2f / %.2f  fit rms %.4f log over %d pts%s"
-              % ("[OK  ]" if ok else "[FAIL]", name, r, g, b, rms, n,
-                 "" if ok else "  stored %.2f / %.2f / %.2f" % (m.f50_r, m.f50_g, m.f50_b)))
-    print("[%s] %d combined-curve stocks, per-layer f50 reproduce their curve"
+        print("%s %-28s f50 %.2f / %.2f / %.2f  q %.2f  fit rms %.4f log over %d pts "
+              "(Gaussian band fit %.2f / %.2f / %.2f, rms %.4f)%s"
+              % ("[OK  ]" if ok else "[FAIL]", name, rq_, gq, bq, q, rq, nq, r, g, b, rms,
+                 "" if ok else "  stored %.2f / %.2f / %.2f q %.2f"
+                 % (m.f50_r, m.f50_g, m.f50_b, m.mtf_rolloff_q)))
+    print("[%s] %d combined-curve stocks, per-layer f50 and roll-off exponent reproduce their curve"
           % ("OK" if not bad else "FAIL", len(got)))
     return 1 if (bad and a.do_assert) else 0
 

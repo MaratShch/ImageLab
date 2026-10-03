@@ -310,6 +310,29 @@ namespace
     //  specifically a difference between the middle of the frame and its
     //  corners, and wrapping would fold one into the other.
     // ----------------------------------------------------------------------
+    // One clamped five-tap sample, for the row ends. Evaluated exactly as the
+    // interior vector loop does: each product rounded, then summed in tap order.
+    FORCE_INLINE AlgoType defocusTapClamped (const AlgoType* RESTRICT pIn,
+                                             const int32_t            x,
+                                             const int32_t            sizeX,
+                                             const AlgoType* RESTRICT k) noexcept
+    {
+        AlgoType acc = ALGO_ZERO;
+
+        for (int32_t t = 0; t < ALGO_DEFOCUS_TAPS; t++)
+        {
+            int32_t sx = x + t - ALGO_DEFOCUS_RADIUS;
+
+            sx = MAX_VALUE(sx, 0);
+            sx = MIN_VALUE(sx, sizeX - 1);
+
+            const AlgoType prod = k[t] * pIn[sx];   // rounded product, then the add
+            acc = acc + prod;
+        }
+
+        return acc;
+    }
+
     void defocusBlurPlane
     (
         const AlgoType* RESTRICT pSrc,
@@ -337,24 +360,45 @@ namespace
             const AlgoType* RESTRICT pIn  = pSrc + off;
             AlgoType* RESTRICT       pOut = pTmp + off;
 
-            for (int32_t x = 0; x < sizeX; x++)
+            // 2026-10-04: the interior - every x whose five taps lie inside the
+            // row - is a straight vector loop of five unaligned loads, five
+            // multiplies and four adds; only the two pixels at each end need
+            // the clamp. Tap order and rounding are unchanged, so the result
+            // is identical to the clamped scalar loop it replaces.
+            const int32_t xLo = ALGO_DEFOCUS_RADIUS;
+            const int32_t xHi = sizeX - ALGO_DEFOCUS_RADIUS;   // exclusive
+
+            int32_t x = 0;
+
+            for (; x < MIN_VALUE(xLo, sizeX); x++)
+                pOut[x] = defocusTapClamped(pIn, x, sizeX, k);
+
+            if (xHi > xLo)
             {
-                AlgoType acc = ALGO_ZERO;
+                const __m256 k0 = _mm256_set1_ps(k[0]);
+                const __m256 k1 = _mm256_set1_ps(k[1]);
+                const __m256 k2 = _mm256_set1_ps(k[2]);
+                const __m256 k3 = _mm256_set1_ps(k[3]);
+                const __m256 k4 = _mm256_set1_ps(k[4]);
 
-                for (int32_t t = 0; t < ALGO_DEFOCUS_TAPS; t++)
+                for (; x + ALGO_AVX2_LANES_LOCAL <= xHi; x += ALGO_AVX2_LANES_LOCAL)
                 {
-                    // Sample position for this tap, clamped into the row. The
-                    // clamp is what repeats the edge pixel outward.
-                    int32_t sx = x + t - ALGO_DEFOCUS_RADIUS;
-
-                    sx = MAX_VALUE(sx, 0);
-                    sx = MIN_VALUE(sx, sizeX - 1);
-
-                    acc += k[t] * pIn[sx];
+                    // Separate multiply and add, NOT fused: the clamped scalar
+                    // loop this mirrors (and the Scalar engine) round each
+                    // product before the sum, and the vector interior must
+                    // produce the same bits as the two scalar ends of the row.
+                    const AlgoType* RESTRICT p = pIn + x - ALGO_DEFOCUS_RADIUS;
+                    __m256 a = _mm256_mul_ps(_mm256_loadu_ps(p), k0);
+                    a = _mm256_add_ps(a, _mm256_mul_ps(_mm256_loadu_ps(p + 1), k1));
+                    a = _mm256_add_ps(a, _mm256_mul_ps(_mm256_loadu_ps(p + 2), k2));
+                    a = _mm256_add_ps(a, _mm256_mul_ps(_mm256_loadu_ps(p + 3), k3));
+                    a = _mm256_add_ps(a, _mm256_mul_ps(_mm256_loadu_ps(p + 4), k4));
+                    _mm256_storeu_ps(pOut + x, a);
                 }
-
-                pOut[x] = acc;
             }
+
+            for (; x < sizeX; x++)
+                pOut[x] = defocusTapClamped(pIn, x, sizeX, k);
         }
 
         // ------------------------------------------------------------------
@@ -511,26 +555,46 @@ void AlgoStage06b_CornerDefocus
 
             AlgoType* RESTRICT pO = pOut + off;
 
-            for (int32_t x = 0; x < sizeX; x++)
+            // 2026-10-04: explicit vector form of the cross-fade. Per pixel:
+            // xn = (x - cx) * invHalfX, r2 = (yn2 + xn * xn) * 0.5, w = loss * r2,
+            // out = sharp * (1 - w) + soft * w, every product rounded and no
+            // fused step, exactly as the scalar expression reads and as the
+            // Scalar engine evaluates it. (The previous comment claimed the
+            // scalar loop auto-vectorised; the object code showed it did not.)
+            // ⚠ A compiler that contracts intrinsics (GCC at its default
+            // -ffp-contract=fast) may still fuse some of these; MSVC does not.
+            // Bit-identity with the scalar form holds under no-contraction
+            // semantics, which is the owner's toolchain.
+            const __m256 vCx   = _mm256_set1_ps(cxF);
+            const __m256 vInvX = _mm256_set1_ps(invHalfXF);
+            const __m256 vYn2  = _mm256_set1_ps(yn2);
+            const __m256 vHalf = _mm256_set1_ps(ALGO_HALF);
+            const __m256 vLoss = _mm256_set1_ps(loss);
+            const __m256 vOne  = _mm256_set1_ps(ALGO_ONE);
+            const __m256 vLane = _mm256_setr_ps(0.f, 1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f);
+
+            const int32_t nv = sizeX / ALGO_AVX2_LANES_LOCAL;
+            const int32_t nt = sizeX - nv * ALGO_AVX2_LANES_LOCAL;
+            const __m256i mt = algoTailMaskLocal(nt);
+
+            int32_t x = 0;
+
+            for (int32_t v = 0; v <= nv; v++, x += ALGO_AVX2_LANES_LOCAL)
             {
-                const AlgoType xn = (static_cast<AlgoType>(x) - cxF)
-                                  * invHalfXF;
+                const bool tail = (v == nv);
+                if (tail && (0 == nt))
+                    break;
 
-                // Radius squared, halved so a corner - where both normalised
-                // coordinates are one - lands at exactly one. Squared rather
-                // than linear because the defocus grows with the square of the
-                // displacement from the held centre, and because it removes a
-                // square root from every pixel.
-                const AlgoType r2 = (yn2 + xn * xn) * ALGO_HALF;
-
-                // Blend weight: none at the centre, the full capped loss at the
-                // corners.
-                const AlgoType w = loss * r2;
-
-                // Linear cross-fade. The two weights sum to one at every pixel,
-                // so a flat field passes through unchanged and the stage cannot
-                // darken or lighten the corners.
-                pO[x] = pSharp[x] * (ALGO_ONE - w) + pSoft[x] * w;
+                const __m256 xf = _mm256_add_ps(_mm256_set1_ps(static_cast<AlgoType>(x)), vLane);
+                const __m256 xn = _mm256_mul_ps(_mm256_sub_ps(xf, vCx), vInvX);
+                const __m256 r2 = _mm256_mul_ps(_mm256_add_ps(vYn2, _mm256_mul_ps(xn, xn)), vHalf);
+                const __m256 w  = _mm256_mul_ps(vLoss, r2);
+                const __m256 sharp = tail ? _mm256_maskload_ps(pSharp + x, mt) : _mm256_loadu_ps(pSharp + x);
+                const __m256 soft  = tail ? _mm256_maskload_ps(pSoft  + x, mt) : _mm256_loadu_ps(pSoft  + x);
+                const __m256 out = _mm256_add_ps(_mm256_mul_ps(sharp, _mm256_sub_ps(vOne, w)),
+                                                 _mm256_mul_ps(soft, w));
+                if (tail) _mm256_maskstore_ps(pO + x, mt, out);
+                else      _mm256_storeu_ps(pO + x, out);
             }
         }
     }

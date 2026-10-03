@@ -226,15 +226,22 @@ namespace
     //  once per dupe generation and once for the final print - so it is written once
     //  here rather than three times inline.
     // ----------------------------------------------------------------------
+    // 2026-10-04: pSrc and pDst are NOT RESTRICT and MAY BE THE SAME PLANE.
+    // The pass is pointwise - every sample is read before the one at the same
+    // position is written - so stage 13 prints in place when the print stock
+    // has no dye matrix, which removed one full image copy per frame. `floor`
+    // applies max(x, 0) at the store (the physical floor that used to be a
+    // separate pass).
     void printPlane
     (
-        const AlgoType* RESTRICT pSrc,
-        AlgoType* RESTRICT       pDst,
+        const AlgoType*          pSrc,
+        AlgoType*                pDst,
         const int32_t            sizeX,
         const int32_t            sizeY,
         const int32_t            pitch,
         const film::ToneCurve&   curve,
-        const AlgoType           offset
+        const AlgoType           offset,
+        const bool               floor
     ) noexcept
     {
         // ------------------------------------------------------------------
@@ -317,8 +324,8 @@ namespace
         {
             const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
 
-            const AlgoType* RESTRICT pIn  = pSrc + off;
-            AlgoType* RESTRICT       pOut = pDst + off;
+            const AlgoType* pIn  = pSrc + off;
+            AlgoType*       pOut = pDst + off;
 
             // Print exposure. More density in front of the light means less exposure
             // behind it, which is the inversion that makes a positive.
@@ -354,8 +361,9 @@ namespace
                 const __m256 fall =
                     algoSoftplusV(_mm256_sub_ps(logE, vShX),  vShK,  vInvShK);
 
-                _mm256_storeu_ps(pOut + x,
-                    _mm256_fmadd_ps(vGamma, _mm256_sub_ps(rise, fall), vDmin));
+                __m256 d = _mm256_fmadd_ps(vGamma, _mm256_sub_ps(rise, fall), vDmin);
+                if (floor) d = _mm256_max_ps(d, _mm256_setzero_ps());
+                _mm256_storeu_ps(pOut + x, d);
             }
 
             if (nt > 0)
@@ -368,8 +376,9 @@ namespace
                 const __m256 fall =
                     algoSoftplusV(_mm256_sub_ps(logE, vShX),  vShK,  vInvShK);
 
-                _mm256_maskstore_ps(pOut + x, mt,
-                    _mm256_fmadd_ps(vGamma, _mm256_sub_ps(rise, fall), vDmin));
+                __m256 d = _mm256_fmadd_ps(vGamma, _mm256_sub_ps(rise, fall), vDmin);
+                if (floor) d = _mm256_max_ps(d, _mm256_setzero_ps());
+                _mm256_maskstore_ps(pOut + x, mt, d);
             }
         }
 
@@ -584,7 +593,8 @@ void AlgoStage13_Duplication
             for (int32_t c = 0; c < 3; c++)
                 printPlane(tmp[c], work[c], sizeX, sizeY, pitch,
                            curveAt(dcurves, c),
-                           static_cast<AlgoType>(offs[c]));
+                           static_cast<AlgoType>(offs[c]),
+                           false);
 
             // --------------------------------------------------------------
             //  4. THIS generation's own grain, added AFTER the blur.
@@ -746,10 +756,23 @@ void AlgoStage13_Duplication
     // Print each record through the print stock's own curve. Written into the
     // scratch triple first, because the print reads the negative density while
     // writing the print density and the two are different quantities.
+    // ----------------------------------------------------------------------
+    //  Print curve, then the print stock's own dye impurity, then the floor.
+    //
+    //  2026-10-04: with an identity print dye matrix the curve is applied IN
+    //  PLACE on the destination planes with the floor at the store - one pass
+    //  instead of print + copy + floor. With a real matrix the curve goes to
+    //  the scratch planes and the floored matrix writes the destination - two
+    //  passes instead of three. Same values as before in both cases.
+    // ----------------------------------------------------------------------
+    const bool printDyeIdentity = AlgoIsIdentityMatrix(printDyeM);
+
     for (int32_t c = 0; c < 3; c++)
-        printPlane(work[c], tmp[c], sizeX, sizeY, pitch,
+        printPlane(work[c], printDyeIdentity ? work[c] : tmp[c],
+                   sizeX, sizeY, pitch,
                    curveAt(pcurves, c),
-                   static_cast<AlgoType>(offsets[c]));
+                   static_cast<AlgoType>(offsets[c]),
+                   printDyeIdentity);
 
     // ----------------------------------------------------------------------
     //  The print stock's own dye impurity.
@@ -757,20 +780,13 @@ void AlgoStage13_Duplication
     //  Same mechanism as stage 12, on a different set of dyes: print dyes are not
     //  spectrally pure either, and their impurity is what sets the print's gamut.
     // ----------------------------------------------------------------------
-    if (AlgoIsIdentityMatrix(printDyeM))
+    if (false == printDyeIdentity)
     {
-        AlgoCopyImage(tmp[0], tmp[1], tmp[2],
-                      pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
+        AlgoApplyDensityMatrixFloored(tmp[0], tmp[1], tmp[2],
+                                      pDstR, pDstG, pDstB,
+                                      sizeX, sizeY, pitch,
+                                      printDyeM);
     }
-    else
-    {
-        AlgoApplyDensityMatrix(tmp[0], tmp[1], tmp[2],
-                               pDstR, pDstG, pDstB,
-                               sizeX, sizeY, pitch,
-                               printDyeM);
-    }
-
-    floorImage(pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
 
     // The print stock's curves produced this output, so they are the endpoints stage
     // 14 must use for the transmittance conversion and for print grain.

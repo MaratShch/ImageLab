@@ -41,14 +41,17 @@
  * ---------------------------------------------------------------------------
  *
  * DOCUMENTED RANGE vs ENFORCED RANGE. Items 5 and 6 distinguish the two, and
- * the distinction is not cosmetic. Audit of the whole engine found that NO
- * numeric control in this structure has an enforced upper bound. Stages floor
- * their inputs with MAX_VALUE(x, 0) and nothing else. The only ceiling anywhere
- * caps a *product* rather than a control (ALGO_DEFOCUS_MAX_LOSS at
- * Algo_06_Sim.cpp, and ALGO_DUST_DENSITY_MAX at Algo_09_Sim.cpp). The engine's
- * own contract states this: AlgorithmMain.hpp - "Pre-validated; no field is
- * range-checked here." So every "MAX ... advisory" line below means: the host
- * panel must enforce it, because the engine will not.
+ * the distinction is not cosmetic. Until 2026-10-02 NO numeric control in
+ * this structure had an enforced upper bound: stages floor their inputs with
+ * MAX_VALUE(x, 0) and nothing else, and the only ceilings cap a *product*
+ * rather than a control (ALGO_DEFOCUS_MAX_LOSS at Algo_06_Sim.cpp,
+ * ALGO_DUST_DENSITY_MAX at Algo_09_Sim.cpp). ⚠ SINCE 2026-10-02 the entry
+ * point enforces the Min/Max of AlgoControlEnums.hpp: AlgorithmMain passes
+ * the host's structure through AlgoControlsClamped (declared at the end of
+ * this file) before any stage reads it. So a "MAX ... advisory" line below
+ * is now the clamp the engine applies; the host panel should still enforce
+ * it, because a clamped value is silently a different value from the one the
+ * user typed.
  *
  * STEP values marked [proposed]. There is no UI layer in this source tree, so
  * no increment is implementation-backed. Rather than leave item 8 blank or
@@ -970,14 +973,13 @@ struct AlgoControls
      *                    control that changes every other control's meaning,
      *                    because all the others scale or override numbers the
      *                    selected profile supplies.
-     * 10  OUTPUT EFFECT  Selects the whole parameter set. The index is
-     *                    dereferenced with NO range check, deliberately: the
-     *                    enumerator comes from the effect panel and is treated
-     *                    as pre-validated, and re-testing it on the hot path
-     *                    was judged duplicated work. CONSEQUENCE, stated
-     *                    plainly: an out-of-range value is an unchecked
-     *                    out-of-bounds read, so the HOST must guarantee the
-     *                    range.
+     * 10  OUTPUT EFFECT  Selects the whole parameter set. ⚠ SINCE 2026-10-02
+     *                    the index is clamped to [0, profileCount - 1] by
+     *                    AlgoControlsClamped on entry, once per frame. Before
+     *                    that it was dereferenced with no range check and an
+     *                    out-of-range value was an out-of-bounds read. The
+     *                    host should still send a valid index: a clamped one
+     *                    silently renders a different stock.
      * 11  STAGES         every stage except 02 and 17, which do not receive the
      *                    profile
      * 12  INTERACTIONS   Supplies the fallback for filmFormat
@@ -1281,10 +1283,13 @@ struct AlgoControls
      *                    sentinel. It is one table, not two -- any print stock
      *                    may serve as an intermediate. In practice only
      *                    "DUPE_FINE_GRAIN" and "KODAK_VISION3_DI_2254" are
-     *                    intermediates by design; the rest are release or
-     *                    positive stocks and selecting one here is a
-     *                    deliberate abuse rather than an error, so it is
-     *                    allowed and not blocked.
+     *                    intermediates by design. ⚠ SINCE 2026-10-02 ANY
+     *                    OTHER SELECTION (a release print, SCAN_DI,
+     *                    eSTOCKS_OWN) IS REPLACED BY DupeStockCtrlDef in
+     *                    AlgoControlsClamped: each generation is two passes
+     *                    through this stock's curve, and a high-gamma stock
+     *                    compounds contrast until the image is binary (the
+     *                    owner's black-and-white report of 2026-10-02).
      *  4  UNIT           a name key, dimensionless. Selects mtf_f50 in cycles
      *                    per millimetre, dmin in optical density, and an rms
      *                    grain figure
@@ -1321,8 +1326,9 @@ struct AlgoControls
      *                    PAIRS. The stage runs 2 x generations passes
      *  5  MIN            0, ENFORCED (CLAMP_VALUE at stage 13)
      *  6  MAX            4, ENFORCED (CLAMP_VALUE against
-     *                    ALGO_DUPE_MAX_GENERATIONS). THIS IS THE ONLY CONTROL
-     *                    IN THE WHOLE STRUCTURE WITH AN ENFORCED UPPER BOUND.
+     *                    ALGO_DUPE_MAX_GENERATIONS). Until 2026-10-02 this was
+     *                    the only control with an enforced upper bound; every
+     *                    control is now clamped by AlgoControlsClamped.
      *                    The cap exists so a mistyped control cannot turn one
      *                    frame into a minute
      *  7  DEFAULT        0   (AlgoControl.cpp, getAlgoControlsDefault) -
@@ -2875,3 +2881,28 @@ AlgoControls getAlgoControlsDefault (void) noexcept;
 
 /// Damage sub-defaults on their own, for a "reset this group" button.
 FilmDamage   getFilmDamageDefault   (void) noexcept;
+
+/// \brief Return a copy of \p in with every control forced into its documented
+///        range (AlgoControlEnums.hpp Min/Max), sentinels preserved.
+///
+/// ADDED 2026-10-02 after the owner observed black-and-white stocks rendering
+/// as a near-binary image when the host forwarded Effect Control panel values.
+/// The engine's historical contract was "pre-validated; no field is
+/// range-checked here", so an out-of-range value went straight into the
+/// stages. Measured on KODAK_TRI_X_400TX: grainScale 100 (a percent passed as
+/// a factor) clips 82 % of pixels to black or white; scannerSpecular 85.3 or 2
+/// flattens a silver image to a single grey; greyTarget 18 renders all white.
+/// Colour stocks degrade far less, which is why the defect looked B&W-only.
+///
+/// Rules: a non-finite number becomes the default; a negative value on a
+/// control whose "off / use the stock's own value" sentinel is negative
+/// becomes that sentinel; everything else is clamped to [Min, Max]; an
+/// enumerator outside its list becomes its default; filmProfile is clamped to
+/// [0, profileCount - 1] (it was an unchecked index into the database);
+/// dupeStock must be an intermediate stock (DUPE_FINE_GRAIN or
+/// KODAK_VISION3_DI_2254) -- any other selection, including eSTOCKS_OWN,
+/// becomes DupeStockCtrlDef, because a release print or the SCAN_DI transform
+/// used as the duplicating stock compounds contrast over the generation chain.
+/// Values already in range are returned unchanged, bit for bit.
+AlgoControls AlgoControlsClamped (const AlgoControls& in,
+                                  const int32_t       profileCount) noexcept;

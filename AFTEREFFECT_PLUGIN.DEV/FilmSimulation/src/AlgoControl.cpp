@@ -16,6 +16,8 @@
 
 #include "AlgoControl.hpp"
 
+#include <cmath>   // std::isfinite, AlgoControlsClamped
+
 
 // ---------------------------------------------------------------------------
 //  The Batch Position range is declared twice and must agree.
@@ -523,4 +525,128 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     controls.damage            = getFilmDamageDefault();
 
     return controls;
+}
+
+
+// ---------------------------------------------------------------------------
+//  AlgoControlsClamped -- see the declaration for why it exists.
+// ---------------------------------------------------------------------------
+namespace
+{
+    inline double algoClampCtl (const double v, const double lo, const double hi,
+                                const double def) noexcept
+    {
+        if (!std::isfinite(v))
+            return def;
+        return (v < lo) ? lo : ((v > hi) ? hi : v);
+    }
+
+    // A control whose "off" or "use the stock's own value" sentinel is a
+    // negative number: any negative input means that sentinel.
+    inline double algoClampSentinel (const double v, const double lo, const double hi,
+                                     const double sentinel) noexcept
+    {
+        if (!std::isfinite(v) || (v < 0.0))
+            return sentinel;
+        return (v < lo) ? lo : ((v > hi) ? hi : v);
+    }
+
+    inline int32_t algoClampInt (const int32_t v, const int32_t lo, const int32_t hi) noexcept
+    {
+        return (v < lo) ? lo : ((v > hi) ? hi : v);
+    }
+
+    template <typename E>
+    inline E algoClampEnum (const E v, const int32_t count, const E def) noexcept
+    {
+        const int32_t i = static_cast<int32_t>(v);
+        return ((i >= 0) && (i < count)) ? v : def;
+    }
+}
+
+AlgoControls AlgoControlsClamped (const AlgoControls& in, const int32_t profileCount) noexcept
+{
+    AlgoControls c = in;
+
+    // Stock index: was dereferenced unchecked.
+    {
+        const int32_t i = static_cast<int32_t>(c.filmProfile);
+        const int32_t n = (profileCount > 0) ? profileCount : 1;
+        c.filmProfile = static_cast<film::eFILM_PROFILE>(algoClampInt(i, 0, n - 1));
+    }
+
+    c.frameRate   = algoClampCtl(c.frameRate, FrameRateMin, FrameRateMax, FrameRateDef);
+    c.filmFormat  = algoClampEnum(c.filmFormat,
+                        static_cast<int32_t>(FilmFormatCtrl::eFILM_FORMAT_TOTAL_FORMATS), FilmFormatCtrlDef);
+    c.printStock  = algoClampEnum(c.printStock,
+                        static_cast<int32_t>(PrintStockCtrl::ePRINT_STOCK_TOTAL), PrintStockCtrlDef);
+    c.dupeStock   = algoClampEnum(c.dupeStock,
+                        static_cast<int32_t>(PrintStockCtrl::ePRINT_STOCK_TOTAL), DupeStockCtrlDef);
+    // ⚠ THE DUPLICATION CHAIN NEEDS AN INTERMEDIATE STOCK (gamma ~1), 2026-10-02.
+    // Stage 13 runs 2 x generations printing passes through dupeStock, and the
+    // model's own premise is that duplicating stock prints at gamma 1, so that
+    // grain and softness accumulate over the chain but contrast does not. Only
+    // DUPE_FINE_GRAIN (gamma 1.00/1.01/1.02) and KODAK_VISION3_DI_2254
+    // (1.05/0.96/1.04) are intermediates. Anything else compounds contrast by
+    // about gamma^2 per generation: eSTOCKS_OWN (the first popup item) falls
+    // back to the PRINT stock -- SCAN_DI, gamma 1.75, by default -- and
+    // KODAK_2383_RELEASE (gamma 6) clips 88 % of a Tri-X frame to black or
+    // white after ONE generation. That was the owner's "binarisation" with
+    // generations > 0. A non-intermediate selection now uses the default
+    // intermediate. Twin: film_sim._dupe_stock_key.
+    if ((c.dupeStock != PrintStockCtrl::eDUPE_FINE_GRAIN)
+        && (c.dupeStock != PrintStockCtrl::eKODAK_VISION3_DI_2254))
+        c.dupeStock = DupeStockCtrlDef;
+    c.processVariant = algoClampEnum(c.processVariant,
+                        static_cast<int32_t>(ProcessVariantCtrl::TOTAL_PROCESSES), ProcessVariantCtrlDef);
+    c.generations = algoClampInt(c.generations, GenerationsMin, GenerationsMax);
+
+    c.exposureStops = algoClampCtl(c.exposureStops, ExposureStopsMin, ExposureStopsMax, ExposureStopsDef);
+    c.exposureTimeS = (std::isfinite(c.exposureTimeS) && (c.exposureTimeS > 0.0))
+                    ? algoClampCtl(c.exposureTimeS, ExposureTimeSMin, ExposureTimeSMax, ExposureTimeSOff)
+                    : ExposureTimeSOff;
+    c.batchPosition = algoClampCtl(c.batchPosition, BatchPositionMin, BatchPositionMax, BatchPositionDef);
+
+    c.developmentMinutes = algoClampSentinel(c.developmentMinutes, DevelopmentMinutesMin,
+                                             DevelopmentMinutesMax, DevelopmentMinutesSentinel);
+    c.developmentCelsius = algoClampSentinel(c.developmentCelsius, DevelopmentCelsiusMin,
+                                             DevelopmentCelsiusMax, DevelopmentCelsiusSentinel);
+    c.developerIndex     = algoClampInt(c.developerIndex, DeveloperIndexMin, DeveloperIndexMax);
+    c.storageYears       = algoClampCtl(c.storageYears, StorageYearsMin, StorageYearsMax, StorageYearsOff);
+    c.storageCelsius     = algoClampCtl(c.storageCelsius, StorageCelsiusMin, StorageCelsiusMax, StorageCelsiusDef);
+
+    c.scannerSpecular     = algoClampCtl(c.scannerSpecular, ScannerSpecularMin, ScannerSpecularMax, ScannerSpecularDef);
+    c.scannerFixedPattern = algoClampCtl(c.scannerFixedPattern, ScannerFixedPatternMin, ScannerFixedPatternMax, ScannerFixedPatternDef);
+    c.sceneKelvin         = algoClampCtl(c.sceneKelvin, SceneKelvinMin, SceneKelvinMax, SceneKelvinDef);
+    c.wbStrength          = algoClampCtl(c.wbStrength, WbStrengthMin, WbStrengthMax, WbStrengthDef);
+    c.greyTarget          = algoClampCtl(c.greyTarget, GreyTargetMin, GreyTargetMax, GreyTargetDef);
+    c.blackPointStretch   = algoClampCtl(c.blackPointStretch, BlackPointStretchMin, BlackPointStretchMax, BlackPointStretchDef);
+
+    c.grainScale    = algoClampCtl(c.grainScale,    GrainScaleMin,    GrainScaleMax,    GrainScaleDef);
+    c.halationScale = algoClampCtl(c.halationScale, HalationScaleMin, HalationScaleMax, HalationScaleDef);
+    c.couplerScale  = algoClampCtl(c.couplerScale,  CouplerScaleMin,  CouplerScaleMax,  CouplerScaleDef);
+    c.misregScale   = algoClampCtl(c.misregScale,   MisregScaleMin,   MisregScaleMax,   MisregScaleDef);
+    c.coatingScale  = algoClampCtl(c.coatingScale,  CoatingScaleMin,  CoatingScaleMax,  CoatingScaleDef);
+    c.flare         = algoClampSentinel(c.flare,    FlareMin,    FlareMax,    FlareSentinel);
+    c.vignette      = algoClampSentinel(c.vignette, VignetteMin, VignetteMax, VignetteSentinel);
+
+    FilmDamage& d = c.damage;
+    d.damageStrength    = algoClampCtl(d.damageStrength,    DamageStrengthMin,    DamageStrengthMax,    DamageStrengthDef);
+    d.dustLevel         = algoClampCtl(d.dustLevel,         DustLevelMin,         DustLevelMax,         DustLevelDef);
+    d.debrisLevel       = algoClampCtl(d.debrisLevel,       DebrisLevelMin,       DebrisLevelMax,       DebrisLevelDef);
+    d.fibreLevel        = algoClampCtl(d.fibreLevel,        FibreLevelMin,        FibreLevelMax,        FibreLevelDef);
+    d.dirtClumping      = algoClampCtl(d.dirtClumping,      DirtClumpingMin,      DirtClumpingMax,      DirtClumpingDef);
+    d.scratchTransport  = algoClampCtl(d.scratchTransport,  ScratchTransportMin,  ScratchTransportMax,  ScratchTransportDef);
+    d.scratchHandling   = algoClampCtl(d.scratchHandling,   ScratchHandlingMin,   ScratchHandlingMax,   ScratchHandlingDef);
+    d.processingQuality = algoClampCtl(d.processingQuality, ProcessingQualityMin, ProcessingQualityMax, ProcessingQualityDef);
+    d.dryingMarks       = algoClampCtl(d.dryingMarks,       DryingMarksMin,       DryingMarksMax,       DryingMarksDef);
+    d.storageSeverity   = algoClampCtl(d.storageSeverity,   StorageSeverityMin,   StorageSeverityMax,   StorageSeverityDef);
+    d.colourVeil        = algoClampCtl(d.colourVeil,        ColourVeilMin,        ColourVeilMax,        ColourVeilDef);
+    d.gateDirt          = algoClampCtl(d.gateDirt,          GateDirtMin,          GateDirtMax,          GateDirtDef);
+    d.weaveAmount       = algoClampCtl(d.weaveAmount,       WeaveAmountMin,       WeaveAmountMax,       WeaveAmountDef);
+    d.damageEvents      = algoClampCtl(d.damageEvents,      DamageEventsMin,      DamageEventsMax,      DamageEventsDef);
+    d.flickerStops      = algoClampCtl(d.flickerStops,      FlickerStopsMin,      FlickerStopsMax,      FlickerStopsDef);
+    d.scannerArtifacts  = algoClampCtl(d.scannerArtifacts,  ScannerArtifactsMin,  ScannerArtifactsMax,  ScannerArtifactsDef);
+
+    return c;
 }

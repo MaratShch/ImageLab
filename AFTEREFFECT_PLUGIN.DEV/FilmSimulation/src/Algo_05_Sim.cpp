@@ -88,6 +88,90 @@ namespace
 
 
 // ---------------------------------------------------------------------------
+//  ACCURATE VECTOR SOFTPLUS for the above-threshold extraction (2026-10-02).
+//
+//  The extraction loop used to call the scalar AlgoSoftplus per pixel and per
+//  channel - a double std::exp plus std::log1p, about 115 ms of a 1920 x 1080
+//  frame on the review machine and the largest scalar loop left in the AVX2
+//  path. This is the float vector form of the same function:
+//
+//      softplus(x, k) = x                       if x / k > ALGO_SOFTPLUS_LINEAR_LIMIT
+//                     = k * log1p(exp(x / k))   otherwise
+//
+//  exp and log are the ACCURATE routines stage 13 already uses (polynomials of
+//  about 1e-7 relative error), NOT FastCompute's Schraudolph exp (3 %). log1p
+//  uses Kahan's compensated form, so the deep below-threshold tail - where
+//  log(1 + u) in float would round u away - keeps full relative precision.
+//  Duplicated from Algo_13_Sim.cpp deliberately: each AVX2 unit is
+//  self-contained, as the stage 13 / 14 pair already is.
+// ---------------------------------------------------------------------------
+namespace
+{
+    FORCE_INLINE __m256 algoExp2AccV05 (__m256 x) noexcept
+    {
+        x = _mm256_max_ps(x, _mm256_set1_ps(-126.0f));
+        x = _mm256_min_ps(x, _mm256_set1_ps( 127.0f));
+        const __m256 n = _mm256_round_ps(x, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+        const __m256 f = _mm256_sub_ps(x, n);
+        __m256 p = _mm256_set1_ps(1.3352819600e-3f);
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(9.6178398092e-3f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(5.5503406540e-2f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(2.4022650696e-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(6.9314718056e-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(1.0f));
+        const __m256i bias = _mm256_add_epi32(_mm256_cvtps_epi32(n), _mm256_set1_epi32(127));
+        return _mm256_mul_ps(p, _mm256_castsi256_ps(_mm256_slli_epi32(bias, 23)));
+    }
+
+    FORCE_INLINE __m256 algoLogAccV05 (__m256 x) noexcept
+    {
+        x = _mm256_max_ps(x, _mm256_set1_ps(1.17549435e-38f));
+        const __m256i xi = _mm256_castps_si256(x);
+        __m256i e = _mm256_sub_epi32(_mm256_srli_epi32(xi, 23), _mm256_set1_epi32(127));
+        __m256 m = _mm256_castsi256_ps(_mm256_or_si256(
+            _mm256_and_si256(xi, _mm256_set1_epi32(0x007FFFFF)), _mm256_set1_epi32(0x3F800000)));
+        const __m256 hi = _mm256_cmp_ps(m, _mm256_set1_ps(1.41421356237309505f), _CMP_GE_OQ);
+        m = _mm256_blendv_ps(m, _mm256_mul_ps(m, _mm256_set1_ps(0.5f)), hi);
+        e = _mm256_add_epi32(e, _mm256_and_si256(_mm256_castps_si256(hi), _mm256_set1_epi32(1)));
+        const __m256 f = _mm256_sub_ps(m, _mm256_set1_ps(1.0f));
+        __m256 p = _mm256_set1_ps(7.0376836292E-2f);
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(-1.1514610310E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps( 1.1676998740E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(-1.2420140846E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps( 1.4249322787E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(-1.6668057665E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps( 2.0000714765E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps(-2.4999993993E-1f));
+        p = _mm256_fmadd_ps(p, f, _mm256_set1_ps( 3.3333331174E-1f));
+        const __m256 ff = _mm256_mul_ps(f, f);
+        const __m256 r = _mm256_fmadd_ps(p, _mm256_mul_ps(ff, f),
+                                         _mm256_fnmadd_ps(_mm256_set1_ps(0.5f), ff, f));
+        return _mm256_fmadd_ps(_mm256_cvtepi32_ps(e), _mm256_set1_ps(0.693147180559945309f), r);
+    }
+
+    // k * log1p(exp(x / k)), with the linear asymptote above the limit.
+    FORCE_INLINE __m256 algoSoftplusAccV05 (const __m256 x, const __m256 k,
+                                            const __m256 invK) noexcept
+    {
+        const __m256 z   = _mm256_mul_ps(x, invK);
+        const __m256 lin = _mm256_cmp_ps(z, _mm256_set1_ps(
+                               static_cast<float>(ALGO_SOFTPLUS_LINEAR_LIMIT)), _CMP_GT_OQ);
+        const __m256 u   = algoExp2AccV05(_mm256_mul_ps(z, _mm256_set1_ps(1.44269504088896341f)));
+        // log1p(u) by Kahan's compensation: with w = fl(1 + u) and d = fl(w - 1),
+        // log1p(u) = log(w) * u / d exactly up to the log's own error; where
+        // w rounds to 1 (u below half an ulp of 1) log1p(u) = u to full precision.
+        const __m256 w   = _mm256_add_ps(u, _mm256_set1_ps(1.0f));
+        const __m256 d   = _mm256_sub_ps(w, _mm256_set1_ps(1.0f));
+        const __m256 one = _mm256_cmp_ps(d, _mm256_setzero_ps(), _CMP_EQ_OQ);
+        const __m256 l1p = _mm256_blendv_ps(
+            _mm256_mul_ps(algoLogAccV05(w), _mm256_div_ps(u, _mm256_blendv_ps(d, _mm256_set1_ps(1.0f), one))),
+            u, one);
+        return _mm256_blendv_ps(_mm256_mul_ps(k, l1p), x, lin);
+    }
+}
+
+
+// ---------------------------------------------------------------------------
 //  Numerically safe softplus
 // ---------------------------------------------------------------------------
 AlgoType AlgoSoftplus (const AlgoType x, const AlgoType k) noexcept
@@ -342,17 +426,32 @@ void AlgoStage05_Halation
 
             AlgoType* RESTRICT pA = pScrAbove + off;
 
-            for (int32_t x = 0; x < sizeX; x++)
+            // 2026-10-02: vectorised (algoSoftplusAccV05, see the note at the
+            // top of this file). Half this layer's own exposure, half the scene
+            // luminance; soft knee at the threshold. The masked tail keeps the
+            // row padding untouched.
+            const __m256 vOwn  = _mm256_set1_ps(ALGO_HALATION_OWN_FRACTION);
+            const __m256 vLuma = _mm256_set1_ps(ALGO_HALATION_LUMA_FRACTION);
+            const __m256 vThr  = _mm256_set1_ps(thr);
+            const __m256 vK    = _mm256_set1_ps(knee);
+            const __m256 vInvK = _mm256_set1_ps(ALGO_ONE / knee);
+            const int32_t nv = sizeX / ALGO_AVX2_LANES_LOCAL;
+            const int32_t nt = sizeX - nv * ALGO_AVX2_LANES_LOCAL;
+            const __m256i mt = algoTailMaskLocal(nt);
+            int32_t x = 0;
+            for (int32_t v = 0; v < nv; v++, x += ALGO_AVX2_LANES_LOCAL)
             {
-                // Half this layer's own exposure, half the scene luminance.
-                const AlgoType src = ALGO_HALATION_OWN_FRACTION  * pE[x]
-                                   + ALGO_HALATION_LUMA_FRACTION * pL[x];
-
-                // Soft knee at the threshold. Below it this is very close to
-                // zero, above it very close to (src - thr), and the transition
-                // is smooth in every derivative - which is what keeps the halo
-                // from acquiring a contour of its own.
-                pA[x] = AlgoSoftplus(src - thr, knee);
+                const __m256 src = _mm256_fmadd_ps(vOwn, _mm256_loadu_ps(pE + x),
+                                       _mm256_mul_ps(vLuma, _mm256_loadu_ps(pL + x)));
+                _mm256_storeu_ps(pA + x,
+                    algoSoftplusAccV05(_mm256_sub_ps(src, vThr), vK, vInvK));
+            }
+            if (nt > 0)
+            {
+                const __m256 src = _mm256_fmadd_ps(vOwn, _mm256_maskload_ps(pE + x, mt),
+                                       _mm256_mul_ps(vLuma, _mm256_maskload_ps(pL + x, mt)));
+                _mm256_maskstore_ps(pA + x, mt,
+                    algoSoftplusAccV05(_mm256_sub_ps(src, vThr), vK, vInvK));
             }
         }
 

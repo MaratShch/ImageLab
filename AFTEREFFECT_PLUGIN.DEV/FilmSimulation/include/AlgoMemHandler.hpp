@@ -174,67 +174,70 @@ struct MemHandler
     // Scene-linear source handed in by the caller, read only by stage 2, and the
     // display-linear destination written only by the final stage. These are the
     // two points where ImgType and AlgoType meet.
-    ImgType* RESTRICT Src_R;
-    ImgType* RESTRICT Src_G;
-    ImgType* RESTRICT Src_B;
-    ImgType* RESTRICT Dst_R;
-    ImgType* RESTRICT Dst_G;
-    ImgType* RESTRICT Dst_B;
+    // ⚠ 2026-10-02: the plane pointers below are NOT RESTRICT. Under the
+    // default two-triple layout several stage members address the same plane,
+    // so a restrict promise on them was false. Stage parameters keep RESTRICT.
+    ImgType* Src_R;
+    ImgType* Src_G;
+    ImgType* Src_B;
+    ImgType* Dst_R;
+    ImgType* Dst_G;
+    ImgType* Dst_B;
 
     // --- stage outputs, exposure domain ------------------------------------
-    AlgoType* RESTRICT S02_R;   AlgoType* RESTRICT S02_G;   AlgoType* RESTRICT S02_B;   // relative exposure
-    AlgoType* RESTRICT S02b_R;  AlgoType* RESTRICT S02b_G;  AlgoType* RESTRICT S02b_B;  // taking filters
-    AlgoType* RESTRICT S03_R;   AlgoType* RESTRICT S03_G;   AlgoType* RESTRICT S03_B;   // colour balance
-    AlgoType* RESTRICT S03b_R;  AlgoType* RESTRICT S03b_G;  AlgoType* RESTRICT S03b_B;  // veiling flare
-    AlgoType* RESTRICT S03c_R;  AlgoType* RESTRICT S03c_G;  AlgoType* RESTRICT S03c_B;  // temporal flicker [not yet written]
-    AlgoType* RESTRICT S04_R;   AlgoType* RESTRICT S04_G;   AlgoType* RESTRICT S04_B;   // vignette x coating field
-    AlgoType* RESTRICT S05_R;   AlgoType* RESTRICT S05_G;   AlgoType* RESTRICT S05_B;   // halation
-    AlgoType* RESTRICT S06_R;   AlgoType* RESTRICT S06_G;   AlgoType* RESTRICT S06_B;   // emulsion MTF
-    AlgoType* RESTRICT S06b_R;  AlgoType* RESTRICT S06b_G;  AlgoType* RESTRICT S06b_B;  // corner defocus
-    AlgoType* RESTRICT S07_R;   AlgoType* RESTRICT S07_G;   AlgoType* RESTRICT S07_B;   // monochrome collapse
+    AlgoType* S02_R;   AlgoType* S02_G;   AlgoType* S02_B;   // relative exposure
+    AlgoType* S02b_R;  AlgoType* S02b_G;  AlgoType* S02b_B;  // taking filters
+    AlgoType* S03_R;   AlgoType* S03_G;   AlgoType* S03_B;   // colour balance
+    AlgoType* S03b_R;  AlgoType* S03b_G;  AlgoType* S03b_B;  // veiling flare
+    AlgoType* S03c_R;  AlgoType* S03c_G;  AlgoType* S03c_B;  // temporal flicker [not yet written]
+    AlgoType* S04_R;   AlgoType* S04_G;   AlgoType* S04_B;   // vignette x coating field
+    AlgoType* S05_R;   AlgoType* S05_G;   AlgoType* S05_B;   // halation
+    AlgoType* S06_R;   AlgoType* S06_G;   AlgoType* S06_B;   // emulsion MTF
+    AlgoType* S06b_R;  AlgoType* S06b_G;  AlgoType* S06b_B;  // corner defocus
+    AlgoType* S07_R;   AlgoType* S07_G;   AlgoType* S07_B;   // monochrome collapse
 
     // --- stage outputs, density domain -------------------------------------
-    AlgoType* RESTRICT S08_R;   AlgoType* RESTRICT S08_G;   AlgoType* RESTRICT S08_B;   // characteristic curve
-    AlgoType* RESTRICT S08b_R;  AlgoType* RESTRICT S08b_G;  AlgoType* RESTRICT S08b_B;  // interimage effects
-    AlgoType* RESTRICT S09_R;   AlgoType* RESTRICT S09_G;   AlgoType* RESTRICT S09_B;   // DIR coupler lateral
-    AlgoType* RESTRICT S09b_R;  AlgoType* RESTRICT S09b_G;  AlgoType* RESTRICT S09b_B;  // negative-side defects [not yet written]
-    AlgoType* RESTRICT S10_R;   AlgoType* RESTRICT S10_G;   AlgoType* RESTRICT S10_B;   // scan MTF + misregistration
-    AlgoType* RESTRICT S10b_R;  AlgoType* RESTRICT S10b_G;  AlgoType* RESTRICT S10b_B;  // narrow-gauge edge fog
-    AlgoType* RESTRICT S11_R;   AlgoType* RESTRICT S11_G;   AlgoType* RESTRICT S11_B;   // grain
-    AlgoType* RESTRICT S12_R;   AlgoType* RESTRICT S12_G;   AlgoType* RESTRICT S12_B;   // dye crosstalk
-    AlgoType* RESTRICT S13_R;   AlgoType* RESTRICT S13_G;   AlgoType* RESTRICT S13_B;   // dupe generations, then print
+    AlgoType* S08_R;   AlgoType* S08_G;   AlgoType* S08_B;   // characteristic curve
+    AlgoType* S08b_R;  AlgoType* S08b_G;  AlgoType* S08b_B;  // interimage effects
+    AlgoType* S09_R;   AlgoType* S09_G;   AlgoType* S09_B;   // DIR coupler lateral
+    AlgoType* S09b_R;  AlgoType* S09b_G;  AlgoType* S09b_B;  // negative-side defects [not yet written]
+    AlgoType* S10_R;   AlgoType* S10_G;   AlgoType* S10_B;   // scan MTF + misregistration
+    AlgoType* S10b_R;  AlgoType* S10b_G;  AlgoType* S10b_B;  // narrow-gauge edge fog
+    AlgoType* S11_R;   AlgoType* S11_G;   AlgoType* S11_B;   // grain
+    AlgoType* S12_R;   AlgoType* S12_G;   AlgoType* S12_B;   // dye crosstalk
+    AlgoType* S13_R;   AlgoType* S13_G;   AlgoType* S13_B;   // dupe generations, then print
 
     // --- stage outputs, display domain -------------------------------------
-    AlgoType* RESTRICT S14_R;   AlgoType* RESTRICT S14_G;   AlgoType* RESTRICT S14_B;   // transmittance
-    AlgoType* RESTRICT S14b_R;  AlgoType* RESTRICT S14b_G;  AlgoType* RESTRICT S14b_B;  // reseau reconstruction
-    AlgoType* RESTRICT S14c_R;  AlgoType* RESTRICT S14c_G;  AlgoType* RESTRICT S14c_B;  // silver image tone
-    AlgoType* RESTRICT S15_R;   AlgoType* RESTRICT S15_G;   AlgoType* RESTRICT S15_B;   // gate weave [not yet written]
-    AlgoType* RESTRICT S16_R;   AlgoType* RESTRICT S16_G;   AlgoType* RESTRICT S16_B;   // gate-side defects [not yet written]
-    AlgoType* RESTRICT S17_R;   AlgoType* RESTRICT S17_G;   AlgoType* RESTRICT S17_B;   // final clamp
+    AlgoType* S14_R;   AlgoType* S14_G;   AlgoType* S14_B;   // transmittance
+    AlgoType* S14b_R;  AlgoType* S14b_G;  AlgoType* S14b_B;  // reseau reconstruction
+    AlgoType* S14c_R;  AlgoType* S14c_G;  AlgoType* S14c_B;  // silver image tone
+    AlgoType* S15_R;   AlgoType* S15_G;   AlgoType* S15_B;   // gate weave [not yet written]
+    AlgoType* S16_R;   AlgoType* S16_G;   AlgoType* S16_B;   // gate-side defects [not yet written]
+    AlgoType* S17_R;   AlgoType* S17_G;   AlgoType* S17_B;   // final clamp
 
     // --- transient scratch -------------------------------------------------
     // Nothing here is worth keeping past the stage that used it, but it is still
     // arena-resident because the engine may not allocate. Listed apart from the
     // retained chain so a later memory pass can pool it without touching stage
     // outputs.
-    AlgoType* RESTRICT Scr_BlurA;      // separable blur intermediate
-    AlgoType* RESTRICT Scr_BlurB;      // second half of a two-pass blur
-    AlgoType* RESTRICT Scr_Luma;       // luminance driving the veiling flare
-    AlgoType* RESTRICT Scr_Field;      // vignette x coating multiplier field
-    AlgoType* RESTRICT Scr_FieldLo;    // low-resolution coating field, corner use
-    AlgoType* RESTRICT Scr_Dbar;       // mean of the three density channels
-    AlgoType* RESTRICT Scr_DbarBlur;   // blurred copy of that mean
+    AlgoType* Scr_BlurA;      // separable blur intermediate
+    AlgoType* Scr_BlurB;      // second half of a two-pass blur
+    AlgoType* Scr_Luma;       // luminance driving the veiling flare
+    AlgoType* Scr_Field;      // vignette x coating multiplier field
+    AlgoType* Scr_FieldLo;    // low-resolution coating field, corner use
+    AlgoType* Scr_Dbar;       // mean of the three density channels
+    AlgoType* Scr_DbarBlur;   // blurred copy of that mean
 
     // Log exposure, retained across the characteristic curve into the interimage
     // fixed point: stage 8b needs the ORIGINAL log exposure, not the densities.
-    AlgoType* RESTRICT Scr_LogE_R;
-    AlgoType* RESTRICT Scr_LogE_G;
-    AlgoType* RESTRICT Scr_LogE_B;
+    AlgoType* Scr_LogE_R;
+    AlgoType* Scr_LogE_G;
+    AlgoType* Scr_LogE_B;
 
     // Per-channel grain field before density scaling.
-    AlgoType* RESTRICT Scr_Grain_R;
-    AlgoType* RESTRICT Scr_Grain_G;
-    AlgoType* RESTRICT Scr_Grain_B;
+    AlgoType* Scr_Grain_R;
+    AlgoType* Scr_Grain_G;
+    AlgoType* Scr_Grain_B;
 
     std::size_t totalSize;   // bytes obtained from the pool
 };
@@ -281,7 +284,7 @@ struct MemHandler
 //  dbgPrn: print the layout and per-buffer offsets. Diagnostic only, off in
 //  production, and it writes nothing when false.
 // ---------------------------------------------------------------------------
-MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY);
+MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexcept;
 
 
 // ---------------------------------------------------------------------------
@@ -293,7 +296,9 @@ MemHandler alloc_memory_buffers(const int32_t sizeX, const int32_t sizeY);
 // ---------------------------------------------------------------------------
 void free_memory_buffers (MemHandler& algoMemHandler) noexcept;
 
+
 inline bool mem_handler_valid(const MemHandler& hndl) noexcept
 {
     return (hndl.memBlockId >= 0 && hndl.SuperBufferHead != nullptr) ? true : false;
 }
+

@@ -274,8 +274,18 @@ namespace
         // Linear sensitivity on the curve's OWN sampling, unclipped. The stored
         // values are LOG sensitivity, so they are exponentiated here; nothing is
         // resampled, because resampling is what discarded the far red.
-        std::vector<HighPrecType> lin(n);
-        std::size_t               peakIdx = 0;
+        //  ⚠ 2026-10-02: A FIXED STACK ARRAY, NOT std::vector. This runs on
+        //  every frame of every monochrome stock (stage 7), inside a noexcept
+        //  function: a heap allocation here broke the engine's "allocates
+        //  nothing per frame" contract and would std::terminate on bad_alloc.
+        //  The database's longest pan curve has 65 samples (280-920 nm at
+        //  10 nm); a curve longer than the array is treated as out of reach,
+        //  which selects the authored triple - the conservative answer.
+        constexpr std::size_t ALGO_SPECTRAL_MAX_SAMPLES = 1024;
+        if (n > ALGO_SPECTRAL_MAX_SAMPLES)
+            return false;
+        HighPrecType lin[ALGO_SPECTRAL_MAX_SAMPLES];
+        std::size_t  peakIdx = 0;
 
         for (std::size_t i = 0; i < n; i++)
         {
@@ -302,7 +312,7 @@ namespace
         if (peakNm > ALGO_SPECTRAL_BASIS_LAMBDA_MAX)
             return false;
 
-        const HighPrecType total = trapzUniform(lin.data(),
+        const HighPrecType total = trapzUniform(lin,
                                                 static_cast<int32_t>(n), step);
 
         if (!(total > 0.0))
@@ -326,7 +336,7 @@ namespace
             return true;                       // nothing beyond the limit at all
 
         const HighPrecType beyond =
-            trapzUniform(lin.data() + first,
+            trapzUniform(lin + first,
                          static_cast<int32_t>(n - first), step);
 
         return (beyond / total) <= ALGO_SPECTRAL_OUT_OF_REACH_MAX;

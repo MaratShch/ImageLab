@@ -102,6 +102,30 @@ void AlgoApplyDensityMatrix
 
 
 // ---------------------------------------------------------------------------
+//  The same mix with the floor at zero applied at the store (2026-10-04).
+//
+//  A mixed density cannot be negative; stages 12 and 13 used to make a second
+//  pass over the three output planes to apply that floor. This form applies
+//  max(x, 0) to each output before it is written, which is the same value with
+//  one pass less. Both engines implement it in the same file as the unfloored
+//  form.
+// ---------------------------------------------------------------------------
+void AlgoApplyDensityMatrixFloored
+(
+    const AlgoType* RESTRICT pSrcR,
+    const AlgoType* RESTRICT pSrcG,
+    const AlgoType* RESTRICT pSrcB,
+    AlgoType* RESTRICT       pDstR,
+    AlgoType* RESTRICT       pDstG,
+    AlgoType* RESTRICT       pDstB,
+    const int32_t            sizeX,
+    const int32_t            sizeY,
+    const int32_t            pitch,
+    const film::Matrix3&     m
+) noexcept;
+
+
+// ---------------------------------------------------------------------------
 //  Is a matrix the identity, to within ALGO_DYE_IDENTITY_EPS?
 //
 //  Exposed so stage 13 can take the same fast path on the print stock's matrix.

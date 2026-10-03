@@ -554,6 +554,29 @@ def solve_anchors(
     return (offsets[0], offsets[1], offsets[2])
 
 
+#: The duplicating stocks the generation chain may use: the two intermediates
+#: in the catalogue, whose gamma is ~1 (DUPE_FINE_GRAIN 1.00/1.01/1.02,
+#: KODAK_VISION3_DI_2254 1.05/0.96/1.04).
+_INTERMEDIATE_STOCKS = ("DUPE_FINE_GRAIN", "KODAK_VISION3_DI_2254")
+
+
+def _dupe_stock_key(dupe_stock) -> str:
+    """The duplicating stock the generation chain actually uses.
+
+    ⚠ ADDED 2026-10-02. The chain prints 2 x generations times through this
+    stock and assumes gamma 1, so contrast does not compound. A release print
+    (KODAK_2383_RELEASE, gamma 6) or the SCAN_DI transform (gamma 1.75) used
+    here multiplies contrast by about gamma^2 per generation and binarises the
+    frame within one or two generations; STOCKS_OWN has no meaning for a
+    duplicating stock (it raised "unknown print stock ''" here, and the C++
+    engines silently fell back to the print stock). Any non-intermediate
+    selection therefore resolves to DUPE_FINE_GRAIN. Twin: the dupeStock rule
+    in AlgoControlsClamped (AlgoControl.cpp).
+    """
+    key = print_stock_key(dupe_stock)
+    return key if key in _INTERMEDIATE_STOCKS else "DUPE_FINE_GRAIN"
+
+
 def coupler_flat_scale(profile: FilmProfile, coupler_scale: float,
                        px_per_mm: float) -> float:
     """The coupler scale the NEUTRAL references must use on this frame.
@@ -5103,9 +5126,12 @@ def simulate(
         # Stages come in pairs so the polarity always returns to negative before
         # the final print. Duplicating stock runs at gamma 1.0 by design, so
         # contrast does not compound over the chain; grain and softness do.
-        stages = 2 * max(0, settings.generations)
+        # ⚠ 2026-10-02: the count is capped at 4, as the engines cap it
+        # (ALGO_DUPE_MAX_GENERATIONS), and the duplicating stock must be an
+        # intermediate -- see _dupe_stock_key.
+        stages = 2 * max(0, min(4, int(settings.generations)))
         if stages:
-            dupe = get_print_stock(print_stock_key(settings.dupe_stock))
+            dupe = get_print_stock(_dupe_stock_key(settings.dupe_stock))
             dcurves = dupe.curves.as_tuple()
             dupe_mtf = grid.mtf(dupe.mtf_f50, 0.0, 0.0)
             for _ in range(stages):

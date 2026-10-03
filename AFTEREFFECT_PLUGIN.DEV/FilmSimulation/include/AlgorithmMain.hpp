@@ -57,7 +57,10 @@
 //  sizeY       active rows.
 //  algoCtrl    every parameter that affects the algorithm, including the film
 //              stock, the gauge, the frame number, the film frame rate and the
-//              seed. Pre-validated; no field is range-checked here.
+//              seed. Since 2026-10-02 every field is clamped on entry by
+//              AlgoControlsClamped (AlgoControl.hpp): out-of-range values are
+//              pulled to AlgoControlEnums.hpp Min/Max, unknown enumerators and
+//              non-finite numbers to their defaults, sentinels preserved.
 //
 //  Reentrant: safe to run concurrently on different frames, in any order, with one
 //  arena per invocation.

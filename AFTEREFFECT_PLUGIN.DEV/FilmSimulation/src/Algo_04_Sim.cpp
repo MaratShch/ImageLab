@@ -365,8 +365,20 @@ void AlgoStage04_CoatingAndVignette
             MAX_VALUE(static_cast<HighPrecType>(coat.coating_corr_along_mm),
                       static_cast<HighPrecType>(ALGO_COATING_MIN_CORR_MM));
 
-        const int32_t loW = loResExtent(negWidthMm,  static_cast<AlgoType>(corrAcross));
-        const int32_t loH = loResExtent(negHeightMm, static_cast<AlgoType>(corrAlong));
+        // ⚠ 2026-10-02: NEVER MORE GRID NODES THAN PIXELS. The low-resolution
+        // grid is stored in pFieldLo with the full-plane PITCH, but its extent is
+        // clamped to [24, 192] samples whatever the frame size. On a frame
+        // narrower than loW pixels consecutive grid rows overlapped (row iy+1
+        // overwrote the tail of row iy), and on one shorter than loH rows the
+        // writes ran past the end of the plane into the next arena plane. A grid
+        // finer than the pixel grid carries no extra information - the bilinear
+        // upsample would only sample it - so the extent is capped at the frame's
+        // own pixel count (at least 2, which the interpolation needs; pitch and
+        // padH are both >= 8 by CreateAlignment, so 2 always fits).
+        const int32_t loW = MIN_VALUE(loResExtent(negWidthMm,  static_cast<AlgoType>(corrAcross)),
+                                      MAX_VALUE(sizeX, static_cast<int32_t>(2)));
+        const int32_t loH = MIN_VALUE(loResExtent(negHeightMm, static_cast<AlgoType>(corrAlong)),
+                                      MAX_VALUE(sizeY, static_cast<int32_t>(2)));
 
         // Absolute web offset of this frame, in millimetres. Unperforated formats -
         // sheet film, instant - have a pitch of zero: a single exposure, so no

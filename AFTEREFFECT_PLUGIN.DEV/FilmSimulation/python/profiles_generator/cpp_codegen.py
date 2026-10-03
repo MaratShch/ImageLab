@@ -724,33 +724,14 @@ struct MtfKernelRow {
 /// stored on a profile.
 ///
 /// Returns false when q is not tabulated, which is the signal to keep the legacy
-/// single Gaussian. Worst max|error| over the 22 rows: 0.0384, against 0.1737 for the
-/// single Gaussian this replaces.
+/// single Gaussian. ⚠ THE ROWS BELOW ARE EMITTED FROM film_profiles._MTF_KERNEL_TABLE
+/// AT GENERATION (2026-10-04); until then they were a 22-row literal that had fallen
+/// 49 rows behind the Python table, so 44 stocks with a measured q rendered the
+/// single Gaussian in C++ while Python rendered the law.
 inline bool FilmMtfKernel(float q, float& w1, float& s1, float& s2)
 {
     static const MtfKernelRow rows[] = {
-        { 1.7000f, 0.364360f, 0.362758f, 1.478273f },
-        { 1.8400f, 0.333362f, 0.374690f, 1.372429f },
-        { 1.9150f, 0.315192f, 0.379239f, 1.323537f },
-        { 2.0000f, 0.293949f, 0.383232f, 1.274738f },
-        { 2.0900f, 0.271601f, 0.386660f, 1.230938f },
-        { 2.1700f, 0.252649f, 0.389561f, 1.198798f },
-        { 2.2000f, 0.245871f, 0.390697f, 1.188320f },
-        { 2.3800f, 0.209678f, 0.398716f, 1.141156f },
-        { 2.3900f, 0.203068f, 0.393025f, 1.135008f },
-        { 2.5000f, 0.137869f, 0.325088f, 1.076711f },
-        { 2.5100f, 0.132715f, 0.318287f, 1.072267f },
-        { 2.6200f, 0.085109f, 0.239422f, 1.031378f },
-        { 2.6800f, 0.065020f, 0.188904f, 1.014021f },
-        { 2.6900f, 0.062077f, 0.180213f, 1.011430f },
-        { 2.8400f, 0.028633f, 0.030000f, 0.980809f },
-        { 2.8800f, 0.025154f, 0.179143f, 0.975878f },
-        { 2.9400f, 0.014066f, 0.115885f, 0.966497f },
-        { 3.0000f, 0.005414f, 0.101775f, 0.958757f },
-        { 3.0600f, 1.002677f, 0.957027f, 8.868426f },
-        { 3.1000f, 1.008396f, 0.963362f, 8.466455f },
-        { 3.2300f, 1.028498f, 0.984242f, 8.697727f },
-        { 3.5000f, 1.077656f, 1.028618f, 5.678378f },
+@MTF_KERNEL_ROWS@
     };
     const int n = static_cast<int>(sizeof(rows) / sizeof(rows[0]));
     for (int i = 0; i < n; i++) {
@@ -795,10 +776,7 @@ inline bool FilmMtfKernel3(float q, float& w1, float& w2,
                            float& s1, float& s2, float& s3)
 {
     static const MtfKernelRow3 rows[] = {
-        // KODAK_TECHNICAL_PAN -- «Современные фотоматериалы и их обработка»
-        // p.372, fitted above the +15.1 % adjacency peak.
-        // max|err| 0.0267 against the single Gaussian's 0.2657, a 10.0x gain.
-        { 1.0710f, 0.303249f, 0.466223f, 0.181907f, 1.048645f, 5.985403f },
+@MTF_KERNEL3_ROWS@
     };
     const int n = static_cast<int>(sizeof(rows) / sizeof(rows[0]));
     for (int i = 0; i < n; i++) {
@@ -4879,7 +4857,16 @@ def generate(outdir: Path | str = ".",
     # would emit an empty declaration block and every data slot would then
     # fail to compile with an undeclared identifier -- loudly, which is the
     # right failure, but avoidable by ordering.
+    # 2026-10-04: the MTF kernel tables are emitted from the Python dicts, so
+    # the C++ lookup can never fall behind the law it mirrors again.
+    k2 = "".join("        { %.4ff, %.6ff, %.6ff, %.6ff },\n" % (q, w1, s1, s2)
+                 for q, (w1, s1, s2) in sorted(fp._MTF_KERNEL_TABLE.items()))
+    k3 = "".join("        { %.4ff, %.6ff, %.6ff, %.6ff, %.6ff, %.6ff },\n"
+                 % (q, w1, w2, s1, s2, s3)
+                 for q, (w1, w2, s1, s2, s3) in sorted(fp._MTF_KERNEL_TABLE3.items()))
     hpp_text = (HPP_TEMPLATE.replace("@GENERATED@", stamp)
+                .replace("@MTF_KERNEL_ROWS@", k2.rstrip("\n"))
+                .replace("@MTF_KERNEL3_ROWS@", k3.rstrip("\n"))
                 .replace("@SCHEMA_VERSION@", str(SCHEMA_VERSION))
                 .replace("@SIGMA_MAX@", str(fp.GRAIN_SIGMA_TABLE_MAX))
                 .replace("@MEASURED_DECLS@", _measured_decls()))

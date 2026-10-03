@@ -1276,7 +1276,18 @@ void AlgoStage08b_Interimage
     const bool neutralRef = (false == reversal);
 
     // Seed the iteration with the densities stage 8 computed.
-    AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
+    //
+    // 2026-10-04: on a NEGATIVE the seed copy and the first snapshot are both
+    // skipped. The first pass needs the pre-iteration densities as its
+    // snapshot, and those ARE the source planes; and every pass writes all
+    // three destination planes in the receiver loop below, so nothing reads a
+    // destination plane before it is written. The reversal branch keeps the
+    // seed, because its difference planes are formed FROM the destination.
+    // Saves two full image copies per frame; the output is bit-identical.
+    const AlgoType* RESTRICT srcPlane[3] = { pSrcR, pSrcG, pSrcB };
+
+    if (false == neutralRef)
+        AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
 
     // ----------------------------------------------------------------------
     //  Fixed-point iteration.
@@ -1300,6 +1311,9 @@ void AlgoStage08b_Interimage
         // ------------------------------------------------------------------
         for (int32_t j = 0; j < 3; j++)
         {
+            if (neutralRef && (0 == iter))
+                break;   // 2026-10-04: first pass on a negative reads the source directly
+
             const AlgoType ref    = dRef[j];
             const AlgoType invRj  = invRef[j];
 
@@ -1316,7 +1330,10 @@ void AlgoStage08b_Interimage
                 {
                     // Negative: a SNAPSHOT of the current density. The
                     // reference depends on the receiver, so the difference is
-                    // formed in the receiver loop below.
+                    // formed in the receiver loop below. On the first pass the
+                    // current density is the source plane itself and no
+                    // snapshot is taken (see the seed note above, and the
+                    // break at the top of the donor loop).
                     for (int32_t v = 0; v < vecCount; v++, x += ALGO_AVX2_LANES)
                         _mm256_storeu_ps(pE + x, _mm256_loadu_ps(pD + x));
 
@@ -1397,9 +1414,12 @@ void AlgoStage08b_Interimage
             const AlgoType m2 = m[c][2];
 
             const AlgoType* RESTRICT pL  = logEPlane[c];
-            const AlgoType* RESTRICT pE0 = diffPlane[0];
-            const AlgoType* RESTRICT pE1 = diffPlane[1];
-            const AlgoType* RESTRICT pE2 = diffPlane[2];
+            // First pass on a negative: the "snapshot" is the source itself.
+            const bool firstNeg = neutralRef && (0 == iter);
+
+            const AlgoType* RESTRICT pE0 = firstNeg ? srcPlane[0] : diffPlane[0];
+            const AlgoType* RESTRICT pE1 = firstNeg ? srcPlane[1] : diffPlane[1];
+            const AlgoType* RESTRICT pE2 = firstNeg ? srcPlane[2] : diffPlane[2];
 
             AlgoType* RESTRICT pO = dstPlane[c];
 
