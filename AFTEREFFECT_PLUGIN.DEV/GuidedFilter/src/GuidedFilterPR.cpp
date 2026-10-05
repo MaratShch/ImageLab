@@ -1,4 +1,4 @@
-#include "ImageStabilizer.hpp"
+#include "GuidedFilter.hpp"
 #include "PrSDKAESupport.h"
 
 

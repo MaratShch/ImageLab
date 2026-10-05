@@ -1,4 +1,4 @@
-#include "ImageStabilizer.hpp"
+#include "GuidedFilter.hpp"
 #include "PrSDKAESupport.h"
 
 
@@ -14,8 +14,8 @@ About(
 		out_data->return_msg,
 		"%s, v%d.%d\r%s",
 		strName,
-		ImageStabilizer_VersionMajor,
-		ImageStabilizer_VersionMinor,
+		GuidedFilter_VersionMajor,
+		GuidedFilter_VersionMinor,
 		strCopyright);
 
 	return PF_Err_NONE;
@@ -45,11 +45,11 @@ GlobalSetup(
 
 	out_data->my_version =
 		PF_VERSION(
-			ImageStabilizer_VersionMajor,
-			ImageStabilizer_VersionMinor,
-			ImageStabilizer_VersionSub,
-			ImageStabilizer_VersionStage,
-			ImageStabilizer_VersionBuild
+			GuidedFilter_VersionMajor,
+			GuidedFilter_VersionMinor,
+			GuidedFilter_VersionSub,
+			GuidedFilter_VersionStage,
+			GuidedFilter_VersionBuild
 		);
 
 	out_data->out_flags  = out_flags1;
@@ -156,7 +156,7 @@ inline PF_Err SmartRender(
 	PF_SmartRenderExtra		*extraP
 )
 {
-    return ImageStabilizer_SmartRender(in_data, out_data, extraP);
+    return GuidedFilter_SmartRender(in_data, out_data, extraP);
 }
 
 
@@ -167,7 +167,7 @@ PreRender(
     PF_PreRenderExtra		*extraP
 )
 {
-    return ImageStabilizer_PreRender(in_data, out_data, extraP);
+    return GuidedFilter_PreRender(in_data, out_data, extraP);
 }
 
 
