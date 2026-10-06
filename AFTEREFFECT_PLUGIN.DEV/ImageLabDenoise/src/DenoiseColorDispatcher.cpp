@@ -55,6 +55,21 @@ void dispatch_convert_to_planar
         DISPATCH_PLANAR_FMT(PixelFormat::VUYA_32f_709);
         DISPATCH_PLANAR_FMT(PixelFormat::VUYP_32f_709);
 
+        // Added formats
+        DISPATCH_PLANAR_FMT(PixelFormat::VUYX_8u);
+        DISPATCH_PLANAR_FMT(PixelFormat::VUYX_8u_709);
+        DISPATCH_PLANAR_FMT(PixelFormat::VUYX_32f);
+        DISPATCH_PLANAR_FMT(PixelFormat::VUYX_32f_709);
+        DISPATCH_PLANAR_FMT(PixelFormat::ARGB_32f_Linear);
+        DISPATCH_PLANAR_FMT(PixelFormat::PRGB_8u);
+        DISPATCH_PLANAR_FMT(PixelFormat::PRGB_16u);
+        DISPATCH_PLANAR_FMT(PixelFormat::PRGB_32f);
+        DISPATCH_PLANAR_FMT(PixelFormat::PRGB_32f_Linear);
+        DISPATCH_PLANAR_FMT(PixelFormat::XRGB_8u);
+        DISPATCH_PLANAR_FMT(PixelFormat::XRGB_16u);
+        DISPATCH_PLANAR_FMT(PixelFormat::XRGB_32f);
+        DISPATCH_PLANAR_FMT(PixelFormat::XRGB_32f_Linear);
+
         default:
             // Optional: Log an error or fallback to a default format if Adobe 
             // feeds us something totally unexpected.

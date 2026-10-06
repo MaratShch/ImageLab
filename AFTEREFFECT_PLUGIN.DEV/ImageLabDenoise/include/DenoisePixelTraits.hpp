@@ -37,7 +37,21 @@ enum class PixelFormat
     VUYP_16u_709,
     VUYA_32f_709, 
     VUYP_32f_709,
-    RGB_10u
+    RGB_10u,
+    // --- added formats (appended: existing enum values keep their numbers) ---
+    VUYX_8u,
+    VUYX_8u_709,
+    VUYX_32f,
+    VUYX_32f_709,
+    ARGB_32f_Linear,
+    PRGB_8u,
+    PRGB_16u,
+    PRGB_32f,
+    PRGB_32f_Linear,
+    XRGB_8u,
+    XRGB_16u,
+    XRGB_32f,
+    XRGB_32f_Linear
 };
 
 // ============================================================================
@@ -70,7 +84,7 @@ static const __m256 v_255 = _mm256_set1_ps(255.0f);
 static const __m256 v_32767 = _mm256_set1_ps(static_cast<float>(u16_value_white));
 static const __m256 v_1023 = _mm256_set1_ps(static_cast<float>(u10_value_white));
 
-// Rec.709 Coefficients (For decoding/encoding Adobe's native YUV formats in the Traits)
+// Rec.709 Coefficients (used by the _709 YUV formats via YuvCoef709; BT.601 set in YuvCoef601)
 static const __m256 v_y_r = _mm256_set1_ps(0.2126f);
 static const __m256 v_y_g = _mm256_set1_ps(0.7152f);
 static const __m256 v_y_b = _mm256_set1_ps(0.0722f);
@@ -86,6 +100,45 @@ static const __m256 v_inv_r_v = _mm256_set1_ps(1.5748f);
 static const __m256 v_inv_g_u = _mm256_set1_ps(-0.187324f);
 static const __m256 v_inv_g_v = _mm256_set1_ps(-0.468124f);
 static const __m256 v_inv_b_u = _mm256_set1_ps(1.8556f);
+
+// ============================================================================
+// YUV COEFFICIENT SETS
+// Adobe VUYA/VUYP/VUYX formats without the _709 suffix are BT.601,
+// the _709 variants are Rec.709. The YUV traits below are templates on the set.
+// ============================================================================
+struct YuvCoef709
+{
+    static inline __m256 y_r() noexcept { return v_y_r; }
+    static inline __m256 y_g() noexcept { return v_y_g; }
+    static inline __m256 y_b() noexcept { return v_y_b; }
+    static inline __m256 u_r() noexcept { return v_u_r; }
+    static inline __m256 u_g() noexcept { return v_u_g; }
+    static inline __m256 u_b() noexcept { return v_u_b; }
+    static inline __m256 v_r() noexcept { return v_v_r; }
+    static inline __m256 v_g() noexcept { return v_v_g; }
+    static inline __m256 v_b() noexcept { return v_v_b; }
+    static inline __m256 inv_r_v() noexcept { return v_inv_r_v; }
+    static inline __m256 inv_g_u() noexcept { return v_inv_g_u; }
+    static inline __m256 inv_g_v() noexcept { return v_inv_g_v; }
+    static inline __m256 inv_b_u() noexcept { return v_inv_b_u; }
+};
+
+struct YuvCoef601
+{
+    static inline __m256 y_r() noexcept { return _mm256_set1_ps( 0.299f); }
+    static inline __m256 y_g() noexcept { return _mm256_set1_ps( 0.587f); }
+    static inline __m256 y_b() noexcept { return _mm256_set1_ps( 0.114f); }
+    static inline __m256 u_r() noexcept { return _mm256_set1_ps(-0.168736f); }
+    static inline __m256 u_g() noexcept { return _mm256_set1_ps(-0.331264f); }
+    static inline __m256 u_b() noexcept { return _mm256_set1_ps( 0.5f); }
+    static inline __m256 v_r() noexcept { return _mm256_set1_ps( 0.5f); }
+    static inline __m256 v_g() noexcept { return _mm256_set1_ps(-0.418688f); }
+    static inline __m256 v_b() noexcept { return _mm256_set1_ps(-0.081312f); }
+    static inline __m256 inv_r_v() noexcept { return _mm256_set1_ps( 1.402f); }
+    static inline __m256 inv_g_u() noexcept { return _mm256_set1_ps(-0.344136f); }
+    static inline __m256 inv_g_v() noexcept { return _mm256_set1_ps(-0.714136f); }
+    static inline __m256 inv_b_u() noexcept { return _mm256_set1_ps( 1.772f); }
+};
 
 // ============================================================================
 // INLINE HELPERS
@@ -171,7 +224,8 @@ template <> struct PixelTraits<PixelFormat::ARGB_8u>
     }
 };
 
-template <> struct PixelTraits<PixelFormat::VUYA_8u>
+template <class C>
+struct TraitsVUYA_8u
 {
     using DataType = PF_Pixel_VUYA_8u;
 
@@ -186,17 +240,17 @@ template <> struct PixelTraits<PixelFormat::VUYA_8u>
         vU = _mm256_sub_ps(vU, v_128);
 
         // Decode Rec.709 to Perceptual RGB
-        vR = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_r_v, vV)); 
-        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(v_inv_g_u, vU), _mm256_mul_ps(v_inv_g_v, vV))); 
-        vB = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_b_u, vU)); 
+        vR = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_r_v(), vV)); 
+        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(C::inv_g_u(), vU), _mm256_mul_ps(C::inv_g_v(), vV))); 
+        vB = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_b_u(), vU)); 
     }
 
     static inline void StoreAVX2(DataType* RESTRICT pDst, __m256 vB, __m256 vG, __m256 vR, const DataType* RESTRICT pOrigSrc) noexcept
     {
         // Encode RGB back to Rec.709 YUV
-        __m256 vY = _mm256_add_ps(_mm256_mul_ps(v_y_r, vR), _mm256_add_ps(_mm256_mul_ps(v_y_g, vG), _mm256_mul_ps(v_y_b, vB)));
-        __m256 vU = _mm256_add_ps(_mm256_mul_ps(v_u_r, vR), _mm256_add_ps(_mm256_mul_ps(v_u_g, vG), _mm256_mul_ps(v_u_b, vB)));
-        __m256 vV = _mm256_add_ps(_mm256_mul_ps(v_v_r, vR), _mm256_add_ps(_mm256_mul_ps(v_v_g, vG), _mm256_mul_ps(v_v_b, vB)));
+        __m256 vY = _mm256_add_ps(_mm256_mul_ps(C::y_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::y_g(), vG), _mm256_mul_ps(C::y_b(), vB)));
+        __m256 vU = _mm256_add_ps(_mm256_mul_ps(C::u_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::u_g(), vG), _mm256_mul_ps(C::u_b(), vB)));
+        __m256 vV = _mm256_add_ps(_mm256_mul_ps(C::v_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::v_g(), vG), _mm256_mul_ps(C::v_b(), vB)));
 
         vV = _mm256_add_ps(vV, v_128);
         vU = _mm256_add_ps(vU, v_128);
@@ -261,7 +315,8 @@ template <> struct PixelTraits<PixelFormat::BGRP_8u>
     }
 };
 
-template <> struct PixelTraits<PixelFormat::VUYP_8u>
+template <class C>
+struct TraitsVUYP_8u
 {
     using DataType = PF_Pixel_VUYA_8u;
 
@@ -283,16 +338,16 @@ template <> struct PixelTraits<PixelFormat::VUYP_8u>
         vU = _mm256_div_ps(vU, vA_safe);
         vY = _mm256_min_ps(_mm256_div_ps(vY, vA_safe), v_255);
 
-        vR = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_r_v, vV)); 
-        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(v_inv_g_u, vU), _mm256_mul_ps(v_inv_g_v, vV))); 
-        vB = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_b_u, vU)); 
+        vR = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_r_v(), vV)); 
+        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(C::inv_g_u(), vU), _mm256_mul_ps(C::inv_g_v(), vV))); 
+        vB = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_b_u(), vU)); 
     }
 
     static inline void StoreAVX2(DataType* RESTRICT pDst, __m256 vB, __m256 vG, __m256 vR, const DataType* RESTRICT pOrigSrc) noexcept
     {
-        __m256 vY = _mm256_add_ps(_mm256_mul_ps(v_y_r, vR), _mm256_add_ps(_mm256_mul_ps(v_y_g, vG), _mm256_mul_ps(v_y_b, vB)));
-        __m256 vU = _mm256_add_ps(_mm256_mul_ps(v_u_r, vR), _mm256_add_ps(_mm256_mul_ps(v_u_g, vG), _mm256_mul_ps(v_u_b, vB)));
-        __m256 vV = _mm256_add_ps(_mm256_mul_ps(v_v_r, vR), _mm256_add_ps(_mm256_mul_ps(v_v_g, vG), _mm256_mul_ps(v_v_b, vB)));
+        __m256 vY = _mm256_add_ps(_mm256_mul_ps(C::y_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::y_g(), vG), _mm256_mul_ps(C::y_b(), vB)));
+        __m256 vU = _mm256_add_ps(_mm256_mul_ps(C::u_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::u_g(), vG), _mm256_mul_ps(C::u_b(), vB)));
+        __m256 vV = _mm256_add_ps(_mm256_mul_ps(C::v_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::v_g(), vG), _mm256_mul_ps(C::v_b(), vB)));
 
         __m256i vOrig = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pOrigSrc));
         __m256i vA_int = _mm256_and_si256(vOrig, v_alpha_mask_8bit);
@@ -312,6 +367,51 @@ template <> struct PixelTraits<PixelFormat::VUYP_8u>
         __m256i vOut = _mm256_or_si256(
             _mm256_or_si256(_mm256_cvtps_epi32(vV), _mm256_slli_epi32(_mm256_cvtps_epi32(vU), 8)),
             _mm256_or_si256(_mm256_slli_epi32(_mm256_cvtps_epi32(vY), 16), vA_int)
+        );
+        _mm256_storeu_si256(reinterpret_cast<__m256i*>(pDst), vOut);
+    }
+};
+
+// --- PREMULTIPLIED 8-BIT, ARGB BYTE ORDER ---
+template <> struct PixelTraits<PixelFormat::PRGB_8u>
+{
+    using DataType = PF_Pixel_ARGB_8u;
+
+    static inline void LoadAVX2(const DataType* RESTRICT pSrc, __m256& vB, __m256& vG, __m256& vR) noexcept
+    {
+        __m256i v_pixels = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pSrc));
+        vR = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(v_pixels, 8), v_mask_8bit));
+        vG = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(v_pixels, 16), v_mask_8bit));
+        vB = _mm256_cvtepi32_ps(_mm256_and_si256(_mm256_srli_epi32(v_pixels, 24), v_mask_8bit));
+
+        __m256 vA = _mm256_cvtepi32_ps(_mm256_and_si256(v_pixels, v_mask_8bit));
+        __m256 vA_norm = _mm256_mul_ps(vA, v_alpha_norm_8);
+        __m256 vA_safe = _mm256_blendv_ps(v_one, vA_norm, _mm256_cmp_ps(vA_norm, v_zero, _CMP_GT_OQ));
+
+        // Un-premultiply to Perceptual RGB
+        vB = _mm256_min_ps(_mm256_div_ps(vB, vA_safe), v_255);
+        vG = _mm256_min_ps(_mm256_div_ps(vG, vA_safe), v_255);
+        vR = _mm256_min_ps(_mm256_div_ps(vR, vA_safe), v_255);
+    }
+
+    static inline void StoreAVX2(DataType* RESTRICT pDst, __m256 vB, __m256 vG, __m256 vR, const DataType* RESTRICT pOrigSrc) noexcept
+    {
+        __m256i vOrig = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(pOrigSrc));
+        __m256i vA_int = _mm256_and_si256(vOrig, v_mask_8bit);
+        __m256 vA_norm = _mm256_mul_ps(_mm256_cvtepi32_ps(vA_int), v_alpha_norm_8);
+
+        // Re-premultiply Straight Color * Alpha
+        vB = _mm256_mul_ps(vB, vA_norm);
+        vG = _mm256_mul_ps(vG, vA_norm);
+        vR = _mm256_mul_ps(vR, vA_norm);
+
+        vB = _mm256_max_ps(v_zero, _mm256_min_ps(vB, v_255));
+        vG = _mm256_max_ps(v_zero, _mm256_min_ps(vG, v_255));
+        vR = _mm256_max_ps(v_zero, _mm256_min_ps(vR, v_255));
+
+        __m256i vOut = _mm256_or_si256(
+            _mm256_or_si256(vA_int, _mm256_slli_epi32(_mm256_cvtps_epi32(vR), 8)),
+            _mm256_or_si256(_mm256_slli_epi32(_mm256_cvtps_epi32(vG), 16), _mm256_slli_epi32(_mm256_cvtps_epi32(vB), 24))
         );
         _mm256_storeu_si256(reinterpret_cast<__m256i*>(pDst), vOut);
     }
@@ -413,7 +513,8 @@ template <> struct PixelTraits<PixelFormat::ARGB_16u>
     }
 };
 
-template <> struct PixelTraits<PixelFormat::VUYA_16u>
+template <class C>
+struct TraitsVUYA_16u
 {
     using DataType = PF_Pixel_VUYA_16u;
 
@@ -433,16 +534,16 @@ template <> struct PixelTraits<PixelFormat::VUYA_16u>
         vV = _mm256_sub_ps(vV, v_128);
         vU = _mm256_sub_ps(vU, v_128);
 
-        vR = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_r_v, vV)); 
-        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(v_inv_g_u, vU), _mm256_mul_ps(v_inv_g_v, vV))); 
-        vB = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_b_u, vU));
+        vR = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_r_v(), vV)); 
+        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(C::inv_g_u(), vU), _mm256_mul_ps(C::inv_g_v(), vV))); 
+        vB = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_b_u(), vU));
     }
 
     static inline void StoreAVX2(DataType* RESTRICT pDst, __m256 vB, __m256 vG, __m256 vR, const DataType* RESTRICT pOrigSrc) noexcept
     {
-        __m256 vY = _mm256_add_ps(_mm256_mul_ps(v_y_r, vR), _mm256_add_ps(_mm256_mul_ps(v_y_g, vG), _mm256_mul_ps(v_y_b, vB)));
-        __m256 vU = _mm256_add_ps(_mm256_mul_ps(v_u_r, vR), _mm256_add_ps(_mm256_mul_ps(v_u_g, vG), _mm256_mul_ps(v_u_b, vB)));
-        __m256 vV = _mm256_add_ps(_mm256_mul_ps(v_v_r, vR), _mm256_add_ps(_mm256_mul_ps(v_v_g, vG), _mm256_mul_ps(v_v_b, vB)));
+        __m256 vY = _mm256_add_ps(_mm256_mul_ps(C::y_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::y_g(), vG), _mm256_mul_ps(C::y_b(), vB)));
+        __m256 vU = _mm256_add_ps(_mm256_mul_ps(C::u_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::u_g(), vG), _mm256_mul_ps(C::u_b(), vB)));
+        __m256 vV = _mm256_add_ps(_mm256_mul_ps(C::v_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::v_g(), vG), _mm256_mul_ps(C::v_b(), vB)));
 
         vV = _mm256_add_ps(vV, v_128);
         vU = _mm256_add_ps(vU, v_128);
@@ -464,9 +565,10 @@ template <> struct PixelTraits<PixelFormat::VUYA_16u>
     }
 };
 
-template <> struct PixelTraits<PixelFormat::BGRP_16u>
+template <class DT>
+struct TraitsP_16u
 {
-    using DataType = PF_Pixel_BGRA_16u;
+    using DataType = DT;
 
     static inline void LoadAVX2(const DataType* RESTRICT pSrc, __m256& vB, __m256& vG, __m256& vR) noexcept
     {
@@ -512,7 +614,8 @@ template <> struct PixelTraits<PixelFormat::BGRP_16u>
     }
 };
 
-template <> struct PixelTraits<PixelFormat::VUYP_16u>
+template <class C>
+struct TraitsVUYP_16u
 {
     using DataType = PF_Pixel_VUYA_16u;
 
@@ -535,16 +638,16 @@ template <> struct PixelTraits<PixelFormat::VUYP_16u>
         vU = _mm256_div_ps(vU, vA_safe);
         vY = _mm256_min_ps(_mm256_div_ps(vY, vA_safe), v_255);
 
-        vR = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_r_v, vV)); 
-        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(v_inv_g_u, vU), _mm256_mul_ps(v_inv_g_v, vV))); 
-        vB = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_b_u, vU));
+        vR = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_r_v(), vV)); 
+        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(C::inv_g_u(), vU), _mm256_mul_ps(C::inv_g_v(), vV))); 
+        vB = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_b_u(), vU));
     }
 
     static inline void StoreAVX2(DataType* RESTRICT pDst, __m256 vB, __m256 vG, __m256 vR, const DataType* RESTRICT pOrigSrc) noexcept
     {
-        __m256 vY = _mm256_add_ps(_mm256_mul_ps(v_y_r, vR), _mm256_add_ps(_mm256_mul_ps(v_y_g, vG), _mm256_mul_ps(v_y_b, vB)));
-        __m256 vU = _mm256_add_ps(_mm256_mul_ps(v_u_r, vR), _mm256_add_ps(_mm256_mul_ps(v_u_g, vG), _mm256_mul_ps(v_u_b, vB)));
-        __m256 vV = _mm256_add_ps(_mm256_mul_ps(v_v_r, vR), _mm256_add_ps(_mm256_mul_ps(v_v_g, vG), _mm256_mul_ps(v_v_b, vB)));
+        __m256 vY = _mm256_add_ps(_mm256_mul_ps(C::y_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::y_g(), vG), _mm256_mul_ps(C::y_b(), vB)));
+        __m256 vU = _mm256_add_ps(_mm256_mul_ps(C::u_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::u_g(), vG), _mm256_mul_ps(C::u_b(), vB)));
+        __m256 vV = _mm256_add_ps(_mm256_mul_ps(C::v_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::v_g(), vG), _mm256_mul_ps(C::v_b(), vB)));
 
         CACHE_ALIGN float a_arr[8];
         for (int i = 0; i < 8; ++i) { a_arr[i] = pOrigSrc[i].A; }
@@ -638,9 +741,10 @@ template <> struct PixelTraits<PixelFormat::ARGB_32f>
 };
 
 // --- LINEAR GAMMA SANDWICH: THE "SECRET WEAPON" ---
-template <> struct PixelTraits<PixelFormat::BGRA_32f_Linear>
+template <class DT>
+struct TraitsRGB_32f_Linear
 {
-    using DataType = PF_Pixel_BGRA_32f;
+    using DataType = DT;
 
     static inline void LoadAVX2(const DataType* RESTRICT pSrc, __m256& vB, __m256& vG, __m256& vR) noexcept
     {
@@ -675,9 +779,10 @@ template <> struct PixelTraits<PixelFormat::BGRA_32f_Linear>
     }
 };
 
-template <> struct PixelTraits<PixelFormat::BGRP_32f>
+template <class DT>
+struct TraitsP_32f
 {
-    using DataType = PF_Pixel_BGRA_32f;
+    using DataType = DT;
 
     static inline void LoadAVX2(const DataType* RESTRICT pSrc, __m256& vB, __m256& vG, __m256& vR) noexcept
     {
@@ -718,9 +823,10 @@ template <> struct PixelTraits<PixelFormat::BGRP_32f>
     }
 };
 
-template <> struct PixelTraits<PixelFormat::BGRP_32f_Linear>
+template <class DT>
+struct TraitsP_32f_Linear
 {
-    using DataType = PF_Pixel_BGRA_32f;
+    using DataType = DT;
 
     static inline void LoadAVX2(const DataType* RESTRICT pSrc, __m256& vB, __m256& vG, __m256& vR) noexcept
     {
@@ -773,7 +879,8 @@ template <> struct PixelTraits<PixelFormat::BGRP_32f_Linear>
     }
 };
 
-template <> struct PixelTraits<PixelFormat::VUYA_32f>
+template <class C>
+struct TraitsVUYA_32f
 {
     using DataType = PF_Pixel_VUYA_32f;
 
@@ -787,16 +894,16 @@ template <> struct PixelTraits<PixelFormat::VUYA_32f>
 
         // 32f YUV doesn't have 128 bias usually in Adobe, it's natively -0.5 to 0.5. 
         // Decode directly to RGB
-        vR = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_r_v, vV)); 
-        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(v_inv_g_u, vU), _mm256_mul_ps(v_inv_g_v, vV))); 
-        vB = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_b_u, vU));
+        vR = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_r_v(), vV)); 
+        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(C::inv_g_u(), vU), _mm256_mul_ps(C::inv_g_v(), vV))); 
+        vB = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_b_u(), vU));
     }
 
     static inline void StoreAVX2(DataType* RESTRICT pDst, __m256 vB, __m256 vG, __m256 vR, const DataType* RESTRICT pOrigSrc) noexcept
     {
-        __m256 vY = _mm256_add_ps(_mm256_mul_ps(v_y_r, vR), _mm256_add_ps(_mm256_mul_ps(v_y_g, vG), _mm256_mul_ps(v_y_b, vB)));
-        __m256 vU = _mm256_add_ps(_mm256_mul_ps(v_u_r, vR), _mm256_add_ps(_mm256_mul_ps(v_u_g, vG), _mm256_mul_ps(v_u_b, vB)));
-        __m256 vV = _mm256_add_ps(_mm256_mul_ps(v_v_r, vR), _mm256_add_ps(_mm256_mul_ps(v_v_g, vG), _mm256_mul_ps(v_v_b, vB)));
+        __m256 vY = _mm256_add_ps(_mm256_mul_ps(C::y_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::y_g(), vG), _mm256_mul_ps(C::y_b(), vB)));
+        __m256 vU = _mm256_add_ps(_mm256_mul_ps(C::u_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::u_g(), vG), _mm256_mul_ps(C::u_b(), vB)));
+        __m256 vV = _mm256_add_ps(_mm256_mul_ps(C::v_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::v_g(), vG), _mm256_mul_ps(C::v_b(), vB)));
 
         CACHE_ALIGN float v_arr[8], u_arr[8], y_arr[8];
         _mm256_store_ps(v_arr, vV); _mm256_store_ps(u_arr, vU); _mm256_store_ps(y_arr, vY);
@@ -809,7 +916,8 @@ template <> struct PixelTraits<PixelFormat::VUYA_32f>
     }
 };
 
-template <> struct PixelTraits<PixelFormat::VUYP_32f>
+template <class C>
+struct TraitsVUYP_32f
 {
     using DataType = PF_Pixel_VUYA_32f;
 
@@ -829,16 +937,16 @@ template <> struct PixelTraits<PixelFormat::VUYP_32f>
         vU = _mm256_div_ps(vU, vA_safe);
         vY = _mm256_min_ps(_mm256_div_ps(vY, vA_safe), v_one);
 
-        vR = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_r_v, vV)); 
-        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(v_inv_g_u, vU), _mm256_mul_ps(v_inv_g_v, vV))); 
-        vB = _mm256_add_ps(vY, _mm256_mul_ps(v_inv_b_u, vU));
+        vR = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_r_v(), vV)); 
+        vG = _mm256_add_ps(vY, _mm256_add_ps(_mm256_mul_ps(C::inv_g_u(), vU), _mm256_mul_ps(C::inv_g_v(), vV))); 
+        vB = _mm256_add_ps(vY, _mm256_mul_ps(C::inv_b_u(), vU));
     }
 
     static inline void StoreAVX2(DataType* RESTRICT pDst, __m256 vB, __m256 vG, __m256 vR, const DataType* RESTRICT pOrigSrc) noexcept
     {
-        __m256 vY = _mm256_add_ps(_mm256_mul_ps(v_y_r, vR), _mm256_add_ps(_mm256_mul_ps(v_y_g, vG), _mm256_mul_ps(v_y_b, vB)));
-        __m256 vU = _mm256_add_ps(_mm256_mul_ps(v_u_r, vR), _mm256_add_ps(_mm256_mul_ps(v_u_g, vG), _mm256_mul_ps(v_u_b, vB)));
-        __m256 vV = _mm256_add_ps(_mm256_mul_ps(v_v_r, vR), _mm256_add_ps(_mm256_mul_ps(v_v_g, vG), _mm256_mul_ps(v_v_b, vB)));
+        __m256 vY = _mm256_add_ps(_mm256_mul_ps(C::y_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::y_g(), vG), _mm256_mul_ps(C::y_b(), vB)));
+        __m256 vU = _mm256_add_ps(_mm256_mul_ps(C::u_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::u_g(), vG), _mm256_mul_ps(C::u_b(), vB)));
+        __m256 vV = _mm256_add_ps(_mm256_mul_ps(C::v_r(), vR), _mm256_add_ps(_mm256_mul_ps(C::v_g(), vG), _mm256_mul_ps(C::v_b(), vB)));
 
         CACHE_ALIGN float a_arr[8];
         for (int i = 0; i < 8; ++i) { a_arr[i] = pOrigSrc[i].A; }
@@ -863,18 +971,44 @@ template <> struct PixelTraits<PixelFormat::VUYP_32f>
 // FORMAT ALIASES (Zero-Overhead Inheritance)
 // ============================================================================
 
-// 8-Bit & 16-Bit Aliases
+// Layout-generic templates bound to the BGRA and ARGB layouts (same math for both)
+template <> struct PixelTraits<PixelFormat::BGRP_16u>        : public TraitsP_16u<PF_Pixel_BGRA_16u> {};
+template <> struct PixelTraits<PixelFormat::PRGB_16u>        : public TraitsP_16u<PF_Pixel_ARGB_16u> {};
+template <> struct PixelTraits<PixelFormat::BGRA_32f_Linear> : public TraitsRGB_32f_Linear<PF_Pixel_BGRA_32f> {};
+template <> struct PixelTraits<PixelFormat::ARGB_32f_Linear> : public TraitsRGB_32f_Linear<PF_Pixel_ARGB_32f> {};
+template <> struct PixelTraits<PixelFormat::BGRP_32f>        : public TraitsP_32f<PF_Pixel_BGRA_32f> {};
+template <> struct PixelTraits<PixelFormat::PRGB_32f>        : public TraitsP_32f<PF_Pixel_ARGB_32f> {};
+template <> struct PixelTraits<PixelFormat::BGRP_32f_Linear> : public TraitsP_32f_Linear<PF_Pixel_BGRA_32f> {};
+template <> struct PixelTraits<PixelFormat::PRGB_32f_Linear> : public TraitsP_32f_Linear<PF_Pixel_ARGB_32f> {};
+
+// Premiere Pro YUV: BT.601 without suffix, Rec.709 with _709
+template <> struct PixelTraits<PixelFormat::VUYA_8u>      : public TraitsVUYA_8u<YuvCoef601> {};
+template <> struct PixelTraits<PixelFormat::VUYP_8u>      : public TraitsVUYP_8u<YuvCoef601> {};
+template <> struct PixelTraits<PixelFormat::VUYA_16u>     : public TraitsVUYA_16u<YuvCoef601> {};
+template <> struct PixelTraits<PixelFormat::VUYP_16u>     : public TraitsVUYP_16u<YuvCoef601> {};
+template <> struct PixelTraits<PixelFormat::VUYA_32f>     : public TraitsVUYA_32f<YuvCoef601> {};
+template <> struct PixelTraits<PixelFormat::VUYP_32f>     : public TraitsVUYP_32f<YuvCoef601> {};
+template <> struct PixelTraits<PixelFormat::VUYA_8u_709>  : public TraitsVUYA_8u<YuvCoef709> {};
+template <> struct PixelTraits<PixelFormat::VUYP_8u_709>  : public TraitsVUYP_8u<YuvCoef709> {};
+template <> struct PixelTraits<PixelFormat::VUYA_16u_709> : public TraitsVUYA_16u<YuvCoef709> {};
+template <> struct PixelTraits<PixelFormat::VUYP_16u_709> : public TraitsVUYP_16u<YuvCoef709> {};
+template <> struct PixelTraits<PixelFormat::VUYA_32f_709> : public TraitsVUYA_32f<YuvCoef709> {};
+template <> struct PixelTraits<PixelFormat::VUYP_32f_709> : public TraitsVUYP_32f<YuvCoef709> {};
+
+// 8-Bit & 16-Bit Aliases (X channel passed through from the source)
 template <> struct PixelTraits<PixelFormat::BGRX_8u> : public PixelTraits<PixelFormat::BGRA_8u> {};
 template <> struct PixelTraits<PixelFormat::BGRX_16u> : public PixelTraits<PixelFormat::BGRA_16u> {};
+template <> struct PixelTraits<PixelFormat::XRGB_8u>  : public PixelTraits<PixelFormat::ARGB_8u> {};
+template <> struct PixelTraits<PixelFormat::XRGB_16u> : public PixelTraits<PixelFormat::ARGB_16u> {};
 
 // 32-Bit Float Aliases 
 template <> struct PixelTraits<PixelFormat::BGRX_32f> : public PixelTraits<PixelFormat::BGRA_32f> {};
 template <> struct PixelTraits<PixelFormat::BGRX_32f_Linear> : public PixelTraits<PixelFormat::BGRA_32f_Linear> {};
+template <> struct PixelTraits<PixelFormat::XRGB_32f>        : public PixelTraits<PixelFormat::ARGB_32f> {};
+template <> struct PixelTraits<PixelFormat::XRGB_32f_Linear> : public PixelTraits<PixelFormat::ARGB_32f_Linear> {};
 
-// Premiere Pro 709 Aliases 
-template <> struct PixelTraits<PixelFormat::VUYA_8u_709>  : public PixelTraits<PixelFormat::VUYA_8u> {};
-template <> struct PixelTraits<PixelFormat::VUYP_8u_709>  : public PixelTraits<PixelFormat::VUYP_8u> {};
-template <> struct PixelTraits<PixelFormat::VUYA_16u_709> : public PixelTraits<PixelFormat::VUYA_16u> {};
-template <> struct PixelTraits<PixelFormat::VUYP_16u_709> : public PixelTraits<PixelFormat::VUYP_16u> {};
-template <> struct PixelTraits<PixelFormat::VUYA_32f_709> : public PixelTraits<PixelFormat::VUYA_32f> {};
-template <> struct PixelTraits<PixelFormat::VUYP_32f_709> : public PixelTraits<PixelFormat::VUYP_32f> {};
+// YUV with unused X channel (X passed through from the source)
+template <> struct PixelTraits<PixelFormat::VUYX_8u>      : public PixelTraits<PixelFormat::VUYA_8u> {};
+template <> struct PixelTraits<PixelFormat::VUYX_8u_709>  : public PixelTraits<PixelFormat::VUYA_8u_709> {};
+template <> struct PixelTraits<PixelFormat::VUYX_32f>     : public PixelTraits<PixelFormat::VUYA_32f> {};
+template <> struct PixelTraits<PixelFormat::VUYX_32f_709> : public PixelTraits<PixelFormat::VUYA_32f_709> {};

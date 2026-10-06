@@ -59,6 +59,21 @@ void dispatch_convert_to_interleaved
         DISPATCH_INTERLEAVED_FMT(PixelFormat::VUYA_32f_709);
         DISPATCH_INTERLEAVED_FMT(PixelFormat::VUYP_32f_709);
 
+        // Added formats
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::VUYX_8u);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::VUYX_8u_709);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::VUYX_32f);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::VUYX_32f_709);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::ARGB_32f_Linear);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::PRGB_8u);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::PRGB_16u);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::PRGB_32f);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::PRGB_32f_Linear);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::XRGB_8u);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::XRGB_16u);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::XRGB_32f);
+        DISPATCH_INTERLEAVED_FMT(PixelFormat::XRGB_32f_Linear);
+
         default:
             break; 
     }
