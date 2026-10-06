@@ -148,10 +148,19 @@
     <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
     <ClInclude Include="..\Common\LibExport.hpp" />
     <ClInclude Include="..\Common\Param_Utils.h" />
+    <ClInclude Include="include\AlgoColorDispatcher.hpp" />
+    <ClInclude Include="include\AlgoColorDispatcherOut.hpp" />
+    <ClInclude Include="include\AlgoColorInterleaved.hpp" />
+    <ClInclude Include="include\AlgoColorPlanar.hpp" />
+    <ClInclude Include="include\AlgoControls.hpp" />
+    <ClInclude Include="include\AlgoMemHandler.hpp" />
+    <ClInclude Include="include\AlgoPixelTraits.hpp" />
     <ClInclude Include="include\GuidedFilter.hpp" />
     <ClInclude Include="include\GuidedFilterEnum.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoColorDispatcher.cpp" />
+    <ClCompile Include="src\AlgoColorDispatcherOut.cpp" />
     <ClCompile Include="src\GuidedFilter.cpp" />
     <ClCompile Include="src\GuidedFilterAE.cpp" />
     <ClCompile Include="src\GuidedFilterPR.cpp" />
