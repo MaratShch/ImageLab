@@ -38,7 +38,6 @@ enum class PixelFormat
     VUYA_32f_709, 
     VUYP_32f_709,
     RGB_10u,
-    // --- added 2026-10-02 (F4) ---
     VUYX_8u,
     VUYX_8u_709,
     VUYX_32f,
