@@ -483,6 +483,21 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         UnderlyingType(FilmSimulationCtrl::SCANNER_SPECULARITY));
     totalParams++;
 
+    // Scanner Specularity float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[36],
+        ScannerFixedPatternMin,
+        ScannerFixedPatternMax,
+        ScannerFixedPatternMin,
+        ScannerFixedPatternMax,
+        ScannerFixedPatternDef,
+        PF_Precision_THOUSANDTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::SCANNER_FIXED_PATTERN));
+    totalParams++;
+
     // Close group item
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_LENS_AND_READER));
@@ -493,7 +508,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     ///////////////////////////////////////////////////////////////////
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_TOPICX(
-        itemNames[36],
+        itemNames[37],
         ui_flags,
         UnderlyingType(FilmSimulationCtrl::GROUP_START_FILM_DAMAGE_AND_AGE));
     totalParams++;
@@ -501,7 +516,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Enable Film Damage check-box
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_CHECKBOXX(
-        itemNames[37],
+        itemNames[38],
         FALSE,
         0,
         UnderlyingType(FilmSimulationCtrl::ENABLE_FILM_DAMAGE));
@@ -510,7 +525,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Overall Strength float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[38],
+        itemNames[39],
         DamageStrengthMin,
         DamageStrengthMax,
         DamageStrengthMin,
@@ -528,7 +543,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Dust float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[39],
+        itemNames[40],
         DustLevelMin,
         DustLevelMax,
         DustLevelMin,
@@ -543,7 +558,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Debris float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[40],
+        itemNames[41],
         DebrisLevelMin,
         DebrisLevelMax,
         DebrisLevelMin,
@@ -558,7 +573,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Fibres float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[41],
+        itemNames[42],
         FibreLevelMin,
         FibreLevelMax,
         FibreLevelMin,
@@ -573,7 +588,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Clumping float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[42],
+        itemNames[43],
         DirtClumpingMin,
         DirtClumpingMax,
         DirtClumpingMin,
@@ -588,7 +603,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Gate Dirt float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[43],
+        itemNames[44],
         GateDirtMin,
         GateDirtMax,
         GateDirtMin,
@@ -603,7 +618,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Gate Weave float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[44],
+        itemNames[45],
         WeaveAmountMin,
         WeaveAmountMax,
         WeaveAmountMin,
@@ -618,7 +633,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Splice & Tear Events float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[45],
+        itemNames[46],
         SpliceAndTearsEventstMin,
         SpliceAndTearsEventstMax,
         SpliceAndTearsEventstMin,
@@ -633,7 +648,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Transport Scratches float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[46],
+        itemNames[47],
         ScratchTransportMin,
         ScratchTransportMax,
         ScratchTransportMin,
@@ -648,7 +663,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Handling Scratches float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[47],
+        itemNames[48],
         ScratchHandlingMin,
         ScratchHandlingMax,
         ScratchHandlingMin,
@@ -663,7 +678,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Processing Quality float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[48],
+        itemNames[49],
         ProcessingQualityMin,
         ProcessingQualityMax,
         ProcessingQualityMin,
@@ -678,7 +693,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Drying Marks float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[49],
+        itemNames[50],
         DryingMarksMin,
         DryingMarksMax,
         DryingMarksMin,
@@ -693,7 +708,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Storage Severity float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[50],
+        itemNames[51],
         StorageSeverityMin,
         StorageSeverityMax,
         StorageSeverityMin,
@@ -708,7 +723,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Colour Veil float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[51],
+        itemNames[52],
         ColourVeilMin,
         ColourVeilMax,
         ColourVeilMin,
@@ -723,7 +738,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Printer Flicker float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[52],
+        itemNames[53],
         FlickerStopsMin,
         FlickerStopsMax,
         FlickerStopsMin,
@@ -738,7 +753,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     // Scanner Artifacts float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
-        itemNames[53],
+        itemNames[54],
         ScannerArtifactsMin,
         ScannerArtifactsMax,
         ScannerArtifactsMin,

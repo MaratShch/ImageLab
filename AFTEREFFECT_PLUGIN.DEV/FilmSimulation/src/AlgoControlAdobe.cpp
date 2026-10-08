@@ -108,5 +108,27 @@ AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int
     if (is_control_available(film::eCTRL_BIT_PRINT_GRAIN, filmMask))
         algoParams.printGrain = get_check_box_value(params, FilmSimulationCtrl::PRINT_GRAIN);
 
+    if (is_control_available(film::eCTRL_BIT_GRAIN_SCALE, filmMask))
+        algoParams.grainScale = get_slider_value(params, FilmSimulationCtrl::GRAIN);
+    if (is_control_available(film::eCTRL_BIT_HALATION_SCALE, filmMask))
+        algoParams.halationScale = get_slider_value(params, FilmSimulationCtrl::HALATION);
+    if (is_control_available(film::eCTRL_BIT_COUPLER_SCALE, filmMask))
+        algoParams.couplerScale = get_slider_value(params, FilmSimulationCtrl::DIR_COUPLERS);
+    if (is_control_available(film::eCTRL_BIT_MISREG_SCALE, filmMask))
+        algoParams.misregScale = get_slider_value(params, FilmSimulationCtrl::MISREGISTRATION);
+    if (is_control_available(film::eCTRL_BIT_COATING_SCALE, filmMask))
+        algoParams.coatingScale = get_slider_value(params, FilmSimulationCtrl::COATING_UNEVENNESS);
+    if (is_control_available(film::eCTRL_BIT_RESEAU, filmMask))
+        algoParams.reseau = get_check_box_value(params, FilmSimulationCtrl::RESEAU_RECONSTRUCTION);
+
+    if (is_control_available(film::eCTRL_BIT_FLARE, filmMask))
+        algoParams.flare = get_slider_value(params, FilmSimulationCtrl::VEILING_FLARE);
+    if (is_control_available(film::eCTRL_BIT_VIGNETTE, filmMask))
+        algoParams.vignette = get_slider_value(params, FilmSimulationCtrl::CORNER_FALLOFF);
+    if (is_control_available(film::eCTRL_BIT_SCANNER_SPECULAR, filmMask))
+        algoParams.scannerSpecular = get_slider_value(params, FilmSimulationCtrl::SCANNER_SPECULARITY);
+    if (is_control_available(film::eCTRL_BIT_SCANNER_FIXED_PATTERN, filmMask))
+        algoParams.scannerFixedPattern = get_slider_value(params, FilmSimulationCtrl::SCANNER_FIXED_PATTERN);
+
     return algoParams;
 }
