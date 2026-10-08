@@ -72,6 +72,9 @@
 // Buffer layout and the geometry fields that travel with it.
 #include "AlgoMemHandler.hpp"
 
+// Frequency-domain filter (owner FFT library, 2026-10-06).
+#include "AlgoFrequency.hpp"
+
 // The separable Gaussian used for each generation's printing optics.
 #include "AlgoSeparableBlur.hpp"
 
@@ -164,7 +167,8 @@ void AlgoStage13_Duplication
     const AlgoType           pxPerMm,
     const int32_t            frameIndex,
     const uint32_t           seed,
-    film::RGBCurves&         finalCurvesOut
+    film::RGBCurves&         finalCurvesOut,
+    const AlgoFreqState&     freq
 ) noexcept;
 
 

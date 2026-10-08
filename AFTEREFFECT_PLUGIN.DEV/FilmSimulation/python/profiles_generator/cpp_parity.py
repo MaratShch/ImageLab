@@ -55,6 +55,7 @@ import numpy as np
 
 import film_profiles as fp
 import algo_control_enums as ace
+import engine_env  # noqa: F401 -- owner FFT include path for engine compiles (2026-10-06)
 
 HERE = Path(__file__).resolve().parent
 
@@ -709,6 +710,8 @@ def recip_stage_build_and_run(tmp: Path, root: Path, rows) -> dict:
            # blur. Linking the REAL stage is the whole point.
            str(root / "Algo_05_Sim.cpp"),
            str(root / "AlgoSeparableBlur.cpp"),
+           # stage 5's halation blur is the frequency-domain filter (2026-10-06)
+           str(root / "AlgoFrequency.cpp"),
            str(HERE / "film_profiles.cpp"),
            str(HERE / "LoadFilmDataBase.cpp")]
     cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
@@ -1347,6 +1350,8 @@ def callier_stage_build_and_run(tmp: Path, root: Path, rows) -> dict:
            # recreate the divergence the probe exists to catch.
            str(root / "Algo_05_Sim.cpp"),
            str(root / "AlgoSeparableBlur.cpp"),
+           # stage 5's halation blur is the frequency-domain filter (2026-10-06)
+           str(root / "AlgoFrequency.cpp"),
            str(HERE / "film_profiles.cpp"),
            str(HERE / "LoadFilmDataBase.cpp")]
     cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
@@ -1694,13 +1699,10 @@ GENERATED_LAWS = {
         "the measured sigma(D) anchors"),
     "FilmMtfResponse": (
         "emulsion MTF, including the measured 1/(1+(f/f50)^q) rolloff"),
-    "FilmMtfKernel": (
-        "the separable two-Gaussian equivalent of that rolloff, which is what a "
-        "renderer without an FFT can actually convolve"),
-    "FilmMtfKernel3": (
-        "the THREE-Gaussian equivalent, for exponents the two-lobe family "
-        "cannot reach -- consulted only after the two-lobe lookup has failed, "
-        "so no stock it already serves changes path"),
+    # FilmMtfKernel / FilmMtfKernel3 LEFT THIS DICT ON 2026-10-06 WITH THEIR
+    # LAST READER: the engines apply FilmMtfResponse's law exactly in the
+    # frequency domain (owner FFT library), and the generator no longer emits
+    # the separable fits.
 }
 
 #: Laws known to be bypassed, with the reason, so the check reports honestly
@@ -1737,21 +1739,17 @@ LAW_BYPASS_BASELINE = {
 #: hoisted.
 LAW_EQUIVALENT_IMPL = {
     "FilmGrainSigma": ("AlgoGrainAmpBuild", "AlgoGrainAmpAt"),
-    # ⚠ THIS ENTRY IS A DIFFERENT KIND FROM THE ONE ABOVE AND MUST NOT BE READ
-    # AS THE SAME CLAIM. AlgoGrainAmpBuild computes the SAME law with the
-    # loop-invariant half hoisted, and the probe asserts they agree exactly.
-    # FilmMtfKernel is an APPROXIMATION: the law is a frequency-domain form and
-    # this engine convolves separable spatial Gaussians, so the kernel is the
-    # best two-lobe fit to it, not the thing itself. Its agreement with
-    # FilmMtfResponse is bounded, not exact -- worst max|error| 0.0384 in
-    # modulation over the 22 tabulated exponents.
-    #
-    # ⚠ WHAT MAKES IT ADMISSIBLE ANYWAY: the alternative was not the exact law,
-    # it was the single Gaussian, whose error against the same target is 0.1737.
-    # The entry records an approximation that is 4.5x closer than what it
-    # replaced, with the bound asserted by verify.py, rather than a bypass that
-    # was 4.5x further away and asserted nothing.
-    "FilmMtfResponse": ("FilmMtfKernel", "FilmMtfKernel3"),
+    # ⚠ 2026-10-06: FilmMtfResponse IS REACHED THROUGH AlgoFreqSetMtf, AND THIS
+    # IS AN EQUIVALENCE, NOT AN APPROXIMATION. Until today the entry named the
+    # separable two- and three-Gaussian FITS (FilmMtfKernel/3), bounded but not
+    # exact. With the owner's FFT the engines evaluate the law itself on the
+    # frequency grid: AlgoFreqSetMtf chooses the same branch FilmMtfResponse
+    # does (measured q > 0 -> 1/(1+(f/f50)^q), else exp(-ln2 (f/f50)^2), f50 <= 0
+    # -> 1) and AlgoFftLaneMath::LawPairs evaluates the power. The licence holds
+    # only while check_mtf_freq_equivalence() -- every stock, every channel, 64
+    # frequencies from 0 to 4 f50, compiled against the engine's own headers --
+    # finds the two within float32 rounding (1e-6).
+    "FilmMtfResponse": ("AlgoFreqSetMtf",),
 }
 
 
@@ -1883,6 +1881,89 @@ def _strip_cpp_comments(text: str) -> str:
     be a call either."""
     text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
     return re.sub(r"//[^\n]*", " ", text)
+
+
+MTF_FREQ_CPP = r"""
+#include "AlgoFrequency.hpp"
+#include "AlgoFftLane.hpp"
+#include "LoadFilmDataBase.h"
+#include <cstdio>
+#include <cmath>
+// For every stock and channel: the generated law FilmMtfResponse against the
+// engine's frequency-domain transfer (AlgoFreqSetMtf + AlgoFftLaneMath), at 64
+// frequencies from 0 to 4 f50. Prints the worst absolute difference.
+int main()
+{
+    film::LoadFilmDataBase();
+    const std::vector<film::FilmProfile>& db = film::GetFilmDatabase();
+    double worst = 0.0; int ws = -1, wc = -1; double wf = 0.0; long n = 0;
+    for (std::size_t i = 0; i < db.size(); i++)
+    {
+        const film::MTFSpec& m = db[i].mtf;
+        const double f50s[3] = { m.f50_r, m.f50_g, m.f50_b };
+        for (int c = 0; c < 3; c++)
+        {
+            AlgoFreqTransfer t;
+            AlgoFreqSetMtf(t, f50s[c], m.mtf_measured, m.mtf_rolloff_q, 0.0, 0.0);
+            const double top = (f50s[c] > 0.0) ? 4.0 * f50s[c] : 100.0;
+            for (int k = 0; k < 64; k++)
+            {
+                const double f = top * k / 63.0;
+                double eng = 1.0;
+                for (int j = 0; j < t.sumA.n; j++) eng *= t.sumA.w[j] * std::exp(-t.sumA.a[j] * f * f);
+                if (t.hasLaw)
+                {
+                    AlgoFftLane::V f2; f2.r = f * f; f2.i = f * f;
+                    eng *= AlgoFftLaneMath::LawPairs(f2, 0.5 * t.lawQ, 1.0 / (t.lawF50 * t.lawF50)).r;
+                }
+                const double law = film::FilmMtfResponse(m, c, static_cast<float>(f));
+                const double d = std::fabs(eng - law);
+                n++;
+                if (d > worst) { worst = d; ws = static_cast<int>(i); wc = c; wf = f; }
+            }
+        }
+    }
+    std::printf("%ld %.9g %d %d %.6g\n", n, worst, ws, wc, wf);
+    return 0;
+}
+"""
+
+
+def check_mtf_freq_equivalence(root: Path) -> int:
+    """The LAW_EQUIVALENT_IMPL licence for FilmMtfResponse -> AlgoFreqSetMtf."""
+    if not (root / "AlgoFrequency.hpp").is_file():
+        print(f"  [SKIP] MTF frequency equivalence: AlgoFrequency.hpp not under {root}")
+        return 0
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td)
+        src = tmp / "mtf_freq_parity.cpp"
+        src.write_text(MTF_FREQ_CPP)
+        exe = tmp / "mtf_freq_parity"
+        cmd = ["g++", "-std=c++14", "-O1", "-I", str(root), "-I", str(HERE),
+               "-o", str(exe), str(src),
+               str(HERE / "film_profiles.cpp"), str(HERE / "LoadFilmDataBase.cpp")]
+        cmd += [str(q) for q in sorted(HERE.glob("film_profiles_data_*.cpp"))]
+        r = subprocess.run(cmd, capture_output=True, text=True)
+        if r.returncode != 0:
+            print("[FAIL] MTF frequency-equivalence probe did not compile:")
+            print(r.stderr[-3000:])
+            return 1
+        r = subprocess.run([str(exe)], capture_output=True, text=True)
+        if r.returncode != 0:
+            print("[FAIL] MTF frequency-equivalence probe crashed")
+            return 1
+    n, worst, ws, wc, wf = r.stdout.split()
+    worst = float(worst)
+    name = fp.FILM_PROFILES[int(ws)].name if int(ws) >= 0 else "-"
+    print(f"[i] MTF law vs engine frequency transfer: {n} samples, worst "
+          f"|FilmMtfResponse - AlgoFreqSetMtf| = {worst:.2e} ({name} channel "
+          f"{wc}, f = {float(wf):.3g} c/mm)")
+    if worst > 1e-6:
+        print(f"[FAIL] the engine's frequency-domain MTF departs from the "
+              f"generated law by {worst:.2e} -- LAW_EQUIVALENT_IMPL licences "
+              f"AlgoFreqSetMtf only while the two agree within 1e-6")
+        return 1
+    return 0
 
 
 def check_law_reachability(root: Path) -> int:
@@ -2498,6 +2579,7 @@ def main() -> int:
     # Cheapest gate in the file and the one that would have caught C30 first:
     # a law the generator publishes but no stage calls is not in the pipeline.
     bad += check_law_reachability(root)
+    bad += check_mtf_freq_equivalence(root)
     bad += check_twin_consistency(root)
 
     # ------------------------------------------------- STAGE-LEVEL GRAIN -----

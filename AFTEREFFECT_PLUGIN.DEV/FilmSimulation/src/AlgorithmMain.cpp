@@ -100,6 +100,7 @@
 // Stage interfaces, in pipeline order.
 #include "AlgoRelativeExposure.hpp"      // stage 2
 #include "AlgoTakingFilters.hpp"         // stage 2b
+#include "AlgoSpectralSensitivity.hpp"   // stage 2b: spectralTaking (2026-10-06)
 #include "AlgoStockColourBalance.hpp"    // stage 3
 #include "AlgoVeilingFlare.hpp"          // stage 3b
 #include "AlgoTemporalFlicker.hpp"       // stage 3c   STUB
@@ -663,6 +664,11 @@ void Algorithm_Main
                            ? (static_cast<AlgoType>(sizeX) / negWidthMm)
                            : ALGO_ZERO;
 
+    // The frequency grid of this frame (film_sim FreqGrid): f_mm^2 per spectrum
+    // row and column for this pxPerMm. Read by every frequency-domain stage
+    // (3b, 5, 6, 9, 10, 13, 14b). H + W/2 values, written into the arena.
+    AlgoFreqBeginFrame(memHandler.Freq, pxPerMm);
+
     // -----------------------------------------------------------------------
     //  Resolve the print and duplicating stocks.
     //
@@ -952,13 +958,28 @@ void Algorithm_Main
     //     Not to be confused with the dye matrix at stage 12, which is subtractive
     //     and has unit row sums. Same shape, opposite convention.
     // -----------------------------------------------------------------------
+    //     THE MATRIX IS RESOLVED HERE, ONCE PER FRAME (2026-10-06, owner
+    //     decision G4). spectralTaking on: the matrix DERIVED from the stock's
+    //     measured layer sensitivities under the scene illuminant
+    //     (AlgoSpectralTakingMatrix), when the stock carries three-layer
+    //     curves; otherwise, and by default, the authored taking_matrix. Twin:
+    //     film_sim.simulate stage 2b, settings.spectral_taking.
     ALGO_PROF_MARK("02b  taking filters");
-    if (false == AlgoPass02b(profile))
+    film::Matrix3 takingMatrix = profile.taking_matrix;
+    if (algoCtrl.spectralTaking)
+    {
+        film::Matrix3 derived;
+        if (AlgoSpectralTakingMatrix(profile,
+                                     static_cast<HighPrecType>(algoCtrl.sceneKelvin),
+                                     derived))
+            takingMatrix = derived;
+    }
+    if (false == AlgoPass02b(takingMatrix))
     {
         dst = AlgoStageDst(t02b, t02, cur);
         AlgoStage02b_TakingFilters(cur.r, cur.g, cur.b,
                                    dst.r, dst.g, dst.b,
-                                   sizeX, sizeY, pitch, profile);
+                                   sizeX, sizeY, pitch, takingMatrix);
         cur = dst;
     }
 
@@ -998,7 +1019,8 @@ void Algorithm_Main
                                   dst.r, dst.g, dst.b,
                                   scrLuma, scrBlurA, scrBlurB, scrDbar,
                                   sizeX, sizeY, pitch,
-                                  profile, algoCtrl, pxPerMm);
+                                  profile, algoCtrl, pxPerMm,
+                                  memHandler.Freq);
         cur = dst;
     }
 
@@ -1077,7 +1099,8 @@ void Algorithm_Main
                              dst.r, dst.g, dst.b,
                              scrLuma, scrField, scrFieldLo, scrBlurA, scrBlurB,
                              sizeX, sizeY, pitch,
-                             profile, algoCtrl, pxPerMm);
+                             profile, algoCtrl, pxPerMm,
+                             memHandler.Freq);
         cur = dst;
     }
 
@@ -1098,7 +1121,8 @@ void Algorithm_Main
                             dst.r, dst.g, dst.b,
                             scrBlurA, scrBlurB,
                             sizeX, sizeY, pitch,
-                            profile, pxPerMm);
+                            profile, pxPerMm,
+                            memHandler.Freq);
     cur = dst;
 
     // -----------------------------------------------------------------------
@@ -1166,7 +1190,7 @@ void Algorithm_Main
     ALGO_PROF_MARK("--   anchor solve");
     AlgoSolveAnchors(profile, pPrint,
                      static_cast<HighPrecType>(algoCtrl.greyTarget),
-                     // 2026-10-02: gated like stage 9 (AlgoCouplerFlatScale).
+                     // Same coupler scale as stage 9 (AlgoCouplerFlatScale).
                      AlgoCouplerFlatScale(profile,
                          static_cast<HighPrecType>(algoCtrl.couplerScale),
                          pxPerMm),
@@ -1271,7 +1295,8 @@ void Algorithm_Main
                                dst.r, dst.g, dst.b,
                                scrDbar, scrDbarBlur, scrBlurA, scrBlurB,
                                sizeX, sizeY, pitch,
-                               profile, algoCtrl, pxPerMm);
+                               profile, algoCtrl, pxPerMm,
+                               memHandler.Freq);
         cur = dst;
     }
 
@@ -1363,7 +1388,8 @@ void Algorithm_Main
                             scrBlurA, scrBlurB,
                             sizeX, sizeY, pitch,
                             profile, algoCtrl, scanF50, pxPerMm,
-                            frameIndex, ALGO_SALT_MISREG);
+                            frameIndex, ALGO_SALT_MISREG,
+                            memHandler.Freq);
         cur = dst;
     }
 
@@ -1511,7 +1537,8 @@ void Algorithm_Main
                                 pPrint, pDupe,
                                 scanSigmaPx, pxPerMm,
                                 frameIndex, ALGO_SALT_DUPE,
-                                finalCurves);
+                                finalCurves,
+                                memHandler.Freq);
         cur = dst;
     }
 
@@ -1560,7 +1587,8 @@ void Algorithm_Main
                                        scrDbar, scrDbarBlur, scrField, scrFieldLo,
                                        scrBlurA,
                                        sizeX, sizeY, pitch,
-                                       profile, algoCtrl, pxPerMm);
+                                       profile, algoCtrl, pxPerMm,
+                                       memHandler.Freq);
         cur = dst;
     }
 

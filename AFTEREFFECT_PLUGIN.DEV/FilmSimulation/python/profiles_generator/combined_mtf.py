@@ -29,7 +29,8 @@ after the adjacency hump, because a Gaussian cannot follow the tail.
 2026-10-04: THE SHAPE IS ADOPTED TOO (`solve_q`). The deep tail of every one
 of these curves is fatter than the Gaussian law, by log10 rms 0.02-0.21 on
 the roll-off points; the measured law 1/(1+(f/f50)^q), which the engines
-already render for 70 other stocks through FilmMtfKernel, fits the whole
+already rendered for 70 other stocks (through the FilmMtfKernel fit then; exactly,
+in the frequency domain, since 2026-10-06), fits the whole
 roll-off (peak to last point, response <= 0.90) to 0.008-0.015. So each of
 the seven now carries `mtf_rolloff_q` and `mtf_measured = True`, with the
 per-layer f50 re-solved JOINTLY with q on the five estimated stocks and HELD

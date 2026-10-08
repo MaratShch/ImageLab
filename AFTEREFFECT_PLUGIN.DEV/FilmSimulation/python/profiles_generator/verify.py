@@ -12,6 +12,7 @@ import film_profiles
 from film_profiles import (FILM_PROFILES, FORMATS, PRINT_STOCKS, StockKind,
                            ToneCurve, get_profile, get_print_stock,
                            validate_all)
+import engine_env  # noqa: F401 -- owner FFT include path for engine compiles (2026-10-06)
 
 ok = True
 def chk(label, cond, extra=""):
@@ -69,27 +70,18 @@ _A4_FGRID = np.logspace(math.log10(0.1), math.log10(300.0), 20000)
 def _rendered_peak(_m, _ch):
     """(peak MTF, frequency of that peak) for one channel of one MTFSpec.
 
-    ⚠⚠ THIS PROBES THE KERNEL THE RENDERER CONVOLVES, NOT THE FREQUENCY-DOMAIN
-    LAW, AND THAT CHANGED ON 2026-09-18b (queue P51). It used to evaluate
-    `mtf_response` -- the analytic 1/(1+(f/f50)^q). The engine has no FFT and
-    convolves `mtf_kernel_response` instead, so the law probe was answering a
-    question nobody asks: whether a peak exists in a transfer function the
-    renderer never applies. The honest question is what the renderer does.
-
-    ⚠ IT MOVES FIVE STOCKS AND EVERY ONE IS EXPLAINED BY ITS OWN q. Out of the
-    inert set go FUJI_PROVIA_400X (q 1.500), FUJI_SUPER_F125_8532 (q 1.915) and
-    KODAK_TECHNICAL_PAN (q 1.071) -- the three shallowest rolloffs in the
-    corpus, where the analytic tail falls faster than the band-pass can lift
-    but the discrete kernel, which is truncated, does not. In come
-    AGFA_RSX_II_50 (q 2.310, adjacency 0.047) and GEVACHROME_600 (q 2.090,
-    adjacency 0.090), where the opposite holds: a steep law leaves room for a
-    peak that the kernel's own smoothing then flattens below 1.0002.
-    ⚠ TECHNICAL PAN IS THE CASE THAT DECIDED IT. The book measures its peak at
-    +15.1 % and 5.75 c/mm; the kernel resolves 1.0076 at 5.89 c/mm, agreeing to
-    2.4 % with a figure nothing in the fit was told to reproduce, while the law
-    resolved no peak at all.
+    ⚠⚠ THIS PROBES WHAT THE RENDERERS APPLY, AND SINCE 2026-10-06 THAT IS THE
+    LAW. From 2026-09-18b (queue P51) to 2026-10-06 it evaluated
+    `mtf_kernel_response`, the separable Gaussian fit the C++ engines convolved
+    because they had no FFT -- the honest question was what the renderer did,
+    and the renderer convolved the fit. With the owner's FFT library all three
+    implementations (film_sim, scalar, AVX2) apply `mtf_response` itself on the
+    frequency grid (AlgoFrequency.hpp), so the probe follows the renderer back
+    to the law, and the 18 A4/T2 adjacency pairs fitted against the kernel were
+    re-solved against the law the same day (each now renders its sheet's
+    printed peak). The rule is unchanged: probe what renders.
     """
-    _roll = np.asarray(film_profiles.mtf_kernel_response(_m, _ch, _A4_FGRID),
+    _roll = np.asarray(film_profiles.mtf_response(_m, _ch, _A4_FGRID),
                        dtype=float)
     _g1 = np.exp(-2 * math.pi ** 2 * (_m.adjacency_um * 0.4 / 1000.0) ** 2
                  * _A4_FGRID ** 2)
@@ -253,7 +245,10 @@ if _sec_on():
     # 2026-09-29b: 201 -> 221, the 17 AF3-207U Fuji stocks, AGFA_AVIPHOT_PAN_20,
     # KODAK_EKTACHROME_100_EPN (E-27) and KODAK_VISION3_500T_5219_AHU (H-1-5219 rev 3-26).
     # 221 -> 222 on 2026-10-01e: KODAK_HIE (queue P96j, owner decision).
-    chk("222 stocks load and validate", len(FILM_PROFILES) == 222, f"n={len(FILM_PROFILES)}")
+    # 222 -> 224 on 2026-10-07: ROLLEI_PAN_25 and ROLLEI_SUPERPAN_200 (ROLLEI
+    # folder review, owner decision: these two of the eight films found).
+    # 224 -> 225 the same day: AGFA_AVIPHOT_PAN_400S (owner request, Agfa sheet 01/2006).
+    chk("225 stocks load and validate", len(FILM_PROFILES) == 225, f"n={len(FILM_PROFILES)}")
     # ⚠ AND THE THREE NEW ONES CARRY MEASURED CURVES, which is the point of the
     # row: a new stock added from a datasheet's PROSE only would have been a set
     # of estimates with a citation. Pinned so a later edit cannot quietly
@@ -827,9 +822,16 @@ if _sec_on():
     # G-bar), consulted only where a stock has no gamma group and only for a
     # developer the record names. Colour stocks are not counted: the scale is
     # monochrome-only (ORWOCOLOR NC 3 has a CI family and stays inert).
-    chk("the development-time axis reaches 33 monochrome stocks -- it reached "
+    # ⚠ 33 -> 34 ON 2026-10-07: ROLLEI_PAN_25. Its sheet draws the D-76 family
+    # at 4 / 6 / 8 / 10 min (21 C) and the stored curve is the 10 min one, so
+    # the G-bar of each traced curve is a measured contrast on the developer
+    # the stored curve names -- a contrast-index family by the 2026-10-01d rule.
+    # ⚠ 34 -> 35 THE SAME DAY: AGFA_AVIPHOT_PAN_400S, whose G 74 c 30 C average
+    # gradients rise 0.57 / 0.90 / 1.10 at 20 / 42 / 70 s (unlike AVIPHOT PAN 20's,
+    # which fall and stay refused).
+    chk("the development-time axis reaches 35 monochrome stocks -- it reached "
         "NONE before P61b, on a database holding 1175 development points",
-        len(_dev_live) == 33,
+        len(_dev_live) == 35,
         "%d stocks carry a usable gamma-bearing family: %s"
         % (len(_dev_live), ", ".join(sorted(_dev_live))))
 
@@ -2120,6 +2122,12 @@ if _sec_on():
                                   # «Современные» §3.5.1. Frozen id 221;
                                   # it sorts to database index 122.
                                   "KODAK_HIE",
+                                  # ⚠ 222 and 223, appended 2026-10-07 (ROLLEI
+                                  # folder review, owner decision): ROLLEI_PAN_25
+                                  # and ROLLEI_SUPERPAN_200.
+                                  "ROLLEI_PAN_25", "ROLLEI_SUPERPAN_200",
+                                  # ⚠ 224, appended the same day: AGFA_AVIPHOT_PAN_400S.
+                                  "AGFA_AVIPHOT_PAN_400S",
                                   # ⚠ 180 and 181, appended 2026-09-06e from
                                   # AF3-068E and AF3-967E.
                                   "FUJICOLOR_SUPERIA_XTRA_800",
@@ -2486,8 +2494,17 @@ if _sec_on():
         # this one out; RSX II 50 and GEVACHROME 600 in), which is a
         # re-baselining of a guard that has nothing to do with this source.
         # DIGITIZATION_QUEUE P51 carries that decision.
-        "AGFA_RSX_II_50",
-        "GEVACHROME_600",
+        # ⚠⚠ 2026-10-06 (FFT): THE P51 SWAP IS UNDONE, BECAUSE THE RENDERER
+        # CHANGED SIDES. All three implementations now apply the LAW exactly
+        # (owner FFT library), so `_rendered_peak` probes the law again and the
+        # five stocks P51 moved move back: PROVIA 400X, SUPER F125 8532 and
+        # TECHNICAL PAN resolve no peak under the law (their shallow q lets the
+        # tail outrun the band-pass); RSX II 50 and GEVACHROME 600, whose steep
+        # law leaves room for a peak the kernel's smoothing flattened, resolve
+        # one again. Every refusal written above for those stocks still stands.
+        "FUJI_PROVIA_400X",
+        "FUJI_SUPER_F125_8532",
+        "KODAK_TECHNICAL_PAN",
         # ⚠ 15 -> 17 ON 2026-09-22d, AND FOR THE MOST ORDINARY REASON ON THIS
         # LIST: two stocks were ADDED to the database, both carrying the
         # labelled 0.02 adjacency placeholder this file uses wherever no
@@ -2557,7 +2574,10 @@ if _sec_on():
     # then took it away again under this probe alone. f50, overshoot and
     # rolloff all come off one drawing and adopting them one at a time is what
     # moved a stock three times in one day.
-    chk("A4: exactly 21 stocks resolve no overshoot UNDER THE LAW PROBE, and "
+    chk("A4: exactly 21 stocks resolve no overshoot UNDER THE LAW PROBE -- "
+        "which since 2026-10-06 is also what every renderer applies (the P51 "
+        "kernel swap undone: PROVIA 400X, SUPER F125 8532 and TECHNICAL PAN "
+        "back in, RSX II 50 and GEVACHROME 600 out) -- and "
         "they are the 21 with a written refusal -- 11 until 2026-09-06, when "
         "PROVIA 400X's trace put it in the same measured-amplitude class, 14 "
         "from 2026-09-15 with ORWOCOLOR NC 3, 15 from 2026-09-15b with "
@@ -7187,8 +7207,12 @@ if _sec_on():
         == fs.get_print_stock("KODAK_2383_RELEASE").curves,
         "system gammas %.4f / %.4f / %.4f" % tuple(_sg))
     _small = fs.simulate(np.full((64, 96, 3), 0.18, np.float32), _pI, _stI)[32, 48]
-    chk("G-COUPLER-SMALLFRAME  a 96 px frame (stage 9 gated off) renders mid "
-        "grey neutral -- the anchor solve sees the same gate",
+    # 2026-10-06: the 0.25 px gate is removed (owner decision A), so on a
+    # 96 px frame stage 9 now RUNS; the guard keeps its point -- the anchor
+    # solve and stage 9 apply the same coupler rule, so mid grey stays neutral.
+    chk("G-COUPLER-SMALLFRAME  a 96 px frame (stage 9 running, no sub-pixel "
+        "gate since 2026-10-06) renders mid grey neutral -- the anchor solve "
+        "sees the same coupler rule",
         float(_small.max() - _small.min()) < 2e-3,
         "96 px mid grey %.4f / %.4f / %.4f (was 0.229 / 0.182 / 0.136)"
         % tuple(float(v) for v in _small))
@@ -7405,8 +7429,10 @@ if _sec_on():
     # side still says something a sensitometer would agree with, which is a
     # different question from whether the reader still reads the table.
     _aim = [p for p in FILM_PROFILES if p.aim_density]
-    chk("sixteen stocks carry a published aim density",
-        len(_aim) == 16, f"{len(_aim)}: " + ", ".join(p.name for p in _aim))
+    # ⚠ 16 -> 17 ON 2026-10-07: KODAK_EKTAR_100, E-4046 (2016) p3 «JUDGING
+    # NEGATIVE EXPOSURES» -- Kodak's four-area table, identical to PORTRA 400's.
+    chk("seventeen stocks carry a published aim density",
+        len(_aim) == 17, f"{len(_aim)}: " + ", ".join(p.name for p in _aim))
     # ⚠ 13 -> 16 ON 2026-09-06e, AND THE THREE NEW ONES ARE A DIFFERENT SHAPE
     # OF STATEMENT. Every entry here was Kodak's until now, and Kodak publishes
     # four readings per exposure index: a grey card, a paper grey scale and a
@@ -8344,7 +8370,7 @@ if _sec_on():
     # calling the same law, and (b) it is closer than the single Gaussian it
     # replaced -- because if it ever stops being closer, the whole change was
     # pointless and should be reverted rather than kept.
-    _KTOL = 0.045
+    _KTOL = 0.030   # 2026-10-06 (G5): worst served row is 0.0267 (Technical Pan); was 0.045
     _kq = sorted({round(p.mtf.mtf_rolloff_q, 4) for p in FILM_PROFILES
                   if p.mtf.mtf_measured and p.mtf.mtf_rolloff_q > 0.0})
     _fk = np.logspace(-1.3, 0.9, 600)
@@ -8384,38 +8410,45 @@ if _sec_on():
         _kworst < 0.5 * _gworst,
         "kernel %.4f vs Gaussian %.4f" % (_kworst, _gworst))
 
-    # ⚠ THE THREE-LOBE TABLE EXISTS FOR EXPONENTS THE TWO-LOBE ONE CANNOT
-    # REACH, AND THIS ASSERTS THAT IT IS NOT USED FOR ANYTHING ELSE. Every q it
-    # carries must be ABSENT from the two-lobe table (otherwise a stock would
-    # silently change path and change pixels), must be OUTSIDE that table's
-    # range (otherwise a two-lobe row should have been fitted instead), and its
-    # own two-lobe best fit must actually FAIL the tolerance -- which is the
-    # measured justification for spending three lobes rather than two.
+    # ⚠ 2026-10-06 (owner decision G5): THE THREE-LOBE TABLE IS NOW THE
+    # DEFAULT WHEREVER IT FITS THE LAW BETTER. This replaces the 2026-09 guard
+    # that kept it for exponents the two-lobe family could not reach. What must
+    # hold now: each stored exponent lives in exactly ONE served table; a q
+    # served by two lobes is already at the 0.010 target; a q served by three
+    # lobes beats its two-lobe fit by >= 0.002, keeps every weight inside +-2
+    # (no large cancelling pair in float), and stays under its ceiling (0.016
+    # for q 1.50-1.70, Technical Pan's own 0.027). mtf_kernel_fit.check is the
+    # one implementation of the rule; this calls it.
+    import mtf_kernel_fit as _mkf
     _t2 = film_profiles._MTF_KERNEL_TABLE
     _t3 = film_profiles._MTF_KERNEL_TABLE3
+    _t2fit = film_profiles._MTF_KERNEL_TABLE2_FIT
     _3bad = []
     for _q3, _row in sorted(_t3.items()):
         if _q3 in _t2:
-            _3bad.append("q %.4f is in BOTH tables" % _q3); continue
-        if min(_t2) <= _q3 <= max(_t2):
-            _3bad.append("q %.4f is inside the two-lobe table's range %.2f-%.2f"
-                         % (_q3, min(_t2), max(_t2)))
-        _tg = 1.0 / (1.0 + _fk ** _q3)
-        _best = 9.9
-        for _w in np.linspace(0.02, 1.10, 55):
-            for _a in np.linspace(0.05, 1.2, 40):
-                for _b2 in np.linspace(1.0, 9.0, 41):
-                    _f2 = (_w * np.exp(-_l2 * (_fk * _a) ** 2)
-                           + (1.0 - _w) * np.exp(-_l2 * (_fk * _b2) ** 2))
-                    _best = min(_best, float(np.max(np.abs(_f2 - _tg))))
-        if _best <= _KTOL:
-            _3bad.append("q %.4f reaches %.4f on TWO lobes, inside %.3f -- it "
-                         "does not need three" % (_q3, _best, _KTOL))
-    chk("every three-lobe row is one the two-lobe family genuinely cannot "
-        "serve, and no stock changes path because the table exists",
-        not _3bad and _n3 == len(_t3),
-        "; ".join(_3bad) if _3bad
-        else "%d row(s), %d stock exponent(s) routed to them" % (len(_t3), _n3))
+            _3bad.append("q %.4f is in BOTH served tables" % _q3); continue
+        if not _mkf.weights_ok(_row):
+            _3bad.append("q %.4f: a lobe weight exceeds +-%.1f" % (_q3, _mkf.WMAX))
+        _e3 = _mkf.err3(_q3, _row)
+        if _q3 in _t2fit:
+            _e2 = _mkf.err2(_q3, _t2fit[_q3])
+            if _e3 > _e2 - _mkf.ROUTE_MARGIN:
+                _3bad.append("q %.4f: three lobes %.4f do not beat two lobes %.4f by %.3f"
+                             % (_q3, _e3, _e2, _mkf.ROUTE_MARGIN))
+        _ceil = _mkf.KNOWN_CEILING.get(_q3, _mkf.LOW_Q_CEIL)
+        if _e3 > _ceil:
+            _3bad.append("q %.4f: three-lobe error %.4f over %.4f" % (_q3, _e3, _ceil))
+    for _q2, _row in sorted(_t2.items()):
+        if _mkf.err2(_q2, _row) > _mkf.TARGET + 0.0006:
+            _3bad.append("q %.4f stays on two lobes at %.4f, above the %.3f target"
+                         % (_q2, _mkf.err2(_q2, _row), _mkf.TARGET))
+    chk("each stored exponent is served by exactly one kernel table, three lobes "
+        "wherever they beat two by 0.002 (|w| <= 2), two lobes only where already "
+        "at the 0.010 target (G5, 2026-10-06)",
+        not _3bad and _n3 == sum(1 for _q in _kq if _q in _t3),
+        "; ".join(_3bad[:3]) if _3bad
+        else "%d three-lobe row(s), %d stock exponent(s) routed to them, %d on two lobes"
+        % (len(_t3), _n3, sum(1 for _q in _kq if _q in _t2)))
 
     # ⚠ THE TABLE IS NOT INTERPOLATABLE AND THE GUARD SAYS SO. Two disjoint
     # optimal basins straddle q ~ 3.0: below it the tight lobe is small
@@ -8509,8 +8542,11 @@ if _sec_on():
             min(v[1][2] - v[1][0] for v in _P55_NEW.values()),
             max(v[1][2] - v[1][0] for v in _P55_NEW.values())))
 
-    _lo = [v[0] for k, v in film_profiles._MTF_KERNEL_TABLE.items() if k < 3.05]
-    _hi = [v[0] for k, v in film_profiles._MTF_KERNEL_TABLE.items() if k >= 3.05]
+    # The basins are a property of the TWO-LOBE FITS (all rows, kept in
+    # _MTF_KERNEL_TABLE2_FIT since the G5 routing of 2026-10-06), not of the
+    # three rows still served by two lobes.
+    _lo = [v[0] for k, v in film_profiles._MTF_KERNEL_TABLE2_FIT.items() if k < 3.05]
+    _hi = [v[0] for k, v in film_profiles._MTF_KERNEL_TABLE2_FIT.items() if k >= 3.05]
     chk("the kernel table's two basins are separated, so it cannot be "
         "interpolated across q = 3.05",
         bool(_lo) and bool(_hi) and max(_lo) < 0.5 and min(_hi) > 0.95,
@@ -9574,8 +9610,11 @@ if _sec_on():
     # both profiles keep it, as for 800Z / NPZ above.
     # ⚠ 45 -> 49 ON 2026-10-01d (batch item 3): «Современные»'s own D-nom /
     # D-min panels on the four stocks that had no dye record at all.
-    chk("exactly 49 stocks carry a neutral+dmin pair",
+    # ⚠ 49 -> 50 ON 2026-10-07: KODAK_EKTAR_100, E-4046 (2016) p4 panel E4046C,
+    # traced by kodak_e4046_2016.py. Drawn to 685 nm, stored 405-680 nm.
+    chk("exactly 50 stocks carry a neutral+dmin pair",
         sorted(_pairs) == sorted([
+                   "KODAK_EKTAR_100",
                    "AGFA_VISTA_200", "KODAK_PORTRA_100T",
                    "KODAK_ULTRA_COLOR_400UC", "KODAK_PROFOTO_100",
                    "KODAK_EKTAPRESS_PJ100", "KODAK_EKTAPRESS_PJ800",
@@ -12500,8 +12539,10 @@ if _sec_on():
     # the same E-116 page 4 table. The note above said they "are not in this
     # database yet -- see queue P91"; they are now, and the queue row is closed
     # by doing the work rather than by carrying it.
-    chk("16 film profiles carry a published Print Grain Index",
-        len(_pgi) == 16, "%d: %s" % (len(_pgi), ", ".join(
+    # ⚠ 16 -> 17 ON 2026-10-07: KODAK_EKTAR_100, E-4046 (2016) p3 -- 135
+    # <25 / 38 / 66, 120 <25 / <25 / 38, both sheet sizes <25 throughout.
+    chk("17 film profiles carry a published Print Grain Index",
+        len(_pgi) == 17, "%d: %s" % (len(_pgi), ", ".join(
             sorted(p.name for p in _pgi))))
     _pgi_bad = [f"{p.name} {v}" for p in _pgi
                 for t in (p.print_grain_index.fmt_135,
@@ -13681,10 +13722,18 @@ if _sec_on():
     # 3106 -> 3215 TAGGED AND 6508 -> 6617 WITH A VESSEL ON 2026-10-01e: the
     # new KODAK_HIE's 109 tabled points (Табл. 3.283-3.285), every one with
     # a Kodak CI, a vessel and its table as edition.
-    chk("7270 development points across 55 stocks -- 1893 carrying a measured "
-        "contrast, 5377 carrying a temperature instead, 3215 tagged with the "
+    # ⚠ 7270 -> 7375, 55 -> 60 STOCKS, 1893 -> 1904 CONTRAST-CARRYING ON
+    # 2026-10-07: the ROLLEI folder review's 105 points on five stocks (R3,
+    # INFRARED 400, RETRO 400 and the new PAN 25 / SUPERPAN 200). Contrast only
+    # where measured -- PAN 25's seven traced G-bars and SUPERPAN's four fitted
+    # 2007 zone tables; the gamma-0.65 TARGET tables are stored time-only (see
+    # ROLLEI_DEV_POINTS). No vessel, no edition tag.
+    # ⚠ 7375 -> 7385, 60 -> 61, 1904 -> 1914 THE SAME DAY: AGFA_AVIPHOT_PAN_400S's
+    # ten printed (EAFS, average gradient, fog) cells, every one with a contrast.
+    chk("7385 development points across 61 stocks -- 1914 carrying a measured "
+        "contrast, 5471 carrying a temperature instead, 3215 tagged with the "
         "emulsion generation or figure they measure, and 6617 naming their vessel",
-        _n_pts == 7270 and len(_pf) == 55 and _n_ct == 1893 and _n_ed == 3215
+        _n_pts == 7385 and len(_pf) == 61 and _n_ct == 1914 and _n_ed == 3215
         and sum(1 for p in _pf for q in p.processing_family.points
                 if q.vessel) == 6617
         and all((q.contrast_index > 0.0 or q.gamma > 0.0)
@@ -13881,7 +13930,8 @@ if _sec_on():
         and len(film_profiles.SOVREMENNYE_2004_COMMERCIAL_TABLES) == 28
         and "round(q.contrast_index, 4)" in _kn_src
         and set(_kn_ci) == (_kn_new - {"AGFA_APX_100", "AGFA_APX_400"})
-        | {"ORWOCOLOR_NC3"}
+        | {"ORWOCOLOR_NC3", "ROLLEI_PAN_25",   # + PAN 25, 2026-10-07: its own sheet's D-76 G-bars
+           "AGFA_AVIPHOT_PAN_400S"}            # + Agfa 01/2006 average gradients, same day
         and _kn_fam.get("AGFA_AVIPHOT_PAN_20") is None,
         "%d curves, %d points, %d stocks; CI-family stocks %s"
         % (len(_kn), sum(len(_r[10]) for _r in _kn), len({_r[0] for _r in _kn}),
@@ -13944,7 +13994,8 @@ if _sec_on():
                        == len(get_profile(n).mtf.combined_response) >= 10
                        and get_profile(n).mtf.mtf_measured
                        and abs(get_profile(n).mtf.mtf_rolloff_q - _cm[n][6]) < 1e-9
-                       and film_profiles.mtf_kernel(_cm[n][6]) is not None)]
+                       and (film_profiles.mtf_kernel(_cm[n][6]) is not None
+                            or film_profiles.mtf_kernel3(_cm[n][6]) is not None))]
     _uc = get_profile("KODAK_ULTRA_COLOR_400UC").mtf
     chk("G-COMBINED-MTF  seven colour stocks printed with ONE combined MTF curve "
         "store it and render its ROLL-OFF EXPONENT; the five whose f50 were "
@@ -15380,9 +15431,12 @@ if _sec_on():
         # class -- so F2b stays live on that point only.
         # ⚠ 65 -> 66 ON 2026-10-01e: KODAK_HIE («Современные» prints no
         # granularity at all, only «среднее зерно»), on the same default.
-        len(_mono_neg) == 66
-        and sum(1 for g in _mono_neg if g.sigma_shape_dmax > 1.0) == 65,
-        "66 B&W negatives keep 0.4/1.0/1.2 on the legacy law; the rise is now "
+        # ⚠ 66 -> 68 ON 2026-10-07: ROLLEI_PAN_25 and ROLLEI_SUPERPAN_200
+        # (neither Rollei sheet prints a granularity-versus-density curve).
+        # ⚠ 68 -> 69: AGFA_AVIPHOT_PAN_400S (one RMS, no sigma(D) curve).
+        len(_mono_neg) == 69
+        and sum(1 for g in _mono_neg if g.sigma_shape_dmax > 1.0) == 68,
+        "69 B&W negatives keep 0.4/1.0/1.2 on the legacy law; the rise is now "
         "supported by the two measured B&W negatives (Smith 1980), which are "
         "not generalised to a class (queue F2b)")
     chk("both measured REVERSALS rise, and the reversal default now rises too",
@@ -17430,7 +17484,10 @@ if _sec_on():
             # developer, not a spelling, and recorded as such.
             # ⚠ 30 -> 31 ON 2026-10-01e: KODAK_HIE, stated D-76 and a family
             # holding D-76 rows -- it joins the agreeing majority.
-            len(_both) == 31 and len(_mismatch) == 8
+            # ⚠ 31 -> 33 ON 2026-10-07: ROLLEI_PAN_25 and ROLLEI_SUPERPAN_200,
+            # both AGREEING (each curve's «Kodak D-76» is in its own family).
+            # ⚠ 33 -> 34: AGFA_AVIPHOT_PAN_400S, agreeing (G 74 c on both sides).
+            len(_both) == 34 and len(_mismatch) == 8
             and "ILFORD_PAN_F" not in _mismatch
             and "FERRANIA_P30" in _mismatch,
             "%d stocks hold both; %d differ only in spelling: %s"
@@ -18042,7 +18099,10 @@ if _sec_on():
             # §2.4 figure, document-read, not a class band. The guard keeps
             # its meaning: no BAND midpoint is on any profile, and the only
             # densities are those four.
-            len(_ah_pos) == 36
+            # ⚠ 36 -> 37 ON 2026-10-07: ROLLEI_R3, whose product information
+            # puts a water-soluble antihalation coating directly on the base
+            # (undercoat) and prints no density for it.
+            len(_ah_pos) == 37
             and sorted(_ah_od) == sorted(_fpm.GOST_24876_BASE)
             and _fpm._AH_OD_WRITTEN_TO_PROFILES is False,
             "%d stocks name a position, %d carry a density"
@@ -19204,6 +19264,14 @@ if _sec_on():
                             or (_eng / "AVX2" / _inc).is_file()
                             or (_f.parent / _inc).is_file()):
                         continue
+                    # 2026-10-06: the owner's FFT library (fft_*.hpp) is an
+                    # EXTERNAL dependency, delivered beside the archives; it
+                    # must resolve there (engine_env.FFT_INCLUDE), and its
+                    # absence is a failure like any other missing header.
+                    if (_inc.startswith("fft_") and engine_env.FFT_INCLUDE
+                            is not None
+                            and (engine_env.FFT_INCLUDE / _inc).is_file()):
+                        continue
                     _missing.append("%s -> %s" % (_f.name, _inc))
             chk("G-ENGINE-INCLUDES  every #include in the engine tree resolves "
                 "to a file that exists -- the check that would have caught "
@@ -19754,8 +19822,11 @@ if _sec_on():
                 _why_sc = ("no g++/clang++ on PATH and the engine tree IS "
                            "present -- this guard cannot be skipped quietly")
             else:
+                # AlgoFrequency.cpp since 2026-10-06: Algo_09_Sim.cpp's DIR
+                # coupler blurs are the frequency-domain filter now.
                 _tus_sc = ("test_scratch_guard.cpp", "Algo_09_Sim.cpp",
-                           "AlgoDefectField.cpp", "AlgoSeparableBlur.cpp")
+                           "AlgoDefectField.cpp", "AlgoSeparableBlur.cpp",
+                           "AlgoFrequency.cpp")
 
                 with _tf_sc.TemporaryDirectory() as _td_sc:
                     _exe_sc = _os.path.join(_td_sc, "scratchprobe")

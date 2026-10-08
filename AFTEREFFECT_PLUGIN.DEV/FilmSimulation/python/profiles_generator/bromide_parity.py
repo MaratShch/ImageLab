@@ -62,13 +62,15 @@ import numpy as np
 
 import film_profiles as fp
 import film_sim as fs
+import engine_env  # noqa: F401 -- owner FFT include path for engine compiles (2026-10-06)
 
 HERE = Path(__file__).resolve().parent
 
 #: The plugin's own translation units. `Algo_09_Sim.cpp` holds stages 9, 9b and
 #: 9c in one file, so its whole link closure comes along: stage 9's separable
 #: blur and stage 9b's particulate field. Neither is exercised here.
-PLUGIN_TUS = ("Algo_09_Sim.cpp", "AlgoSeparableBlur.cpp", "AlgoDefectField.cpp")
+PLUGIN_TUS = ("Algo_09_Sim.cpp", "AlgoSeparableBlur.cpp", "AlgoDefectField.cpp",
+              "AlgoFrequency.cpp")   # stage 9 blurs in the frequency domain since 2026-10-06
 
 #: One negative and one reversal. The kind is the only profile property stage 9c
 #: branches on, and it branches on it in the one line that decides which side of
@@ -253,8 +255,12 @@ def build_probe(root: Path, tmp: Path, avx2: bool):
             hdr = root / "AVX2" / "AlgoTypes.hpp"
             if not hdr.is_file():
                 return None
-            (stage / "AlgoTypes.hpp").unlink()
-            (stage / "AlgoTypes.hpp").symlink_to(hdr.resolve())
+            # Every AVX2 header overlays its scalar namesake (AlgoTypes.hpp, and
+            # since 2026-10-06 AlgoFftLane.hpp, the FFT lane selection).
+            for f in (root / "AVX2").glob("*.hpp"):
+                if (stage / f.name).exists() or (stage / f.name).is_symlink():
+                    (stage / f.name).unlink()
+                (stage / f.name).symlink_to(f.resolve())
         inc = [str(stage), str(root), str(HERE)]
         tu_root = root / "AVX2"
         flags += ["-mavx2", "-mfma"]
@@ -264,8 +270,16 @@ def build_probe(root: Path, tmp: Path, avx2: bool):
         p = tu_root / t
         if not p.is_file():
             p = root / t                    # AVX2 does not re-implement them all
-        if not p.is_file():
-            return None
+            if not p.is_file():
+                return None
+            if avx2:
+                # ⚠ A SHARED TU COMPILED FROM THE SCALAR DIRECTORY RESOLVES ITS
+                # QUOTED INCLUDES THERE FIRST -- AlgoType would come out double.
+                # Compile it through a link in the overlay directory instead.
+                link = stage / t
+                if not link.exists():
+                    link.symlink_to(p.resolve())
+                p = link
         tus.append(str(p))
     tus += [str(HERE / "film_profiles.cpp"), str(HERE / "LoadFilmDataBase.cpp")]
     tus += [str(p) for p in sorted(HERE.glob("film_profiles_data_*.cpp"))]

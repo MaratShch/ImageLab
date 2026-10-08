@@ -124,6 +124,11 @@ def render(header: Path) -> str:
     pvr = parse_enum(src, "ProcessVariantCtrl")
     pvr_keys = parse_key_table(src, "ProcessVariantCtrlKey")
     pvr_lbls = parse_label_table(src, "ProcessVariantCtrlStr")
+    # 2026-10-06 (owner decision G6): the grain temporal mode, a C++ control
+    # since that date and a film_sim option before it.
+    gtm = parse_enum(src, "GrainTemporalModeCtrl")
+    gtm_keys = parse_key_table(src, "GrainTemporalModeCtrlKey")
+    gtm_lbls = parse_label_table(src, "GrainTemporalModeCtrlStr")
 
     # The TOTAL sentinels are a C++ counting idiom and are not selectable.
     fmt_sel = [(n, v) for n, v in fmt if not n.endswith("TOTAL_FORMATS")]
@@ -136,10 +141,12 @@ def render(header: Path) -> str:
     # shift the other twenty-one by one. TOTAL_PROCESSES is still a COUNT and
     # still has neither a key nor a label.
     pvr_sel = [(n, v) for n, v in pvr if n != "TOTAL_PROCESSES"]
+    gtm_sel = [(n, v) for n, v in gtm if not n.endswith("_TOTAL")]
     for what, sel, keys, lbls in (
         ("film format", fmt_sel, fmt_keys, fmt_lbls),
         ("print stock", prn_sel, prn_keys, prn_lbls),
         ("process variant", pvr_sel, pvr_keys, pvr_lbls),
+        ("grain temporal mode", gtm_sel, gtm_keys, gtm_lbls),
     ):
         if not (len(sel) == len(keys) == len(lbls)):
             raise SystemExit(
@@ -150,7 +157,7 @@ def render(header: Path) -> str:
     consts = parse_constants(src)
     known = {i: t for i, t, _ in consts}
     enums = {"FilmFormatCtrl": dict(fmt), "PrintStockCtrl": dict(prn),
-             "ProcessVariantCtrl": dict(pvr)}
+             "ProcessVariantCtrl": dict(pvr), "GrainTemporalModeCtrl": dict(gtm)}
 
     L: list[str] = []
     w = L.append
@@ -218,6 +225,22 @@ def render(header: Path) -> str:
     w("        return PROCESS_VARIANT_LABEL.get(int(self), \"As shipped\")")
     w("")
     w("")
+    w("class GrainTemporalModeCtrl(IntEnum):")
+    w('    """How stage 11 grain moves between frames (still | motion | frozen)."""')
+    w("")
+    for n, v in gtm:
+        w(f"    {n} = {v}")
+    w("")
+    w("    @property")
+    w("    def key(self) -> str:")
+    w('        """The film_sim grain_temporal_mode string."""')
+    w("        return GRAIN_TEMPORAL_MODE_KEY.get(int(self), \"\")")
+    w("")
+    w("    @property")
+    w("    def label(self) -> str:")
+    w("        return GRAIN_TEMPORAL_MODE_LABEL.get(int(self), \"\")")
+    w("")
+    w("")
     w("#: dupeStock draws on the same catalogue as printStock.")
     w("DupeStockCtrl = PrintStockCtrl")
     w("")
@@ -248,6 +271,16 @@ def render(header: Path) -> str:
     w("")
     w("PROCESS_VARIANT_LABEL: dict[int, str] = {")
     for (n, v), k in zip(pvr_sel, pvr_lbls):
+        w(f"    {v}: {k!r},")
+    w("}")
+    w("")
+    w("GRAIN_TEMPORAL_MODE_KEY: dict[int, str] = {")
+    for (n, v), k in zip(gtm_sel, gtm_keys):
+        w(f"    {v}: {k!r},")
+    w("}")
+    w("")
+    w("GRAIN_TEMPORAL_MODE_LABEL: dict[int, str] = {")
+    for (n, v), k in zip(gtm_sel, gtm_lbls):
         w(f"    {v}: {k!r},")
     w("}")
     w("")
@@ -294,6 +327,20 @@ def render(header: Path) -> str:
     w("        return PROCESS_VARIANT_KEY.get(int(value), \"\")")
     w("    except (TypeError, ValueError):")
     w("        return \"\"")
+    w("")
+    w("")
+    w("def grain_temporal_mode_key(value) -> str:")
+    w('    """Resolve a control value to film_sim\'s grain_temporal_mode string.')
+    w("")
+    w("    Accepts the enumerator, its integer value, or the string itself. An")
+    w('    unrecognised value yields "still", the default both engines clamp to.')
+    w('    """')
+    w("    if isinstance(value, str):")
+    w("        return value")
+    w("    try:")
+    w("        return GRAIN_TEMPORAL_MODE_KEY.get(int(value), \"still\")")
+    w("    except (TypeError, ValueError):")
+    w("        return \"still\"")
     w("")
     w("")
     w("def print_stock_key(value) -> str:")

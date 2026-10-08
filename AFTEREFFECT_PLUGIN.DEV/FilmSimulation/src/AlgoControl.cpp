@@ -490,6 +490,12 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     // host may render out of order.
     controls.seed       = 12345;
 
+    // 2026-10-06 (owner decisions G4, G6): the two reference options the C++
+    // engines now execute too. Both default to the reference's defaults, so a
+    // default render is unchanged to the bit.
+    controls.spectralTaking    = SpectralTakingDef;          // film_sim: spectral_taking = False
+    controls.grainTemporalMode = GrainTemporalModeCtrlDef;   // film_sim: grain_temporal_mode = "still"
+
     // ----------------------------------------------------------------------
     //  Damage: OFF, with the working set still populated by getFilmDamageDefault().
     //
@@ -629,6 +635,9 @@ AlgoControls AlgoControlsClamped (const AlgoControls& in, const int32_t profileC
     c.coatingScale  = algoClampCtl(c.coatingScale,  CoatingScaleMin,  CoatingScaleMax,  CoatingScaleDef);
     c.flare         = algoClampSentinel(c.flare,    FlareMin,    FlareMax,    FlareSentinel);
     c.vignette      = algoClampSentinel(c.vignette, VignetteMin, VignetteMax, VignetteSentinel);
+    c.grainTemporalMode = algoClampEnum(c.grainTemporalMode,
+                        static_cast<int32_t>(GrainTemporalModeCtrl::eGRAIN_TEMPORAL_TOTAL),
+                        GrainTemporalModeCtrlDef);
 
     FilmDamage& d = c.damage;
     d.damageStrength    = algoClampCtl(d.damageStrength,    DamageStrengthMin,    DamageStrengthMax,    DamageStrengthDef);

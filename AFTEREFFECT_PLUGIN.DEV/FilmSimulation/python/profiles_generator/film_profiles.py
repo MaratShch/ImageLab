@@ -11471,6 +11471,15 @@ class ReciprocityTable:
     metered time and the additional exposure the manufacturer specifies, in
     stops.
 
+    ⚠ TWO TIME AXES ARE IN USE (owner decision 2026-10-07). The Kodak, Fuji
+    and Konica entries are stored as printed, on the METERED-time axis. The
+    HARMAN (2026-10-07) and ROLLEI (2026-10-07) entries are stored on the
+    ACTUAL-exposure-time axis: (Tc, stops an uncompensated Tc-second exposure
+    lacks), an exact re-expression of the printed pairs, because that is the
+    quantity ``film_sim.reciprocity_log_shift`` applies at the shutter time it
+    is given. Each such entry says so in its ``source``. Moving the metered-axis
+    entries onto the same axis is an open item (NotFound.md), not done here.
+
     ⚠ A ONE-POINT TABLE WHOSE ONLY CORRECTION IS 0.0 IS A BOUND, NOT A NULL
     RESULT, and six stocks now carry exactly that shape (schema v15,
     2026-08-26). It means "the manufacturer states that NO correction is
@@ -17175,7 +17184,10 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(42.2, 42.2, 42.2, adjacency=0.3072, adjacency_um=48.65,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.3072 / 48.65 um, solved against the separable kernel);
+        # renders 1.2500 at 4.10 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(42.2, 42.2, 42.2, adjacency=0.2996, adjacency_um=49.78,
                     mtf_rolloff_q=2.88, mtf_measured=True),
         spectral_weights=(0.32, 0.47, 0.21),
         misregistration_um=0.0,
@@ -17773,7 +17785,10 @@ FILM_PROFILES: tuple[FilmProfile, ...] = (
 # the 4-20 c/mm band only: every stock still passes 50 % at its own measured
 # f50, and every rolloff law and q is untouched. Nothing else in the schema
 # moves and no C++ source changes -- both engines read these constants.
-mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
+# 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+# renderers now apply (was 0.0581 / 34.4 um, solved against the separable kernel);
+# renders 1.0340 at 4.60 c/mm, the sheet's printed peak (verify A4/T2).
+mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0691, adjacency_um=32.15,
                     mtf_rolloff_q=1.84, mtf_measured=True),
         spectral_weights=(0.27, 0.54, 0.19),
         misregistration_um=0.0,
@@ -21182,7 +21197,10 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # c/mm, rising from 1.047 at 1.5 c/mm; its f50 40.9 c/mm agrees with the sheet's 39.8 to 3 %.
         # Solved against the engine kernel (A4): 0.1644 / 37.80 um.
         mtf=MTFSpec(35.7, 39.8, 42.8, mtf_rolloff_q=3.50, mtf_measured=True,
-                    adjacency=0.1644, adjacency_um=37.80,
+                    # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+                    # renderers now apply (was 0.1644 / 37.8 um, solved against the separable kernel);
+                    # renders 1.1520 at 5.79 c/mm, the sheet's printed peak (verify A4/T2).
+                    adjacency=0.1827, adjacency_um=34.99,
                     resolving_power_lp_mm_lowc=60.0,
                     resolving_power_lp_mm_highc=140.0),
         # [T3] `emulsion.grain_um` 1.6 um, ADOPTED 2026-09-07 from the
@@ -21614,7 +21632,10 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # 1.115 at 5.77 c/mm -- a RESOLVED peak. Solved against the engine kernel: 0.1457 / 32.91 um. The
         # vector trace's own f50 is 48.3, agreeing with the stored 47.6 to 1.5 %.
         mtf=MTFSpec(42.7, 47.6, 51.2, mtf_rolloff_q=3.07, mtf_measured=True,
-                    adjacency=0.1457, adjacency_um=32.91,
+                    # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+                    # renderers now apply (was 0.1457 / 32.91 um, solved against the separable kernel);
+                    # renders 1.1150 at 5.77 c/mm, the sheet's printed peak (verify A4/T2).
+                    adjacency=0.1391, adjacency_um=34.84,
                     resolving_power_lp_mm_lowc=55.0,
                     resolving_power_lp_mm_highc=135.0),
         push=PushSpec(max_push_stops=1.0, max_pull_stops=0.5,
@@ -23295,7 +23316,10 @@ mtf=MTFSpec(41.3, 41.3, 41.3, adjacency=0.0581, adjacency_um=34.40,
         # from 1.002 at 1.02 c/mm to 1.229 at 8.33 c/mm, so the adjacency peak is RESOLVED and solved (A4,
         # against the engine kernel): 0.2495 / 26.24 um.
         mtf=MTFSpec(43.85, 48.85, 52.57, mtf_rolloff_q=3.73, mtf_measured=True,
-                    adjacency=0.2495, adjacency_um=26.24),
+                    # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+                    # renderers now apply (was 0.2495 / 26.24 um, solved against the separable kernel);
+                    # renders 1.2290 at 8.33 c/mm, the sheet's printed peak (verify A4/T2).
+                    adjacency=0.2748, adjacency_um=24.37),
         push=PushSpec(max_push_stops=1.0, max_pull_stops=0.5,
                       source="Fuji Photo Film U.S.A., «FUJIFILM PROFESSIONAL DATA GUIDE», Ref. No. AF3-207U (2005), PDF p60 (printed p120) push/pull table: RVP (ISO 50) usable EI 35 to 100 (-1/2 to +1)"),
         halation=HalationSpec(
@@ -24406,7 +24430,10 @@ mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.08),
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(27.2, 42.1, 60.9, adjacency=0.0849, adjacency_um=16.06,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.0849 / 16.06 um, solved against the separable kernel);
+        # renders 1.0300 at 7.80 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(27.2, 42.1, 60.9, adjacency=0.0716, adjacency_um=16.4,
                     mtf_rolloff_q=2.39, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(9.0, 46.0, 210.0),
@@ -27615,16 +27642,33 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "crystals, super-panchromatic to ~730 nm. On glass-clear "
             "polyester with no grey base -- which is why its highlights "
             "bloom: nothing between emulsion and air but supercoat. "
-            "SOURCE : gamma 0.65 dev"
-            "target, 100 lp/mm at EI 400 (300 at EI 25, 1000:1), base+fog "
-            "~0.25-0.30 from the curve, full reciprocity table (60 s "
-            "metered -> 350 s), filter factors, clear PET 100 um."
+            "SOURCE (Rollei/MACO product information, October 2004): "
+            "development times for gamma 0.65, 100 lp/mm at ISO 400 (300 at "
+            "ISO 25, 1000:1), characteristic curve p9 (base+fog 0.27-0.28, "
+            "traced 2026-10-07), reciprocity table p12 (60 s metered -> "
+            "350 s), filter factors, clear undyed PET 100 um (sheet 175 um), "
+            "antihalation layer coated directly on the base."
         ),
         era="2000s-2010s",
         is_monochrome=True,
         exposure_index=400,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.28, 0.650, -1.35, 0.28, 1.60, 0.36)),
+        # ✅ [T1] CURVE TRACED 2026-10-07 from the product information p9
+        # «Characteristic curve», a VECTOR path (one line + four Béziers) on a
+        # 0.3 log H x 0.5 D grid, axis «log Hrel» 0.0-4.2, «Density» 0-3.00.
+        # Gridline calibration 54.0 pt per log H, 60.5 pt per D. The page
+        # names no developer for the curve; p14 states that the tabled times
+        # «hold for a gamma of 0.65» and the trace's own Ilford-style G-bar
+        # (fog + 0.10, 1.5 log H further) is 0.70 -- consistent. Straight-line
+        # slope 0.89-0.91. Base + fog shelf 0.27-0.28 (fit held >= 0.27; the
+        # free fit wanders to 0.248 by bending the shelf). Fit rms 0.0084 D,
+        # max 0.015 D, over 0-4.2 log H; D 2.65 at 4.2 with no shoulder drawn,
+        # so shoulder_x is an extrapolation. x RE-ORIGINED by -2.69 log H
+        # (ROLLEI_CURVE_X_SHIFT) so fog + 0.10 sits at -1.60, the monochrome
+        # median, as the Ilford and AVIPHOT traces were. Replaces the
+        # estimated (0.28, 0.650, -1.35, 0.28, 1.60, 0.36), whose gamma was
+        # the p14 development target typed in as a slope.
+        curves=_mono(ToneCurve(0.2700, 0.9288, -1.3222, 0.3139, 1.4451, 0.3489)),
         grain=GrainSpec(15.0, 4.839, 4.839, 4.839, clump_gain=1.05, fog_grain=0.24),
         mtf=MTFSpec(50.0, 50.0, 50.0, adjacency=0.06),
         spectral_weights=(0.32, 0.40, 0.28),
@@ -27634,6 +27678,19 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                               gain_r=0.10, gain_g=0.09, gain_b=0.08),
         misregistration_um=0.0,
         features=Feature.NONE,
+        # ✅ [T1] SUPPORT 2026-10-07, product information p8 «Film base»: 35 mm
+        # and roll film «Polyester, undyed, 100µm», sheet film 175 µm, with
+        # «non-curling» back coating; p5: «the antihalation coating is applied
+        # directly below the emulsion», p14: «water-soluble antihalation
+        # layer». base_um holds the 35 mm figure; it feeds the v34/v59
+        # halation geometry (replacing the 127 µm acetate class default).
+        base=BaseSpec(base_type="polyester",
+                      antihalation="dyed_undercoat",
+                      source="Rollei/MACO R3 product information, Oct 2004, p8 (undyed PET 100 um) and p5/p14 (AH undercoat)"),
+        emulsion=EmulsionSpec(
+            base_um=100.0, base_material="polyester",
+            antihalation="dyed_undercoat",
+            source="[T1] Rollei/MACO R3 product information, Oct 2004, p8: polyester, undyed, 100 um (sheet 175 um); p5/p14: AH undercoat, water-soluble"),
         # Spectral curve [T1-digitised 2026-08-02, agent batch 3]: Rollei
         # R3 product information (21.10.2004), 'Relative speed' log axis.
         # Superpanchromatic: response to ~715 nm. Plot starts 400 nm;
@@ -27654,15 +27711,36 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "820 nm; EI 400 unfiltered, a real EI 25 behind a 715 nm "
             "filter for the Wood-effect look. Clear polyester base, and "
             "the sheet itself markets the AURA halation glow. SOURCE "
-            ": RMS 11.0 (Refinal)"
-            "160 lp/mm at 1000:1, no reciprocity correction to 1/2 s, "
-            "7.5 um emulsion on 100 um clear PET."
+            "(Rollei sheet Oct 2005, confirmed by the MACO R210701 sheet of "
+            "2021): RMS 11 (x1000, Refinal 5 min 20 C), 160 lp/mm at "
+            "1000:1, no reciprocity correction 1/10,000 to 1/2 s, 7.5 um "
+            "layer on 100 um clear PET; characteristic curve traced "
+            "2026-10-07. 2021 sheet: nominal ISO 200-400, IR filter 715 "
+            "(88A) factor 16-32."
         ),
         era="2005-present",
         is_monochrome=True,
         exposure_index=400,
         balance_kelvin=5500,
-        curves=_mono(ToneCurve(0.16, 0.700, -1.28, 0.26, 1.55, 0.35)),
+        # ✅ [T1] CURVE TRACED 2026-10-07 from the October 2005 sheet p2
+        # «Characteristic diagram», a RASTER (the sheet's one embedded image,
+        # 1033 x 345 px, stored vertically flipped), «Density» 0-3.0 against
+        # «lg exposure (Lx·s)» -4.0 to +2.0, gridlines every 0.5 on both
+        # axes (60.0 px per log H, 59.7 px per D; worst gridline residual
+        # 0.016 log H, 0.004 D). 195 columns traced (gridline columns and
+        # merged runs skipped). No developer is named for the curve. Base +
+        # fog 0.15-0.16 (fit held >= 0.145). Fit rms 0.021 D, max 0.041 D:
+        # the drawn curve has a second, gentler inflection near D 1.0 that a
+        # five-parameter softplus cannot follow, so the toe is softer in the
+        # fit (fit G-bar 0.37 against 0.43 on the trace itself). Straight-
+        # line slope about 0.78. x RE-ORIGINED by +0.79 log H
+        # (ROLLEI_CURVE_X_SHIFT) so the fit's fog + 0.10 sits at -1.60.
+        # ⚠ ON THE SHEET'S ABSOLUTE AXIS fog + 0.10 falls at lg H = -2.2 to
+        # -2.4 lx·s, i.e. 0.8 / Hm = ISO 130-200 -- below the printed ISO 400
+        # (the 2021 sheet prints ISO 200-400). Recorded, not corrected:
+        # exposure_index stays the nominal 400 both sheets print.
+        # Replaces the estimated (0.16, 0.700, -1.28, 0.26, 1.55, 0.35).
+        curves=_mono(ToneCurve(0.1450, 0.7210, -0.9000, 0.5564, 2.3522, 0.2425)),
         grain=GrainSpec(11.0, 4.516, 4.516, 4.516, clump_gain=1.00, fog_grain=0.20),
         mtf=MTFSpec(58.0, 58.0, 58.0, adjacency=0.05),
         spectral_weights=(0.52, 0.20, 0.28),
@@ -27672,6 +27750,19 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
                               gain_r=0.12, gain_g=0.10, gain_b=0.08),
         misregistration_um=0.0,
         features=Feature.NONE,
+        # ✅ [T1] SUPPORT 2026-10-07: «Accurate, tear-proof clear polyester
+        # material, 100µm, 35mm, rollfilm and cut sheet film material» (2005
+        # p2) and «cast on a crystal clear polyester base of 100 µm» (2021
+        # p2). Feeds the v34/v59 halation geometry. ⚠ ANTIHALATION LEFT
+        # SILENT ON A CONFLICT: the 2005 layer list is «protective layer +
+        # emulsion layer + polyester base» with no AH layer (and markets the
+        # AURA halation effect), the 2021 «LAYER STRUCTURE» lists an
+        # «Antihalation layer (AHU)». Two editions, not reconciled here.
+        base=BaseSpec(base_type="polyester",
+                      source="Rollei INFRARED sheet Oct 2005 p2; MACO R210701 p2-3 (PET); AH layer: none listed 2005, listed 2021"),
+        emulsion=EmulsionSpec(
+            coated_um=7.5, base_um=100.0, base_material="polyester",
+            source="[T1] Rollei INFRARED sheet Oct 2005 p2 (7.5 um layer, 100 um PET); confirmed by MACO R210701 p2"),
         # Spectral curve [T1-digitised 2026-08-02, agent batch 3]: Rollei
         # Infrared TDS (October 2005), 'lg Sensitivity'; IR-extended grid
         # to 830 nm; scanned source, +/-0.05 lg noise; 380/390
@@ -27694,19 +27785,41 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             "'retro' of the name. Triacetate base (the one Rollei here NOT "
             "on clear PET). SOURCE :"
             "380-630 nm, 110 lp/mm, 10 um layer, push to EI 800; no RMS "
-            "or gamma printed."
+            "or gamma printed. RMS 14 adopted from AGFA_APX_400 (owner "
+            "decision 2026-10-07: Retro 400 = Agfa APX 400 master rolls)."
         ),
         era="2000s-2010s",
         is_monochrome=True,
         exposure_index=400,
         balance_kelvin=5500,
         curves=_mono(ToneCurve(0.18, 0.680, -1.28, 0.26, 1.52, 0.35)),
-        grain=GrainSpec(17.0, 5.484, 5.484, 5.484, clump_gain=1.15, fog_grain=0.24),
+        # ✅ rms 14 [T2] BY OWNER DECISION 2026-10-07: ROLLEI RETRO 400 (2008)
+        # was Agfa APX 400 master stock rebranded, so APX 400's printed RMS 14
+        # (Agfa «Technical Data PF» 09/1998 p10, diffuse D 1.0, Vλ; aperture
+        # 48 µm per that document's p5) is stored. The Rollei sheet prints no
+        # RMS. Corroborated on this database's own records: identical base
+        # (135 120 µm / 120 95 µm), layer 10 µm, 110 lp/mm, ISO 400, and the
+        # Retro 400 spectral plot matches AGFA_APX_400's to rms 0.036 log over
+        # 400-650 nm (APX 100 0.13, HP5 PLUS 0.24). Replaces the estimate 17.0.
+        # Clump triple unchanged (still the estimate scaled from 17).
+        grain=GrainSpec(14.0, 5.484, 5.484, 5.484, clump_gain=1.15, fog_grain=0.24),
         mtf=MTFSpec(46.0, 46.0, 46.0, adjacency=0.05),
         # Short red cutoff -> red-starved weights; the retro tonality.
         spectral_weights=(0.16, 0.44, 0.40),
         misregistration_um=0.0,
         features=Feature.NONE,
+        # ✅ [T1] SUPPORT 2026-10-07, sheet p2 «Film base: 35mm = 120µm,
+        # rollfilm = 95µm, cellulose triacetate»; «Layer thickness: RETRO 400
+        # - 10µm». base_um holds the 35 mm figure (schema rule) and feeds the
+        # v34/v59 halation geometry, replacing the 127 µm class default.
+        # Antihalation not written: the emulsion-side list «emulsion coating,
+        # antihalation coating, protective layer» names an AH coating but its
+        # order does not say on which side of the emulsion it lies.
+        base=BaseSpec(base_type="cellulose triacetate",
+                      source="Rollei RETRO 100/400 sheet Jan 2008 p2: triacetate 120 / 95 um"),
+        emulsion=EmulsionSpec(
+            coated_um=10.0, base_um=120.0, base_material="cellulose triacetate",
+            source="[T1] Rollei RETRO 100/400 sheet Jan 2008 p2: triacetate 120 um (135) / 95 um (120); layer 10 um"),
         # Spectral curve [T1-digitised 2026-08-02, agent batch 3]: Rollei
         # Retro 100/400 TDS (January 2008) -- the sheet prints SEPARATE
         # plots per film; the Retro 400 plot was digitised. Matches the
@@ -27717,6 +27830,151 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
             criterion="relative_log",
             source=("Rollei GmbH, 'ROLLEI RETRO 100/400' technical data "
                     "sheet, January 2008"),
+        ),
+    ),
+    # ---- 2026-10-07, ROLLEI folder review (owner decision: these two only) ----
+    FilmProfile(
+        name="ROLLEI_PAN_25",
+        aliases=("rollei pan 25", "pan 25", "pan25"),
+        description=(
+            "[T2] Rollei PAN 25 (MACO, sheet of October 2005): ISO 25/15 "
+            "panchromatic 'thin-section document emulsion' on a crystal-clear "
+            "100 um PET base, sensitised 400-650 nm, one stop of speed reserve "
+            "by development. Curve traced from the sheet's own D-76 family "
+            "(10 min at 21 C stored, G-bar 0.65; 4 / 6 / 8 min recorded). ⚠ THE SHEET PRINTS NO RMS, NO "
+            "RESOLVING POWER, NO MTF AND NO SPECTRAL PLOT: grain and sharpness "
+            "are [T3] analogies with AGFA_APX_25. Not the 2021 RPX 25, which "
+            "is a separate product with its own sheet."
+        ),
+        era="2000-2009 (Rollei / MACO; sheet October 2005)",
+        is_monochrome=True,
+        exposure_index=25,
+        balance_kelvin=5500,
+        # ✅ [T1] CURVE TRACED 2026-10-07 from the sheet p2 «Caracteristic
+        # diagram», left panel «PAN 25 Entwicklung Kodak D 76, 4 min - 6 min -
+        # 8 min - 10 min bei 21°C», a RASTER assembled from nine 433 x 38 px
+        # strips (433 x 341 px), «Dichte» 0-3.00 against «log Hrel» 0-4.2,
+        # gridlines 0.3 log H x 0.5 D (92.0 px per log H, 88.7 px per D). All
+        # four curves traced by continuity (335-339 columns each); the
+        # right panel (LP Supergrain 1+7, 2 / 4 / 8 min) too -- all seven fits
+        # in ROLLEI_CURVE_FITS. STORED: D-76 10 min at 21 C, whose Ilford-
+        # style G-bar is 0.650 -- the contrast Rollei's own documents define
+        # as standard («a gamma of 0.65», R3 sheet p14; «average contrast of
+        # γ = 0.65», every R210701 sheet). Fit rms 0.0049 D, max 0.019 D;
+        # base + fog 0.063-0.067; D 2.00 at 4.2 log H. ⚠ CONFLICT RECORDED,
+        # NOT RESOLVED: the 2009 Rollei table gives D-76 stock 5 min at 20 C
+        # for «medium contrast», and on this sheet's own curves 4-6 min at
+        # 21 C reach only G-bar 0.48-0.54 (4 / 6 / 8 / 10 min: 0.48 / 0.54 /
+        # 0.58 / 0.65). Either the table's contrast aim is lower or its D-76 is
+        # not the panel's (the panel prints no dilution). x RE-ORIGINED by
+        # -2.90 log H (ROLLEI_CURVE_X_SHIFT) so fog + 0.10 sits at -1.60.
+        curves=_mono(ToneCurve(0.0633, 0.7632, -1.5226, 0.2427, 1.3338, 0.4013)),
+        # [T3] rms 7.0 and the clump triple are AGFA_APX_25's (ISO 25 thin-
+        # emulsion panchromatic negative of the same years): the PAN 25 sheet
+        # prints «finest grain» and no number.
+        grain=GrainSpec(7.0, 1.613, 1.613, 1.613, clump_gain=0.55, fog_grain=0.14),
+        # [T3] f50 78.7 c/mm = AGFA_APX_25's; the sheet prints «very good
+        # resolving power and a high edge sharpness» and no number.
+        mtf=MTFSpec(78.7, 78.7, 78.7, adjacency=0.05),
+        # [T3] AGFA_APX_25's panchromatic triple. The sheet states only
+        # «spectral sensitization 400 - 650nm» (no plot), so the 650 nm red
+        # limit is not modelled beyond this authored weighting.
+        spectral_weights=(0.28, 0.56, 0.16),
+        # [T3] gains as ROLLEI_R3 (same MACO clear-PET construction with an
+        # antihalation coating); radii are derived from the support below.
+        halation=HalationSpec(radii_um=(15.0, 110.0, 450.0),
+                              weights=(0.30, 0.50, 0.20),
+                              gain_r=0.10, gain_g=0.09, gain_b=0.08),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.NONE,
+        base=BaseSpec(base_type="polyester",
+                      source="Rollei PAN 25 sheet Oct 2005 p2: polyester 100 um"),
+        emulsion=EmulsionSpec(
+            base_um=100.0, base_material="polyester",
+            source="[T1] Rollei PAN 25 sheet Oct 2005 p2: polyester 100 um"),
+    ),
+    FilmProfile(
+        name="ROLLEI_SUPERPAN_200",
+        aliases=("rollei superpan", "superpan", "superpan 200",
+                 "superpan 200 pro", "super pan 200"),
+        description=(
+            "[T2] Rollei SUPERPAN 200 (MACO): ISO 200/24 +-1 stop "
+            "superpanchromatic negative with extended red to 750 nm (usable "
+            "behind an IR filter), RMS 14, 180 lp/mm, 10 um layer on a "
+            "crystal-clear 100 um PET base, lower blue sensitivity (2021 "
+            "R210701 sheet). Spectral curve traced from that sheet. ⚠ THE "
+            "CHARACTERISTIC CURVE IS THIRD-PARTY [T2]: no Rollei sheet prints "
+            "one, so it is fitted to the zone-density table of a signed 2007 "
+            "test ('Superpan 200 pro', D-76 1+1, 20 C, 17 min, rated 100 "
+            "daylight), whose Finol rows the 2021 sheet reprints."
+        ),
+        era="2007-present (MACO; sheets 2007 test, R210701 2021)",
+        is_monochrome=True,
+        exposure_index=200,
+        balance_kelvin=5500,
+        # ✅ [T2] CURVE FROM A THIRD-PARTY TABLE 2026-10-07: Superpan.pdf p7
+        # «100ASA daylight D76 1+1 20°C 17 minutes», densities above base fog
+        # at zones 0-X printed to two decimals: 0.03 0.10 0.22 0.37 0.58 0.82
+        # 1.05 1.25 1.41 1.51 1.59. Zones are one stop apart (0.301 log H);
+        # zone V = metered grey. ⚠ dmin 0.07 IS [T3]: the article prints base
+        # + fog only as «0.07 to 0.16 (depending on the developer)» and 0.16
+        # for the staining Tanol Speed; D-76 does not stain, so the low end is
+        # used. Fit rms 0.0068 D, max 0.014 D; G-bar 0.63 (all eight tables
+        # in ROLLEI_CURVE_FITS, G-bar 0.55-0.68). The article's own words:
+        # «pronounced S-curve», highlights flatten -- the fitted shoulder is
+        # in the measured range. x RE-ORIGINED by -1.90 log H
+        # (ROLLEI_CURVE_X_SHIFT) so fog + 0.10 sits at -1.60. ⚠ EQUIVALENCE
+        # OF THE 2007 AND 2021 MATERIAL IS ASSUMED, ON EVIDENCE: same name,
+        # same clear base and IR capability, and the 2021 sheet's Moersch
+        # Finol rows (160/23 11:50, 250/25 12:30) are the 2007 article's
+        # (160 daylight 11:30, 250 tungsten 12:30).
+        curves=_mono(ToneCurve(0.0700, 0.9557, -1.2873, 0.3299, 0.4582, 0.4310)),
+        # ✅ rms 14 [T1] «Extra fine grain - grain size RMS (× 1000) = 14»
+        # (2021 p2; aperture and density not printed). Clump triple [T3] as
+        # ROLLEI_INFRARED_400 (the same RMS class on the same MACO PET).
+        grain=GrainSpec(14.0, 4.516, 4.516, 4.516, clump_gain=1.00, fog_grain=0.20),
+        # [T3] f50 65 c/mm: ROLLEI_INFRARED_400's estimate scaled by the
+        # printed resolving powers 180 / 160. ✅ 180 lp/mm [T1] (2021 p2
+        # «Resolving power = 180 lp/mm», target contrast not stated).
+        mtf=MTFSpec(65.0, 65.0, 65.0, adjacency=0.05,
+                    resolving_power_lp_mm_highc=180.0),
+        # Authored fallback only: monochrome + traced pan curve, so both
+        # engines integrate the curve unless the gamut-reach guard refuses it.
+        spectral_weights=(0.32, 0.40, 0.28),
+        # [T3] gains as ROLLEI_R3; radii derived from the support below.
+        halation=HalationSpec(radii_um=(15.0, 110.0, 450.0),
+                              weights=(0.30, 0.50, 0.20),
+                              gain_r=0.10, gain_g=0.09, gain_b=0.08),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.NONE,
+        # ✅ [T1] SUPPORT, ON A RESOLVED CONFLICT: the 2021 FACTS list prints
+        # «Film base PET 100 micron» and «crystal clear PET base material»;
+        # the overview table on p5 says «clear Triacetate» and the p3 layer
+        # list «Carrier Acetate». The p3 list is BOILERPLATE: the RPX 25
+        # sheet of the same revision prints the identical «Carrier Acetate»
+        # beside its own FACTS «Crystal clear 100 mμ polyester support». The
+        # two explicit FACTS statements (and the 2007 article's «The carrier
+        # of the film is clear») are adopted.
+        base=BaseSpec(base_type="polyester",
+                      source="MACO SUPERPAN 200 sheet R210701 p2: PET 100 um (p5 says triacetate; p3 layer list is boilerplate)"),
+        emulsion=EmulsionSpec(
+            coated_um=10.0, base_um=100.0, base_material="polyester",
+            source="[T1] MACO SUPERPAN 200 sheet R210701 p2: layer 10 um, PET 100 um"),
+        # ✅ [T1] TRACED 2026-10-07 from the 2021 sheet p3 «SPECTRAL
+        # SENSITIVITY», a VECTOR path (nine Béziers), x 300-800 nm (23.17 pt
+        # per 50 nm, worst tick residual 0.08 nm), y 0-2.0 unlabelled; the
+        # sister RPX 400 sheet names this axis «lg sens.». Trace 338.7-776.9
+        # nm, peak 1.809 at 731 nm, stored peak-normalised. The curve meets
+        # the plot floor (0.0) at both ends; 780 nm is the -4.00 cut marker
+        # this file uses past a plotted end. Matches the printed «extended
+        # infrared range up to 750nm» and «lower blue sensitivity».
+        spectral=SpectralSensitivity(
+            lambda_start_nm=340.0, lambda_step_nm=10.0,
+            log_s_pan=(-1.73, -1.30, -1.01, -0.80, -0.66, -0.56, -0.50, -0.46, -0.43, -0.42, -0.43, -0.45, -0.47, -0.48, -0.49, -0.50, -0.50, -0.49, -0.45, -0.39, -0.30, -0.22, -0.15, -0.10, -0.08, -0.08, -0.11, -0.12, -0.12, -0.16, -0.20, -0.23, -0.22, -0.18, -0.14, -0.16, -0.17, -0.12, -0.05, -0.00, -0.08, -0.36, -0.82, -1.40, -4.00),
+            criterion="relative_log",
+            source="Hans O. Mahn GmbH & Co. KG / MACO PHOTO PRODUCTS, «ROLLEI SUPERPAN 200» DATA SHEET, revision R210701 (July 2021), 6 pp, p3 SPECTRAL SENSITIVITY (vector trace 2026-10-07)",
         ),
     ),
     FilmProfile(
@@ -27741,13 +27999,18 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         misregistration_um=0.0,
         # -- schema v7 carrier, INERT -- measured reciprocity vs TIME ----------
         # CALCULATED FROM THE PUBLISHED FORMULA, not digitised from the graph.
-        # Ta = Tm^1.26 gives an added exposure of 0.26*log2(Tm) stops, hence 0 at 1 s,
-        # 0.517 at 10 s and 1.591 at 100 s. No CC filters: this is a monochrome film,
+        # ⚠ 2026-10-07: Ta = Tm^1.26 means the film integrates t^(1/1.26), so the
+        # loss at exposure time t is (1 - 1/1.26) * log2(t): 0.685 at 10 s, 1.371
+        # at 100 s (the old 0.517 / 1.591 matched no formula). No CC filters: this is a monochrome film,
         # so failure is achromatic by construction and cc_filters stays empty.
         reciprocity_table=ReciprocityTable(
-            times_s=(1.0, 10.0, 100.0),
-            stops_correction=(0.0, 0.517, 1.591),
-            source=("HARMAN technology Limited, 'KENTMERE PAN 100 -- Technical Information', July 2022, p1: 'The graph is based on the formulae Ta = Tm^1.26', with no correction required between 1 s and 1/10 000 s. The corrections tabulated here are CALCULATED from that published formula, not read off the graph: stops = log2(Tm^1.26 / Tm) = 0.26 * log2(Tm)"),
+            # ⚠ CORRECTED 2026-10-07: was (1, 10, 100 s) -> (0.0, 0.517, 1.591), ~40 % light and not
+            # reproducing its own stated arithmetic (see the note at _grain_v2's
+            # neighbour). Re-derived from HARMAN's Dec 2023 reciprocity sheet, P 1.26:
+            # loss = (1 - 1/P) * log2(t) stops at the exposure time.
+            times_s=(1.0, 10.0, 100.0, 1000.0, 10000.0),
+            stops_correction=(0.0, 0.6855, 1.371, 2.0564, 2.7419),
+            source=("HARMAN technology Limited, 'KENTMERE PAN 100 -- Technical Information', July 2022, p1: 'The graph is based on the formulae Ta = Tm^1.26', with no correction required between 1 s and 1/10 000 s. CONFIRMED by HARMAN technology Limited, «FILM RECIPROCITY FAILURE COMPENSATION -- How to allow for low intensity reciprocity failure during long exposures with ILFORD black and white films», Technical Information, 1 p, Dec 2023, table «FACTORS FOR ILFORD FILMS»: K100 P = 1.26. Loss at the exposure time = (1 - 1/P) * log2(t) stops, DERIVED (2026-10-07); the earlier text 'stops = 0.26 * log2(Tm)' was the time multiplier, and the earlier stored values matched neither"),
         ),
         features=Feature.NONE,
     ),
@@ -27774,9 +28037,13 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # CALCULATED from the published Ta = Tm^1.30: 0.30*log2(Tm) stops.
         # Monochrome, so no CC filters -- achromatic failure.
         reciprocity_table=ReciprocityTable(
-            times_s=(1.0, 10.0, 100.0),
-            stops_correction=(0.0, 0.599, 1.845),
-            source=("HARMAN technology Limited, 'KENTMERE PAN 400 -- Technical Information', July 2022, p1: 'The graph is based on the formulae Ta = Tm^1.30'. Corrections CALCULATED as 0.30 * log2(Tm), not digitised"),
+            # ⚠ CORRECTED 2026-10-07: was (1, 10, 100 s) -> (0.0, 0.599, 1.845), ~40 % light and not
+            # reproducing its own stated arithmetic (see the note at _grain_v2's
+            # neighbour). Re-derived from HARMAN's Dec 2023 reciprocity sheet, P 1.30:
+            # loss = (1 - 1/P) * log2(t) stops at the exposure time.
+            times_s=(1.0, 10.0, 100.0, 1000.0, 10000.0),
+            stops_correction=(0.0, 0.7666, 1.5332, 2.2998, 3.0664),
+            source=("HARMAN technology Limited, 'KENTMERE PAN 400 -- Technical Information', July 2022, p1: 'The graph is based on the formulae Ta = Tm^1.30'. CONFIRMED by HARMAN technology Limited, «FILM RECIPROCITY FAILURE COMPENSATION -- How to allow for low intensity reciprocity failure during long exposures with ILFORD black and white films», Technical Information, 1 p, Dec 2023, table «FACTORS FOR ILFORD FILMS»: K400 P = 1.30. Loss at the exposure time = (1 - 1/P) * log2(t) stops, DERIVED (2026-10-07)"),
         ),
         features=Feature.NONE,
     ),
@@ -28147,7 +28414,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(37.2, 83.8, 100.5, adjacency=0.0857, adjacency_um=11.97,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.0857 / 11.97 um, solved against the separable kernel);
+        # renders 1.0480 at 12.90 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(37.2, 83.8, 100.5, adjacency=0.0761, adjacency_um=12.45,
                     mtf_rolloff_q=2.38, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -28311,7 +28581,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(37.4, 75.1, 111.2, adjacency=0.1157, adjacency_um=12.38,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.1157 / 12.38 um, solved against the separable kernel);
+        # renders 1.0690 at 12.90 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(37.4, 75.1, 111.2, adjacency=0.1014, adjacency_um=13.02,
                     mtf_rolloff_q=2.51, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -28741,7 +29014,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(35.4, 68.8, 74.0, adjacency=0.2183, adjacency_um=16.73,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.2183 / 16.73 um, solved against the separable kernel);
+        # renders 1.1620 at 11.00 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(35.4, 68.8, 74.0, adjacency=0.1998, adjacency_um=17.81,
                     mtf_rolloff_q=2.94, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -29046,7 +29322,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(32.1, 49.7, 55.5, adjacency=0.2012, adjacency_um=15.98,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.2012 / 15.98 um, solved against the separable kernel);
+        # renders 1.1570 at 10.70 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(32.1, 49.7, 55.5, adjacency=0.198, adjacency_um=17.69,
                     mtf_rolloff_q=3.23, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(12.0, 62.0, 320.0),
@@ -29281,7 +29560,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(37.6, 54.6, 69.7, adjacency=0.0446, adjacency_um=15.55,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.0446 / 15.55 um, solved against the separable kernel);
+        # renders 1.0140 at 7.70 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(37.6, 54.6, 69.7, adjacency=0.0315, adjacency_um=16.89,
                     mtf_rolloff_q=2.50, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -29367,7 +29649,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # rolloff attenuates it, so it must be larger. Two measurements, two parameters,
         # solved exactly. Full derivation and the refusal of the red records: see
         # EASTMAN_PLUS_X_5231.
-        mtf=MTFSpec(33.9, 58.1, 67.4, adjacency=0.1888, adjacency_um=11.35,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.1888 / 11.35 um, solved against the separable kernel);
+        # renders 1.1100 at 13.70 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(33.9, 58.1, 67.4, adjacency=0.1511, adjacency_um=12.65,
                     mtf_rolloff_q=3.06, mtf_measured=True),
         halation=HalationSpec(
             radii_um=(14.0, 70.0, 360.0),
@@ -31054,7 +31339,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # 8 c/mm at rms 0.0603 against the Gaussian's 0.1213.
         # ✅ A4 adjacency SOLVED against the kernel the engine convolves: the panel RESOLVES its
         # overshoot, 1.068 at 4.94 c/mm, rising from 1.041 at its first sample.
-        mtf=MTFSpec(39.11, 43.57, 46.89, mtf_rolloff_q=1.87, mtf_measured=True, adjacency=0.0979, adjacency_um=35.53,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.0979 / 35.53 um, solved against the separable kernel);
+        # renders 1.0680 at 4.94 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(39.11, 43.57, 46.89, mtf_rolloff_q=1.87, mtf_measured=True, adjacency=0.1069, adjacency_um=33.96,
                     resolving_power_lp_mm_lowc=80.0, resolving_power_lp_mm_highc=160.0),
         # [T3] halation, couplers and misregistration by ANALOGY with FUJI_VELVIA_50.
         halation=HalationSpec(radii_um=(7.0, 36.0, 160.0), gain_r=0.05, gain_g=0.02, gain_b=0.006, threshold_stops=2.3),
@@ -31149,7 +31437,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # 8 c/mm at rms 0.0612 against the Gaussian's 0.1272.
         # ✅ A4 adjacency SOLVED against the kernel the engine convolves: the panel RESOLVES its
         # overshoot, 1.068 at 4.94 c/mm, rising from 1.041 at its first sample.
-        mtf=MTFSpec(39.11, 43.57, 46.89, mtf_rolloff_q=1.84, mtf_measured=True, adjacency=0.0982, adjacency_um=35.44,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.0982 / 35.44 um, solved against the separable kernel);
+        # renders 1.0680 at 4.94 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(39.11, 43.57, 46.89, mtf_rolloff_q=1.84, mtf_measured=True, adjacency=0.1087, adjacency_um=33.72,
                     resolving_power_lp_mm_lowc=80.0, resolving_power_lp_mm_highc=160.0),
         # [T3] halation, couplers and misregistration by ANALOGY with FUJI_VELVIA_50.
         halation=HalationSpec(radii_um=(7.0, 36.0, 160.0), gain_r=0.05, gain_g=0.02, gain_b=0.006, threshold_stops=2.3),
@@ -31806,7 +32097,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # 8 c/mm at rms 0.0641 against the Gaussian's 0.0778.
         # ✅ A4 adjacency SOLVED against the kernel the engine convolves: the panel RESOLVES its
         # overshoot, 1.141 at 8.15 c/mm, rising from 1.112 at its first sample.
-        mtf=MTFSpec(50.11, 55.83, 60.08, mtf_rolloff_q=2.83, mtf_measured=True, adjacency=0.1889, adjacency_um=22.69,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.1889 / 22.69 um, solved against the separable kernel);
+        # renders 1.1410 at 8.15 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(50.11, 55.83, 60.08, mtf_rolloff_q=2.83, mtf_measured=True, adjacency=0.1742, adjacency_um=24.01,
                     resolving_power_lp_mm_lowc=63.0, resolving_power_lp_mm_highc=125.0),
         # [T3] halation, couplers and misregistration by ANALOGY with FUJICOLOR_PRO_400H.
         halation=HalationSpec(gain_r=0.042, gain_g=0.015, gain_b=0.005, threshold_stops=2.0),
@@ -34500,7 +34794,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # the newer sheet describes the current product. The overshoot is taken
         # from F-32 because F-4016's panel was traced for f50 only and this one
         # resolves the peak.
-        mtf=MTFSpec(123.0, 123.0, 123.0, adjacency=0.1111, adjacency_um=13.05,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.1111 / 13.05 um, solved against the separable kernel);
+        # renders 1.1100 at 18.25 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(123.0, 123.0, 123.0, adjacency=0.1324, adjacency_um=11.07,
                     mtf_rolloff_q=3.63, mtf_measured=True),
         # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
         # 111 points, 7 developers, 18/20/21/22/24 degC, from
@@ -34854,7 +35151,10 @@ grain=GrainSpec(6.6, 3.387, 3.71, 4.355, clump_gain=0.28, fog_grain=0.20,
         # quoted. ⚠ THE OVERSHOOT IS THE ONE THING THE BOOK PANEL CANNOT GIVE:
         # it is a raster reproduction and its low-frequency end is where its
         # scan noise lives, so the lift is taken from the vector sheet.
-        mtf=MTFSpec(98.7, 98.7, 98.7, adjacency=0.2069, adjacency_um=26.45,
+        # 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+        # renderers now apply (was 0.2069 / 26.45 um, solved against the separable kernel);
+        # renders 1.1680 at 7.53 c/mm, the sheet's printed peak (verify A4/T2).
+        mtf=MTFSpec(98.7, 98.7, 98.7, adjacency=0.2056, adjacency_um=26.54,
                     mtf_measured=True, mtf_rolloff_q=2.163),
         # ⚠ DEVELOPMENT TIME AGAINST DEVELOPER AND TEMPERATURE --
         # 126 points, 9 developers, 18/20/21/22/24 degC, from
@@ -37341,7 +37641,10 @@ grain=GrainSpec(5.5, 1.935, 2.129, 2.581, clump_gain=0.20, fog_grain=0.15),
 #   ⚠ VERIFIED ON THE --overlay RENDER before adoption: the traced points sit on
 # the printed curves over the whole drawn extent, and the R/G/B assignment
 # matches the panel's own printed record labels.
-mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2426, adjacency_um=18.81,
+# 2026-10-06 (FFT): adjacency pair RE-SOLVED against the exact law the three
+# renderers now apply (was 0.2426 / 18.81 um, solved against the separable kernel);
+# renders 1.1830 at 9.70 c/mm, the sheet's printed peak (verify A4/T2).
+mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.226, adjacency_um=20.1,
             mtf_rolloff_q=3.10, mtf_measured=True),
         couplers=CouplerSpec(0.20, 48.0, 0.10, 10.0),
         dye_matrix=_dye(-0.13),
@@ -37424,9 +37727,19 @@ mtf=MTFSpec(35.5, 52.7, 54.8, adjacency=0.2426, adjacency_um=18.81,
         # ⚠ NOT clump_um_* -- that is the mean DEVELOPED CLUMP diameter and
         # depends on development gamma and on density. No conflict exists:
         # this field is new in v17 and was empty on every stock.
+        # ✅ [T1] BASE ADDED 2026-10-07 from E-4046 p1 «SIZES AVAILABLE»: 135
+        # (code 5110) 0.13 mm (0.005 inch) acetate; 120 (6110) 0.10 mm (0.004
+        # inch) acetate; sheets 0.19 mm (0.007 inch) KODAK ESTAR Thick Base.
+        # base_um is the 135 figure by schema rule, replacing the 127.0 um
+        # Glafkides class default the v29 pass had written; the support
+        # thickness feeds the v34 halation geometry, so the halation radii
+        # move by the ratio 130/127.
         emulsion=EmulsionSpec(
             grain_um=1.8,
-            source=("FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, key ektar_100, harvested 2026-08-27; archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. TIER 3 -- hand-authored engine values, NOT a manufacturer specification and NOT a measurement (assessment: NotFound.md 7.1). Adopted under the owner rule of 2026-08-27: where a parameter is OUR OWN ESTIMATE and no T1 datasheet or T2 book figure exists, the one published third-party number is preferred over an in-house analogy. size_microns."),
+            base_um=130.0,
+            base_material="acetate",
+            source=("[T1] base_um 130 / base_material acetate: Eastman Kodak Company, «KODAK PROFESSIONAL EKTAR 100 Film», E-4046 (February 2016) p1 «SIZES AVAILABLE» -- 135: 0.13 mm (0.005 inch) acetate; 120: 0.10 mm acetate; sheets: 0.19 mm KODAK ESTAR Thick Base.  ||  "
+                    "FilmLab Pro v2.1 published-data engine, https://filmlabpro.com/published-data, key ektar_100, harvested 2026-08-27; archived verbatim in doc/thirdparty/filmlabpro_harvest_2026-08-27.json. TIER 3 -- hand-authored engine values, NOT a manufacturer specification and NOT a measurement (assessment: NotFound.md 7.1). Adopted under the owner rule of 2026-08-27: where a parameter is OUR OWN ESTIMATE and no T1 datasheet or T2 book figure exists, the one published third-party number is preferred over an in-house analogy. size_microns."),
         ),
         # [T3] THE REST OF THE HARVEST, kept VERBATIM in the source's own
         # units. None of these can enter an observable field without a units
@@ -39378,6 +39691,89 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             ),
             reference_developer="G 74 c", reference_dilution="stock",
             source="Agfa-Gevaert N.V., «AVIPHOT PAN 20 PE0» technical data sheet, January 2009 (the PDF's metadata title reads «AVIPHOT PAN 80»; its text is the PAN 20 PE0 sheet throughout), p2 legend (fog / Gev / Gr at 20, 42, 70 s) and p1 speed line (16 / 22 / 27 EAFS). All three points are machine-processed in a Gevatone 66 continuous-tone processor, which is not a vessel in the DevelopmentPoint vocabulary (drum / tank / tray), so `vessel` stays empty and the machine is named here. ⚠ NO RATE LAW: contrast falls with time on this sheet, which no Mees-Sheppard law can fit",
+        ),
+    ),
+    # ---- 2026-10-07, owner request: Agfa-Gevaert's AVIPHOT PAN 400S PE1 aerial film ----
+    FilmProfile(
+        name="AGFA_AVIPHOT_PAN_400S",
+        aliases=("aviphot pan 400s", "aviphot pan 400s pe1", "aviphot 400s"),
+        description=(
+            "[T1] Agfa aerial panchromatic negative to 750 nm, two-layer emulsion, 0.10 mm "
+            "PET (PE1); RMS 14 @ 50 um, 161 / 40.3 lp/mm, MTF printed; G 74 c 30 C, 42 s "
+            "(sheet 01/2006). Speed is EAFS (400 at 42 s), not ISO."
+        ),
+        era="2006 (Agfa-Gevaert sheet 01/2006)",
+        is_monochrome=True,
+        exposure_index=400,
+        balance_kelvin=5500,
+        # ✅ [T1] CURVE TRACED 2026-10-07 from p4 «Characteristic curves (20, 42 and 70 seconds)
+        # in :Gevatone 66, G 74 c developer, 30 °C», a RASTER (946 x 580 px) on a 0.3 log It x
+        # 0.3 D grid, x = «Absolute log It = (value x-axis) - 3». All three curves traced by
+        # continuity (351 / 518 / 516 columns); the 42 s curve, the sheet's reference
+        # processing, is stored. The drawing starts at x = 0 already above fog, so dmin is
+        # the PRINTED fog 0.09 of the 42 s table and is held there. Fit rms 0.020 D, max
+        # 0.045 D; minimum float32 step -4.6e-6 D per 0.002 log E (verify allows -1e-5).
+        # Ilford-style G-bar of the fit 0.84 against Agfa's printed «Average gradient» 0.90
+        # (definition not printed; 0.87 on the trace between fog + 0.2 and fog + 1.2). x
+        # RE-ORIGINED by -1.66 log It (AVIPHOT_400S_CURVE_X_SHIFT) so fog + 0.10 sits at
+        # -1.60, as AVIPHOT PAN 20's was. 20 s and 70 s fits in ROLLEI_CURVE_FITS' sibling
+        # AVIPHOT_400S_CURVE_FITS.
+        curves=_mono(ToneCurve(0.0900, 0.8757, -1.7042, 0.0681, 1.5668, 0.6553)),
+        # ✅ rms 14 PRINTED «RMS granularity calculated from a micro-densitometric scan with
+        # 50 µm spot: RMS = 14 at Density = 1» (p3; Gevatone 66, G 74 c, 30 C, 42 s). STORED
+        # CONVERTED to the 48 um convention as AVIPHOT PAN 20's was: 14 x (50/48) = 14.58.
+        # ⚠ Clump triple and gain [T3] as ROLLEI_INFRARED_400 (same RMS class, same support).
+        grain=GrainSpec(14.58, 4.516, 4.516, 4.516, clump_gain=1.00, fog_grain=0.20),
+        # ✅ f50 77.8 lp/mm [T1] TRACED from p2 «Photographic Modulation Transfer Function»
+        # (raster 946 x 464 px; 42 s, G 74 c, 30 C): an Excel line chart with a CATEGORICAL
+        # frequency axis -- 2 / 5 / 10 / 20 / 40 / 60 / 80 lp/mm at equal spacing -- and a log
+        # «% modulation performance» axis. Read at the seven vertices: 124 / 124 / 129 / 132 /
+        # 104 / 71 / 47 %; f50 by linear interpolation 60 -> 80. ⚠ THE OVERSHOOT IS NOT
+        # SOLVED INTO adjacency: the peak (132 % near 20 lp/mm) is only known to lie between
+        # the 10 and 40 lp/mm vertices, and the curve sits at 124 % already at 2 lp/mm, which
+        # the DoG lift (zero at f = 0) cannot express. adjacency stays 0 and the printed
+        # points are in the profile's ParamSource. Resolving power [T1] in _RESOLVING_POWER.
+        mtf=MTFSpec(77.8, 77.8, 77.8,
+                    resolving_power_lp_mm_lowc=40.3, resolving_power_lp_mm_highc=161.0),
+        # Authored fallback only: both engines integrate the traced curve at run time
+        # (the gamut-reach guard passes it -- its maximum is in the UV), giving about
+        # (0.37, 0.31, 0.32).
+        spectral_weights=(0.32, 0.40, 0.28),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.NONE,
+        base=BaseSpec(base_type="polyester", guaranteed_shelf_life_months=36,
+                      source="Agfa-Gevaert N.V., AVIPHOT PAN 400S sheet 01/2006, p1 (PE1 0.10 mm polyester) and p7 (36 months at 8 C)"),
+        emulsion=EmulsionSpec(
+            base_um=100.0, base_material="polyester",
+            source="[T1] Agfa-Gevaert N.V., AVIPHOT PAN 400S sheet 01/2006, p1: PE1 0.10 mm polyester"),
+        # ✅ [T1] TRACED 2026-10-07 from p2 «Absolute spectral sensitivity», raster 942 x 584 px:
+        # reciprocal of the exposure (mJ/m2) for diffuse D 1.0 above fog, Gevatone 66 / G 74 c
+        # / 30 C / 42 s. Grid 56 px per 50 nm, 65 px per 0.5 log. Trace 302-818 nm; absolute
+        # peak log S 3.33 at 312 nm (a UV maximum; 3.24 at 665 nm), stored normalised to the
+        # 10 nm grid's maximum (310 nm, 3.32).
+        # Panchromatic «up to 750 nm» with a shelf at 700-720 nm.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=300.0, lambda_step_nm=10.0,
+            log_s_pan=(-0.08, 0.00, -0.06, -0.05, -0.06, -0.04, -0.03, -0.07, -0.10, -0.08, -0.09, -0.12, -0.13, -0.14, -0.16, -0.18, -0.22, -0.28, -0.35, -0.40, -0.40, -0.37, -0.31, -0.25, -0.22, -0.20, -0.19, -0.17, -0.16, -0.16, -0.18, -0.19, -0.19, -0.17, -0.14, -0.11, -0.08, -0.09, -0.16, -0.40, -0.67, -0.69, -0.73, -0.90, -1.17, -1.68, -2.03, -2.26, -2.46, -2.67, -2.86, -3.06, -3.19),
+            criterion="log_reciprocal_mJ_m2_D1.0_above_fog",
+            source="Agfa-Gevaert N.V., «AVIPHOT PAN 400S PE1/PE0» technical data sheet, January 2006, p2 Absolute spectral sensitivity (raster trace 2026-10-07)",
+        ),
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.3333, celsius=30.0, contrast_index=0.57, exposure_index=200, base_fog=0.08),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.7, celsius=30.0, contrast_index=0.90, exposure_index=400, base_fog=0.09),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=1.1667, celsius=30.0, contrast_index=1.10, exposure_index=500, base_fog=0.12),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.3333, celsius=37.0, contrast_index=0.73, exposure_index=370, base_fog=0.10),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.7, celsius=37.0, contrast_index=1.07, exposure_index=550, base_fog=0.19),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.3333, celsius=40.0, contrast_index=0.87, exposure_index=450, base_fog=0.12),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.7, celsius=40.0, contrast_index=1.06, exposure_index=580, base_fog=0.30),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.3333, celsius=30.0, contrast_index=0.90, exposure_index=355, base_fog=0.10),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.7, celsius=30.0, contrast_index=1.19, exposure_index=515, base_fog=0.15),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=1.1667, celsius=30.0, contrast_index=1.16, exposure_index=630, base_fog=0.24),
+            ),
+            reference_developer="G 74 c", reference_dilution="stock",
+            source="Agfa-Gevaert N.V., AVIPHOT PAN 400S sheet 01/2006, p4 tables: EAFS, average gradient (contrast_index), fog; Gevatone 66",
         ),
     ),
     FilmProfile(
@@ -43358,6 +43754,7 @@ _SOVREMENNYE_2004 = (
 
 _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
     "AGFA_AVIPHOT_PAN_20": ("Agfa-Gevaert N.V., «AVIPHOT PAN 20 PE0» technical data sheet, January 2009",),
+    "AGFA_AVIPHOT_PAN_400S": ("Agfa-Gevaert N.V., «AVIPHOT PAN 400S PE1/PE0» technical data sheet, January 2006",),
     # 2026-09-29: the AF3-207U stocks.
     "FUJICOLOR_NEXIA_400": ("Fuji Photo Film U.S.A., «FUJIFILM PROFESSIONAL DATA GUIDE», Ref. No. AF3-207U (2005) -- [DH] technical data page, reciprocity table and product listing",),
     "FUJICOLOR_NEXIA_800": ("Fuji Photo Film U.S.A., «FUJIFILM PROFESSIONAL DATA GUIDE», Ref. No. AF3-207U (2005) -- [DZ] technical data page, reciprocity table and product listing",),
@@ -43975,16 +44372,42 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "PERIOD DISCIPLINE: 1942 speeds are H&D/Scheiner and are NOT converted; the curve is the 1942 "
         "emulsion; no spectral, granularity or resolving data exists for HP3 in the corpus",),
     "ROLLEI_INFRARED_400": (
-        "Rollei Infrared 400 technical sheet -- : ISO 400/27, RMS granularity"
-        "11.0 (Refinal 5 min 20 C), resolving power 160 l/mm at 1000:1, polyester base 100 um, LE 500, full "
-        "developer matrix. Plus PDF/PROFILES/ROLLEI/'Development_Rollei ' developer/time tables",),
+        "Rollei GmbH, «ROLLEI INFRARED» technical data sheet, October 2005: ISO 400/27, RMS granularity "
+        "11.0 (x1000, Refinal 5 min 20 C), resolving power 160 lines/mm at 1000:1, clear polyester base "
+        "100 um (LE 500), layer 7.5 um, reciprocity N/A 1/10,000-1/2 s, characteristic diagram (raster, "
+        "traced 2026-10-07) and spectral sensitivity plot, RG 715 / 88A real sensitivity 25/15",
+        "Hans O. Mahn GmbH & Co. KG / MACO PHOTO PRODUCTS, «ROLLEI INFRARED» DATA SHEET, R210701 (July "
+        "2021): ISO 200/24-400/27, RMS 11, 160 lines/mm at 1000:1, 7.5 um on 100 um PET, filter factors "
+        "incl. Red 695 (89B) 16 and Infrared 715 (88A) 16-32, development table for gamma 0.65",
+        "Rollei «Development-time table - Ontwikkelingstabel» (2009), ROLLEI INFRARED row at ISO 400",),
     "ROLLEI_R3": (
-        "Rollei R3 rows in PDF/PROFILES/ROLLEI/'Development_Rollei ': developer/time/temperature"
-        "matrix at ISO 50 / 800 / 1600 across 7 developers at 20 C (24 C entries marked). No RMS, resolving, "
-        "curve or spectral data in the corpus",),
+        "Rollei Fototechnic GmbH / MACO, «ROLLEI R³ -- Product information and instructions for use», "
+        "first edition October 2004, 22 pp: super-panchromatic 380-710/730 nm, nominal ISO 200-400 "
+        "(25-6400 by development), undyed PET 100 um (sheet 175 um), 100 lp/mm at ISO 400 to 300 lp/mm "
+        "at ISO 25 (1:1000), characteristic curve p9 (vector, traced 2026-10-07), reciprocity table p12, "
+        "development-time diagram p15 and table p16 (gamma 0.65), temperature corrections p17, "
+        "spectral sensitivity p20 (traced 2026-08-02), test-strip code G5CBA p22",
+        "Rollei «Development-time table - Ontwikkelingstabel» (2009), ROLLEI R3 rows at ISO 50-1600",),
     "ROLLEI_RETRO_400": (
-        "Rollei Retro 400 rows in PDF/PROFILES/ROLLEI/'Development_Rollei ': developer/time matrix"
-        "at ISO 200 and 400, 7 developers. No RMS, resolving, curve or spectral data in the corpus",),
+        "Rollei GmbH, «ROLLEI RETRO 100 / RETRO 400» technical data sheet, January 2008: ISO 400/27, "
+        "spectral sensitization 380-630 nm with a per-film plot, cellulose triacetate 120 um (135) / "
+        "95 um (120), layer 10 um, 110 lines/mm. No RMS granularity, no characteristic curve",
+        "Rollei «Development-time table - Ontwikkelingstabel» (2009), ROLLEI RETRO400 rows at ISO 200 / 400",),
+    "ROLLEI_PAN_25": (
+        "Rollei GmbH, «ROLLEI PAN 25» technical data sheet, October 2005: ISO 25/15, panchromatic "
+        "400-650 nm, polyester 100 um crystal clear, characteristic curves in Kodak D-76 (4/6/8/10 min) "
+        "and LP Supergrain 1+7 (2/4/8 min) at 21 C (raster, traced 2026-10-07). No RMS, resolving power "
+        "or spectral plot",
+        "Rollei «Development-time table - Ontwikkelingstabel» (2009), ROLLEI PAN25 row at ISO 25",),
+    "ROLLEI_SUPERPAN_200": (
+        "Hans O. Mahn GmbH & Co. KG / MACO PHOTO PRODUCTS, «ROLLEI SUPERPAN 200» DATA SHEET, R210701 "
+        "(July 2021): ISO 200/24 +-1 stop, extended red to 750 nm, RMS 14, 180 lp/mm, layer 10 um, PET "
+        "100 um, spectral sensitivity (vector, traced 2026-10-07), Schwarzschild table, development "
+        "table for gamma 0.65",
+        "«Rollei Superpan 200 pro -- first impression», signed third-party test article (2007): zone "
+        "densities above base fog for eight developer / light conditions, base + fog 0.07-0.16, "
+        "+2 DIN in tungsten light, development data table",
+        "Rollei «Development-time table - Ontwikkelingstabel» (2009), ROLLEI SUPER PAN 200 row at ISO 200",),
     "GEVACOLOR_NEG_682": (
         "Vervoort, A. / Stappaerts, H., 'A New Gevacolor Negative Film Type 682', SMPTE Journal 89(9), 1980, "
         "pp. 650-652: published gamma 0.57, per-layer RMS granularity curves, DIR couplers in green- and "
@@ -61513,6 +61936,8 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
     "KONICA_CENTURIA_SUPER_1600": (50.0, 100.0),
     "KONICA_CHROME_CENTURIA_100": (60.0, 140.0),
     "KONICA_CHROME_R100": (50.0, 125.0),
+    "AGFA_AVIPHOT_PAN_400S": (40.3, 161.0), # Agfa 01/2006 p3, USAF 1951, TOC 1.6:1 / 1000:1
+    "ROLLEI_SUPERPAN_200": (0.0, 180.0),   # R210701 p2 «Resolving power = 180 lp/mm», contrast not stated
     "ROLLEI_R3": (45.0, 100.0),        # 100 @ EI 400; sheet: up to 300 @ EI 25
     "ROLLEI_INFRARED_400": (55.0, 160.0),  # 160 high-contrast printed; low T3
     "ROLLEI_RETRO_400": (40.0, 110.0),     # sheet prints 110, contrast unstated
@@ -62142,6 +62567,17 @@ _PROCESSING: dict[str, ProcessingSpec] = {
     # resolution and granularity data.
     "AGFA_AVIPHOT_PAN_20": ProcessingSpec(developer="G 74 c", minutes=0.7, celsius=30.0,
                                           agitation="Gevatone 66 continuous-tone processor"),
+    "AGFA_AVIPHOT_PAN_400S": ProcessingSpec(developer="G 74 c", dilution="stock", minutes=0.7, celsius=30.0,
+                                            agitation="Gevatone 66 continuous-tone processor"),
+    # 2026-10-07, ROLLEI review: the development the STORED curve was drawn /
+    # measured at, so curve and processing describe one condition.
+    # PAN 25: sheet p2 «Entwicklung Kodak D 76 ... 10 min bei 21°C» (dilution
+    # not printed on the panel), the drawn curve at Rollei's gamma-0.65 standard.
+    "ROLLEI_PAN_25": ProcessingSpec(developer="Kodak D-76", minutes=10.0, celsius=21.0),
+    # SUPERPAN 200: third-party test p7 «D76 1+1 20°C 17 minutes» (rated 100
+    # daylight); agitation not stated for that row.
+    "ROLLEI_SUPERPAN_200": ProcessingSpec(developer="Kodak D-76", dilution="1+1",
+                                          minutes=17.0, celsius=20.0),
     "KODAK_TECHNICAL_PAN": ProcessingSpec(
         developer="Technidol LC", contrast_index=0.50),
     # FUJIFILM DATA SHEET AF3-608E(N), NEOPAN 1600 Professional. The condition
@@ -62362,6 +62798,37 @@ _PROCESSING.update({
     _n: ProcessingSpec(
         developer="Process C-41", minutes=3.25, celsius=37.8)
     for _n in _C41_STOCKS
+})
+
+#: ⚠ ADDED 2026-10-07 (owner batch: AF3-207U re-read). The sixteen colour
+#: stocks added from the Fujifilm PROFESSIONAL DATA GUIDE on 2026-09-29 carried
+#: an EMPTY `processing` although every one of their panels prints its process:
+#: «Process : E-6/CR-56» (or «CR-56/E-6») under each reversal panel and
+#: «Process : C-41», «C-41/CN-16» or «CN-16» under each negative panel. The
+#: negatives take the C-41 standard schedule exactly as the generic sweep above
+#: gives every other Fuji negative; the guide's own PDF p19 «1-8. COLOR FILM AND
+#: PAPER PROCESSING SPECIFICATIONS» prints Process CN-16Q at colour developer
+#: 3:15, 38.0 ± 0.2 °C, so the stored 3.25 min / 37.8 °C sits inside Fuji's own
+#: tolerance. The reversal stocks take the bare process name, as
+#: FUJI_PROVIA_100F does: p19 prints Process CR-56 (first developer 6:00 at
+#: 38.0 ± 0.3 °C, colour developer 6:00 at 38.0 ± 0.6 °C), but `ProcessingSpec`
+#: holds ONE developer step and a reversal process has two, so neither is
+#: written into it. INERT at render time: these stocks carry no development
+#: family, which is the only reader of the field.
+_PDG2005_C41 = (
+    "FUJICOLOR_PRO_160S", "FUJICOLOR_PRO_160C", "FUJICOLOR_NPL_160",
+    "FUJICOLOR_SUPERIA_100", "FUJICOLOR_SUPERIA_200", "FUJICOLOR_SUPERIA_1600",
+    "FUJICOLOR_TRUE_DEFINITION_400", "FUJICOLOR_NEXIA_A200",
+    "FUJICOLOR_NEXIA_400", "FUJICOLOR_NEXIA_800")
+_PDG2005_E6 = (
+    "FUJI_VELVIA_100", "FUJI_VELVIA_100F", "FUJI_ASTIA_100F",
+    "FUJI_SENSIA_100_2005", "FUJI_SENSIA_200", "FUJI_SENSIA_400")
+_PROCESSING.update({
+    _n: ProcessingSpec(developer="Process C-41", minutes=3.25, celsius=37.8)
+    for _n in _PDG2005_C41
+})
+_PROCESSING.update({
+    _n: ProcessingSpec(developer="Process E-6") for _n in _PDG2005_E6
 })
 
 # ---------------------------------------------------------------------------
@@ -62820,6 +63287,8 @@ _DENSITY_METRIC_OVERRIDES: dict[str, tuple[str, str]] = {
 #:
 #: name -> (criterion, the wording that licenses it)
 _SPEED_CRITERION_OVERRIDES: dict[str, tuple[str, str]] = {
+    "AGFA_AVIPHOT_PAN_400S": ("manufacturer_ei",
+        "Agfa-Gevaert N.V., AVIPHOT PAN 400S PE1/PE0 sheet 01/2006, p3-4: «can be exposed as a 200 EAFS to 500 EAFS film» and «Speed in EAFS 200 / 400 / 500» at 20 / 42 / 70 s (G 74 c, 30 C) -- an Effective Aerial Film Speed, NOT an ISO 6 speed; exposure_index holds the 42 s value (400)"),
     "AGFA_AVIPHOT_PAN_20": ("manufacturer_ei",
         "Agfa-Gevaert N.V., AVIPHOT PAN 20 PE0 sheet 01/2009, p1-2: «Speed: 16 / 22 / 27 eafs» at 20 / 42 / 70 s and «can be exposed as a 16 EAFS to 25 EAFS film» -- an Effective Aerial Film Speed, NOT an ISO 6 speed; exposure_index holds the 42 s value (22)"),
     "FERRANIA_P30": ("manufacturer_ei",
@@ -63974,13 +64443,30 @@ _RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
     # ILFORD/HP5-Plus_201811.pdf p2: "The graph is based on the formulae
     # Ta = Tm1.31" (typeset exponent), no correction between 1/2 s and
     # 1/10 000 s. p = 1/1.31 = 0.7634.
-    "ILFORD_HP5_PLUS_400": ReciprocitySpec(0.7634, 0.7634, 0.7634, onset_s=0.5),
+    # ⚠ 2026-10-07: onset 0.5 -> 1.0 s. HARMAN's own Dec 2023 «FILM RECIPROCITY
+    # FAILURE COMPENSATION» sheet states «Exposure times of one second or less
+    # will not require any compensation» and gives Tc = Tm^P with P 1.31, which
+    # is anchored at Tm = 1 s (it returns Tc < Tm below 1 s). Same P as 2018.
+    "ILFORD_HP5_PLUS_400": ReciprocitySpec(0.7634, 0.7634, 0.7634, onset_s=1.0),
     # ILFORD/Delta-3200_201811.pdf p2: "Ta = Tm1.33". p = 1/1.33 = 0.7519.
     # The 2018 sheet is internally inconsistent about the onset (it says no
     # correction is needed from 1/2 s, then refers to "exposures longer than
     # 1 second"); 0.5 s is used because the 2002 edition
     # (Delta_3200-200209.pdf p2) states 1/2 s unambiguously.
-    "ILFORD_DELTA_3200": ReciprocitySpec(0.7519, 0.7519, 0.7519, onset_s=0.5),
+    # ⚠ 2026-10-07: onset 0.5 -> 1.0 s. The Dec 2023 HARMAN reciprocity sheet
+    # settles the 2018 sheet's inconsistency above: «one second or less will
+    # not require any compensation», P 1.33 unchanged.
+    "ILFORD_DELTA_3200": ReciprocitySpec(0.7519, 0.7519, 0.7519, onset_s=1.0),
+    # ⚠ 2026-10-07e, TIER 3 THIRD-PARTY (web reciprocity harvest, owner request).
+    # CineStill publish no data sheet; the profile carried the class default
+    # p = 1.0 (no failure at all). danhawk.com/reciprocity lists CineStill 800T
+    # at P = 1.35 in Tc = Tm^P, labelled «Community» by the site itself, applied
+    # at Tm >= 1 s. p = 1/P = 0.7407, onset 1 s -- the same algebra as the
+    # HARMAN entries above. CROSS-CHECK against the SAME emulsion's own sheet
+    # (KODAK_VISION3_500T_5219: +1 stop at 10 s, CC10R): P 1.35 gives
+    # (1 - 1/1.35) * log2(10) = 0.86 stop at 10 s, 0.14 stop under Kodak. No
+    # CC term is stored -- the community figure is achromatic.
+    "CINESTILL_800T": ReciprocitySpec(0.7407, 0.7407, 0.7407, onset_s=1.0),
 }
 
 
@@ -64025,6 +64511,50 @@ _RECIPROCITY_OVERRIDES: dict[str, ReciprocitySpec] = {
 #: least. An empty string is an ACHROMATIC statement where the sheet says so,
 #: not a gap.
 _RECIPROCITY_TABLES: dict[str, ReciprocityTable] = {
+    # ⚠ ADDED 2026-10-07 from HARMAN's Dec 2023 «FILM RECIPROCITY FAILURE
+    # COMPENSATION» factor table. The sheet prints ONE number per film, P in
+    # Tc = Tm^P (Tm metered, Tc corrected time, no compensation at 1 s or less).
+    # The table stores the LOSS AT THE EXPOSURE TIME, which is what
+    # reciprocity_log_shift applies: if Tc = Tm^P restores the exposure, the
+    # film's effective exposure goes as t^(1/P), so an uncompensated exposure of
+    # t seconds is short by (1 - 1/P) * log2(t) stops. ⚠ NOT (P - 1) * log2(t):
+    # that is the TIME multiplier, the quantity the sheet's calculator example
+    # produces, and using it as a loss at fixed time overstates the failure.
+    # Points every decade 1 s - 10 000 s so the renderer's log-linear
+    # interpolation reproduces the formula exactly inside that span; it is
+    # identical to the profile's ReciprocitySpec (p = 1/P, onset 1 s).
+    "ILFORD_HP5_PLUS_400": ReciprocityTable(
+        times_s=(1.0, 10.0, 100.0, 1000.0, 10000.0),
+        stops_correction=(0.0, 0.7861, 1.5722, 2.3583, 3.1444),
+        source=("HARMAN technology Limited, «FILM RECIPROCITY FAILURE COMPENSATION -- How to allow for low intensity reciprocity failure during long exposures with ILFORD black and white films», Technical Information, 1 p, Dec 2023, table «FACTORS FOR ILFORD FILMS»: P = 1.31. Loss stops = (1 - 1/P) * log2(t), DERIVED from the printed "
+                "factor, 0 at 1 s («Exposure times of one second or less will not require any "
+                "compensation»). Same P as the Nov 2018 Technical Information sheet."),
+    ),
+    "ILFORD_DELTA_3200": ReciprocityTable(
+        times_s=(1.0, 10.0, 100.0, 1000.0, 10000.0),
+        stops_correction=(0.0, 0.8242, 1.6485, 2.4727, 3.297),
+        source=("HARMAN technology Limited, «FILM RECIPROCITY FAILURE COMPENSATION -- How to allow for low intensity reciprocity failure during long exposures with ILFORD black and white films», Technical Information, 1 p, Dec 2023, table «FACTORS FOR ILFORD FILMS»: P = 1.33. Loss stops = (1 - 1/P) * log2(t), DERIVED from the printed "
+                "factor, 0 at 1 s («Exposure times of one second or less will not require any "
+                "compensation»). Same P as the Nov 2018 Technical Information sheet."),
+    ),
+    # ⚠ ADDED 2026-10-07 from the ROLLEI folder review, on the owner's decision of
+    # the same day to store these tables on the ACTUAL-TIME axis, as the HARMAN
+    # entries above are: each printed pair (metered Tm -> exposure to give Tc) is
+    # stored as (Tc, log2(Tc / Tm)), the stops an uncompensated exposure of Tc
+    # seconds lacks -- what reciprocity_log_shift applies at its exposure_time_s.
+    # An EXACT re-expression of the printed pairs; no law is fitted. ⚠ The
+    # docstring of ReciprocityTable still describes the Kodak entries' axis
+    # (metered time); both axes are in use, recorded in NotFound.md.
+    "ROLLEI_R3": ReciprocityTable(
+        times_s=(0.5, 2, 4, 10, 20, 60, 150, 350),
+        stops_correction=(0.0, 1.0, 1.0, 1.3219, 1.3219, 2.0, 2.3219, 2.5443),
+        source=("Rollei Fototechnic GmbH / MACO, «ROLLEI R³ -- Product information and instructions for use», October 2004, p12 «Time exposures and reciprocity» table «Meter reading [s] / Actual exposure time [s]»: 1/2, 2/4, 4/10, 8/20, 15/60, 30/150, 60/350 (also drawn as the p12 «Reciprocity-error diagram»). Stored as (actual time, log2(actual / meter)) -- DERIVED, exact. The 0.5 s / 0 anchor is the same page's «generally holds ... usually between 1/2 s and 1/1000 s», a statement made about film in general, not a measurement of R3. The plateaus (2 and 4 s both 1 stop; 10 and 20 s both 1.32) are the printed table's rounding. p12 also: «The reciprocity error results in steeper contrast» -- not representable (time-only model)."),
+    ),
+    "ROLLEI_SUPERPAN_200": ReciprocityTable(
+        times_s=(0.5, 1.414, 3.464, 8, 24, 60, 180),
+        stops_correction=(0, 0.5, 0.7925, 1, 1.585, 2, 2.585),
+        source=("Hans O. Mahn GmbH & Co. KG / MACO PHOTO PRODUCTS, «ROLLEI SUPERPAN 200» DATA SHEET, R210701 (July 2021), p3 «SCHWARZSCHILD EFFECT» «At / Effective exposure»: 1/1000-1/2 s none; 1 s -> 1-2 s; 2 s -> 3-4 s; 4 -> 8; 8 -> 24; 15 -> 60; 30 -> 180 s. Stored as (actual time, log2(actual / metered)), DERIVED; the two RANGED rows are stored at the midpoint of their stop range (0.5 stop at 1.41 s; 0.79 stop at 3.46 s), which is this project's reading of a printed range. The RETRO 80S sheet of the same revision prints the identical table."),
+    ),
     # ⚠ ADDED 2026-09-29b: the four E-190 PORTRA films of the NC/VC generation. PORTRA
     # 800's own table already quoted the sentence that gives these films TEN seconds, and
     # nothing had stored it for them.
@@ -64698,6 +65228,11 @@ _RECIPROCITY_TABLES: dict[str, ReciprocityTable] = {
 #: the HARMAN sheets are not in this corpus copy either, so there is nothing to
 #: read back, and quietly "correcting" a number toward a formula in a comment
 #: would replace a traceable value with an untraceable one.
+#: ✅ RESOLVED 2026-10-07: HARMAN's Dec 2023 «FILM RECIPROCITY FAILURE
+#: COMPENSATION» sheet is now on file and prints P 1.26 / 1.30 for K100 / K400.
+#: Both tables are re-derived from it as the loss at exposure time,
+#: (1 - 1/P) * log2(t) -- 0.685 / 0.767 stops at 10 s, which also shows the
+#: comment's own 0.864 / 0.997 (the time multiplier) was the wrong quantity.
 
 
 def _grain_v2(p: FilmProfile) -> GrainSpec:
@@ -68192,6 +68727,46 @@ def _apply_schema_v2(p: FilmProfile) -> FilmProfile:
 #:   * NO rms granularity is derived from Print Grain Index. See the v15 note
 #:     beside SCHEMA_VERSION.
 _KODAK_STILL_HARVEST: dict = {
+    # ---- KODAK_EKTAR_100  (E-4046, February 2016) -- ADDED 2026-10-07 --------
+    #   ⚠ NO "curves" KEY: EKTAR's characteristic curves are already on the
+    #   profile literal (traced 2026-09-20 from the same p4 panel, and re-derived
+    #   to 1e-4 by kodak_e4046_2016.py). This entry adds what that pass left on
+    #   the page: the p4 Spectral-Dye-Density pair and the p2 reciprocity bound.
+    #   ⚠⚠ THE DYE PANEL IS DRAWN TO 685 nm, NOT 700. Both curves end at
+    #   684.93 nm on a 400-700 nm frame (checked on a 220 dpi render: the
+    #   strokes stop short of the 700 tick). A shifted axis would move BOTH
+    #   ends; here the starts sit at 400.06 / 399.99 nm, so the axis is right
+    #   and the drawing is short. Stored on a 5 nm grid 405-680 nm (the PORTRA
+    #   convention: 400 nm is 0.06 nm outside the trace and is not
+    #   extrapolated; 685 is outside it too).
+    #   ⚠ A NEUTRAL PAIR, NOT A DYE TRIPLE, so stage 12's measured-matrix
+    #   derivation (three separated dyes) cannot use it: INERT at render time,
+    #   evidence only, like every other Kodak still pair.
+    "KODAK_EKTAR_100": dict(
+        reciprocity_table=ReciprocityTable(
+            times_s=(1.0,),
+            stops_correction=(0.0,),
+            source=(
+                "Eastman Kodak Company / Kodak Alaris, «KODAK PROFESSIONAL EKTAR 100 Film», TECHNICAL DATA / COLOR NEGATIVE FILM, KODAK Publication No. E-4046, February 2016 -- page 2, «Adjustments for Long and Short Exposures»: «No "
+                "filter correction or exposure compensation is required for "
+                "exposures from 1/10,000 second to 1 second. For critical "
+                "applications with longer exposure times, make tests under "
+                "your conditions.» Beyond 1 s the sheet publishes NOTHING; the "
+                "renderer holds the last entry flat, as for GOLD and ULTRA MAX."),
+        ),
+        dye_source=(
+            "Eastman Kodak Company / Kodak Alaris, «KODAK PROFESSIONAL EKTAR 100 Film», TECHNICAL DATA / COLOR NEGATIVE FILM, KODAK Publication No. E-4046, February 2016 -- page 4, panel E4046C «Spectral-Dye-Density Curves», caption "
+            "«Typical densities for a midscale neutral subject and D-min.», "
+            "ordinate DIFFUSE SPECTRAL DENSITY 0-2.5, abscissa 400-700 nm. "
+            "Traced 2026-10-07 from the page's vector paths by kodak_e4046_2016.py "
+            "(kodak_still_curves.extract_panel, axes fitted on the printed ticks); "
+            "the two curves never cross. Peaks: neutral 2.093 at 445-450 nm, "
+            "D-min 0.865 at 440 nm; the D-min curve falls to 0.202 at 630 nm, "
+            "the orange mask. ⚠ The panel stops at 685 nm; 405-680 nm stored."),
+        dye=dict(lo=405.0, step=5.0, n=56,
+                 neutral=(1.479, 1.562, 1.668, 1.783, 1.891, 1.980, 2.039, 2.074, 2.093, 2.093, 2.074, 2.041, 1.992, 1.923, 1.842, 1.765, 1.689, 1.624, 1.584, 1.571, 1.582, 1.591, 1.596, 1.601, 1.605, 1.605, 1.611, 1.620, 1.608, 1.578, 1.528, 1.468, 1.397, 1.316, 1.224, 1.125, 1.024, 0.933, 0.863, 0.818, 0.795, 0.793, 0.805, 0.828, 0.860, 0.896, 0.936, 0.979, 1.024, 1.069, 1.113, 1.156, 1.194, 1.229, 1.258, 1.287),
+                 dmin=(0.711, 0.726, 0.759, 0.799, 0.829, 0.851, 0.862, 0.865, 0.861, 0.851, 0.838, 0.821, 0.801, 0.782, 0.763, 0.743, 0.722, 0.704, 0.693, 0.692, 0.703, 0.708, 0.700, 0.677, 0.649, 0.631, 0.621, 0.615, 0.606, 0.598, 0.595, 0.594, 0.593, 0.584, 0.563, 0.524, 0.468, 0.396, 0.334, 0.283, 0.248, 0.226, 0.213, 0.206, 0.203, 0.202, 0.204, 0.207, 0.212, 0.217, 0.223, 0.229, 0.235, 0.240, 0.245, 0.250)),
+    ),
     # ---- KODAK_GOLD_100
     #   char from E7022-Gold_100_200.pdf p4, panel "KODAK GOLD 100 Film
     #   Characteristic Curves" (E-7022, February 2007). ⚠ THIS PANEL WAS
@@ -68593,6 +69168,20 @@ _KODAK_STILL_HARVEST: dict = {
 #: film against the wrong number. Every row below was reconstructed from the
 #: GLYPH POSITIONS on the page and re-checked against the rendered page image.
 _KODAK_STILL_PGI: dict = {
+    # ⚠ ADDED 2026-10-07. E-4046 p3 prints FOUR negative sizes and this schema
+    # has three slots: 135, 120 and ONE sheet row. Both sheet sizes print «less
+    # than 25» in every column (4x5 at 1.2X / 4X / 8X, 8x10 at 0.6X / 1X / 2X),
+    # so storing the 4x5 row loses no number. ⚠ The 4x5 row's printed 4X for an
+    # 8x10 print is not the 2X the PGI method fixes -- recorded, not corrected.
+    "KODAK_EKTAR_100": ((0.0, 38.0, 66.0), (0.0, 0.0, 38.0), (0.0, 0.0, 0.0),
+                        "Eastman Kodak Company / Kodak Alaris, «KODAK PROFESSIONAL EKTAR 100 Film», TECHNICAL DATA / COLOR NEGATIVE FILM, KODAK Publication No. E-4046, February 2016 -- page 3, «IMAGE STRUCTURE / Print Grain Index»: 135 "
+                        "(4.4X / 8.8X / 17.8X) «less than 25» / 38 / 66; 120 (2.6X / "
+                        "4.4X / 8.8X) «less than 25» / «less than 25» / 38; 4x5 and "
+                        "8x10 sheets «less than 25» at every size. ⚠ PRINT GRAIN INDEX "
+                        "IS NOT rms GRANULARITY AND THE SHEET SAYS SO: «It replaces rms "
+                        "granularity and has a different scale which cannot be compared "
+                        "to rms granularity.» Nothing in the grain block is derived from "
+                        "it."),
     # ⚠ ADDED 2026-09-24 WITH THE E-116 HARVEST. The sheet prints ONE row per
     # film for 135-size negatives only -- "prints were made from 135-size
     # (24 x 36 mm) negatives", at the standard 14-inch viewing distance and
@@ -70001,6 +70590,15 @@ _E190_2006 = ("Eastman Kodak Company, 'KODAK PROFESSIONAL PORTRA Films', "
 _E4040 = ("Eastman Kodak Company, 'KODAK PROFESSIONAL PORTRA 800 Film', "
           "publication E-4040, February 2016, p3")
 _AIM_DENSITY: dict[str, tuple[AimDensity, ...]] = {
+    # ⚠ ADDED 2026-10-07 from E-4046 p3 «JUDGING NEGATIVE EXPOSURES» (Status M
+    # red, or a WRATTEN No. 92). The four ranges are IDENTICAL to PORTRA 400's
+    # and PORTRA 160NC's: Kodak aims its low-contrast and its high-saturation
+    # still negatives at the same grey-card density.
+    "KODAK_EKTAR_100": (AimDensity(100, (0.77, 0.87), (1.13, 1.23),
+                                   (1.08, 1.18), (0.93, 1.03),
+                                   source="Eastman Kodak Company / Kodak Alaris, «KODAK PROFESSIONAL EKTAR 100 Film», TECHNICAL DATA / COLOR NEGATIVE FILM, KODAK Publication No. E-4046, February 2016 -- page 3, «JUDGING NEGATIVE "
+                                          "EXPOSURES», red filter for Status M "
+                                          "densitometry"),),
     "KODAK_PORTRA_160NC": (AimDensity(160, (0.77, 0.87), (1.13, 1.23),
                                       (1.08, 1.18), (0.93, 1.03),
                                       source=_E190_2006),),
@@ -71813,6 +72411,460 @@ for _film, _p, _src in (
         source=_src, confidence="high",
         note="Stored exponent %.4f = 1/%.2f at onset 0.5 s; unchanged, now recorded." % (1.0 / _p, _p)))
 del _film, _src, _cond, _prm, _p
+# 2026-10-07e -- web reciprocity harvest (owner request): the one value that
+# closed a gap. Every other figure on the three sites either matches a stored
+# datasheet value, conflicts with one (datasheet kept), or concerns a film not
+# in the database; see doc/RESULT_2026-10-07b_rollei_folder.md section K and
+# doc/thirdparty/reciprocity_web_harvest_2026-10-07.txt.
+_replace_param_source("CINESTILL_800T", ParamSource(
+    param="reciprocity", tier=3, status="stated",
+    unit="Schwarzschild exponent = 1/P of Tc = Tm^P",
+    conditions="Tm >= 1 s; achromatic; no range limit printed",
+    source=("Dan Hawk, «Film Reciprocity Calculator», https://danhawk.com/reciprocity, "
+            "read 2026-10-07: CineStill 800T P = 1.35, source label «Community». "
+            "TIER 3 -- a third-party community figure, NOT a manufacturer specification "
+            "(CineStill publish no data sheet). Cross-check: the same emulsion's Kodak "
+            "VISION3 500T 5219 brochure prints +1 stop at 10 s with CC10R; P 1.35 gives "
+            "0.86 stop there"),
+    confidence="low",
+    note="Stored exponent 0.7407 = 1/1.35 at onset 1 s. Replaces the class default p = 1.0."))
+
+
+# ===========================================================================
+# 2026-10-07 -- AF3-207U PROVENANCE CORRECTION (owner batch, pre-approved)
+# ---------------------------------------------------------------------------
+# ⚠⚠ PROVENANCE ONLY. NO STORED VALUE CHANGES IN THIS BLOCK.
+#
+# The seventeen stocks added on 2026-09-29 from the Fujifilm «PROFESSIONAL DATA
+# GUIDE» (Ref. No. AF3-207U, 2005) carry curves, MTF, spectral sets, dye data,
+# printed RMS and resolving power traced or read from that guide -- and
+# fuji_pdg_2005.py re-derives every one of them on each build. Their ParamSource
+# rows, however, were the auto-generated EM-A6 PLACEHOLDERS («PLACEHOLDER, NOT A
+# JUDGEMENT ... `assumed`»), written before the data existed and never replaced.
+# gen_realism_score.py reads the row before the carrier, so all seventeen scored
+# 0.10 on tone_curve, grain_amplitude and sharpness_mtf for data they HAVE, and
+# REALISM_SCORE.md listed them as research gaps a datasheet search could close --
+# which sent the owner looking for a document already harvested. Each placeholder
+# below is replaced by the row its data actually earns; a value that is a
+# sibling ANALOGY stays tier 3 and says so, rather than being promoted.
+# ===========================================================================
+_PDG = ("Fuji Photo Film U.S.A., «FUJIFILM PROFESSIONAL DATA GUIDE», Ref. No. "
+        "AF3-207U (2005)")
+#: name -> (PDF page, half, process caption, densitometry, exposure,
+#:          printed RMS or None, colour)
+_PDG_PROV = {
+    "FUJI_VELVIA_100":            (24, "right", "CR-56/E-6", "Status A", "Daylight 1/50 s", 8),
+    "FUJI_VELVIA_100F":           (25, "left", "CR-56/E-6", "Status A", "Daylight 1/50 s", 8),
+    "FUJI_ASTIA_100F":            (26, "left", "E-6/CR-56", "Status A", "Daylight", 7),
+    "FUJI_SENSIA_100_2005":       (27, "right", "E-6/CR-56", "Status A", "Daylight", 8),
+    "FUJI_SENSIA_200":            (28, "left", "E-6/CR-56", "Status A", "Daylight", 13),
+    "FUJI_SENSIA_400":            (28, "right", "E-6/CR-56", "Status A", "Daylight", 13),
+    "FUJICOLOR_PRO_160S":         (29, "left", "C-41", "Status M", "Daylight", 3),
+    "FUJICOLOR_PRO_160C":         (29, "right", "C-41", "Status M", "Daylight", 3),
+    "FUJICOLOR_NPL_160":          (30, "left", "C-41/CN-16", "Status M", "Tungsten", 4),
+    "FUJICOLOR_SUPERIA_100":      (32, "left", "C-41/CN-16", "Status M", "Daylight", 4),
+    "FUJICOLOR_SUPERIA_200":      (32, "right", "C-41/CN-16", "Status M", "Daylight", 4),
+    "FUJICOLOR_SUPERIA_1600":     (34, "right", "C-41/CN-16", "Status M", "Daylight", 7),
+    "FUJICOLOR_TRUE_DEFINITION_400": (33, "right", "CN-16", "Status M", "Daylight", 5),
+    "FUJICOLOR_NEXIA_A200":       (53, "left", "C-41/CN-16", "Status M", "Daylight", 4),
+    "FUJICOLOR_NEXIA_400":        (53, "right", "C-41/CN-16", "Status M", "Daylight", 4),
+    "FUJICOLOR_NEXIA_800":        (54, "left", "C-41/CN-16", "Status M", "Daylight", 5),
+    "FUJI_NEOPAN_400":            (41, "page", "D-76, small tank, 20 C", "visual diffuse", "Daylight", None),
+}
+_PDG_NOTE = "EM-A6 placeholder replaced 2026-10-07; value unchanged."
+for _film, (_pg, _half, _proc, _dens, _expo, _rms) in _PDG_PROV.items():
+    _where = "%s, PDF p%d (%s)" % (_PDG, _pg, _half)
+    for _prm, _unit, _cond in (
+            ("curves.g.gamma", "dimensionless",
+             "green record, softplus fit; «CHARACTERISTIC CURVES» panel, Exposure "
+             "%s, Process %s, Densitometry %s" % (_expo, _proc, _dens)),
+            ("curves.g.dmin", "density",
+             "green record, base+fog; same panel and conditions")):
+        if _film == "FUJI_NEOPAN_400":
+            _cond = ("the 135 «CHARACTERISTIC CURVES» panel, D-76 small tank 20 C, "
+                     "the reference-time record")
+        _replace_param_source(_film, ParamSource(
+            param=_prm, tier=1, status="traced", unit=_unit, conditions=_cond,
+            source=_where + ", vector trace 2026-09-29 by fuji_pdg_2005.py",
+            confidence="high", note=_PDG_NOTE))
+    if _film == "FUJI_NEOPAN_400":
+        # ⚠ NOT PRINTED for NEOPAN 400: the page carries no MTF panel and no RMS
+        # (the 2026-09-29b record says so, and the stored 10.0 / 57.0 are its
+        # labelled estimates). The rows say so instead of saying «assumed».
+        _replace_param_source(_film, ParamSource(
+            param="mtf.f50_g", tier=3, status="estimated", unit="cycles/mm",
+            conditions="no MTF panel on PDF p41",
+            source=_where + " -- prints NO MTF for this film",
+            confidence="low",
+            note="Geometric mean of the NEOPAN 100 ACROS and NEOPAN 1600 f50 on "
+                 "the 2026-09-29b rule; labelled estimate, not a reading."))
+        _replace_param_source(_film, ParamSource(
+            param="mtf.f50_r", tier=3, status="estimated", unit="cycles/mm",
+            conditions="monochrome: one record", source="", confidence="low",
+            note="Same estimate as mtf.f50_g; a silver image has one record."))
+        _replace_param_source(_film, ParamSource(
+            param="processing.developer", tier=3, status="assumed", unit="",
+            conditions="field left empty on purpose",
+            source=_where + " -- the panels are D-76, the stored field is empty",
+            confidence="low",
+            note="Left EMPTY on purpose: writing D-76 here would change which "
+                 "development group the renderer selects (film_sim "
+                 "development_family rule 3) and so the render; the processing "
+                 "family's own reference_developer already reads D-76."))
+    else:
+        _replace_param_source(_film, ParamSource(
+            param="grain.rms_granularity", tier=1, status="stated",
+            unit="rms diffuse density x 1000",
+            conditions="micro-densitometer aperture 48 um diameter, sample "
+                       "density 1.0 (the panel's own caption)",
+            source=_where + ", «DIFFUSE RMS GRANULARITY VALUE ... %d»" % _rms,
+            confidence="high", note=_PDG_NOTE))
+        _replace_param_source(_film, ParamSource(
+            param="mtf.f50_g", tier=1, status="traced", unit="cycles/mm",
+            conditions="the ONE printed «MTF CURVE», Exposure %s, Process %s; "
+                       "assigned to green" % (_expo.split()[0], _proc),
+            source=_where + ", vector trace 2026-09-29 by fuji_pdg_2005.py",
+            confidence="high", note=_PDG_NOTE))
+        _replace_param_source(_film, ParamSource(
+            param="mtf.f50_r", tier=2, status="derived", unit="cycles/mm",
+            conditions="green trace x 0.8976 (blue x 1.0762)",
+            source=_where + " -- the panel prints ONE curve, not three",
+            confidence="medium",
+            note="Family ratio; the red record is not printed."))
+        _replace_param_source(_film, ParamSource(
+            param="processing.developer", tier=1, status="stated", unit="",
+            conditions="the processing condition of every panel on the page",
+            source=_where + ", panel captions «Process : %s»" % _proc,
+            confidence="high",
+            note=("p19: CN-16Q dev 3:15 at 38.0+/-0.2 C; CR-56 first dev 6:00 at "
+                  "38.0+/-0.3 C (two-step, not stored).")))
+    for _prm, _unit, _cond in (
+            ("halation.gain_r", "dimensionless gain", "red record"),
+            ("grain.clump_um_g", "um",
+             "mean DEVELOPED clump diameter at the profile's own gamma")):
+        _replace_param_source(_film, ParamSource(
+            param=_prm, tier=3, status="estimated", unit=_unit, conditions=_cond,
+            source="", confidence="low",
+            note="Sibling analogy; not printed in AF3-207U (2026-10-07)."))
+    # spectral_weights, by spectral_weight_provenance.py's own rule (case D for
+    # a colour stock, case A for a monochrome stock with a traced pan curve).
+    if _film == "FUJI_NEOPAN_400":
+        _replace_param_source(_film, ParamSource(
+            param="spectral_weights", tier=1, status="derived",
+            unit="normalised weights",
+            conditions=("pan curve integrated against the render primary basis "
+                        "(Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), "
+                        "renormalised to sum 1"),
+            source=_where + ", «SPECTRAL SENSITIVITY CURVE», Spectrogram to "
+                   "Daylight (5400K), vector trace 2026-09-29",
+            confidence="high",
+            note=("⚠ THE STORED FilmProfile.spectral_weights TRIPLE IS NOT THIS "
+                  "VALUE AND IS NOT READ. Stored: (0.270, 0.550, 0.180), a class "
+                  "default. Both engines compute (0.292, 0.318, 0.389) at run "
+                  "time from this stock's own traced pan curve (film_sim "
+                  "spectral_monochrome_weights; AlgoSpectralMonoWeights). "
+                  "Replaces the EM-A6 placeholder, 2026-10-07.")))
+    else:
+        _replace_param_source(_film, ParamSource(
+            param="spectral_weights", tier=2, status="estimated",
+            unit="normalised weights",
+            conditions="n/a -- field not read for a three-layer stock",
+            source="", confidence="low",
+            note="INERT: read only for monochrome stocks (2026-10-07)."))
+del _film, _pg, _half, _proc, _dens, _expo, _rms, _where, _prm, _unit, _cond
+
+
+# ---- 2026-10-07: HARMAN «FILM RECIPROCITY FAILURE COMPENSATION», Dec 2023 ----
+_HRF = ("HARMAN technology Limited, «FILM RECIPROCITY FAILURE COMPENSATION», "
+        "Technical Information, Dec 2023, table «FACTORS FOR ILFORD FILMS»")
+for _film, _P, _also in (
+        ("ILFORD_HP5_PLUS_400", 1.31, "same P as the Nov 2018 HP5 PLUS sheet (onset there 1/2 s)"),
+        ("ILFORD_DELTA_3200", 1.33, "same P as the Nov 2018 DELTA 3200 sheet (onset there 1/2 s)"),
+        ("KENTMERE_PAN_100", 1.26, "same P as the July 2022 KENTMERE PAN 100 sheet"),
+        ("KENTMERE_PAN_400", 1.30, "same P as the July 2022 KENTMERE PAN 400 sheet")):
+    _replace_param_source(_film, ParamSource(
+        param="reciprocity", tier=1, status="stated",
+        unit="Schwarzschild exponent = 1/P of Tc = Tm^P",
+        conditions="no compensation at 1 s or less; Tc = Tm^P beyond",
+        source=_HRF + ", P = %.2f" % _P, confidence="high",
+        note="Stored p %.4f, onset 1.0 s; %s." % (1.0 / _P, _also)))
+    _replace_param_source(_film, ParamSource(
+        param="reciprocity_table", tier=1, status="derived", unit="stops lost at exposure time",
+        conditions="(1 - 1/P) * log2(t) at 1, 10, 100, 1000, 10000 s",
+        source=_HRF + ", P = %.2f" % _P, confidence="high",
+        note="Derived from the printed factor (2026-10-07)."))
+del _film, _P, _also
+
+# ---- 2026-10-07: ROLLEI folder review (owner request; 2 new stocks by decision) ----
+# Fourteen PDFs re-read file by file. These rows REPLACE the EM-A6 placeholders and
+# three wrong rows: ROLLEI_R3 and ROLLEI_RETRO_400 cited the 2009 development table
+# as tier-1 evidence for their CURVES, and that table holds times only.
+_R3S = "Rollei/MACO R3 product information, Oct 2004"
+_IR05 = "Rollei INFRARED sheet, Oct 2005"
+_IR21 = "MACO INFRARED sheet R210701"
+_RT08 = "Rollei RETRO 100/400 sheet, Jan 2008"
+_P25 = "Rollei PAN 25 sheet, Oct 2005"
+_SP21 = "MACO SUPERPAN 200 sheet R210701"
+_SP07 = "Superpan 200 pro third-party test, 2007"
+_DEV09 = "Rollei «Development-time table - Ontwikkelingstabel», 2009"
+_T3N = "This project's value; see the profile comment for the analogy used."
+for _film, _rec in (
+    # -- ROLLEI_R3 --
+    ("ROLLEI_R3", ParamSource(param="curves.g.dmin", tier=1, status="traced", unit="density",
+        conditions="base + fog shelf of the p9 characteristic curve; developer not named",
+        source=_R3S + ", p9 «Characteristic curve» (vector)", confidence="high",
+        note="0.27 (shelf 0.27-0.28). Replaces a row citing the 2009 time table.")),
+    ("ROLLEI_R3", ParamSource(param="curves.g.gamma", tier=1, status="traced", unit="softplus slope",
+        conditions="p9 curve, fit rms 0.0084 D; p14: tabled times hold for gamma 0.65",
+        source=_R3S + ", p9 «Characteristic curve» (vector)", confidence="high",
+        note="Straight-line 0.89-0.91; G-bar of the trace 0.70.")),
+    ("ROLLEI_R3", ParamSource(param="reciprocity_table", tier=1, status="derived",
+        unit="stops lost at exposure time", conditions="(Tc, log2(Tc/Tm)) from the printed pairs, 1-60 s metered",
+        source=_R3S + ", p12 «Time exposures and reciprocity» table", confidence="high",
+        note="Exact re-expression; 0.5 s anchor from the page's general statement.")),
+    ("ROLLEI_R3", ParamSource(param="emulsion.base_um", tier=1, status="stated", unit="um",
+        conditions="35 mm and roll film; sheet film 175 um", source=_R3S + ", p8 «Film base»",
+        confidence="high", note="Polyester, undyed; replaces the 127 um acetate class default.")),
+    ("ROLLEI_R3", ParamSource(param="processing.developer", tier=3, status="assumed", unit="",
+        conditions="n/a", source=_R3S + ", p9 / p16", confidence="low",
+        note="The curve names no developer; the p16 times are stored as development points.")),
+    # -- ROLLEI_INFRARED_400 --
+    ("ROLLEI_INFRARED_400", ParamSource(param="curves.g.dmin", tier=1, status="traced", unit="density",
+        conditions="base + fog of the p2 characteristic diagram; developer not named",
+        source=_IR05 + ", p2 «Characteristic diagram» (raster)", confidence="medium",
+        note="0.145 (shelf 0.15-0.16).")),
+    ("ROLLEI_INFRARED_400", ParamSource(param="curves.g.gamma", tier=1, status="traced", unit="softplus slope",
+        conditions="p2 diagram, absolute lg H (lx s) axis; fit rms 0.021 D, max 0.041 D",
+        source=_IR05 + ", p2 «Characteristic diagram» (raster)", confidence="medium",
+        note="Second inflection near D 1.0 not representable; toe softer in the fit.")),
+    ("ROLLEI_INFRARED_400", ParamSource(param="grain.rms_granularity", tier=1, status="stated",
+        unit="sigma_D x 1000", conditions="Refinal developer, 5 min, 20 C",
+        source=_IR05 + ", p2 «Grain thickness: RMS (x1000) 11.0»; " + _IR21 + ", p2", confidence="high",
+        note="Two editions print 11.")),
+    ("ROLLEI_INFRARED_400", ParamSource(param="reciprocity", tier=3, status="assumed",
+        unit="Schwarzschild exponent", conditions="onset 1/2 s stated; exponent not printed",
+        source=_IR05 + ", p2 «Reciprocity effect»: 1/10,000-1/2 s, compensation N/A", confidence="low",
+        note="Onset is the sheet's; p 0.95 is this project's B&W default.")),
+    ("ROLLEI_INFRARED_400", ParamSource(param="emulsion.base_um", tier=1, status="stated", unit="um",
+        conditions="clear polyester, all formats", source=_IR05 + ", p2; " + _IR21 + ", p2",
+        confidence="high", note="Replaces the 127 um acetate class default.")),
+    ("ROLLEI_INFRARED_400", ParamSource(param="emulsion.coated_um", tier=1, status="stated", unit="um",
+        conditions="layer thickness without base", source=_IR05 + ", p2; " + _IR21 + ", p2",
+        confidence="high", note="7.5 um in both editions.")),
+    # -- ROLLEI_RETRO_400 --
+    ("ROLLEI_RETRO_400", ParamSource(param="curves.g.dmin", tier=3, status="assumed", unit="density",
+        conditions="n/a", source="", confidence="low",
+        note="No characteristic curve in any Rollei document on file for this stock. Replaces a row that cited the 2009 time table.")),
+    ("ROLLEI_RETRO_400", ParamSource(param="curves.g.gamma", tier=3, status="assumed", unit="softplus slope",
+        conditions="n/a", source="", confidence="low",
+        note="No characteristic curve on file; the 2009 table gives times only.")),
+    ("ROLLEI_RETRO_400", ParamSource(param="grain.rms_granularity", tier=2, status="derived",
+        unit="sigma_D x 1000", conditions="diffuse density 1.0, visual filter, 48 um aperture (as Agfa PF p5)",
+        source="Agfa-Gevaert, «Technical Data PF -- Agfa range of films», 09/1998, p10: AGFA APX 400 RMS 14",
+        confidence="medium",
+        note="Owner decision 2026-10-07: Retro 400 (2008) is APX 400 master stock; Rollei prints no RMS. Spectral match to APX 400 0.036 log.")),
+    ("ROLLEI_RETRO_400", ParamSource(param="emulsion.base_um", tier=1, status="stated", unit="um",
+        conditions="35 mm; roll film 95 um; cellulose triacetate", source=_RT08 + ", p2 «Film base»",
+        confidence="high", note="Replaces the 127 um class default.")),
+    ("ROLLEI_RETRO_400", ParamSource(param="emulsion.coated_um", tier=1, status="stated", unit="um",
+        conditions="layer thickness", source=_RT08 + ", p2 «Layer thickness: RETRO 400 - 10µm»",
+        confidence="high", note="")),
+    # -- ROLLEI_PAN_25 (new) --
+    ("ROLLEI_PAN_25", ParamSource(param="curves.g.dmin", tier=1, status="traced", unit="density",
+        conditions="Kodak D-76, 10 min, 21 C", source=_P25 + ", p2 «Caracteristic diagram», D 76 panel (raster)",
+        confidence="medium", note="0.063 (shelf 0.063-0.067).")),
+    ("ROLLEI_PAN_25", ParamSource(param="curves.g.gamma", tier=1, status="traced", unit="softplus slope",
+        conditions="Kodak D-76, 10 min, 21 C; fit rms 0.0049 D", source=_P25 + ", p2, D 76 panel (raster)",
+        confidence="medium", note="G-bar 0.65 (Rollei's standard); 6 other drawn developments in ROLLEI_CURVE_FITS.")),
+    ("ROLLEI_PAN_25", ParamSource(param="processing.developer", tier=1, status="stated", unit="",
+        conditions="Kodak D-76, 10 min, 21 C", source=_P25 + ", p2 panel title", confidence="high",
+        note="The stored curve's own development.")),
+    ("ROLLEI_PAN_25", ParamSource(param="grain.rms_granularity", tier=3, status="estimated",
+        unit="sigma_D x 1000", conditions="analogy AGFA_APX_25", source="", confidence="low", note=_T3N)),
+    ("ROLLEI_PAN_25", ParamSource(param="grain.clump_um_g", tier=3, status="estimated", unit="um",
+        conditions="analogy AGFA_APX_25", source="", confidence="low", note=_T3N)),
+    ("ROLLEI_PAN_25", ParamSource(param="mtf.f50_g", tier=3, status="estimated", unit="c/mm",
+        conditions="analogy AGFA_APX_25", source="", confidence="low", note=_T3N)),
+    ("ROLLEI_PAN_25", ParamSource(param="mtf.f50_r", tier=3, status="estimated", unit="c/mm",
+        conditions="analogy AGFA_APX_25", source="", confidence="low", note=_T3N)),
+    ("ROLLEI_PAN_25", ParamSource(param="halation.gain_r", tier=3, status="estimated", unit="dimensionless gain",
+        conditions="analogy ROLLEI_R3", source="", confidence="low", note=_T3N)),
+    ("ROLLEI_PAN_25", ParamSource(param="spectral_weights", tier=3, status="estimated",
+        unit="normalised weights", conditions="no spectral plot; sheet states 400-650 nm",
+        source=_P25 + ", p2", confidence="low", note="AGFA_APX_25's triple; the 650 nm limit is not modelled.")),
+    ("ROLLEI_PAN_25", ParamSource(param="emulsion.base_um", tier=1, status="stated", unit="um",
+        conditions="35 mm and roll film, polyester", source=_P25 + ", p2 «Film base»", confidence="high", note="")),
+    # -- ROLLEI_SUPERPAN_200 (new) --
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="curves.g.dmin", tier=3, status="estimated", unit="density",
+        conditions="article prints base + fog 0.07-0.16 by developer", source=_SP07 + ", p14", confidence="low",
+        note="Low end used: D-76 does not stain.")),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="curves.g.gamma", tier=2, status="measured", unit="softplus slope",
+        conditions="D-76 1+1, 20 C, 17 min, daylight, rated 100; zones 0-X; fit rms 0.0068 D",
+        source=_SP07 + ", p7 zone-density table", confidence="medium",
+        note="Third-party; 2007 / 2021 material equivalence assumed on the evidence in the profile.")),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="grain.rms_granularity", tier=1, status="stated",
+        unit="sigma_D x 1000", conditions="aperture and density not printed",
+        source=_SP21 + ", p2 «grain size RMS (× 1000) = 14»", confidence="high", note="")),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="grain.clump_um_g", tier=3, status="estimated", unit="um",
+        conditions="analogy ROLLEI_INFRARED_400", source="", confidence="low", note=_T3N)),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="mtf.f50_g", tier=3, status="estimated", unit="c/mm",
+        conditions="ROLLEI_INFRARED_400 x 180/160", source="", confidence="low", note=_T3N)),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="mtf.f50_r", tier=3, status="estimated", unit="c/mm",
+        conditions="ROLLEI_INFRARED_400 x 180/160", source="", confidence="low", note=_T3N)),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="mtf.resolving_power_lp_mm_highc", tier=1, status="stated",
+        unit="lp/mm", conditions="target contrast not stated", source=_SP21 + ", p2", confidence="medium",
+        note="Stored in the high-contrast slot.")),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="halation.gain_r", tier=3, status="estimated",
+        unit="dimensionless gain", conditions="analogy ROLLEI_R3", source="", confidence="low", note=_T3N)),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="spectral_weights", tier=2, status="estimated",
+        unit="normalised weights",
+        conditions="authored class triple; curve-based derivation refused by the gamut-reach guard",
+        source=_SP21 + ", p3 SPECTRAL SENSITIVITY", confidence="medium",
+        note="Peak 731 nm; 17 % of the curve's energy lies beyond the 700 nm basis.")),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="reciprocity_table", tier=1, status="derived",
+        unit="stops lost at exposure time", conditions="(Tc, log2(Tc/Tm)); two ranged rows at their midpoint",
+        source=_SP21 + ", p3 «SCHWARZSCHILD EFFECT»", confidence="medium", note="")),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="processing.developer", tier=2, status="stated", unit="",
+        conditions="Kodak D-76 1+1, 20 C, 17 min", source=_SP07 + ", p7", confidence="medium",
+        note="The stored curve's own development (third-party).")),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="emulsion.base_um", tier=1, status="stated", unit="um",
+        conditions="PET, crystal clear", source=_SP21 + ", p2 FACTS «Film base PET 100 micron»",
+        confidence="medium", note="Conflicts with the p5 overview (triacetate); see profile.")),
+    ("ROLLEI_SUPERPAN_200", ParamSource(param="emulsion.coated_um", tier=1, status="stated", unit="um",
+        conditions="layer thickness", source=_SP21 + ", p2 FACTS «Layer thickness of 10 mμ»",
+        confidence="high", note="")),
+):
+    _replace_param_source(_film, _rec)
+del _film, _rec
+
+# ---- 2026-10-07: AGFA AVIPHOT PAN 400S PE1 (owner request) ----
+_AV4 = "Agfa AVIPHOT PAN 400S sheet 01/2006"
+for _rec in (
+    ParamSource(param="curves.g.dmin", tier=1, status="stated", unit="density",
+        conditions="G 74 c, 30 C, 42 s, Gevatone 66", source=_AV4 + ", p4 table «Fog in D» 0.09",
+        confidence="high", note="Printed fog; the drawn curve starts above it."),
+    ParamSource(param="curves.g.gamma", tier=1, status="traced", unit="softplus slope",
+        conditions="G 74 c, 30 C, 42 s; fit rms 0.020 D", source=_AV4 + ", p4 characteristic curves (raster)",
+        confidence="high", note="Printed average gradient 0.90; fit G-bar 0.84."),
+    ParamSource(param="grain.rms_granularity", tier=1, status="derived",
+        unit="rms diffuse density x 1000, 48 um aperture", conditions="D 1.0; printed at a 50 um spot",
+        source=_AV4 + ", p3: RMS = 14 at Density = 1, 50 um spot", confidence="high",
+        note="Printed 14 at 50 um; stored 14.58 = 14 x (50/48), as AVIPHOT PAN 20."),
+    ParamSource(param="grain.clump_um_g", tier=3, status="estimated", unit="um",
+        conditions="analogy ROLLEI_INFRARED_400", source="", confidence="low",
+        note="This project's value; same RMS class and support."),
+    ParamSource(param="mtf.f50_g", tier=1, status="traced", unit="c/mm",
+        conditions="G 74 c, 30 C, 42 s", source=_AV4 + ", p2 MTF (raster, categorical frequency axis)",
+        confidence="medium",
+        note="Vertices 2/5/10/20/40/60/80 lp/mm: 124/124/129/132/104/71/47 %; f50 77.8 interpolated 60->80."),
+    ParamSource(param="mtf.f50_r", tier=1, status="traced", unit="c/mm",
+        conditions="one panchromatic record", source=_AV4 + ", p2 MTF", confidence="medium",
+        note="Same curve as f50_g (monochrome)."),
+    ParamSource(param="mtf.adjacency", tier=3, status="assumed", unit="lift amplitude",
+        conditions="peak 1.32 near 20 lp/mm not resolved (categorical axis)", source=_AV4 + ", p2",
+        confidence="low", note="Left 0: overshoot printed, frequency not resolved; 124 % at 2 lp/mm not representable."),
+    ParamSource(param="mtf.resolving_power_lp_mm_highc", tier=1, status="stated", unit="lp/mm",
+        conditions="USAF 1951, TOC 1000:1, 42 s", source=_AV4 + ", p3: 161 line pairs (322 dots/mm)",
+        confidence="high", note=""),
+    ParamSource(param="mtf.resolving_power_lp_mm_lowc", tier=1, status="stated", unit="lp/mm",
+        conditions="USAF 1951, TOC 1.6:1, 42 s", source=_AV4 + ", p3: 40.3 line pairs (81 dots/mm)",
+        confidence="high", note=""),
+    ParamSource(param="processing.developer", tier=1, status="stated", unit="",
+        conditions="G 74 c, 30 C, 42 s, Gevatone 66", source=_AV4 + ", p2-p4", confidence="high",
+        note="The reference processing of every printed panel."),
+    ParamSource(param="halation.gain_r", tier=3, status="assumed", unit="dimensionless gain",
+        conditions="n/a", source="", confidence="low", note="Sheet names no antihalation construction."),
+    ParamSource(param="emulsion.base_um", tier=1, status="stated", unit="um",
+        conditions="PE1; PE0 is 60 um", source=_AV4 + ", p1", confidence="high", note=""),
+    ParamSource(param="spectral_weights", tier=1, status="derived", unit="normalised weights",
+        conditions="pan curve integrated against the render primary basis (Gaussian lobes 600/540/460 nm, sigma 55 nm, unit area), renormalised to sum 1",
+        source=_AV4 + ", p2 Absolute spectral sensitivity (raster trace 2026-10-07)", confidence="high",
+        note="Stored triple is the authored fallback; both engines compute about (0.366, 0.312, 0.322) from the traced curve."),
+    ):
+    _replace_param_source("AGFA_AVIPHOT_PAN_400S", _rec)
+del _rec, _AV4
+
+# ---- 2026-10-07: the A4-solved adjacency pairs that had no row -----------
+# ⚠ Same defect class: the pair IS solved from a traced overshoot peak (pinned in
+# verify `_A4_SOLVED` and re-traced by fuji_pdg_2005.py / mtf_vector.py), but no
+# `mtf.adjacency` row existed, so the edge_effects axis scored these stocks 0.10.
+for _film, _pk, _src in (
+        ("FUJI_VELVIA_100", "1.068 @ 4.94 c/mm", _PDG + ", PDF p24 (right) MTF CURVE"),
+        ("FUJI_VELVIA_100F", "1.068 @ 4.94 c/mm", _PDG + ", PDF p25 (left) MTF CURVE"),
+        ("FUJICOLOR_NPL_160", "1.141 @ 8.15 c/mm", _PDG + ", PDF p30 (left) MTF CURVE"),
+        ("KODAK_EKTAR_100", "1.183 @ 9.70 c/mm (green)",
+         "Eastman Kodak Company / Kodak Alaris, «KODAK PROFESSIONAL EKTAR 100 Film», "
+         "KODAK Publication No. E-4046, February 2016, p4 panel E4046D")):
+    _replace_param_source(_film, ParamSource(
+        param="mtf.adjacency", tier=1, status="traced", unit="fraction",
+        conditions="peak resolved inside the panel: %s" % _pk,
+        source=_src + ", vector trace", confidence="medium",
+        note="A4 solve: height and frequency of the traced peak (2026-10-07 row)."))
+del _film, _pk, _src
+
+# ---- 2026-10-07: KODAK_EKTAR_100, the rest of E-4046 (February 2016) -------
+_E4046 = ("Eastman Kodak Company / Kodak Alaris, «KODAK PROFESSIONAL EKTAR 100 "
+          "Film», KODAK Publication No. E-4046, February 2016")
+for _rec in (
+        ParamSource(
+            param="dye_density", tier=1, status="traced", unit="diffuse spectral density",
+            conditions="typical densities for a midscale neutral subject and D-min; "
+                       "5 nm grid 405-680 nm (the panel is drawn to 685 nm)",
+            source=_E4046 + ", p4 panel E4046C «Spectral-Dye-Density Curves», "
+                   "vector trace 2026-10-07 by kodak_e4046_2016.py",
+            confidence="high",
+            note="A neutral PAIR, not three dyes: evidence only, no renderer reads it."),
+        ParamSource(
+            param="reciprocity_table", tier=1, status="stated", unit="stops",
+            conditions="no correction from 1/10,000 s to 1 s; longer: «make tests»",
+            source=_E4046 + ", p2 «Adjustments for Long and Short Exposures»",
+            confidence="high",
+            note="Renders as before: ReciprocitySpec already held p = 1.0 with a "
+                 "1 s onset; the table records the manufacturer's bound."),
+        ParamSource(
+            param="print_grain_index", tier=1, status="measured", unit="PGI",
+            conditions="diffuse-printing illumination, 14-inch viewing distance; "
+                       "135 at 4.4X / 8.8X / 17.8X",
+            source=_E4046 + ", p3 «IMAGE STRUCTURE / Print Grain Index» tables",
+            confidence="high",
+            note="135: <25 / 38 / 66; 120: <25 / <25 / 38; sheets <25. NOT rms "
+                 "granularity (the sheet forbids the comparison); grain.rms "
+                 "remains the FilmLab [T3] estimate."),
+        ParamSource(
+            param="aim_density", tier=1, status="measured", unit="Status M red density",
+            conditions="normally exposed and processed negative, four subject areas",
+            source=_E4046 + ", p3 «JUDGING NEGATIVE EXPOSURES»",
+            confidence="high",
+            note="Grey card 0.77-0.87, grey scale 1.13-1.23, forehead 1.08-1.18 / "
+                 "0.93-1.03. Inert; identical to PORTRA 400's table."),
+        ParamSource(
+            param="emulsion.base_um", tier=1, status="stated", unit="um",
+            conditions="135 size (code 5110)",
+            source=_E4046 + ", p1 «SIZES AVAILABLE»: 0.13 mm (0.005 inch) acetate",
+            confidence="high",
+            note="Replaces the 127.0 um Glafkides class default; 120 is 0.10 mm "
+                 "acetate and sheets 0.19 mm ESTAR Thick Base (scalar field: 135 only). "
+                 "Feeds the v34 halation geometry."),
+        ParamSource(
+            param="emulsion.base_material", tier=1, status="stated", unit="",
+            conditions="135 and 120 sizes",
+            source=_E4046 + ", p1 «SIZES AVAILABLE»: «acetate»",
+            confidence="high",
+            note="Sheets are on KODAK ESTAR Thick Base (polyester); not representable "
+                 "in the scalar field."),
+        ParamSource(
+            param="processing.developer", tier=1, status="stated", unit="",
+            conditions="Process C-41, KODAK FLEXICOLOR Chemicals",
+            source=_E4046 + ", p2 «PROCESSING»: «Process EKTAR 100 Film in KODAK "
+                   "FLEXICOLOR Chemicals for Process C-41»; the 3 min 15 s / 37.8 C "
+                   "schedule is the C-41 standard (FUJIFILM TECHNICAL BULLETIN «PROCESS "
+                   "C41 NEGACOLOR AND ENVIRONEG», TB C41 E01_10-20)",
+            confidence="high",
+            note="The film's own sheet now names the process; previously only a "
+                 "Fujifilm process bulletin was cited (2026-10-07)."),
+        ):
+    _replace_param_source("KODAK_EKTAR_100", _rec)
+del _rec
 
 
 FILM_PROFILES = tuple(
@@ -81456,6 +82508,162 @@ def _apply_ilford_sheets(p: "FilmProfile") -> "FilmProfile":
 FILM_PROFILES = tuple(_apply_ilford_sheets(_p) for _p in FILM_PROFILES)
 
 
+# ---- 2026-10-07: ROLLEI folder review -- curve records and development points ----
+#: Shift from each traced sheet axis to the stored curve's x: stored x = sheet
+#: x + shift, so the stored fit's fog + 0.10 lands at -1.60 (monochrome median;
+#: mid-grey is x = 0), the rule ILFORD_CURVE_X_SHIFT and AVIPHOT use.
+ROLLEI_CURVE_X_SHIFT = {"ROLLEI_R3": -2.69, "ROLLEI_INFRARED_400": +0.79,
+                        "ROLLEI_PAN_25": -2.90, "ROLLEI_SUPERPAN_200": -1.90}
+#: Every curve traced in the ROLLEI folder, on its SHEET axis (not shifted):
+#: (stock, document, condition) -> (ToneCurve params, fit rms D, max D, G-bar)
+#: with G-bar = Ilford-style mean gradient from fog + 0.10 over 1.5 log H.
+#: 'adopted' marks the curve stored on the profile. SUPERPAN rows are fitted to
+#: the third-party zone tables (zones 0-X, 0.301 log H apart) with dmin held at
+#: the [T3] 0.07; densities above fog + 0.07.
+ROLLEI_CURVE_FITS = {
+    ("ROLLEI_R3", "R3 2004 p9", "developer not named", "adopted"): ((0.2700, 0.9288, 1.3678, 0.3139, 4.1351, 0.3489), 0.0084, 0.0152, 0.690),
+    ("ROLLEI_INFRARED_400", "IR 2005 p2", "developer not named", "adopted"): ((0.1450, 0.7210, -1.6900, 0.5564, 1.5622, 0.2425), 0.0210, 0.0406, 0.374),
+    ("ROLLEI_PAN_25", "PAN 25 2005 p2", "D-76 4 min 21 C", "record"): ((0.0698, 0.5597, 1.6283, 0.2764, 4.1092, 0.1939), 0.0053, 0.0161, 0.483),
+    ("ROLLEI_PAN_25", "PAN 25 2005 p2", "D-76 6 min 21 C", "record"): ((0.0647, 0.6324, 1.4714, 0.2661, 4.0886, 0.1417), 0.0043, 0.0177, 0.543),
+    ("ROLLEI_PAN_25", "PAN 25 2005 p2", "D-76 8 min 21 C", "record"): ((0.0595, 0.6897, 1.3539, 0.2675, 4.0789, 0.1895), 0.0072, 0.0315, 0.583),
+    ("ROLLEI_PAN_25", "PAN 25 2005 p2", "D-76 10 min 21 C", "adopted"): ((0.0633, 0.7632, 1.3774, 0.2427, 4.2338, 0.4013), 0.0049, 0.0188, 0.650),
+    ("ROLLEI_PAN_25", "PAN 25 2005 p2", "LP Supergrain 1+7 2 min 21 C", "record"): ((0.0543, 0.6956, 1.6196, 0.2407, 4.0052, 0.2997), 0.0053, 0.0168, 0.601),
+    ("ROLLEI_PAN_25", "PAN 25 2005 p2", "LP Supergrain 1+7 4 min 21 C", "record"): ((0.0545, 0.8750, 1.4444, 0.2125, 4.0580, 0.2774), 0.0040, 0.0194, 0.764),
+    ("ROLLEI_PAN_25", "PAN 25 2005 p2", "LP Supergrain 1+7 8 min 21 C", "record"): ((0.0462, 1.0558, 1.3812, 0.2432, 3.8878, 0.2846), 0.0072, 0.0254, 0.860),
+    ("ROLLEI_SUPERPAN_200", "2007 test p7", "D-76 1+1 20 C 17 min, EI 100 daylight", "adopted"): ((0.0700, 0.9557, 0.6127, 0.3299, 2.3582, 0.4310), 0.0068, 0.0139, 0.629),
+    ("ROLLEI_SUPERPAN_200", "2007 test p8", "D-76 1+1 20 C 12.5 min, EI 160 tungsten", "record"): ((0.0700, 0.9170, 0.4513, 0.2375, 2.1188, 0.5358), 0.0058, 0.0134, 0.643),
+    ("ROLLEI_SUPERPAN_200", "2007 test p3", "Finol 1+1+100 24 C 11.5 min, EI 160 daylight", "record"): ((0.0700, 0.6717, 0.3616, 0.2616, 3.3929, 0.4379), 0.0080, 0.0125, 0.570),
+    ("ROLLEI_SUPERPAN_200", "2007 test p4", "Finol 1+1+100 24 C 12.5 min, EI 250 tungsten", "record"): ((0.0700, 0.7156, 0.2380, 0.1907, 2.6864, 0.6192), 0.0034, 0.0045, 0.606),
+    ("ROLLEI_SUPERPAN_200", "2007 test p9", "MZB two-bath 24 C 8+5 min, EI 125 tungsten", "record"): ((0.0700, 0.9499, 0.4416, 0.2205, 2.0797, 0.5129), 0.0063, 0.0103, 0.676),
+    ("ROLLEI_SUPERPAN_200", "2007 test p10", "MZB two-bath 20 C 10.5+4.5 min, EI 80 daylight", "record"): ((0.0700, 0.6202, 0.1753, 0.1526, 3.3166, 0.6938), 0.0056, 0.0122, 0.569),
+    ("ROLLEI_SUPERPAN_200", "2007 test p15", "Tanol 1+1+100 24 C 15 min, EI 100 daylight", "record"): ((0.0700, 0.6971, 0.2928, 0.2400, 2.6971, 0.6638), 0.0067, 0.0122, 0.556),
+    ("ROLLEI_SUPERPAN_200", "2007 test p16", "Tanol Speed 1+1+100 24 C 14 min, EI 250 daylight", "record"): ((0.0700, 0.5987, 0.1479, 0.1821, 4.2293, 0.8620), 0.0076, 0.0132, 0.549),
+}
+
+def _rp(dev, dil, mins, ei, c=20.0, g=0.0, ci=0.0, fog=0.0):
+    return DevelopmentPoint(developer=dev, dilution=dil, minutes=mins, celsius=c,
+                            gamma=g, contrast_index=ci, exposure_index=ei, base_fog=fog)
+
+_DEV09_SRC = ("Rollei «Development-time table - Ontwikkelingstabel» (2009), «Setting up times for "
+              "medium contrast», inverting cycles of 30 s, 20 C (* = 24 C); R3 with 2 min presoak. "
+              "Contrast figure not printed, so gamma is left 0. RHS = AM74 compatible, RLS = CG512 compatible.")
+#: name -> (points, source). ⚠ TABLE ROWS ARE STORED TIME-ONLY (gamma 0) EVEN
+#: WHERE THE DOCUMENT SAYS ITS TIMES ARE FOR GAMMA 0.65: every row of such a
+#: table carries the SAME target, across push ratings too, so the number places
+#: no point on a time-contrast curve -- and `film_sim.development_family`, which
+#: keys groups on developer / dilution / vessel / edition / temperature but not
+#: EI, would read equal-gamma push rows as a flat development curve (it did, on
+#: SUPERPAN's RLS 1+4 EI 50 / EI 200 pair, before this rule). The target is
+#: named in each source. Contrast is stored only where it was MEASURED: the
+#: G-bar of each traced PAN 25 curve and of each fitted 2007 zone table.
+#: Ranged times («9 - 13») are NOT stored as points and are named in the
+#: source; tungsten-rated rows of the 2007 test are not stored (DevelopmentPoint
+#: has no light-source field) and are in ROLLEI_CURVE_FITS.
+ROLLEI_DEV_POINTS: dict[str, tuple[tuple, str]] = {
+    "ROLLEI_R3": ((
+        _rp("Kodak D-76", "", 10.0, 200), _rp("Kodak D-76", "", 14.0, 400),
+        _rp("Kodak HC-110", "Dil. B", 14.0, 400), _rp("Ilford ID-11", "", 14.0, 400),
+        _rp("Ilford Perceptol", "", 14.0, 200),
+        _rp("Champion Promicrol", "1+14", 14.0, 400), _rp("Champion Promicrol", "1+14", 10.0, 400, c=24.0),
+        _rp("Champion Promicrol", "1+14", 21.0, 1600), _rp("Champion Promicrol", "1+14", 15.0, 1600, c=24.0),
+        _rp("Champion Promicrol", "1+9", 10.0, 400), _rp("Champion Promicrol", "1+9", 6.5, 400, c=24.0),
+        _rp("Champion Promicrol", "1+9", 14.0, 1600), _rp("Champion Promicrol", "1+9", 9.5, 1600, c=24.0),
+        _rp("Rollei RHS", "1+7", 12.0, 50), _rp("Rollei RHS", "1+7", 13.0, 100), _rp("Rollei RHS", "1+7", 14.0, 200),
+        _rp("Rollei RHS", "1+7", 14.0, 400), _rp("Rollei RHS", "1+7", 18.0, 800), _rp("Rollei RHS", "1+7", 22.0, 1600),
+        _rp("Rollei RHS", "1+12", 17.0, 50), _rp("Rollei RHS", "1+12", 18.5, 100), _rp("Rollei RHS", "1+12", 19.5, 200),
+        _rp("Rollei RHS", "1+12", 20.0, 400), _rp("Rollei RHS", "1+12", 25.0, 800),
+        _rp("Rollei RLS", "1+4", 23.0, 50, c=24.0), _rp("Rollei RLS", "1+4", 24.0, 100, c=24.0),
+        _rp("Rollei RLS", "1+4", 25.0, 200, c=24.0), _rp("Rollei RLS", "1+4", 26.0, 400, c=24.0),
+        _rp("Rollei RLC", "1+4", 18.5, 400), _rp("Rodinal", "1+25", 12.0, 400),
+        _rp("D-76 / ID-11", "stock", 10.0, 200), _rp("D-76 / ID-11", "stock", 14.0, 400)),
+        "Rollei/MACO «ROLLEI R³ -- Product information and instructions for use» (October 2004) p16 "
+        "«Development-time table», times for gamma 0.65 (p14) with prewash and 30 s inversions; NOT stored: "
+        "the ranged rows R³ HIGH SPEED 1+7 (ISO 100-6400: 9-13 ... 29-32 min), R³ LOW SPEED 1+4 (ISO 25-200, "
+        "20-22 ... 23-25 min at 24 C) and Kodak Xtol 1+2 (ISO 200-400, 24-29 min); p15 diagram (LP-SUPERGRAIN "
+        "1+7, 20 C, about 9.5 min at EI 400 rising to 26 min at EI 6400) and p17 temperature corrections "
+        "(21-25 C: -5/-10/-15/-20/-30 %) recorded in the report.  " + _DEV09_SRC),
+    "ROLLEI_INFRARED_400": ((
+        _rp("Rollei Supergrain", "1+12", 7.0, 400), _rp("Rollei RLS", "1+4", 14.5, 200, c=24.0),
+        _rp("Rollei R09 / Rodinal", "1+25", 10.5, 400), _rp("Rollei R09 / Rodinal", "1+50", 22.0, 400),
+        _rp("Rollei R09 Spezial", "1+15", 8.5, 400), _rp("Rollei R09 Spezial", "1+31", 17.0, 400),
+        _rp("Ilford Ilfosol 3", "1+3", 5.0, 400), _rp("Ilford Perceptol", "1+1", 10.0, 400),
+        _rp("Ilford ID-11 / Kodak D-76", "stock", 10.8333, 400), _rp("Kodak X-Tol", "1+1", 17.0, 400),
+        _rp("Kodak HC-110", "B (1+31)", 5.0, 400), _rp("Moersch Tanol", "1+1+100", 19.5, 400, c=24.0),
+        _rp("Rollei RHS", "1+7", 6.0, 400), _rp("Rollei RHS", "1+12", 8.5, 400), _rp("Rollei RLS", "1+4", 18.0, 400, c=24.0),
+        _rp("Rodinal", "1+25", 7.5, 400), _rp("Rodinal", "1+50", 12.0, 400), _rp("D-76 / ID-11", "stock", 6.0, 400)),
+        "MACO «ROLLEI INFRARED» DATA SHEET R210701 (2021) p4 «DEVELOPMENT TIME TABLE», times for an "
+        "average contrast of gamma 0.65, 20 C, agitation 60 s continuous then 5 s every 30 s. ⚠ D-76 / ID-11 "
+        "stock: 10:50 min in 2021 against 6 min in the 2009 table at the same ISO 400 -- not reconciled.  " + _DEV09_SRC),
+    "ROLLEI_RETRO_400": ((
+        _rp("Rollei RLS", "1+4", 12.0, 200, c=24.0), _rp("Rollei RLC", "1+4", 7.5, 200),
+        _rp("Rollei RHS", "1+7", 6.0, 400), _rp("Rollei RHS", "1+12", 8.5, 400), _rp("Rollei RLC", "1+4", 8.5, 400),
+        _rp("AM50", "1+29", 11.0, 400), _rp("Rodinal", "1+25", 10.0, 400), _rp("Rodinal", "1+50", 13.0, 400),
+        _rp("D-76 / ID-11", "stock", 9.0, 400)),
+        _DEV09_SRC + " The January 2008 sheet refers to an online chart and prints no times."),
+    "ROLLEI_PAN_25": ((
+        _rp("Kodak D-76", "", 4.0, 25, c=21.0, ci=0.483, fog=0.067), _rp("Kodak D-76", "", 6.0, 25, c=21.0, ci=0.543, fog=0.067),
+        _rp("Kodak D-76", "", 8.0, 25, c=21.0, ci=0.583, fog=0.067), _rp("Kodak D-76", "", 10.0, 25, c=21.0, ci=0.650, fog=0.067),
+        _rp("LP Supergrain", "1+7", 2.0, 25, c=21.0, ci=0.601, fog=0.055), _rp("LP Supergrain", "1+7", 4.0, 25, c=21.0, ci=0.764, fog=0.055),
+        _rp("LP Supergrain", "1+7", 8.0, 25, c=21.0, ci=0.860, fog=0.055),
+        _rp("Rollei RHS", "1+7", 5.0, 25), _rp("Rollei RHS", "1+12", 7.0, 25), _rp("Rollei RLS", "1+4", 10.0, 25, c=24.0),
+        _rp("Rollei RLC", "1+4", 7.0, 25), _rp("AM50", "1+29", 5.0, 25), _rp("Rodinal", "1+25", 6.0, 25),
+        _rp("Rodinal", "1+50", 11.0, 25), _rp("D-76 / ID-11", "stock", 5.0, 25)),
+        "Rollei «ROLLEI PAN 25» sheet (October 2005) p2 characteristic diagrams, D-76 4/6/8/10 min and LP "
+        "Supergrain 1+7 2/4/8 min at 21 C: contrast_index holds the Ilford-style G-bar MEASURED ON THIS "
+        "PROJECT'S TRACE (fog + 0.10, 1.5 log H), base_fog read off the trace; ISO 25 is the sheet's rating, "
+        "the curves print no speed.  " + _DEV09_SRC),
+    "ROLLEI_SUPERPAN_200": ((
+        _rp("Rollei Supergrain", "1+9", 6.0, 200), _rp("Rollei Supergrain", "1+12", 8.0, 200),
+        _rp("Rollei Supergrain", "1+15", 11.0, 200), _rp("Rollei RLS", "1+4", 10.0, 50, c=24.0),
+        _rp("Rollei RLS", "1+4", 12.0, 200, c=24.0), _rp("Rollei R09 / Rodinal", "1+25", 8.0, 200),
+        _rp("Rollei R09 / Rodinal", "1+50", 17.0, 200), _rp("Rollei R09 Spezial", "1+15", 6.5, 200),
+        _rp("Rollei R09 Spezial", "1+31", 13.0, 200), _rp("Ilford ID-11", "1+1", 14.0, 200),
+        _rp("Ilford ID-11", "stock", 10.0, 200), _rp("Ilford DD-X", "1+4", 8.75, 200),
+        _rp("Ilford Ilfosol 3", "1+9", 7.5, 200), _rp("Kodak D-76", "1+1", 14.0, 200),
+        _rp("Kodak D-76", "stock", 10.0, 200), _rp("Kodak X-Tol", "1+1", 14.0, 200),
+        _rp("Kodak HC-110", "B (1+31)", 8.0, 200), _rp("Kodak T-Max", "1+4", 8.0, 200),
+        _rp("Moersch Finol", "1+1+100", 11.8333, 160), _rp("Moersch Finol", "1+1+250", 12.5, 250),
+        _rp("Tetenal Ultrafin T-Plus", "1+4", 5.5, 200),
+        _rp("Rollei RHS", "1+7", 6.5, 200), _rp("Rollei RHS", "1+12", 8.0, 200), _rp("Rollei RLS", "1+4", 12.0, 200, c=24.0),
+        _rp("Rodinal", "1+25", 8.0, 200), _rp("Rodinal", "1+50", 17.0, 200),
+        _rp("Kodak D-76 (third-party test)", "1+1", 17.0, 100, ci=0.629, fog=0.07),
+        _rp("Moersch Finol (third-party test)", "1+1+100", 11.5, 160, c=24.0, ci=0.570),
+        _rp("Moersch Tanol (third-party test)", "1+1+100", 15.0, 100, c=24.0, ci=0.556),
+        _rp("Moersch Tanol Speed (third-party test)", "1+1+100", 14.0, 250, c=24.0, ci=0.549, fog=0.16),
+        _rp("masc prototype (third-party test)", "1+1+40", 13.0, 64)),
+        "MACO «ROLLEI SUPERPAN 200» DATA SHEET R210701 (2021) p4, times for gamma 0.65 at 20 C; the "
+        "«Bergger P.M.K. 12/12°» row is a misprinted rating and is not stored.  " + _DEV09_SRC + "  Signed "
+        "third-party test «Rollei Superpan 200 pro -- first impression» (2007) p15 development data, daylight "
+        "ratings only, contrast_index = G-bar of THIS PROJECT'S FIT to the article's zone tables (dmin held "
+        "0.07); MZB two-bath rows not stored as points. ⚠ The 2021 Finol rows (11:50 at 20 C) repeat the "
+        "article's (11:30 at 24 C) with a different temperature in the table header."),
+}
+#: AGFA AVIPHOT PAN 400S PE1 (sheet 01/2006 p4), sheet axis = absolute log It + 3:
+#: (development, adopted|record) -> (ToneCurve params, rms D, max D, G-bar). dmin
+#: held at the printed fog of each time (0.08 / 0.09 / 0.12).
+AVIPHOT_400S_CURVE_X_SHIFT = -1.66
+AVIPHOT_400S_CURVE_FITS = {
+    ("G 74 c 30 C 20 s", "record"): ((0.0801, 0.5601, 0.0936, 0.0920, 8.4670, 0.1109), 0.0114, 0.0220, 0.555),
+    ("G 74 c 30 C 42 s", "adopted"): ((0.0900, 0.8757, -0.0442, 0.0681, 3.2268, 0.6553), 0.0198, 0.0452, 0.843),
+    ("G 74 c 30 C 70 s", "record"): ((0.1199, 1.2395, 0.0868, 0.2282, 1.9195, 0.0365), 0.0151, 0.0336, 1.012),
+}
+#: The printed MTF vertices (p2), lp/mm -> % modulation, read at the categorical
+#: axis positions. Not stored in MTFSpec: see the profile comment.
+AVIPHOT_400S_MTF_POINTS = ((2, 124.3), (5, 124.3), (10, 129.1), (20, 131.6),
+                           (40, 103.7), (60, 70.7), (80, 47.4))
+ROLLEI_DEV_ADDED: dict[str, int] = {}
+
+
+def _apply_rollei_dev(p: "FilmProfile") -> "FilmProfile":
+    rec = ROLLEI_DEV_POINTS.get(p.name)
+    if not rec:
+        return p
+    return _append_dev_points(p, rec[0], rec[1], tally=ROLLEI_DEV_ADDED)
+
+
+FILM_PROFILES = tuple(_apply_rollei_dev(_p) for _p in FILM_PROFILES)
+
+
 # ---- 2026-09-29g: Soviet handbooks -- Гурлев 1986 figures, Иофис 1964 / 1973 / 1977 / 1980 ----
 # Owner-approved. Six PDFs in PDF/PROFILES/SOVIET, two of them byte-identical to
 # copies already on file (Иофис 1964 and 1980 under a second name).
@@ -86873,7 +88081,26 @@ def grain_sigma(grain: GrainSpec, dmin: float, dmax: float, density):
 #: single Gaussian the C++ side used before. Every stock improves, by 1.4x to
 #: 10.0x. (22 rows until 2026-09-06; the two rows added then are among the best
 #: in the table, so the worst-row figure is unchanged.)
-_MTF_KERNEL_TABLE: dict[float, tuple[float, float, float]] = {
+#:
+#: ⚠⚠ 2026-10-06 (owner decision G5): THIS IS NOW THE TABLE OF TWO-LOBE FITS,
+#: NOT THE TABLE THE ENGINES SERVE. Every exponent here was also fitted with
+#: THREE lobes (`mtf_kernel_fit.py`, |w| <= 2) and is served by
+#: `_MTF_KERNEL_TABLE3` when that fit beats the two-lobe row by >= 0.002 in
+#: worst modulation error; `_MTF_KERNEL_TABLE` below is derived from this dict
+#: by removing those exponents, so each q lives in exactly ONE served table and
+#: neither engine needed a code change. The rows and their notes stay here as
+#: the record of the two-lobe fits and as the comparison `mtf_kernel_fit
+#: --check` makes. Served by two lobes today: 2.37, 2.38, 2.39 (already at the
+#: 0.010 target).
+#:
+#: ⚠⚠ 2026-10-06, SAME DAY, LATER: NO ENGINE SERVES EITHER TABLE ANY MORE. The
+#: owner's FFT library entered both C++ engines, which now apply the LAW above
+#: exactly in the frequency domain, as film_sim always did; cpp_codegen stopped
+#: emitting FilmMtfKernel / FilmMtfKernel3. Both tables remain the record of the
+#: fits and feed film_sim's `mtf_use_kernel` diagnostic only (the mentions of
+#: ALGO_BLUR_MAX_LOBES above are history: that constant left the engine with
+#: the multi-lobe blur).
+_MTF_KERNEL_TABLE2_FIT: dict[float, tuple[float, float, float]] = {
     1.9600: (+0.303981, 0.381476, 1.296813),   # 2026-10-04, EKTACHROME_64 combined-curve q (Лихачев 2003), max|err| 0.0210 vs Gaussian 0.1424
     1.9700: (+0.301478, 0.381937, 1.291144),   # 2026-10-04, KODAK_VERICOLOR_III_160 combined-curve q, max|err| 0.0206 vs Gaussian 0.1413
     2.0100: (+0.291438, 0.383641, 1.269469),   # 2026-10-04, KONICA_CENTURIA_SUPER_1600 combined-curve q, max|err| 0.0192 vs Gaussian 0.1368
@@ -87039,17 +88266,109 @@ _MTF_KERNEL_TABLE: dict[float, tuple[float, float, float]] = {
 #: can cover a knee and a tail, not a knee, a tail and a long shoulder between
 #: them.
 #:
-#: ⚠ IT COSTS LOBE BUDGET IN THE ENGINE, WHICH IS WHY THIS IS NOT THE DEFAULT.
-#: The adjacency band-pass MULTIPLIES the base transfer, so each base lobe
-#: carries its own inner and outer partner: three base lobes is nine, and
-#: ALGO_BLUR_MAX_LOBES was raised 6 -> 9 for it. A stock whose q sits in the
-#: two-lobe table keeps the two-lobe path and renders bit-identically to before.
+#: ⚠ IT COSTS LOBE BUDGET IN THE ENGINE: the adjacency band-pass MULTIPLIES
+#: the base transfer, so each base lobe carries its own inner and outer
+#: partner -- three base lobes is nine, and ALGO_BLUR_MAX_LOBES was raised
+#: 6 -> 9 for it.
+#:
+#: ⚠⚠ AND SINCE 2026-10-06 IT IS THE DEFAULT FOR 74 OF THE 77 FITTED EXPONENTS
+#: (owner decision G5, "better C++ kernel fit"). The cost was MEASURED before
+#: adoption, not assumed: blur cost follows sigma, not lobe count, and the
+#: three-lobe fits land on smaller or better-placed sigmas than the two-lobe
+#: rows' wide lobe (s2 up to 14x the base sigma), so stage 06 measured -39 %
+#: (Portra 400), +9 % / -5 % (Velvia 50, 1080p / 4K) and +3 % / -3 % (Tri-X)
+#: on the review host. Worst modulation error against the law: two-lobe
+#: median 0.021 / worst 0.043 -> three-lobe median 0.006 / worst 0.015
+#: (q 1.50-1.70 stay above the 0.010 target; Technical Pan 0.027, unchanged).
 _MTF_KERNEL_TABLE3: dict[float, tuple[float, float, float, float, float]] = {
     # KODAK_TECHNICAL_PAN, «Современные фотоматериалы и их обработка» p.372.
     1.0710: (0.303249, 0.466223, 0.181907, 1.048645, 5.985403),
     #        ^w1       ^w2       ^s1       ^s2       ^s3
     #        max|err| 0.0267  vs Gaussian 0.2657  (10.0x)
+    # ---- 2026-10-06, owner decision G5: every exponent the three-lobe family
+    # serves better than its two-lobe row (by >= 0.002). mtf_kernel_fit.py
+    # --fit, minimax on logspace(-1.3, 0.9, 600), |each weight| <= 2, lobes in
+    # ascending sigma. "two-lobe" is the row in _MTF_KERNEL_TABLE2_FIT it replaces.
+    1.5000: (+0.207992, +0.519148, 0.214224, 0.862568, 2.922161),   # max|err| 0.0148  vs two-lobe 0.0429
+    1.5800: (+0.198224, +0.488443, 0.224448, 0.812824, 2.482724),   # max|err| 0.0146  vs two-lobe 0.0384
+    1.5900: (+0.188275, +0.527555, 0.218743, 0.840259, 2.613335),   # max|err| 0.0125  vs two-lobe 0.0378
+    1.7000: (+0.186490, +0.570586, 0.238194, 0.888867, 2.685936),   # max|err| 0.0131  vs two-lobe 0.0322
+    1.8400: (+0.153048, +0.549878, 0.240036, 0.827945, 2.129143),   # max|err| 0.0093  vs two-lobe 0.0257
+    1.8600: (+0.155851, +0.531013, 0.245939, 0.836938, 2.011360),   # max|err| 0.0097  vs two-lobe 0.0249
+    1.8700: (+0.146854, +0.545123, 0.240928, 0.818197, 2.049525),   # max|err| 0.0087  vs two-lobe 0.0245
+    1.9150: (+0.131983, +0.514364, 0.236467, 0.780566, 1.802888),   # max|err| 0.0072  vs two-lobe 0.0227
+    1.9200: (+0.134294, +0.526435, 0.239389, 0.792286, 1.893428),   # max|err| 0.0074  vs two-lobe 0.0225
+    1.9600: (+0.120716, +0.495240, 0.234730, 0.756208, 1.744882),   # max|err| 0.0061  vs two-lobe 0.0210
+    1.9700: (+0.114959, +0.476016, 0.231312, 0.737010, 1.655539),   # max|err| 0.0055  vs two-lobe 0.0206
+    2.0000: (+0.111827, +0.474226, 0.233523, 0.737286, 1.618753),   # max|err| 0.0053  vs two-lobe 0.0195
+    2.0100: (+0.111705, +0.458210, 0.235219, 0.727792, 1.588705),   # max|err| 0.0054  vs two-lobe 0.0192
+    2.0200: (+0.109782, +0.476907, 0.235055, 0.738406, 1.645887),   # max|err| 0.0052  vs two-lobe 0.0188
+    2.0400: (+0.104718, +0.459805, 0.233638, 0.724839, 1.560382),   # max|err| 0.0048  vs two-lobe 0.0182
+    2.0800: (+0.101713, +0.445107, 0.237394, 0.724578, 1.507550),   # max|err| 0.0046  vs two-lobe 0.0169
+    2.0900: (+0.093073, +0.389625, 0.230669, 0.670126, 1.442325),   # max|err| 0.0039  vs two-lobe 0.0166
+    2.1100: (+0.086712, +0.397006, 0.228167, 0.673621, 1.431778),   # max|err| 0.0036  vs two-lobe 0.0160
+    2.1400: (+0.081710, +0.387675, 0.226178, 0.663540, 1.408463),   # max|err| 0.0030  vs two-lobe 0.0151
+    2.1500: (+0.079181, +0.384512, 0.224679, 0.658637, 1.400015),   # max|err| 0.0028  vs two-lobe 0.0149
+    2.1600: (+0.080681, +0.383079, 0.228008, 0.666480, 1.391470),   # max|err| 0.0030  vs two-lobe 0.0146
+    2.1630: (+0.081027, +0.370982, 0.229117, 0.655635, 1.381268),   # max|err| 0.0030  vs two-lobe 0.0181
+    2.1700: (+0.083315, +0.374135, 0.232750, 0.668953, 1.378906),   # max|err| 0.0032  vs two-lobe 0.0143
+    2.2000: (+0.083959, +0.326195, 0.240649, 0.638550, 1.327122),   # max|err| 0.0040  vs two-lobe 0.0136
+    2.2100: (+0.073540, +0.341370, 0.241230, 0.639120, 1.324686),   # max|err| 0.0044  vs two-lobe 0.0133
+    2.2500: (+0.058635, +0.282160, 0.247687, 0.562498, 1.259453),   # max|err| 0.0055  vs two-lobe 0.0124
+    2.2600: (+0.053608, +0.317646, 0.221020, 0.604416, 1.271625),   # max|err| 0.0060  vs two-lobe 0.0122
+    2.2700: (+0.040263, +0.296650, 0.200440, 0.558323, 1.247911),   # max|err| 0.0062  vs two-lobe 0.0120
+    2.3000: (+0.065515, +0.241446, 0.213901, 0.569845, 1.216644),   # max|err| 0.0072  vs two-lobe 0.0114
+    2.3100: (+0.065586, +0.232192, 0.216678, 0.564804, 1.207681),   # max|err| 0.0075  vs two-lobe 0.0112
+    2.4200: (+0.205092, +0.798781, 0.402923, 1.139045, 8.040119),   # max|err| 0.0094  vs two-lobe 0.0114
+    2.4400: (+0.205633, +0.804500, 0.407441, 1.144103, 3.640647),   # max|err| 0.0092  vs two-lobe 0.0121
+    2.4500: (+0.202064, +0.804899, 0.406363, 1.138335, 6.332058),   # max|err| 0.0090  vs two-lobe 0.0125
+    2.4700: (+0.200462, +0.809971, 0.408981, 1.139011, 6.256749),   # max|err| 0.0088  vs two-lobe 0.0133
+    2.4900: (+0.197532, +0.813718, 0.410408, 1.136739, 6.396492),   # max|err| 0.0085  vs two-lobe 0.0141
+    2.5000: (+0.196581, +0.815790, 0.411648, 1.136631, 6.471338),   # max|err| 0.0084  vs two-lobe 0.0145
+    2.5100: (+0.196712, +0.817183, 0.413697, 1.137495, 6.150415),   # max|err| 0.0083  vs two-lobe 0.0149
+    2.5400: (+0.192697, +0.824659, 0.416056, 1.136523, 5.882469),   # max|err| 0.0080  vs two-lobe 0.0161
+    2.5600: (+0.191392, +0.828344, 0.419534, 1.136624, 5.860229),   # max|err| 0.0078  vs two-lobe 0.0169
+    2.5800: (+0.192654, +0.830140, 0.424519, 1.139168, 5.166387),   # max|err| 0.0078  vs two-lobe 0.0178
+    2.6200: (+0.185734, +0.842698, 0.425457, 1.138111, 5.170456),   # max|err| 0.0072  vs two-lobe 0.0195
+    2.6300: (+0.188090, +0.847874, 0.429577, 1.145133, 4.184330),   # max|err| 0.0073  vs two-lobe 0.0199
+    2.6500: (+0.184113, +0.847560, 0.433056, 1.137785, 6.017661),   # max|err| 0.0072  vs two-lobe 0.0208
+    2.6700: (+0.180680, +0.855428, 0.429979, 1.139223, 4.691795),   # max|err| 0.0069  vs two-lobe 0.0217
+    2.6800: (+0.181130, +0.856359, 0.433505, 1.140286, 4.847485),   # max|err| 0.0067  vs two-lobe 0.0221
+    2.6900: (+0.192673, +0.853193, 0.444338, 1.163995, 4.712194),   # max|err| 0.0075  vs two-lobe 0.0225
+    2.7900: (+0.173774, +0.882463, 0.446918, 1.147264, 4.611008),   # max|err| 0.0059  vs two-lobe 0.0270
+    2.8000: (+0.172242, +0.885283, 0.447312, 1.147065, 4.779771),   # max|err| 0.0058  vs two-lobe 0.0275
+    2.8200: (+0.178998, +0.899294, 0.458240, 1.164522, 3.221501),   # max|err| 0.0060  vs two-lobe 0.0284
+    2.8300: (+0.179486, +0.903627, 0.459952, 1.168008, 3.154693),   # max|err| 0.0059  vs two-lobe 0.0289
+    2.8400: (+0.171179, +0.896871, 0.454003, 1.152927, 4.208581),   # max|err| 0.0056  vs two-lobe 0.0294
+    2.8700: (+0.169549, +0.902349, 0.458205, 1.154190, 4.131725),   # max|err| 0.0054  vs two-lobe 0.0308
+    2.8800: (+0.167959, +0.905670, 0.458691, 1.154229, 4.165989),   # max|err| 0.0053  vs two-lobe 0.0313
+    2.8900: (+0.174897, +0.918461, 0.466827, 1.170850, 3.635970),   # max|err| 0.0055  vs two-lobe 0.0317
+    2.9100: (+0.170507, +0.919965, 0.466278, 1.166062, 3.298916),   # max|err| 0.0053  vs two-lobe 0.0327
+    2.9400: (+0.175660, +0.929805, 0.476976, 1.178018, 3.075254),   # max|err| 0.0053  vs two-lobe 0.0341
+    2.9500: (+0.164761, +0.924433, 0.469281, 1.161479, 3.857072),   # max|err| 0.0050  vs two-lobe 0.0346
+    2.9900: (+0.162613, +0.936336, 0.473264, 1.166286, 3.675569),   # max|err| 0.0047  vs two-lobe 0.0364
+    3.0000: (+0.169853, +0.931619, 0.482541, 1.172336, 3.667363),   # max|err| 0.0049  vs two-lobe 0.0369
+    3.0500: (+0.179114, +0.979305, 0.500476, 1.210318, 2.915614),   # max|err| 0.0050  vs two-lobe 0.0386
+    3.0600: (+0.161286, +0.958458, 0.485577, 1.177226, 3.372024),   # max|err| 0.0045  vs two-lobe 0.0384
+    3.0700: (+0.174376, +0.958348, 0.499636, 1.200192, 3.306536),   # max|err| 0.0048  vs two-lobe 0.0381
+    3.0800: (+0.163459, +0.969626, 0.491164, 1.185894, 3.254280),   # max|err| 0.0045  vs two-lobe 0.0379
+    3.1000: (+0.167995, +0.961517, 0.499009, 1.187206, 3.330329),   # max|err| 0.0045  vs two-lobe 0.0374
+    3.1200: (+0.182137, +0.987922, 0.516192, 1.224322, 2.808119),   # max|err| 0.0049  vs two-lobe 0.0369
+    3.1500: (+0.176105, +1.016769, 0.515698, 1.224747, 2.673957),   # max|err| 0.0046  vs two-lobe 0.0362
+    3.2300: (+0.165762, +1.033137, 0.519789, 1.221041, 2.701169),   # max|err| 0.0041  vs two-lobe 0.0344
+    3.3200: (+0.177208, +1.089589, 0.546988, 1.259334, 2.553862),   # max|err| 0.0041  vs two-lobe 0.0325
+    3.5000: (+0.191058, +1.182024, 0.591372, 1.313322, 2.415475),   # max|err| 0.0039  vs two-lobe 0.0292
+    3.6300: (+0.194925, +1.332429, 0.616567, 1.356084, 2.195775),   # max|err| 0.0036  vs two-lobe 0.0271
+    3.7300: (+0.214728, +1.497951, 0.650324, 1.413185, 2.115683),   # max|err| 0.0037  vs two-lobe 0.0256
+    3.7700: (+0.223840, +1.703187, 0.664079, 1.451901, 2.010896),   # max|err| 0.0038  vs two-lobe 0.0251
+    4.2300: (+0.128914, +1.996445, 0.649560, 1.429188, 1.977822),   # max|err| 0.0076  vs two-lobe 0.0204
 }
+
+#: The two-lobe rows the engines SERVE: every fitted exponent that the
+#: three-lobe table does not take (2026-10-06, G5). cpp_codegen emits this dict.
+_MTF_KERNEL_TABLE: dict[float, tuple[float, float, float]] = {
+    _q: _row for _q, _row in _MTF_KERNEL_TABLE2_FIT.items()
+    if _q not in _MTF_KERNEL_TABLE3}
 
 
 def mtf_kernel3(q: float) -> tuple[float, float, float, float, float] | None:
@@ -87072,12 +88391,14 @@ def mtf_kernel(q: float) -> tuple[float, float, float] | None:
 
 
 def mtf_kernel_response(mtf: MTFSpec, channel: int, f):
-    """The transfer the SEPARABLE KERNEL actually realises, for guards.
+    """The transfer the fitted SEPARABLE KERNEL realises -- diagnostic only.
 
-    This is what both renderers now apply on a measured stock. It is a
-    deliberately separate function from `mtf_response`: that one is the law,
-    this one is the approximation, and a guard that compared the law with itself
-    would prove nothing.
+    ⚠ 2026-10-06: NO RENDERER APPLIES THIS ANY MORE. Until that date the C++
+    engines (no FFT) convolved this fit on a measured stock; since the owner's
+    FFT library entered the engines, film_sim, the scalar engine and the AVX2
+    engine all apply `mtf_response`, the law, exactly. Kept for film_sim's
+    mtf_use_kernel diagnostic and for the G5 table guards. Deliberately separate
+    from `mtf_response`: that one is the law, this one is the approximation.
     """
     import numpy as _np
     f50 = (mtf.f50_r, mtf.f50_g, mtf.f50_b)[channel]

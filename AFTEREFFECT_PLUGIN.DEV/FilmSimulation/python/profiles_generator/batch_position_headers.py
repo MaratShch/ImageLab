@@ -40,6 +40,7 @@ sys.path.insert(0, str(HERE))
 
 import film_profiles as FP   # noqa: E402
 import film_sim as FS        # noqa: E402
+import engine_env  # noqa: F401 -- owner FFT include path for engine compiles (2026-10-06)
 
 RESULTS: list[bool] = []
 
@@ -100,7 +101,10 @@ def main(argv=None) -> int:
     idx = [c[1] for c in cols].index("batchPosition") if any(c[1] == "batchPosition" for c in cols) else -1
     chk(idx >= 0 and bits.get("eCTRL_BIT_BATCH_POSITION") == idx
         and bits.get("eCTRL_BIT_TOTAL_CONTROLS") == len(cols)
-        and bits.get("eCTRL_BIT_SEED") == len(cols) - 1,
+        # seed was the last bit until 2026-10-06; spectralTaking (47) and
+        # grainTemporalMode (48) were APPENDED after it so bits 0-46 kept their
+        # values, so the test is seed's panel position, not "last".
+        and bits.get("eCTRL_BIT_SEED") == [c[1] for c in cols].index("seed"),
         "film_params_mask.hpp declares eCTRL_BIT_BATCH_POSITION at the panel position",
         "bit %s of %s (panel index %d)" % (bits.get("eCTRL_BIT_BATCH_POSITION"),
                                            bits.get("eCTRL_BIT_TOTAL_CONTROLS"), idx))

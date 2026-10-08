@@ -12,8 +12,13 @@ Owner rules (2026-10-05):
     regenerate, and it is in the buffer);
   * every numeric / bool / enum / array / vector / record member is carried,
     whether or not an engine reads it today (missing data and planned stages
-    included); a std::string / const char* only when an engine or film_sim.py
-    reads it as a key; the provenance subtrees never.
+    included);
+  * (2026-10-06) every std::string / const char* member is carried too --
+    categorical keys, units, measurement conditions, physical classes -- read
+    by an engine today or not, EXCEPT the purely informational ones listed in
+    INFO_LEAF_NAMES / INFO_PATHS / INFO_SUBTREES below (where a value came
+    from, never what it is). The list is explicit so the owner can review it;
+    the earlier "no engine reads it today" test is gone.
 
 This module does three things:
   1. parses film_profiles.hpp (struct bodies, member declarations, enums,
@@ -47,8 +52,18 @@ FORMAT_VERSION = 1
 MAX_STRING_BYTES = 1024
 MAX_DISTINCT_STRINGS = 4096
 
-#: Sub-trees that are provenance by definition (every member, numeric or not).
+#: PURELY INFORMATIONAL members -- the only ones not serialized (owner rule
+#: 2026-10-06: "add all non-informative values, even empty and not used in our
+#: algorithm yet"). Everything else in film::FilmProfile is carried.
+#: Sub-trees that are provenance by definition (every member, numeric or not):
 INFO_SUBTREES = {"provenance", "param_sources"}
+#: String members whose LEAF name marks them as documentation wherever they occur:
+INFO_LEAF_NAMES = {"description", "era", "source"}
+#: Individual informational strings (record members as "Struct::path"):
+INFO_PATHS = {
+    "taking_filter.designation",                        # catalogue name; taking_filter.model is carried
+    "ProcessVariant::report.effective_film_speed_label",  # display label of a carried number
+}
 
 SCALAR_KINDS = {            # C++ spelling -> kind
     "float": "F32", "double": "F64",
@@ -491,10 +506,11 @@ def build_plan(root: Path, hpp_path: Path = None):
             if lf.kind == "EXCLUDED":
                 excluded.append((where + lf.path, lf.note)); continue
             if lf.kind in ("STRING", "CSTRING", "VSTRING"):
-                r = readers(lf.path.split(".")[-1])
-                if not r:
-                    excluded.append((where + lf.path, "text, no reader")); continue
-                kept_strings.append((where + lf.path, r))
+                leaf = lf.path.split(".")[-1]
+                if leaf in INFO_LEAF_NAMES or (where + lf.path) in INFO_PATHS:
+                    excluded.append((where + lf.path, "informational")); continue
+                r = readers(leaf)
+                kept_strings.append((where + lf.path, r or ["no reader yet"]))
             out.append(lf)
         return out
 
@@ -567,10 +583,13 @@ def generate(root: Path, hpp_path: Path = None):
     w("// the struct definitions in film_profiles.hpp, so the database header remains")
     w("// the one definition of the data.")
     w("//")
-    w("// WHAT IS CARRIED (owner rules 2026-10-05): every numeric / bool / enum / array /")
-    w("// vector / record member of FilmProfile, read by an engine today or not; a")
-    w("// std::string or const char* only when an engine or film_sim.py reads it (a key);")
-    w("// never the provenance subtrees (%s). Lists at the end." % ", ".join(sorted(INFO_SUBTREES)))
+    w("// WHAT IS CARRIED (owner rules 2026-10-05 / 2026-10-06): EVERY member of FilmProfile --")
+    w("// numeric, bool, enum, array, vector, record, and every string (keys, units,")
+    w("// measurement conditions, physical classes) -- whether an engine reads it today")
+    w("// or not, and whether it is populated or empty, EXCEPT the purely informational")
+    w("// ones: the provenance subtrees (%s), every string named %s, and %s." % (
+        ", ".join(sorted(INFO_SUBTREES)), " / ".join(sorted(INFO_LEAF_NAMES)), ", ".join(sorted(INFO_PATHS))))
+    w("// Full lists at the end.")
     w("//")
     w("// NUMERIC TYPES are stored as the database holds them (float -> f32, double -> f64,")
     w("// int -> i32, bool -> u8 0/1, enum -> underlying integer); no conversion, so a")
@@ -643,11 +662,11 @@ def generate(root: Path, hpp_path: Path = None):
     w("// serializes every profile in C++ and fails unless the largest equals it.")
     w("// Smallest %d (%s), median %d." % (sizes[-1][0], sizes[-1][1], sizes[len(sizes) // 2][0]))
     w("//")
-    w("// EXCLUDED members (not in the buffer; a round trip leaves them default):")
+    w("// EXCLUDED members -- purely informational (not in the buffer; a round trip leaves them default):")
     for p, why in plan["excluded"]:
         w("//   %-58s %s" % (p, why))
     w("//")
-    w("// STRING members carried, and who reads them:")
+    w("// STRING members carried, and who reads them today:")
     for p, r in plan["kept_strings"]:
         w("//   %-58s %s" % (p, ", ".join(r)))
     w("")
@@ -1323,9 +1342,9 @@ def main(argv=None) -> int:
     recs = ", ".join("%s %d/%d B" % (r, n, s) for r, (n, s) in st["records"].items())
     print("[OK] film_profile_serial.hpp: fixed %d B (%d scalar/array members), %d vectors, %d vector<string>, "
           "%d measured tables, %d key strings, %d sections; records (members/bytes): %s; excluded %d "
-          "(%d unread text, %d provenance); max %d B (%s), min %d B (%s), median %d B"
+          "(%d informational strings, %d provenance subtrees); max %d B (%s), min %d B (%s), median %d B"
           % (st["fixed_size"], st["scalars"], st["vectors"], st["vstrings"], st["meas"], st["named"], st["sections"],
-             recs, len(st["excluded"]), sum(1 for _, x in st["excluded"] if x.startswith("text")),
+             recs, len(st["excluded"]), sum(1 for _, x in st["excluded"] if x.startswith("informational")),
              sum(1 for _, x in st["excluded"] if x.startswith("provenance")),
              st["max"][0], st["max"][1], st["min"][0], st["min"][1], st["median"]))
     return 0

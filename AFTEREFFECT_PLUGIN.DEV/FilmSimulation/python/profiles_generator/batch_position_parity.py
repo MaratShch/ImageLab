@@ -51,6 +51,7 @@ sys.path.insert(0, str(HERE))
 
 import film_profiles as FP            # noqa: E402
 import film_sim as FS                 # noqa: E402
+import engine_env  # noqa: E402,F401 -- owner FFT include path for engine compiles (2026-10-06)
 
 #: The positions probed. 0.0 is the OFF case and is checked for identity
 #: rather than for equality; the rest must agree numerically.

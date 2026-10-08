@@ -50,6 +50,7 @@ from pathlib import Path
 
 import film_profiles as fp
 import film_sim as fs
+import engine_env  # noqa: F401 -- owner FFT include path for engine compiles (2026-10-06)
 
 HERE = Path(__file__).resolve().parent
 

@@ -41,8 +41,8 @@
 #include "AlgoMemHandler.hpp"           // ALGO_RETAIN_ALL_STAGES
 #include "AlgoTakingFilters.hpp"        // ALGO_TAKING_IDENTITY_EPS
 #include "AlgoCornerDefocus.hpp"        // ALGO_DEFOCUS_MAX_LOSS
-#include "AlgoDirCoupler.hpp"           // ALGO_COUPLER_MIN_SIGMA_PX
-#include "AlgoScanMtf.hpp"              // AlgoScanSigmaMm, ALGO_SCAN_MIN_SIGMA_PX
+#include "AlgoDirCoupler.hpp"           // CouplerSpec helpers
+#include "AlgoScanMtf.hpp"              // stage 10 / 13 declarations
 #include "AlgoDyeImpurity.hpp"          // AlgoIsIdentityMatrix
 #include "AlgoCharacteristicCurve.hpp"  // AlgoTintFactor
 #include "AlgoGateWeave.hpp"            // ALGO_WEAVE_UM_PER_MM
@@ -79,9 +79,8 @@ FORCE_INLINE AlgoPlanes AlgoStageDst (const AlgoPlanes own,
 }
 
 // ---- stage 02b: Algo_02_Sim.cpp isIdentityMatrix on the taking matrix ------
-FORCE_INLINE bool AlgoPass02b (const film::FilmProfile& profile) noexcept
+FORCE_INLINE bool AlgoPass02b (const film::Matrix3& m) noexcept
 {
-    const film::Matrix3& m = profile.taking_matrix;
     for (int32_t i = 0; i < 3; i++)
         for (int32_t j = 0; j < 3; j++)
         {
@@ -181,8 +180,8 @@ FORCE_INLINE bool AlgoPass09 (const film::FilmProfile& profile,
     const AlgoType radiusPx = static_cast<AlgoType>(cp.radius_um) * static_cast<AlgoType>(0.001) * pxPerMm;
     const AlgoType edgePx   = static_cast<AlgoType>(cp.edge_um)   * static_cast<AlgoType>(0.001) * pxPerMm;
     const bool wantLong = (s > ALGO_ZERO) && (false == profile.is_monochrome)
-                       && (radiusPx >= ALGO_COUPLER_MIN_SIGMA_PX);
-    const bool wantEdge = (e > ALGO_ZERO) && (edgePx >= ALGO_COUPLER_MIN_SIGMA_PX);
+                       && (radiusPx > ALGO_ZERO);
+    const bool wantEdge = (e > ALGO_ZERO) && (edgePx > ALGO_ZERO);
     return (ALGO_FORWARD_PASS_THROUGH != 0) && (false == wantLong) && (false == wantEdge);
 }
 
@@ -202,19 +201,21 @@ FORCE_INLINE bool AlgoPass09b (const AlgoControls& params) noexcept
     return (dust <= 0.0 && debris <= 0.0 && fibre <= 0.0 && sT <= 0.0 && sH <= 0.0);
 }
 
-// ---- stage 10: Algo_10_Sim.cpp neither blur nor shift ---------------------
+// ---- stage 10: Algo_10_Sim.cpp transfer is exactly unity ------------------
+// Since 2026-10-06 the stage applies film_sim's exact transfer
+// mtf(scan_f50) * shift(dy, dx) on every frame, so the only pass-through left
+// is the degenerate one: no scan MTF figure (f50 <= 0) and no misregistration.
 FORCE_INLINE bool AlgoPass10 (const film::FilmProfile& profile,
                               const AlgoControls&      params,
                               const AlgoType           scanF50,
                               const AlgoType           pxPerMm) noexcept
 {
-    const AlgoType sigmaPx = AlgoScanSigmaMm(scanF50) * pxPerMm;
-    const bool wantBlur = (sigmaPx >= ALGO_SCAN_MIN_SIGMA_PX);
+    const bool wantMtf = (scanF50 > ALGO_ZERO);
     const AlgoType misPx = static_cast<AlgoType>(profile.misregistration_um)
                          * pxPerMm * static_cast<AlgoType>(0.001)
                          * MAX_VALUE(static_cast<AlgoType>(params.misregScale), ALGO_ZERO);
     const bool wantShift = (misPx > ALGO_ZERO) && (false == profile.is_monochrome);
-    return (ALGO_FORWARD_PASS_THROUGH != 0) && (false == wantBlur) && (false == wantShift);
+    return (ALGO_FORWARD_PASS_THROUGH != 0) && (false == wantMtf) && (false == wantShift);
 }
 
 // ---- stage 10b: Algo_10_Sim.cpp no fog ------------------------------------

@@ -1213,7 +1213,12 @@ void AlgoStage11_Grain
 {
     const film::GrainSpec& gs = profile.grain;
 
-    const AlgoType gain = MAX_VALUE(static_cast<AlgoType>(params.grainScale),
+    // grainTemporalMode (2026-10-06): Motion scales the amplitude for
+    // perceptual matching; Still and Frozen multiply by exactly 1.0, so the
+    // gain is bit-for-bit grainScale as before. Twin: film_sim stage 11,
+    // grain_scale * temporal_scale.
+    const AlgoType gain = MAX_VALUE(static_cast<AlgoType>(
+                                        params.grainScale * AlgoGrainTemporalScale(params)),
                                     ALGO_ZERO);
 
     // Copy first, then add in place. Grain is additive, so a destination already
@@ -1246,9 +1251,14 @@ void AlgoStage11_Grain
     //  steadily instead of fixing the measurement underneath.
     //
     //  The field is therefore DECLARATIVE: film_profiles.validate refuses any
-    //  value but "emulsion", and this stage reads frameIndex unconditionally.
+    //  value but "emulsion", and the DATABASE never pins the frame index.
+    //
+    //  The USER may (grainTemporalMode = Frozen, 2026-10-06, owner decision
+    //  G6): a deliberate stills / A-B setting carried over from the Python
+    //  reference, not a property of any stock. Still and Motion keep the
+    //  host's frame.
     // ----------------------------------------------------------------------
-    const int32_t grainFrame = frameIndex;
+    const int32_t grainFrame = AlgoGrainTemporalFrame(params, frameIndex);
 
     // Base plus fog per channel, needed by the amplitude weighting.
     const AlgoType dmin[3] =

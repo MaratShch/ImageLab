@@ -326,7 +326,8 @@ void AlgoStage03b_VeilingFlare
     const int32_t            pitch,
     const film::FilmProfile& profile,
     const AlgoControls&      params,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept
 {
     // A negative control means "use the stock's own era-appropriate figure", which
@@ -395,38 +396,32 @@ void AlgoStage03b_VeilingFlare
         static_cast<AlgoType>(AlgoPlaneMean(pScratchLuma, sizeX, sizeY, pitch));
 
     // ----------------------------------------------------------------------
-    //  Broad scatter lobe, through the shared blur.
-    //
-    //  A wide separable blur is a barrier: it needs the whole plane before the next
-    //  pass can start, so it cannot be folded into either neighbour. Left to the
-    //  shared primitive so that both builds scatter identically and the difference
-    //  between them stays attributable to the pointwise passes here.
+    //  Broad scatter lobe -- the same shared frequency-domain filter as the
+    //  scalar engine (AlgoFrequency.cpp), on four-lane vectors.
     // ----------------------------------------------------------------------
-    //  The three radii are specified in micrometres on the FILM and converted to
-    //  pixels here, which is what makes the same profile describe the same physical
-    //  scatter at any rendering resolution:
+    // film_sim: broad = apply_transfer(lum, grid.multi_gaussian(
+    //     (1500, 6000, 20000), (0.45, 0.35, 0.20)))
     //
-    //      sigma_px = sigma_um * pxPerMm / 1000
-    const AlgoType umToPx = pxPerMm / static_cast<AlgoType>(1000);
+    // The three radii are micrometres ON THE FILM; the transfer is evaluated on
+    // the frame's f_mm grid, so the same profile describes the same physical
+    // scatter at any resolution. Applied as the exact frequency-domain multiply
+    // film_sim performs (AlgoFrequency.hpp, 2026-10-06), replacing the separable
+    // spatial approximation of these very wide lobes.
+    {
+        const HighPrecType radiiUm[3] = { static_cast<HighPrecType>(ALGO_FLARE_SIGMA_UM_0),
+                                          static_cast<HighPrecType>(ALGO_FLARE_SIGMA_UM_1),
+                                          static_cast<HighPrecType>(ALGO_FLARE_SIGMA_UM_2) };
+        const HighPrecType weights[3] = { static_cast<HighPrecType>(ALGO_FLARE_WEIGHT_0),
+                                          static_cast<HighPrecType>(ALGO_FLARE_WEIGHT_1),
+                                          static_cast<HighPrecType>(ALGO_FLARE_WEIGHT_2) };
+        AlgoFreqTransfer t;
+        AlgoFreqSetMultiGaussian(t, radiiUm, weights, 3);
+        AlgoFreqFilterPlane(freq, pScratchLuma, pScratchA, pitch, t);
+    }
+    (void)pScratchB;
+    (void)pScratchC;
+    (void)pxPerMm;
 
-    AVX2_ALIGN AlgoType sigmaPx[ALGO_BLUR_MAX_LOBES];
-    AVX2_ALIGN AlgoType weight [ALGO_BLUR_MAX_LOBES];
-
-    sigmaPx[0] = ALGO_FLARE_SIGMA_UM_0 * umToPx;
-    sigmaPx[1] = ALGO_FLARE_SIGMA_UM_1 * umToPx;
-    sigmaPx[2] = ALGO_FLARE_SIGMA_UM_2 * umToPx;
-    sigmaPx[3] = ALGO_ZERO;                       // unused fourth slot
-
-    weight[0]  = ALGO_FLARE_WEIGHT_0;
-    weight[1]  = ALGO_FLARE_WEIGHT_1;
-    weight[2]  = ALGO_FLARE_WEIGHT_2;
-    weight[3]  = ALGO_ZERO;
-
-    // All four planes are distinct, and must be: the blur reads its source once per
-    // lobe, so aliasing the source with any scratch plane lets the first lobe
-    // destroy it and leaves the remaining lobes blurring the wrong data.
-    AlgoMultiGaussianBlurPlaneWrap(pScratchLuma, pScratchA, pScratchB, pScratchC,
-                                   sizeX, sizeY, pitch, sigmaPx, weight, 3);
 
     // ----------------------------------------------------------------------
     //  Composite.

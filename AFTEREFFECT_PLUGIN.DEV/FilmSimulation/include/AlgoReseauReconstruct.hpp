@@ -55,6 +55,9 @@
 // Buffer layout and the geometry fields that travel with it.
 #include "AlgoMemHandler.hpp"
 
+// Frequency-domain filter (owner FFT library, 2026-10-06).
+#include "AlgoFrequency.hpp"
+
 // The separable Gaussian used for both the masked record and the mask.
 #include "AlgoSeparableBlur.hpp"
 
@@ -123,5 +126,6 @@ void AlgoStage14b_ReseauReconstruct
     const int32_t            pitch,
     const film::FilmProfile& profile,
     const AlgoControls&      params,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept;

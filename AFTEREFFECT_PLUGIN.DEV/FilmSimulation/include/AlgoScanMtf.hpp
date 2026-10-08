@@ -58,8 +58,12 @@
 // Buffer layout and the geometry fields that travel with it.
 #include "AlgoMemHandler.hpp"
 
-// The separable Gaussian that carries out the MTF, and the copy helpers.
+// The copy helpers.
 #include "AlgoSeparableBlur.hpp"
+
+// The frequency-domain filter that applies the scan MTF and the
+// misregistration phase ramp (owner FFT library, 2026-10-06).
+#include "AlgoFrequency.hpp"
 
 // Counter-based generator for the registration jitter.
 #include "AlgoCounterRng.hpp"
@@ -71,22 +75,6 @@
 #include "film_profiles.hpp"
 
 #include <cstdint>   // int32_t
-
-
-// ---------------------------------------------------------------------------
-//  Smallest MTF sigma, in pixels, worth submitting to a blur.
-//
-//  Below a quarter of a pixel the discrete kernel has one significant tap.
-// ---------------------------------------------------------------------------
-constexpr AlgoType ALGO_SCAN_MIN_SIGMA_PX = static_cast<AlgoType>(0.25);
-
-// ---------------------------------------------------------------------------
-//  Smallest registration displacement, in pixels, worth resampling for.
-//
-//  A hundredth of a pixel. Below that the bilinear weights round to the identity
-//  and the resample costs a full pass for nothing.
-// ---------------------------------------------------------------------------
-constexpr AlgoType ALGO_SCAN_MIN_SHIFT_PX = static_cast<AlgoType>(0.01);
 
 
 // ---------------------------------------------------------------------------
@@ -140,5 +128,6 @@ void AlgoStage10_ScanMtf
     const AlgoType           scanF50,
     const AlgoType           pxPerMm,
     const int32_t            frameIndex,
-    const uint32_t           seed
+    const uint32_t           seed,
+    const AlgoFreqState&     freq
 ) noexcept;

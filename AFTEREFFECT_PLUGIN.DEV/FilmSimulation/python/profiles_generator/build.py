@@ -81,6 +81,7 @@ import tempfile
 from pathlib import Path
 
 import cpp_codegen
+import engine_env  # noqa: F401 -- owner FFT include path for engine compiles (2026-10-06)
 
 HERE = Path(__file__).resolve().parent
 
@@ -357,6 +358,27 @@ def audits(root: Path):
          "160- and 400-speed spectral panels re-read on every printing, the NC/VC reciprocity bound, "
          "E-27 (EKTACHROME 100 EPN) curves / spectral / dyes / MTF, the H-1-5219 Revised 3-26 AHU "
          "generation and its identical bitmaps, and Vitale 2009 Table 4"),
+        ("kodak_e4046_2016.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "KODAK" / "e4046_ektar_100-2016.pdf",
+         "KODAK PROFESSIONAL EKTAR 100, E-4046 (2016), 2026-10-07 re-read: the p4 characteristic "
+         "curves re-derived to the stored values, the p4 spectral-dye-density pair (drawn to 685 nm) "
+         "reproduced, and the p1 base, p2 reciprocity bound, p3 aim densities and Print Grain Index "
+         "found on the page and in the profile"),
+        ("agfa_aviphot_400s_2006.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "AGFA" / "AVIPHOT PAN 400S PE1.pdf",
+         "AGFA AVIPHOT PAN 400S PE1 (01/2006), 2026-10-07: base, RMS 14 at 50 um, resolving "
+         "power 161 / 40.3 and the ten EAFS / average-gradient / fog cells found on the page and "
+         "in the profile, the stored curve equal to the adopted 42 s trace, and the spectral "
+         "identity with ROLLEI_INFRARED_400 re-measured"),
+        ("rollei_folder_2026.py",
+         ["--root", str(root), "--assert"],
+         root / "PDF" / "PROFILES" / "ROLLEI" / "TARoR3_e.pdf",
+         "ROLLEI folder 2026-10-07: R3 p9 characteristic curve and SUPERPAN 200 p3 spectral "
+         "curve re-traced from their vector paths to the stored values, the R3 and SUPERPAN "
+         "reciprocity tables re-derived from the printed pairs, and the printed base, layer, "
+         "RMS and resolving figures of INFRARED / RETRO 400 / PAN 25 found in the profiles"),
         ("gurlev_1986_2026_09_29g.py",
          ["--root", str(root), "--assert"],
          root / "PDF" / "PROFILES" / "SOVIET" / "Справочник по фотографии (светотехника и материалы).pdf",

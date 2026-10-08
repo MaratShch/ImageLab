@@ -241,6 +241,17 @@ def _reseau(p) -> str:
 # identity there: the Callier effect is scatter by developed SILVER, and a dye
 # image has none. Closed question, and it is the one control that is active
 # only on monochrome.
+def _spectral_taking(p) -> str:
+    """2026-10-06 (owner G4): the derived taking matrix needs THREE layer
+    curves -- AlgoSpectralTakingMatrix / film_sim.spectral_taking_matrix refuse
+    otherwise and the authored matrix stays. A monochrome stock has one record
+    and nothing to mix."""
+    if p.is_monochrome:
+        return O
+    sp = p.spectral
+    return V if (sp.log_s_r and sp.log_s_g and sp.log_s_b) else Q
+
+
 def _callier(p) -> str:
     return V if abs(p.callier_q - 1.0) > EPS else O
 
@@ -414,6 +425,18 @@ GROUPS: list[tuple[str, list[tuple[str, str, object, str, str]]]] = [
     ]),
     ("Render", [
         ("Master Seed", "seed", _always, "", ""),
+    ]),
+    # ⚠ 2026-10-06 (owner decisions G4, G6): APPENDED, NOT INSERTED. Both were
+    # film_sim options before they were C++ controls; they go at the END of the
+    # panel list so that every existing bit of film_params_mask.hpp keeps its
+    # value -- a host that stored a mask or a control index keeps working.
+    ("Spectral & Temporal", [
+        ("Spectral Taking Matrix", "spectralTaking", _spectral_taking,
+         "monochrome stock — one silver record has no cross-channel mixing",
+         "no three-layer spectral sensitivity traced — the authored taking "
+         "matrix is used"),
+        ("Grain Temporal Mode", "grainTemporalMode", _grain, "",
+         "stock carries no grain amplitude"),
     ]),
 ]
 

@@ -410,7 +410,8 @@ void AlgoStage14b_ReseauReconstruct
     const int32_t            pitch,
     const film::FilmProfile& profile,
     const AlgoControls&      params,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept
 {
     const film::ReseauSpec& spec = profile.reseau;
@@ -429,18 +430,11 @@ void AlgoStage14b_ReseauReconstruct
         // Reciprocal formed once: the per-pixel cell lookup is then a multiply.
         const HighPrecType invPitch = 1.0 / static_cast<HighPrecType>(pitchPx);
 
-        // ------------------------------------------------------------------
-        //  Reconstruction blur radius.
-        //
-        //  Expressed in GRID PITCHES, converted to micrometres by the cell size and
-        //  then to pixels, so it tracks the grid at any resolution.
-        //
-        //  Deliberately comparable to the pitch rather than much larger: that is
-        //  what leaves the faint grid texture visible and caps colour resolution
-        //  below luminance resolution, both of which are real and characteristic.
-        // ------------------------------------------------------------------
-        const AlgoType sigmaPx = static_cast<AlgoType>(spec.reconstruction_pitches)
-                               * pitchPx;
+        // Reconstruction radius: reconstruction_pitches grid pitches, set by the
+        // projection optics -- comparable to the pitch, which leaves the faint
+        // grid texture and caps colour resolution below luminance resolution.
+        // Applied below as film_sim's Gaussian transfer.
+        (void)pScrWork;
 
         // The single monochrome record. The green plane, matching the reference; on a
         // mosaic stock all three planes carry the same values anyway.
@@ -478,11 +472,16 @@ void AlgoStage14b_ReseauReconstruct
 
             // Blur both. Same kernel, because the quotient is only a correct local
             // average if numerator and denominator were weighted identically.
-            AlgoGaussianBlurPlaneWrap(pScrMasked, pScrNum, pScrWork,
-                                      sizeX, sizeY, pitch, sigmaPx);
-
-            AlgoGaussianBlurPlaneWrap(pScrMask, pScrDen, pScrWork,
-                                      sizeX, sizeY, pitch, sigmaPx);
+            {
+                // film_sim: blur = grid.gaussian(reconstruction_pitches * pitch_um),
+                // pitch_um = 1000 / lines_per_mm; num and den through the SAME
+                // exact transfer (AlgoFrequency.hpp, 2026-10-06).
+                AlgoFreqTransfer t;
+                AlgoFreqSetGaussian(t, static_cast<HighPrecType>(spec.reconstruction_pitches)
+                                       * (1000.0 / static_cast<HighPrecType>(spec.lines_per_mm)));
+                AlgoFreqFilterPlane(freq, pScrMasked, pScrNum, pitch, t);
+                AlgoFreqFilterPlane(freq, pScrMask,   pScrDen, pitch, t);
+            }
 
             // --------------------------------------------------------------
             //  Divide: the coverage normalisation.

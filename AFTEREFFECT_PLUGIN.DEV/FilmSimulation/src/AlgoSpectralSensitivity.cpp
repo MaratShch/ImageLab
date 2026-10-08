@@ -190,24 +190,90 @@ namespace
     //  Returns the layer count: 3 for a colour stock, 1 for a pan-only stock,
     //  0 when there is nothing usable.
     // -----------------------------------------------------------------------
-    int32_t fetchLayers (const film::SpectralSensitivity& sp,
+
+
+    // -----------------------------------------------------------------------
+    //  T(lambda) of the profile's TAKING FILTER -- the filter the profile
+    //  assumes in front of the lens (queue C39). Mirrors
+    //  film_sim.taking_filter_transmission() exactly (2026-10-06, owner
+    //  decision G3: every engine reads the same database fields):
+    //
+    //    model "measured" with a non-empty curve: the stored T on the
+    //        SpectralSensitivity grid (lambda_start_nm + i * lambda_step_nm),
+    //        linear between samples, the end values held outside them;
+    //    model "ideal_longpass" with cut_on_nm > 0: a step at cut_on_nm
+    //        (1 at and above it, 0 below);
+    //    anything else: 1 (no filter).
+    //
+    //  A step multiplies by exactly 0 or 1 and "no filter" by exactly 1, so on
+    //  every stock that carries no measured curve the sensitivities are
+    //  bit-for-bit what they were before the measured branch existed.
+    // -----------------------------------------------------------------------
+    HighPrecType takingFilterT (const film::FilmProfile& profile,
+                                const HighPrecType       nm) noexcept
+    {
+        const film::TakingFilter& tf = profile.taking_filter;
+
+        if ((tf.model == "measured") && (false == tf.transmission.empty()))
+        {
+            const std::size_t  n     = tf.transmission.size();
+            const HighPrecType start = static_cast<HighPrecType>(profile.spectral.lambda_start_nm);
+            const HighPrecType step  = static_cast<HighPrecType>(profile.spectral.lambda_step_nm);
+
+            if ((n < 2) || !(step > 0.0))
+                return static_cast<HighPrecType>(tf.transmission[0]);
+
+            const HighPrecType pos = (nm - start) / step;
+            if (pos <= 0.0)
+                return static_cast<HighPrecType>(tf.transmission[0]);
+            if (pos >= static_cast<HighPrecType>(n - 1))
+                return static_cast<HighPrecType>(tf.transmission[n - 1]);
+
+            const std::size_t  k    = static_cast<std::size_t>(pos);
+            const HighPrecType frac = pos - static_cast<HighPrecType>(k);
+            return static_cast<HighPrecType>(tf.transmission[k]) * (1.0 - frac)
+                 + static_cast<HighPrecType>(tf.transmission[k + 1]) * frac;
+        }
+
+        if ((tf.model == "ideal_longpass") && (tf.cut_on_nm > 0.0))
+            return (nm >= static_cast<HighPrecType>(tf.cut_on_nm)) ? 1.0 : 0.0;
+
+        return 1.0;
+    }
+
+
+    //  The layer sensitivities on the render grid, BEHIND THE TAKING FILTER.
+    //
+    //  \warning THE FILTER IS APPLIED HERE, FOR EVERY CONSUMER (2026-10-06).
+    //  film_sim.layer_sensitivities() filters the curves for the spectral
+    //  balance, the monochrome collapse and the taking matrix alike; until
+    //  today only the monochrome collapse applied it in C++, so the balance
+    //  gains and the taking matrix would have integrated a bare emulsion for
+    //  any colour stock that carried a filter (none does yet).
+    int32_t fetchLayers (const film::FilmProfile&   profile,
                          HighPrecType sens[3][ALGO_SPECTRAL_N]) noexcept
     {
+        const film::SpectralSensitivity& sp = profile.spectral;
+        int32_t rows = 0;
+
         if (!sp.log_s_r.empty() && !sp.log_s_g.empty() && !sp.log_s_b.empty())
         {
             resampleLinear(sp.log_s_r, sp.lambda_start_nm, sp.lambda_step_nm, sens[0]);
             resampleLinear(sp.log_s_g, sp.lambda_start_nm, sp.lambda_step_nm, sens[1]);
             resampleLinear(sp.log_s_b, sp.lambda_start_nm, sp.lambda_step_nm, sens[2]);
-            return 3;
+            rows = 3;
         }
-
-        if (!sp.log_s_pan.empty())
+        else if (!sp.log_s_pan.empty())
         {
             resampleLinear(sp.log_s_pan, sp.lambda_start_nm, sp.lambda_step_nm, sens[0]);
-            return 1;
+            rows = 1;
         }
 
-        return 0;
+        for (int32_t r = 0; r < rows; r++)
+            for (int32_t i = 0; i < ALGO_SPECTRAL_N; i++)
+                sens[r][i] *= takingFilterT(profile, gridLambda(i));
+
+        return rows;
     }
 
 
@@ -244,11 +310,12 @@ namespace
     //  samples beyond the limit" condition. spectral_mono_parity.py is what
     //  keeps the two in step; it drives THIS function, not a restatement of it.
     // -----------------------------------------------------------------------
-    bool panWithinBasisReach (const film::SpectralSensitivity& sp,
-                              const HighPrecType cutOnNm) noexcept
+    bool panWithinBasisReach (const film::FilmProfile& profile) noexcept
     {
-        //  cutOnNm is the profile's TAKING FILTER (schema v20, queue C39): the
-        //  longpass the stock's look assumes in front of the lens, 0 = none.
+        const film::SpectralSensitivity& sp = profile.spectral;
+        //  The profile's TAKING FILTER (schema v20, queue C39; measured curve
+        //  2026-10-06) is what the stock's look assumes in front of the lens;
+        //  takingFilterT() is 1 when there is none.
         //
         //  \warning THE FILTER GOES IN HERE, BEFORE BOTH TESTS, BECAUSE THE
         //  GUARD AND THE COLLAPSE MUST JUDGE THE SAME EMULSION. Applied later
@@ -295,12 +362,9 @@ namespace
             lin[i] = std::pow(10.0,
                               static_cast<HighPrecType>(sp.log_s_pan[i]));
 
-            //  Ideal step. A real filter has a finite edge and no source
-            //  states one; the question this answers is whether the usable
-            //  energy lies inside the basis at all, for which the printed
-            //  wavelength is enough. Mirrors film_sim.taking_filter_transmission.
-            if ((cutOnNm > 0.0) && (nm < cutOnNm))
-                lin[i] = 0.0;
+            //  Behind the taking filter (ideal step or measured curve).
+            //  Mirrors film_sim.stored_layer_sensitivities.
+            lin[i] *= takingFilterT(profile, nm);
 
             if (lin[i] > lin[peakIdx])
                 peakIdx = i;
@@ -387,7 +451,7 @@ bool AlgoSpectralBalanceGains
 {
     HighPrecType sens[3][ALGO_SPECTRAL_N];
 
-    if (fetchLayers(profile.spectral, sens) != 3)
+    if (fetchLayers(profile, sens) != 3)
         return false;
 
     const HighPrecType stockKelvin =
@@ -447,7 +511,7 @@ bool AlgoSpectralMonoWeights
 {
     HighPrecType sens[3][ALGO_SPECTRAL_N];
 
-    if (fetchLayers(profile.spectral, sens) != 1)
+    if (fetchLayers(profile, sens) != 1)
         return false;
 
     // ⚠ QUEUE C40. Refuse a stock the visible basis cannot reach, and refuse it
@@ -455,30 +519,12 @@ bool AlgoSpectralMonoWeights
     // infrared emulsion and perfectly meaningless. Writing nothing on refusal
     // is the contract -- Algo_07_Sim.cpp falls back to profile.spectral_weights,
     // which for these stocks is the authored triple and the right answer.
-    if (!panWithinBasisReach(
-            profile.spectral,
-            static_cast<HighPrecType>(profile.taking_filter_cut_on_nm)))
+    if (!panWithinBasisReach(profile))
         return false;
 
-    //  \warning THE FILTER IS APPLIED ON THE INTEGRATION PATH TOO, AND LEAVING
-    //  IT OFF WOULD HAVE BEEN INVISIBLE. The guard above judges the FILTERED
-    //  emulsion; if the integral below used the bare one, the guard and the
-    //  collapse would disagree about which film they were looking at -- and on
-    //  every stock the guard refuses, that disagreement never shows.
-    //  Mirrors film_sim.layer_sensitivities.
-    {
-        const HighPrecType cutOn =
-            static_cast<HighPrecType>(profile.taking_filter_cut_on_nm);
-
-        if (cutOn > 0.0)
-        {
-            for (int32_t i = 0; i < ALGO_SPECTRAL_N; i++)
-            {
-                if (gridLambda(i) < cutOn)
-                    sens[0][i] = 0.0;
-            }
-        }
-    }
+    //  The taking filter is already applied: fetchLayers() integrates the
+    //  FILTERED emulsion, the same one the guard above judged. Mirrors
+    //  film_sim.layer_sensitivities.
 
     const HighPrecType centres[3] =
     {
@@ -530,7 +576,7 @@ bool AlgoSpectralTakingMatrix
 {
     HighPrecType sens[3][ALGO_SPECTRAL_N];
 
-    if (fetchLayers(profile.spectral, sens) != 3)
+    if (fetchLayers(profile, sens) != 3)
         return false;
 
     if (sceneKelvin <= 0.0)

@@ -91,6 +91,7 @@ CLASS = {
     # 2026-09-29b: «panchromatic up to 750 nm» on its PE0 sheet (extended red,
     # not an infrared emulsion -- nothing past the visible is drawn).
     "AGFA_AVIPHOT_PAN_20": "pan",
+    "AGFA_AVIPHOT_PAN_400S": "pan",     # 2026-10-07: Agfa 01/2006 «panchromatic up to 750 nm»
     "EASTMAN_DOUBLE_X_5222": "pan", "EASTMAN_PLUS_X_5231": "pan",
     "FERRANIA_P30_MK2": "pan", "FERRANIA_P33_160": "pan",
     "FOMAPAN_400_ACTION": "pan",
@@ -113,6 +114,8 @@ CLASS = {
     "POLAROID_52": "pan", "POLAROID_55_PN_NEG": "pan",
     "POLAROID_664": "pan", "POLAROID_667": "pan",
     "ROLLEI_R3": "pan", "ROLLEI_RETRO_400": "pan",
+    "ROLLEI_PAN_25": "pan",             # 2026-10-07: sheet «panchromatic sensitised», 400-650 nm
+    "ROLLEI_SUPERPAN_200": "pan",       # 2026-10-07: R210701 «Panchromatic sensitized», red to 750 nm
 
     # -- panchromatic, and the maker says the red is weak --------------------
     # ⚠ A CLASS OF ONE, AND IT IS A CLAIM RATHER THAN A CONVENIENCE. Film

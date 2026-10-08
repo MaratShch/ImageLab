@@ -838,6 +838,58 @@ constexpr int32_t SeedStep = 1;
 constexpr bool PrintGrainDef        = true;
 constexpr bool ReseauDef            = true;
 constexpr bool FilmDamageEnabledDef = false;   // clean film is the default
+// 2026-10-06 (owner decision G4): stage 02b mixes the exposure through the
+// taking matrix DERIVED from the stock's measured layer sensitivities
+// (AlgoSpectralTakingMatrix) instead of the authored taking_matrix. Off by
+// default: the pipeline already carries cross-channel mixing downstream, so
+// switching it on without a measured reference applies the same physics
+// twice. Twin: film_sim.RenderSettings.spectral_taking.
+constexpr bool SpectralTakingDef    = false;
+
+// -- grain temporal mode (2026-10-06, owner decision G6) --------------------
+//  How the camera negative's grain field (stage 11, and stage 11 only) moves
+//  between frames. Twin: film_sim.RenderSettings.grain_temporal_mode.
+//
+//    Still   the physically faithful default: a fresh emulsion sample every
+//            frame at full still-frame granularity. A scanned motion frame
+//            carries exactly that, and the viewer integrates real and
+//            simulated footage alike, so no correction belongs here.
+//    Motion  a PERCEPTUAL matching control, not emulsion physics: independent
+//            fields scaled by 1/sqrt(clamp(frameRate * GrainTemporalIntegrationS,
+//            1, GrainTemporalMaxFrames)) -- the playback granularity Honjo
+//            1989 reports for an eye integrating ~0.2 s.
+//    Frozen  one field pinned for the whole clip (frame index 0), for stills
+//            work and A/B comparison.
+//
+//  Print grain (stage 14) and duplication grain (stage 13) keep the frame
+//  index whatever this says, exactly as the Python reference does.
+enum class GrainTemporalModeCtrl : int32_t
+{
+    eGRAIN_TEMPORAL_STILL = 0,
+    eGRAIN_TEMPORAL_MOTION,
+    eGRAIN_TEMPORAL_FROZEN,
+    eGRAIN_TEMPORAL_TOTAL
+};
+
+// Display names, pipe separated, index aligned with GrainTemporalModeCtrl.
+constexpr char GrainTemporalModeCtrlStr[] =
+    "Still|"
+    "Motion|"
+    "Frozen";
+
+// Reference keys (film_sim grain_temporal_mode), index aligned.
+constexpr const char* const GrainTemporalModeCtrlKey[] =
+{
+    "still", "motion", "frozen"
+};
+
+constexpr GrainTemporalModeCtrl GrainTemporalModeCtrlDef =
+    GrainTemporalModeCtrl::eGRAIN_TEMPORAL_STILL;
+
+// Eye integration time (Honjo 1989 \u00a74) and the cap on averaged frames.
+// The ONE definition: film_sim reads both through algo_control_enums.
+constexpr double GrainTemporalIntegrationS = 0.2;
+constexpr double GrainTemporalMaxFrames    = 8.0;
 
 // -- film damage sub-structure ---------------------------------------------
 //  SIX OF THESE SEVENTEEN CONTROLS HAVE NO READER IN THE CURRENT ENGINE and

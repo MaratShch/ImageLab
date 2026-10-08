@@ -4,7 +4,7 @@
 //      AlgoCopyPlane                   one plane, row by row
 //      AlgoCopyImage                   three planes
 //      AlgoGaussianBlurPlaneWrap       separable Gaussian, circular boundary
-//      AlgoMultiGaussianBlurPlaneWrap  weighted sum of Gaussian lobes
+//      AlgoGaussianBlurPlaneWrapXY     the same with separate axis sigmas (grain)
 //      AlgoPlaneMean                   frame mean, wide accumulator
 //      AlgoBilinearUpsample            low-resolution field to full raster
 //
@@ -22,6 +22,13 @@
 //  kernel, which makes these loops genuinely arithmetic-bound rather than
 //  bandwidth-bound. The pointwise stages vectorised earlier returned 1.03x to 1.16x
 //  because they had nothing to do but wait for memory. This is different work.
+//
+//  ⚠ 2026-10-06: THAT MEASUREMENT IS HISTORY. Seven of those eight stages (3b, 5,
+//  6, 9, 10, 13, 14b) now apply film_sim's transfers exactly with the owner's FFT
+//  (AlgoFrequency.hpp); only the grain stage (11, and the dupe / print grain it
+//  shares with 13 and 14) still blurs here, because film_sim defines the grain
+//  field as exactly these truncated separable kernels. The multi-lobe entry point
+//  was removed with its last caller.
 //
 //  ALL ARITHMETIC IS FLOAT32, with one deliberate exception noted at AlgoPlaneMean.
 //
@@ -1588,90 +1595,6 @@ void AlgoGaussianBlurPlaneWrapXY
 }
 
 
-// ---------------------------------------------------------------------------
-//  AlgoMultiGaussianBlurPlaneWrap
-//
-//  Weighted sum of lobes. The blur itself is delegated per lobe; what is vectorised
-//  here is the clear and the accumulate, both pointwise.
-// ---------------------------------------------------------------------------
-void AlgoMultiGaussianBlurPlaneWrap
-(
-    const AlgoType* RESTRICT pSrc,
-    AlgoType* RESTRICT       pDst,
-    AlgoType* RESTRICT       pScratchA,
-    AlgoType* RESTRICT       pScratchB,
-    const int32_t            sizeX,
-    const int32_t            sizeY,
-    const int32_t            pitch,
-    const AlgoType           sigmaPx[ALGO_BLUR_MAX_LOBES],
-    const AlgoType           weight [ALGO_BLUR_MAX_LOBES],
-    const int32_t            lobeCount
-) noexcept
-{
-    // Normalising factor, so the operator preserves a flat field whatever scale the
-    // caller used. Summed scalar: lobeCount is at most four.
-    AlgoType wsum = ALGO_ZERO;
-    for (int32_t k = 0; k < lobeCount; k++)
-        wsum += weight[k];
-
-    // Degenerate weights: pass the plane through rather than emit zeros, which would
-    // silently blacken the frame.
-    if (wsum <= ALGO_ZERO)
-    {
-        AlgoCopyPlane(pSrc, pDst, sizeX, sizeY, pitch);
-        return;
-    }
-
-    const AlgoType invWsum = ALGO_ONE / wsum;
-
-    // ----------------------------------------------------------------------
-    //  ONE PASS PER LOBE, AND NOTHING ELSE.
-    //
-    //  WHAT THIS REPLACED. The previous form cleared the destination, then for
-    //  every lobe blurred into pScratchA and ran a second full pass reading the
-    //  scratch, reading the destination and writing it back. Counted against
-    //  the code that is 1 + lobeCount*(blur + 3) full-plane traversals: SIXTEEN
-    //  for a three-lobe call when every lobe took the fused path, TWENTY-TWO
-    //  when none did.
-    //
-    //  Halation issues NINE lobe calls per frame - three lobes on each of three
-    //  colour records - so the clear and accumulate passes alone moved roughly
-    //  250 MB per frame at HD, about 11 ms at the measured streaming rate, for
-    //  arithmetic that is one FMA per sample.
-    //
-    //  Now: the FIRST lobe writes w*result straight into the destination, which
-    //  is why no clear is needed - it overwrites rather than adds. Every later
-    //  lobe accumulates. The lobe result never becomes an intermediate plane, so
-    //  pScratchA is now only the blur's own working store.
-    //
-    //  ORDER OF SUMMATION IS PRESERVED. Lobes are still applied k = 0, 1, 2 ...
-    //  and each contributes w[k]*invWsum times its blur, so the floating-point
-    //  result is the same sequence of operations as before - the accumulation
-    //  simply happens in the store that produced the value rather than in a
-    //  separate sweep.
-    //
-    //  pScratchB IS NOW UNUSED. The parameter stays: the prototype is shared
-    //  with the scalar build and must not change, and a caller passing two
-    //  distinct scratch planes is not wrong, merely generous.
-    // ----------------------------------------------------------------------
-    (void)pScratchB;
-
-    for (int32_t k = 0; k < lobeCount; k++)
-    {
-        const AlgoType w = weight[k] * invWsum;
-
-        // Isotropic: the multi-lobe form models a radially symmetric scatter
-        // kernel, so the same sigma goes down both axes.
-        if (0 == k)
-            blurPlaneWrapT<false>(pSrc, pDst, pScratchA,
-                                  sizeX, sizeY, pitch, sigmaPx[k], sigmaPx[k], w);
-        else
-            blurPlaneWrapT<true>(pSrc, pDst, pScratchA,
-                                 sizeX, sizeY, pitch, sigmaPx[k], sigmaPx[k], w);
-    }
-
-    return;
-}
 
 
 // ---------------------------------------------------------------------------

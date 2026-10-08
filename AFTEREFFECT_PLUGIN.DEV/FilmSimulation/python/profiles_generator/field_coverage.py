@@ -105,7 +105,8 @@ INDIRECT: dict[str, tuple[bool, bool, str]] = {
     "kind": (True, True, "profile.is_reversal / profile.isReversal()"),
     "mtf_rolloff_q": (True, True,
                       "fp.mtf_response(spec, ...) takes the whole MTFSpec; "
-                      "C++ FilmMtfKernel is keyed on the stored q"),
+                      "C++ AlgoFreqSetMtf(f50, mtf_measured, mtf_rolloff_q, ...) "
+                      "in stage 6 (frequency domain, 2026-10-06)"),
     "mtf_measured": (True, True, "same call as mtf_rolloff_q"),
     "mtf_tail_a": (True, True, "same call as mtf_rolloff_q"),
     "mtf_tail_f_exp": (True, True, "same call as mtf_rolloff_q"),

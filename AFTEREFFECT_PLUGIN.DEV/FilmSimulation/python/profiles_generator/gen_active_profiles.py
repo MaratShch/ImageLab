@@ -1672,8 +1672,10 @@ def main() -> int:
       "slope measured over +/-1 stop at mid grey) -- what a lab scanner does "
       "for every film. Real print stocks, slides and monochrome negatives are "
       "unchanged. The anchor solve and the print chain's mid grey also follow "
-      "stage 9's sub-pixel gate now, so frames under about 180 px no longer "
-      "render a mid-grey cast.")
+      "stage 9's coupler rule now, so small frames no longer render a mid-grey "
+      "cast. (The 0.25 px coupler gate itself was removed on 2026-10-06, owner "
+      "decision: stage 9 and both references run whenever the radius is "
+      "positive.)")
     w("")
     _f4 = [q.name for q in fp.FILM_PROFILES if q.spectral.log_s_c]
     w("**Fuji fourth (cyan-sensitive) layer: %d stocks carry the traced curve "

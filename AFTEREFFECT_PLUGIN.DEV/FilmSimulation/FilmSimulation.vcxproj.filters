@@ -276,6 +276,12 @@
     <ClInclude Include="include\film_profile_serial.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\AlgoFftLane.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\AlgoFrequency.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\FilmSimulation.cpp">
@@ -486,6 +492,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\film_profiles_data_38.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoFrequency.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\film_profiles_data_39.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
@@ -952,6 +964,21 @@
     </None>
     <None Include="python\image_diff.py">
       <Filter>python</Filter>
+    </None>
+    <None Include="python\profiles_generator\agfa_aviphot_400s_2006.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\engine_env.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\kodak_e4046_2016.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\mtf_kernel_fit.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\rollei_folder_2026.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

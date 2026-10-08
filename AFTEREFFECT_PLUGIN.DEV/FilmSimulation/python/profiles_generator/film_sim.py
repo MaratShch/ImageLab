@@ -93,9 +93,13 @@ from algo_control_enums import (      # generated from AlgoControlEnums.hpp
     PrintStockCtrl,
     DupeStockCtrl,
     ProcessVariantCtrl,
+    GrainTemporalModeCtrl,
     film_format_key,
     print_stock_key,
     process_variant_key,
+    grain_temporal_mode_key,
+    GrainTemporalIntegrationS,
+    GrainTemporalMaxFrames,
 )
 
 # 18% reflectance is the photographic mid grey reference. Relative exposure is
@@ -588,9 +592,13 @@ def coupler_flat_scale(profile: FilmProfile, coupler_scale: float,
     180 px (35 mm) the anchors therefore corrected for a coupling the frame
     never received, and mid grey rendered with a cast. Both references now see
     the same gate as stage 9. Twin: `AlgoCouplerFlatScale` (AlgoDirCoupler.hpp).
+
+    ⚠ 2026-10-06 (owner decision): THE 0.25 px GATE IS REMOVED in stage 9 and
+    here alike, so the scale now applies whenever the radius is positive. The
+    rule stays shared, which is what this function exists for.
     """
     radius_px = (profile.couplers.radius_um / 1000.0) * px_per_mm
-    return coupler_scale if radius_px >= 0.25 else 0.0
+    return coupler_scale if radius_px > 0.0 else 0.0
 
 
 #: Half-width, in log exposure, of the neutral mid-tone span over which
@@ -845,7 +853,8 @@ def layer_sensitivities(profile) -> np.ndarray | None:
     # shows. Inert on 163 of 165 profiles.
     tf = getattr(profile, "taking_filter", None)
     if tf is not None and tf.renders:
-        out = out * taking_filter_transmission(tf, grid)[None, :]
+        out = out * taking_filter_transmission(
+            tf, grid, sp.lambda_start_nm, sp.lambda_step_nm)[None, :]
     return out
 
 
@@ -991,12 +1000,12 @@ def stored_layer_sensitivities(profile):
     # does not execute, so their curves are untouched to the last bit.
     tf = getattr(profile, "taking_filter", None)
     if tf is not None and tf.renders:
-        t = taking_filter_transmission(tf, lam)
+        t = taking_filter_transmission(tf, lam, sp.lambda_start_nm, sp.lambda_step_nm)
         lin = [row * t for row in lin]
     return lam, lin
 
 
-def taking_filter_transmission(tf, lam):
+def taking_filter_transmission(tf, lam, src_start=None, src_step=None):
     """T(lambda) for a TakingFilter on an arbitrary wavelength grid.
 
     ⚠ THE IDEAL LONGPASS IS A HARD STEP AND THAT IS DELIBERATE. A real 715 nm
@@ -1008,7 +1017,20 @@ def taking_filter_transmission(tf, lam):
     records which kind of thing the caller is holding.
     """
     if tf.model == "measured":
-        return np.asarray(tf.transmission, dtype=np.float64)
+        # ⚠ 2026-10-06: THE CURVE IS ON THE SPECTRAL-SENSITIVITY GRID
+        # (TakingFilter.transmission docstring), NOT ON `lam`. Returning it raw
+        # was correct only when `lam` happened to be that grid; on the render
+        # grid it would not even broadcast. Resampled linearly, end values held
+        # -- exactly what the C++ engines' takingFilterT() does.
+        t = np.asarray(tf.transmission, dtype=np.float64)
+        lam_a = np.asarray(lam, dtype=np.float64)
+        if src_start is None or src_step is None:
+            raise ValueError("a measured taking filter needs the spectral grid "
+                             "(src_start, src_step) it is sampled on")
+        if len(t) < 2 or not (float(src_step) > 0.0):
+            return np.full_like(lam_a, float(t[0]))
+        src = float(src_start) + float(src_step) * np.arange(len(t), dtype=np.float64)
+        return np.interp(lam_a, src, t)
     if tf.model == "ideal_longpass" and tf.cut_on_nm > 0.0:
         return (np.asarray(lam, dtype=np.float64) >= tf.cut_on_nm).astype(
             np.float64)
@@ -1361,6 +1383,11 @@ class FreqGrid:
                         cutoff: float = 4.0) -> np.ndarray:
         """Exact transfer of the C++ engine's TRUNCATED SEPARABLE Gaussian.
 
+        ⚠ 2026-10-06: SINCE THE FFT INTEGRATION THE ENGINES NO LONGER BLUR WITH
+        THIS KERNEL ANYWHERE BUT THE GRAIN STAGE (see kernel_axis_transfer); the
+        optical stages apply the analytic transfers below exactly, as film_sim
+        does. Kept as the documented prediction of that kernel.
+
         ⚠ INERT. NO RENDER PATH CALLS THIS. It exists so the parity tooling can
         PREDICT the production engine's blur instead of tolerating the
         difference, and it is placed here rather than in the parity script
@@ -1428,9 +1455,10 @@ class FreqGrid:
         changes shape and NOT level. See fp.mtf_response.
         """
         if spec is not None and use_kernel:
-            # The two-lobe separable form the C++ twins convolve. Falls back to
-            # the law itself when the stock's q is not tabulated, exactly as the
-            # C++ side falls back to its legacy Gaussian.
+            # The fitted separable form (two or three Gaussian lobes) the C++
+            # engines convolved until 2026-10-06, kept as a DIAGNOSTIC: since the
+            # FFT integration the engines apply the law below exactly. Falls
+            # back to the law when the stock's q is not tabulated.
             t = fp.mtf_kernel_response(spec, channel,
                                        self.f_mm).astype(np.float32)
         elif spec is not None:
@@ -2664,14 +2692,13 @@ def apply_dir_couplers(dens, cp, grid, coupler_scale, is_monochrome):
     Factored out for the same reason as `apply_interimage` -- the C++ port is
     `AlgoStage09_DirCoupler` (Algo_09_Sim.cpp) and the two were never compared.
 
-    ⚠ THE TWO IMPLEMENTATIONS DO NOT USE THE SAME BLUR, and the parity check
-    has to know it. Here the blur is an FFT multiply by the ANALYTIC Gaussian
-    transfer; the C++ side is a separable spatial Gaussian with the kernel
-    truncated at 4 sigma (`ALGO_BLUR_SIGMA_CUTOFF`), which drops about 6.3e-5
-    of the kernel weight. Both wrap at the edges, so the comparison is valid --
-    but it is valid to ~1e-4, not to machine precision. On a FLAT field any
-    blur is the identity, so the pointwise algebra is exactly testable there
-    and that is the case the parity probe pins hardest.
+    ⚠ SINCE 2026-10-06 THE IMPLEMENTATIONS USE THE SAME BLUR. Until then the
+    C++ side was a separable spatial Gaussian truncated at 4 sigma, valid
+    against this FFT multiply to ~1e-4 only. With the owner's FFT library the
+    engines multiply by the same ANALYTIC Gaussian transfer on the same grid
+    (AlgoFrequency.hpp), and when both terms are active they combine them in the
+    frequency domain -- the identical linear algebra, evaluated with six
+    transforms instead of eight. The floor below is unchanged.
     """
     if not (cp.active and coupler_scale > 0.0):
         return dens
@@ -2692,20 +2719,24 @@ def apply_dir_couplers(dens, cp, grid, coupler_scale, is_monochrome):
     # below a quarter pixel the discrete kernel has one significant tap, so the
     # pass is an identity. Taking the existing value makes this a pure PARITY
     # fix with no fidelity judgement folded into it.
-    # ⚠ WHAT THIS DOES NOT SETTLE IS QUEUE ITEM C16. The two blurs are still
-    # different FORMS -- analytic Gaussian transfer here, truncated separable
-    # spatial kernel there -- and they agree to 6e-5 only above about 1.2 px,
-    # diverging to 1.5e-1 at 0.4 px. Stored edge_um is 9-13 um, i.e. 0.36-0.60 px
-    # at 40 px/mm, which is INSIDE that divergent band and ABOVE this gate. So
-    # the gate removes the one-sided-stage defect and leaves the shared-threshold
-    # VALUE (0.25 vs ~1.0 px, where the two forms converge) as C16's open
-    # decision. Raising it here would change every render and is the owner's.
-    _min_px = 0.25
+    # ⚠ QUEUE ITEM C16'S DIVERGENCE IS GONE (2026-10-06): the engines now apply
+    # this same analytic transfer with the owner's FFT, so the two blurs are one
+    # FORM at every sigma. The gate itself stays, in all three implementations
+    # and in the neutral references (coupler_flat_scale): it is part of the
+    # model now, and removing it would change every render below 0.25 px --
+    # the owner's decision, recorded as open.
+    # ⚠⚠ REMOVED 2026-10-06 (OWNER DECISION A). With the exact transfer the
+    # gate had no numerical reason left, and it was a model artefact: as the
+    # radius shrinks the long-range term tends to s * (D - mean D), a plain
+    # saturation boost, which the gate cut off abruptly on small frames (about
+    # 180-280 px wide for 35 mm). The edge term tends to zero by itself. Both
+    # now run whenever their radius is positive -- in all three
+    # implementations and in coupler_flat_scale.
     _radius_px = (cp.radius_um / 1000.0) * grid.px_per_mm
     _edge_px = (cp.edge_um / 1000.0) * grid.px_per_mm
-    if _radius_px < _min_px:
+    if not (_radius_px > 0.0):
         s = 0.0
-    if _edge_px < _min_px:
+    if not (_edge_px > 0.0):
         e = 0.0
     if s > 0.0 and not is_monochrome:
         dbar = dens.mean(axis=2)
@@ -2937,14 +2968,18 @@ def reseau_reconstruct(
 #: frame and is zero-mean, so five independent samples average down by 1/sqrt(5)
 #: and the granularity a viewer perceives in PLAYBACK is 0.447 of what the same
 #: emulsion shows in a frozen frame.
-HONJO_EYE_INTEGRATION_S: float = 0.2
+#:
+#: ⚠ 2026-10-06: THE VALUE LIVES IN AlgoControlEnums.hpp (GrainTemporalIntegrationS)
+#: since both C++ engines execute the motion mode too; this name reads the
+#: generated mirror so there is one definition.
+HONJO_EYE_INTEGRATION_S: float = float(GrainTemporalIntegrationS)
 
 #: The upper bound on how many frames may be averaged. Beyond a handful the
 #: assumption behind the sqrt law -- independent, stationary grain in a static
 #: scene -- stops holding: real footage moves, and motion decorrelates the
 #: retinal average long before the arithmetic runs out. Capped rather than
 #: extrapolated.
-TEMPORAL_GRAIN_MAX_FRAMES: float = 8.0
+TEMPORAL_GRAIN_MAX_FRAMES: float = float(GrainTemporalMaxFrames)   # AlgoControlEnums.hpp
 
 
 def temporal_grain_scale(fps: float,
@@ -2952,8 +2987,9 @@ def temporal_grain_scale(fps: float,
                          ) -> float:
     """Grain amplitude a MOVING image should carry, relative to a still frame.
 
-    ⚠ THIS IS NOT APPLIED ANYWHERE, AND THAT IS THE DECISION RATHER THAN AN
-    OVERSIGHT. Queue C7 asked whether the still-frame grain amplitude is 2.24x
+    ⚠ APPLIED ONLY IN `grain_temporal_mode = "motion"` (and in both C++
+    engines' grainTemporalMode = Motion since 2026-10-06), NEVER BY DEFAULT --
+    that is the decision rather than an oversight. Queue C7 asked whether the still-frame grain amplitude is 2.24x
     too strong in playback. The physics says yes; the product question -- is this
     plugin judged frame by frame in a viewer, or in motion on a timeline? -- has
     two honest answers and only one can be the default.
@@ -3793,16 +3829,15 @@ def write_png(path: Path, rgb: np.ndarray, bit_depth: int = 16,
 @dataclass(slots=True)
 class RenderSettings:
     """Everything about the render that is not the film stock itself."""
-    #: Render the emulsion MTF through the SEPARABLE KERNEL the C++ engines use
-    #: instead of the exact frequency-domain law.
+    #: Render the emulsion MTF through the fitted SEPARABLE KERNEL instead of the
+    #: exact frequency-domain law -- a DIAGNOSTIC since 2026-10-06.
     #:
-    #: ⚠ ADDITIVE AND OFF BY DEFAULT. Python keeps the exact law as the
-    #: reference -- that is the whole point of having a reference -- and this
-    #: switch exists so the three implementations can be compared on the SAME
-    #: arithmetic. With it off, Python and C++ differ on the 22 measured stocks
-    #: by the kernel's fit error (worst 0.0384 in modulation); with it on, they
-    #: should agree to floating-point noise. Turning it on makes Python LESS
-    #: accurate, which is why it is not the default.
+    #: ⚠ OFF BY DEFAULT, AND SINCE THE FFT INTEGRATION IT NO LONGER MIRRORS ANY
+    #: ENGINE. Until 2026-10-06 the C++ engines convolved this fit (no FFT) and
+    #: the switch let Python reproduce them; now all three implementations
+    #: apply the exact law, so the switch only shows what the fit (worst error
+    #: 0.016 in modulation with the G5 tables) would do. Turning it on makes
+    #: Python LESS accurate and different from both engines.
     mtf_use_kernel: bool = False
 
     #: Render the MEASURED characteristic curve where a stock carries one,
@@ -4131,7 +4166,8 @@ class RenderSettings:
     #: this change: on a 4K scan it will read as a regression to anyone who has
     #: not been told.
     spectrum_model: str = "boolean_jinc"
-    #: still | motion | frozen (spec §14.4).
+    #: still | motion | frozen (spec §14.4). Also accepts GrainTemporalModeCtrl
+    #: (the C++ grainTemporalMode control, 2026-10-06).
     #:
     #: ⚠ `still` IS THE PHYSICALLY FAITHFUL DEFAULT AND THE PRIOR DOCUMENT WAS
     #: WRONG ABOUT THIS. That document argued independent frames at still
@@ -4923,9 +4959,10 @@ def simulate(
         # one field for the whole clip; `motion` keeps independent fields and
         # scales the amplitude for perceptual matching only.
         temporal_scale = 1.0
-        if settings.grain_temporal_mode == "frozen":
+        gtm = grain_temporal_mode_key(settings.grain_temporal_mode)
+        if gtm == "frozen":
             frame_index = 0
-        elif settings.grain_temporal_mode == "motion":
+        elif gtm == "motion":
             # ⚠ R-T3: refuse rather than assume. A silent 24 fps here would be
             # a 0.456x amplitude change nobody asked for.
             if not (settings.frame_rate > 0.0):

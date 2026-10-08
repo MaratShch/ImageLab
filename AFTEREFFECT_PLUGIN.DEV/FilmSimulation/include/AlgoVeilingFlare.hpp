@@ -45,6 +45,9 @@
 // Arena views and the AlgoType arithmetic type.
 #include "AlgoMemHandler.hpp"
 
+// Frequency-domain filter (owner FFT library, 2026-10-06).
+#include "AlgoFrequency.hpp"
+
 // Filtering primitives used for the broad scatter lobe.
 #include "AlgoSeparableBlur.hpp"
 
@@ -185,5 +188,6 @@ void AlgoStage03b_VeilingFlare
     const int32_t            pitch,
     const film::FilmProfile& profile,
     const AlgoControls&      params,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept;

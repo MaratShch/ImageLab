@@ -92,13 +92,14 @@ MANIFEST = """\
 SEVEN ARCHIVES -- {stamp}
 ============================
 
-Schema v61. 222 film stocks, 11 print stocks, 2 colour-paper spectral records,
+Schema v61. 225 film stocks, 11 print stocks, 2 colour-paper spectral records,
 14 gauges. Verify 1045 PASS / 4 baselined FAIL (saturation hierarchy + the
-three G-SCRATCH guards whose harness is lost), all 40 translation units (38
+three G-SCRATCH guards whose harness is lost), all 41 translation units (39
 data slots) compiling at -Wall -Wextra with zero bytes of output,
-cpp_parity / chain_parity (222 stocks, Python = scalar = AVX2) /
-spectral_mono_parity / interimage parity green. Build failures = the known
-11-item baseline only.
+cpp_parity / chain_parity (225 stocks, Python = scalar = AVX2) /
+spectral_mono_parity (84/84) / interimage / bromide / batch_position parity
+green; film_serial_check 989 423 checks, 0 failures. Build failures = the
+known 11-item baseline only.
 
 ARCHIVES
 --------
@@ -107,21 +108,58 @@ ARCHIVES
   3  algorithm_scalar      CPP/Algorithm/Scalar
   4  algorithm_avx2        CPP/Algorithm/AVX2
   5  documentation_md      doc tree
-  6  ui_mockup_and_pdf     UI documentation (mockup rev 13, EN/RU PDFs)
+  6  ui_mockup_and_pdf     UI documentation (mockup rev 14, EN/RU PDFs)
   7  cpp_tests             C++ test harnesses (test_chain_dump.cpp,
                            test_film_serial.cpp), flat
 
-OWNER ACTION IN VISUAL STUDIO
------------------------------
-One new HEADER in the database folder (2026-10-05): film_profile_serial.hpp
-(generated; include-only, no .cpp, nothing to add to a project unless the
-header filter lists headers). Still 38 data slots
-(film_profiles_data_01..38.cpp), no new source file. No film added since
-2026-10-01e (KODAK_HIE, eKODAK_HIE = 122); the other headers and TXT files
-are regenerated anyway and unchanged apart from their timestamps.
-AlgoControlEnums.hpp is unchanged since 2026-10-01e (ProcessVariantCtrl
-TOTAL_PROCESSES 49).
+OWNER ACTION IN VISUAL STUDIO / CMAKE (2026-10-08)
+--------------------------------------------------
+  * NEW DATABASE SOURCE FILE: src/film_profiles_data_39.cpp (archive 2).
+    The data slots went 38 -> 39 so that no generated function exceeds the
+    112 000-byte limit (largest now 110 069). FilmProfile/CMakeLists.txt
+    globs src/*.cpp, so re-run the CMake configure step; if the Visual
+    Studio project lists its sources by hand, add film_profiles_data_39.cpp.
+  * THREE NEW FILMS change the enumerator values (alphabetical storage):
+    AGFA_AVIPHOT_PAN_400S, ROLLEI_PAN_25, ROLLEI_SUPERPAN_200. Saved
+    projects map old indices through film_id_migration.txt. film_enum.hpp,
+    film_params_mask.hpp, film_names.txt, film_display_order.txt and
+    film_id_migration.txt are regenerated together.
+  * FFT library: unchanged since FFT_2026-10-06.zip (not re-sent).
+  * No new engine source file; no new control.
 
+WHAT CHANGED SINCE 2026-10-06
+-----------------------------
+  * ENGINES (Scalar and AVX2): stage 9 DIR-coupler sub-pixel gate removed
+    (owner decision). Both coupler terms now run whenever their radius is
+    positive; the old 0.25 px cut-off switched them off abruptly on small
+    frames (about 180-280 px wide for 35 mm). Files: AlgoDirCoupler.hpp,
+    AlgoPassThrough.hpp, Algo_09_Sim.cpp, Algo_13_Sim.cpp, AlgorithmMain.cpp.
+    VISIBLE only on small frames with couplers.
+  * DATABASE, 2026-10-07: Fujifilm AF3-207U provenance corrected on 17 stocks
+    (records only); KODAK EKTAR 100 completed from E-4046 (base, dye pair,
+    no-correction reciprocity to 1 s).
+  * DATABASE, 2026-10-07: HARMAN Dec 2023 reciprocity factors -- HP5 PLUS
+    (P 1.31) and DELTA 3200 (P 1.33) onset 1 s with tables; KENTMERE PAN
+    100 / 400 tables corrected.
+  * DATABASE, 2026-10-07: ROLLEI folder review. ROLLEI_R3 curve traced,
+    reciprocity table, polyester base; ROLLEI_INFRARED_400 curve, RMS 11;
+    ROLLEI_RETRO_400 base and RMS 14 (from AGFA APX 400, owner decision);
+    NEW ROLLEI_PAN_25 and ROLLEI_SUPERPAN_200.
+  * DATABASE, 2026-10-07: NEW AGFA_AVIPHOT_PAN_400S (Agfa 01/2006 sheet):
+    spectral to 820 nm, MTF, curve, RMS, resolving power, polyester base,
+    live development-time family.
+  * DATABASE, 2026-10-07: web reciprocity harvest -- CINESTILL_800T
+    reciprocity p 1.0 -> 0.7407 (danhawk «Community» P 1.35, tier 3); all
+    other web values confirmed stored figures or were not applicable.
+  * Database order is strictly alphabetical (natural names) in every
+    generated list; film_ids.lock frozen ids 222-224 appended.
+
+Full accounts: doc/RESULT_2026-10-07b_rollei_folder.md (sections A-K),
+doc/PROGRESS.md (2026-10-07 entries), doc/FilmDatabase_Charecteristics.MD
+D.20.28-D.20.31 (and the Russian twin).
+
+EARLIER CHANGES, ALREADY DELIVERED 2026-10-06
+=============================================
 WHAT CHANGED SINCE 2026-10-01
 -----------------------------
   * Schema v61 (2026-10-01d): PrintingMatrix per negative (16 negatives print
@@ -202,9 +240,32 @@ WHAT CHANGED SINCE 2026-10-01
     build. Carried: every numeric / bool / enum / array / vector / record
     member (read today or not) and the string KEYS the engines read; not
     carried: unread text and provenance. kMaxSerializedFilmProfileSize =
-    81456 (KODAK_TMAX_P3200), computed by the generator and pinned by
-    test_film_serial.cpp (archive 7) via the build audit film_serial_check.py
-    over all 222 profiles. No engine code touched.
+    81456 (KODAK_TMAX_P3200) on that day -- see 2026-10-06 below.
+  * 2026-10-06: SERIALIZATION carries EVERY non-informational member of
+    film::FilmProfile (groups B and C: planned / not-yet-read and Python-read
+    fields, strings included, populated or empty); only 27 informational
+    members are excluded (provenance, param_sources, description / era /
+    source strings, taking_filter.designation, the speed label).
+    kMaxSerializedFilmProfileSize = 81680 (KODAK_TMAX_P3200), 40 sections;
+    film_serial_check.py: 222 profiles, 976 770 bit-exact checks, 0 failures.
+  * 2026-10-06: MAXIMUM-FLOW ALIGNMENT. C++ now reads the per-record halation
+    radius scales (G2) and the measured taking-filter transmission (G3), and
+    gains the controls spectralTaking (G4, bit 47) and grainTemporalMode (G6,
+    bit 48) the Python reference already had.
+  * 2026-10-06: THE OWNER'S FFT IN BOTH ENGINES. Flare, halation, emulsion
+    MTF, DIR coupler, scan MTF + misregistration, duplication and reseau
+    apply film_sim's frequency-domain transfers EXACTLY (AlgoFrequency.hpp);
+    the separable approximations, the FilmMtfKernel fits and their sub-pixel
+    gates are gone from the engines. VISIBLE in C++: edges, halos and fine
+    detail now match Python -- chain_parity compares every pixel, worst
+    1.75e-5 display-linear over 222 stocks (it was 0.10 at edges). Whole-frame
+    AVX2 time +2 % to +15 % on the review host (not an i7-7700K); halation
+    about 2x faster, MTF / coupler / scan slower.
+  * 2026-10-06: DATABASE. 18 adjacency pairs (A4/T2 stocks with a measured q)
+    re-solved against the exact law the renderers now apply (owner-approved);
+    each renders its sheet's printed overshoot peak. VISIBLE: the low-frequency
+    edge lift on those 18 stocks moves by up to 0.025 in modulation.
+  * 2026-10-06: UI documentation revision 14 (new group Spectral & Temporal).
 
 Full accounts: doc/RESULT_2026-10-01d_kinetics_dyes_mtf.md,
 doc/RESULT_2026-10-01e_queue_followups_hie_scala_apd.md,
@@ -212,11 +273,12 @@ doc/RESULT_2026-10-01f_interimage_neutral_scala.md,
 doc/RESULT_2026-10-02_scan_balance_smallframe_reversal_test.md,
 doc/RESULT_2026-10-03_control_clamp_dupe_avx2_review.md,
 doc/RESULT_2026-10-04_passthrough_mtfq_fieldusage.md,
-doc/RESULT_2026-10-05_film_serial.md, doc/PROGRESS.md.
+doc/RESULT_2026-10-05_film_serial.md,
+doc/RESULT_2026-10-06_fft_alignment_serial.md.
 
 Regenerated together from one build: film_profiles.*, film_schema_version.h,
 film_enum.hpp, film_names.txt, film_display_order.txt, film_id_migration.txt,
-film_params_mask.hpp, film_profile_serial.hpp, LoadFilmDataBase.*, film_profiles_data_01..38.cpp,
+film_params_mask.hpp, film_profile_serial.hpp, LoadFilmDataBase.*, film_profiles_data_01..39.cpp,
 algo_control_enums.py, doc/FilmControlMatrix.md, doc/FilmActiveProfiles.md.
 
 NO TEST CODE IN ARCHIVES 1-4 (owner instruction); the harness ships only in 7. AlgoControlEnums.hpp
@@ -319,8 +381,13 @@ def stage_engine(kind: str) -> Path:
 
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "MANIFEST.txt").write_text(MANIFEST.format(stamp=STAMP),
-                                      encoding="utf-8")
+    _manifest = MANIFEST.format(stamp=STAMP)
+    if os.environ.get("FILMSIM_NO_TESTS"):
+        # Six-archive delivery: say so, rather than list an archive not sent.
+        _manifest = _manifest.replace("SEVEN ARCHIVES -- ", "SIX ARCHIVES -- ", 1)
+        _manifest = _manifest.replace(
+            "  7  cpp_tests ", "  7  (not shipped in this delivery) cpp_tests ", 1)
+    (OUT / "MANIFEST.txt").write_text(_manifest, encoding="utf-8")
 
     # ---- 1. python generator ----------------------------------------------
     # ⚠ NO C++ IN THIS ARCHIVE. Owner directive, 2026-09-10d: "don't put C++

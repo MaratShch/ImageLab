@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cmath>     // std::sqrt (AlgoGrainTemporalScale)
 
 // eFILM_PROFILE: the generated profile index enumeration. Every algorithm
 // parameter reaches the engine through this structure, and the film selection is
@@ -2458,15 +2459,14 @@ struct AlgoControls
      *                    their edges fringe.
      * 11  STAGES         10 only
      * 12  INTERACTIONS   None with other controls. Disabled entirely on
-     *                    monochrome stocks. A realised draw below
-     *                    ALGO_SCAN_MIN_SHIFT_PX is discarded, so the effect is
-     *                    statically undecidable at small pxPerMm - it depends
-     *                    on the RNG draw. Combined with seed and frameIndex, so
+     *                    monochrome stocks. Every realised draw is applied as
+     *                    film_sim's exact phase ramp (no minimum shift since
+     *                    2026-10-06). Combined with seed and frameIndex, so
      *                    the displacement re-rolls every frame.
      * 13  SCALAR/AVX2    Same semantics; the draws stay in double in both
      *                    builds, the displacement in pixels is float in AVX2.
-     * 14  FULL/LITE      PENDING. Expected both - it is a pointwise resample,
-     *                    not a neighbourhood pass.
+     * 14  FULL/LITE      PENDING. The shift rides in the scan MTF's
+     *                    frequency-domain pass, so it adds no pass of its own.
      */
     double misregScale;
 
@@ -2784,6 +2784,78 @@ struct AlgoControls
      */
     int32_t seed;
 
+    // -- spectral taking matrix and grain temporal mode (2026-10-06) ----------
+
+    /**
+     *  1  NAME           spectralTaking
+     *  2  TYPE           bool
+     *  3  AE CONTROL     checkbox
+     *  4  UNIT           none - boolean switch
+     *  5  MIN            false, by type
+     *  6  MAX            true, by type
+     *  7  DEFAULT        false  (SpectralTakingDef; AlgoControl.cpp,
+     *                    getAlgoControlsDefault)
+     *  8  STEP           n/a
+     *  9  PURPOSE        Replace the stock's AUTHORED taking_matrix by the one
+     *                    DERIVED from its measured layer sensitivities under
+     *                    the scene illuminant (AlgoSpectralTakingMatrix: each
+     *                    layer's response to three smooth primaries, rows
+     *                    normalised so a neutral stays neutral).
+     * 10  OUTPUT EFFECT  Off: unchanged. On: cross-channel mixing in EXPOSURE,
+     *                    before the characteristic curve, on every stock that
+     *                    carries three-layer curves; stocks without them keep
+     *                    the authored matrix (the derivation refuses).
+     * 11  STAGES         02b (resolved once per frame in Algorithm_Main and
+     *                    passed to the stage and to its pass-through test)
+     * 12  INTERACTIONS   Uses sceneKelvin for the illuminant and the profile's
+     *                    taking filter (fetchLayers). Off by default because
+     *                    dye_matrix and InterimageSpec already carry mixing
+     *                    downstream; turning it on without a measured
+     *                    reference applies the same physics twice.
+     * 13  SCALAR/AVX2    Identical: the matrix is derived in the shared
+     *                    AlgoSpectralSensitivity.cpp, in double, rounded once
+     *                    to float exactly like the authored matrix.
+     * 14  FULL/LITE      PENDING. Both.
+     *
+     *  Twin: film_sim.RenderSettings.spectral_taking (added to C++ 2026-10-06,
+     *  owner decision G4 -- the three engines execute the same maximum flow).
+     */
+    bool spectralTaking;
+
+    /**
+     *  1  NAME           grainTemporalMode
+     *  2  TYPE           GrainTemporalModeCtrl (AlgoControlEnums.hpp)
+     *  3  AE CONTROL     popup: Still | Motion | Frozen
+     *  4  UNIT           none - enumeration
+     *  5  MIN            eGRAIN_TEMPORAL_STILL
+     *  6  MAX            eGRAIN_TEMPORAL_FROZEN; out-of-range values clamp to
+     *                    the default on entry (AlgoControlsClamped)
+     *  7  DEFAULT        eGRAIN_TEMPORAL_STILL  (GrainTemporalModeCtrlDef)
+     *  8  STEP           1, by enumeration
+     *  9  PURPOSE        How the camera negative's grain field moves between
+     *                    frames: Still (fresh field per frame, full still
+     *                    amplitude - the physically faithful default), Motion
+     *                    (perceptual matching: amplitude x 1/sqrt(clamp(
+     *                    frameRate x 0.2 s, 1, 8))), Frozen (frame index 0 for
+     *                    the whole clip).
+     * 10  OUTPUT EFFECT  Still: unchanged. Motion at 24 fps: negative grain
+     *                    amplitude x 0.4564. Frozen: the same grain on every
+     *                    frame.
+     * 11  STAGES         11 only. Print grain (14) and duplication grain (13)
+     *                    keep the frame index, as in the Python reference.
+     * 12  INTERACTIONS   Motion reads frameRate; a non-positive frameRate
+     *                    leaves the amplitude unscaled (the reference refuses
+     *                    such a request outright - R-T3, never a silent
+     *                    default). Multiplies grainScale.
+     * 13  SCALAR/AVX2    Identical: both stages call AlgoGrainTemporalFrame /
+     *                    AlgoGrainTemporalScale below.
+     * 14  FULL/LITE      PENDING. Both.
+     *
+     *  Twin: film_sim.RenderSettings.grain_temporal_mode (added to C++
+     *  2026-10-06, owner decision G6).
+     */
+    GrainTemporalModeCtrl grainTemporalMode;
+
     // -- physical film damage -----------------------------------------------
 
     /**
@@ -2906,3 +2978,33 @@ FilmDamage   getFilmDamageDefault   (void) noexcept;
 /// Values already in range are returned unchanged, bit for bit.
 AlgoControls AlgoControlsClamped (const AlgoControls& in,
                                   const int32_t       profileCount) noexcept;
+
+
+/// \brief Frame index the camera negative's GRAIN field is drawn for
+///        (grainTemporalMode, 2026-10-06). Frozen pins frame 0; Still and
+///        Motion use the host's frame. Shared by the Scalar and AVX2 stage 11.
+///        Twin: film_sim.simulate, stage 11 ("frozen" -> frame_index = 0).
+inline int32_t AlgoGrainTemporalFrame (const AlgoControls& c,
+                                       const int32_t       frameIndex) noexcept
+{
+    return (c.grainTemporalMode == GrainTemporalModeCtrl::eGRAIN_TEMPORAL_FROZEN)
+         ? 0 : frameIndex;
+}
+
+/// \brief Amplitude factor on the camera negative's grain (grainTemporalMode).
+///        Motion: 1 / sqrt(clamp(frameRate * GrainTemporalIntegrationS, 1,
+///        GrainTemporalMaxFrames)); otherwise exactly 1.0, so Still and Frozen
+///        leave grainScale bit-for-bit untouched. A non-positive frameRate in
+///        Motion also returns 1.0 (the reference raises instead -- R-T3 -- and a
+///        plugin cannot; leaving the amplitude unscaled is the no-surprise
+///        equivalent). Twin: film_sim.temporal_grain_scale.
+inline double AlgoGrainTemporalScale (const AlgoControls& c) noexcept
+{
+    if ((c.grainTemporalMode != GrainTemporalModeCtrl::eGRAIN_TEMPORAL_MOTION)
+        || !(c.frameRate > 0.0))
+        return 1.0;
+    double n = c.frameRate * GrainTemporalIntegrationS;
+    if (n < 1.0)                    n = 1.0;
+    if (n > GrainTemporalMaxFrames) n = GrainTemporalMaxFrames;
+    return 1.0 / std::sqrt(n);
+}

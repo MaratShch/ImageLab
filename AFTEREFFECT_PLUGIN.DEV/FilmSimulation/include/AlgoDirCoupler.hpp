@@ -49,6 +49,9 @@
 // Buffer layout and the geometry fields that travel with it.
 #include "AlgoMemHandler.hpp"
 
+// Frequency-domain filter (owner FFT library, 2026-10-06).
+#include "AlgoFrequency.hpp"
+
 // The separable Gaussian used for both diffusion scales.
 #include "AlgoSeparableBlur.hpp"
 
@@ -62,23 +65,27 @@
 
 
 // ---------------------------------------------------------------------------
-//  Smallest diffusion radius, in pixels, worth submitting to a blur.
-//
-//  Below a quarter of a pixel the discrete kernel has one significant tap and the
-//  pass is an identity costing two full sweeps of the image.
+//  ⚠ NO SUB-PIXEL GATE SINCE 2026-10-06 (owner decision). Until then both terms
+//  were switched off below ALGO_COUPLER_MIN_SIGMA_PX = 0.25 px, because the old
+//  spatial kernel had one tap there. Stage 9 now multiplies by the analytic
+//  Gaussian transfer (AlgoFrequency.hpp), which is exact at any radius, and as
+//  the radius shrinks the long-range term tends to a plain saturation boost
+//  s * (D - mean D) -- which the gate used to cut off abruptly on small frames
+//  (about 180-280 px wide for 35 mm). Both terms now run whenever their radius
+//  is positive. Twin: film_sim.apply_dir_couplers / coupler_flat_scale.
 // ---------------------------------------------------------------------------
-constexpr AlgoType ALGO_COUPLER_MIN_SIGMA_PX = static_cast<AlgoType>(0.25);
 
 
 // ---------------------------------------------------------------------------
 //  Coupler scale for the NEUTRAL references (anchor solve, print-chain mid grey).
 //
-//  ⚠ ADDED 2026-10-02 (owner-approved). Stage 9 switches its long-range term off
-//  when the diffusion radius is under ALGO_COUPLER_MIN_SIGMA_PX, but
+//  ⚠ ADDED 2026-10-02 (owner-approved). Stage 9 then switched its long-range term
+//  off when the diffusion radius was under 0.25 px, but
 //  AlgoSolveAnchors and AlgoNeutralMidDensity modelled the flat-field coupling
 //  unconditionally, so frames narrower than about 180 px (35 mm) anchored for a
 //  coupling they never received and rendered mid grey with a cast. Both
-//  references now see the same gate as stage 9. Twin: film_sim.coupler_flat_scale.
+//  references saw the same gate as stage 9. Since 2026-10-06 there is no gate:
+//  the scale applies whenever the radius is positive. Twin: film_sim.coupler_flat_scale.
 // ---------------------------------------------------------------------------
 inline HighPrecType AlgoCouplerFlatScale
 (
@@ -90,7 +97,7 @@ inline HighPrecType AlgoCouplerFlatScale
     const AlgoType radiusPx = static_cast<AlgoType>(profile.couplers.radius_um)
                             * static_cast<AlgoType>(0.001) * pxPerMm;
 
-    return (radiusPx >= ALGO_COUPLER_MIN_SIGMA_PX)
+    return (radiusPx > static_cast<AlgoType>(0))
                ? couplerScale : static_cast<HighPrecType>(0.0);
 }
 
@@ -130,5 +137,6 @@ void AlgoStage09_DirCoupler
     const int32_t            pitch,
     const film::FilmProfile& profile,
     const AlgoControls&      params,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept;

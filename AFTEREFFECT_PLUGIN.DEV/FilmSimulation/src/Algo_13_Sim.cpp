@@ -35,7 +35,7 @@
 
 #include "AlgoHalation.hpp"   // AlgoSoftplus, shared by every curve evaluation
 #include "AlgoCallier.hpp"    // AlgoCallierApplyScalar, the print chain's mid-grey reference
-#include "AlgoDirCoupler.hpp" // AlgoCouplerFlatScale, stage 9's sub-pixel gate (2026-10-02)
+#include "AlgoDirCoupler.hpp" // AlgoCouplerFlatScale (same rule as stage 9; no gate since 2026-10-06)
 
 
 static_assert(sizeof(AlgoType) == 4,
@@ -451,7 +451,8 @@ void AlgoStage13_Duplication
     const AlgoType           pxPerMm,
     const int32_t            frameIndex,
     const uint32_t           seed,
-    film::RGBCurves&         finalCurvesOut
+    film::RGBCurves&         finalCurvesOut,
+    const AlgoFreqState&     freq
 ) noexcept
 {
     // ----------------------------------------------------------------------
@@ -494,7 +495,7 @@ void AlgoStage13_Duplication
     // ----------------------------------------------------------------------
     HighPrecType dMid[3];
 
-    // 2026-10-02: gated like stage 9, the same value the anchor solve used.
+    // Same coupler scale as stage 9 and the anchor solve (AlgoCouplerFlatScale).
     AlgoNeutralMidDensity(profile,
                           AlgoCouplerFlatScale(profile,
                               static_cast<HighPrecType>(params.couplerScale),
@@ -536,11 +537,13 @@ void AlgoStage13_Duplication
     {
         const film::RGBCurves& dcurves = pDupeStock->curves;
 
-        // Printing optics of the duplicating step, as a sigma in pixels.
-        const AlgoType dupeSigmaPx =
-            AlgoScanSigmaMm(static_cast<AlgoType>(pDupeStock->mtf_f50)) * pxPerMm;
-
-        const bool wantDupeBlur = (dupeSigmaPx >= ALGO_SCAN_MIN_SIGMA_PX);
+        // Printing optics of the duplicating step: film_sim's
+        // grid.mtf(dupe.mtf_f50, 0, 0), the Gaussian law exp(-ln2 (f/f50)^2),
+        // applied exactly in the frequency domain (AlgoFrequency.hpp,
+        // 2026-10-06; the separable blur it replaces was skipped below 0.25 px).
+        AlgoFreqTransfer dupeMtf;
+        AlgoFreqSetMtf(dupeMtf, static_cast<HighPrecType>(pDupeStock->mtf_f50), false, 0.0, 0.0, 0.0);
+        const bool wantDupeBlur = (false == AlgoFreqIsIdentity(dupeMtf));
 
         // Base plus fog of the duplicating stock, needed by the grain weighting.
         const AlgoType dupeDmin[3] =
@@ -564,8 +567,7 @@ void AlgoStage13_Duplication
             for (int32_t c = 0; c < 3; c++)
             {
                 if (wantDupeBlur)
-                    AlgoGaussianBlurPlaneWrap(work[c], tmp[c], pScrWork,
-                                              sizeX, sizeY, pitch, dupeSigmaPx);
+                    AlgoFreqFilterPlane(freq, work[c], tmp[c], pitch, dupeMtf);
                 else
                     AlgoCopyPlane(work[c], tmp[c], sizeX, sizeY, pitch);
             }

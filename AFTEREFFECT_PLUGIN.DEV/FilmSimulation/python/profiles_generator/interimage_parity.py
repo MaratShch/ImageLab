@@ -60,9 +60,9 @@ the Python reference had no gate, so below that scale one renderer ran the stage
 and the other did not. `apply_dir_couplers` now carries the SAME gate at the SAME
 0.25 px. The threshold was adopted from the shipped C++ constant rather than
 chosen, which keeps this a pure parity fix: no fidelity judgement is folded in.
-The crossover line below is still printed, because the SCALE at which the stage
-switches off is worth having as a number -- it is now a shared property of both
-renderers instead of a divergence.
+⚠ 2026-10-06: THE GATE ITSELF IS REMOVED (owner decision A), in every
+implementation, because the engines now apply the exact analytic transfer and
+the gate only cut the long-range saturation off abruptly on small frames.
 
 ⚠ WHAT REMAINS OPEN IS QUEUE ITEM C16, AND IT IS A DIFFERENT QUESTION. The two
 blurs are still different FORMS -- an analytic Gaussian transfer here, a
@@ -91,6 +91,7 @@ import numpy as np
 
 import film_profiles as fp
 import film_sim as fs
+import engine_env  # noqa: F401 -- owner FFT include path for engine compiles (2026-10-06)
 
 HERE = Path(__file__).resolve().parent
 
@@ -103,7 +104,8 @@ HERE = Path(__file__).resolve().parent
 #: `AlgoDefectField.cpp`. Neither is exercised by this probe -- they are link
 #: dependencies of the file layout, not of the law under test.
 PLUGIN_TUS = ("Algo_08_Sim.cpp", "Algo_09_Sim.cpp", "AlgoSeparableBlur.cpp",
-              "Algo_05_Sim.cpp", "AlgoDefectField.cpp")
+              "Algo_05_Sim.cpp", "AlgoDefectField.cpp",
+              "AlgoFrequency.cpp")   # stages 5 and 9 filter in the frequency domain (2026-10-06)
 
 #: Stocks probed. Chosen for mechanism coverage, not popularity:
 #:   PORTRA_400   strong DIR negative, density_weighting 0
@@ -178,6 +180,16 @@ int main(void)
     std::vector<AlgoType> dR(n), dG(n), dB(n);
     std::vector<AlgoType> t1(n), t2(n), t3(n), t4(n);
 
+    // Stage 9 blurs in the frequency domain since 2026-10-06: the state the
+    // arena would carry, built the same way alloc_memory_buffers builds it.
+    std::vector<unsigned char> fPlan(AlgoFreqPlanBytes(sx, sy) + 64), fSpec(AlgoFreqSpecBytes(sx, sy) + 64),
+                               fWork(AlgoFreqWorkBytes(sx, sy) + 64), fTab(AlgoFreqTableBytes(sx, sy) + 64);
+    auto al64 = [](std::vector<unsigned char>& v) -> void*
+        { return reinterpret_cast<void*>((reinterpret_cast<size_t>(v.data()) + 63u) & ~static_cast<size_t>(63u)); };
+    AlgoFreqState freq;
+    if (!AlgoFreqInit(freq, sx, sy, al64(fPlan), al64(fSpec), al64(fWork), al64(fTab)))
+    { std::printf("FREQFAIL\n"); return 2; }
+
     HighPrecType anchor[3] = { static_cast<HighPrecType>(%(A0).17g),
                                static_cast<HighPrecType>(%(A1).17g),
                                static_cast<HighPrecType>(%(A2).17g) };
@@ -244,11 +256,12 @@ int main(void)
                             static_cast<double>(dB[o]));
 
             // Stage 9 consumes stage 8b's output, as the pipeline does.
+            AlgoFreqBeginFrame(freq, static_cast<AlgoType>(pxmm[sc]));
             AlgoStage09_DirCoupler(dR.data(), dG.data(), dB.data(),
                                    sR.data(), sG.data(), sB.data(),
                                    t1.data(), t2.data(), t3.data(), t4.data(),
                                    sx, sy, pitch, prof, params,
-                                   static_cast<AlgoType>(pxmm[sc]));
+                                   static_cast<AlgoType>(pxmm[sc]), freq);
             std::printf("S09 %%s %%d %%d\n", want[w], flat ? 1 : 0, sc);
             for (size_t o = 0; o < n; o++)
                 std::printf("%%.17g %%.17g %%.17g\n",
@@ -474,27 +487,13 @@ def main() -> int:
               f"this run proved nothing about the vector twin")
         bad += 1
 
-    # ---- the shared sub-pixel gate, reported as a scale ---------------------
-    # BOTH sides now disable each coupler component below 0.25 px (C17, closed
-    # 2026-08-25d: the gate was C++-only until then). The crossover px/mm is
-    # still printed, because the scale at which a stored radius stops being
-    # rendered is worth stating -- it is a shared property now, not a divergence.
-    act = [q for q in fp.FILM_PROFILES if q.couplers.active]
-    if act:
-        worst = max(act, key=lambda q: q.couplers.radius_um)
-        thin = min(act, key=lambda q: min(q.couplers.edge_um or 1e9,
-                                          q.couplers.radius_um))
-
-        def crossover(um):
-            return 0.25 / (um * 0.001) if um > 0 else float("inf")
-        print(f"[i] SHARED gate ALGO_COUPLER_MIN_SIGMA_PX = 0.25 px: the long "
-              f"term switches off below {crossover(worst.couplers.radius_um):.1f} "
-              f"px/mm ({worst.name}, radius {worst.couplers.radius_um:.0f} um) and "
-              f"the edge term below "
-              f"{crossover(thin.couplers.edge_um):.1f} px/mm "
-              f"({thin.name}, edge {thin.couplers.edge_um:.0f} um). BOTH renderers "
-              f"now gate at this threshold (C17); the remaining C16 question is "
-              f"the threshold's value, not its one-sidedness")
+    # ---- the sub-pixel gate: REMOVED 2026-10-06 (owner decision A) ---------
+    # Both renderers used to switch each coupler component off below 0.25 px
+    # (C17). With the exact transfer the gate had no numerical reason left and
+    # it cut the long-range saturation off abruptly on small frames, so it is
+    # gone from Python, both engines and the neutral references alike.
+    print("[i] coupler sub-pixel gate: none (removed 2026-10-06); both terms "
+          "run whenever their radius is positive, in all three implementations")
 
     print()
     if bad:

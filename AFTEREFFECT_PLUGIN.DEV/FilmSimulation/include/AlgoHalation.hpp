@@ -80,6 +80,8 @@
 // The separable multi-lobe Gaussian used to spread the scattered light.
 #include "AlgoSeparableBlur.hpp"
 
+#include "AlgoFrequency.hpp"
+
 // User-facing controls, pre-validated by the caller.
 #include "AlgoControl.hpp"
 
@@ -137,6 +139,61 @@ constexpr int32_t ALGO_HALATION_LOBES = 3;
 
 
 // ---------------------------------------------------------------------------
+//  The scatter TRANSFER of ONE colour record -- film_sim's
+//  grid.multi_gaussian(*hal.lobes(c)). Shared by the Scalar and the AVX2
+//  stage 5 so the two cannot drift.
+//
+//  The radii are stored in micrometres ON THE FILM, so the same stock gives a
+//  halo of the same physical size whatever the render resolution; the transfer
+//  is evaluated on the frame's f_mm grid (AlgoFrequency.hpp), which carries the
+//  px_per_mm conversion.
+//
+//  PER-CHANNEL RADIUS (schema v11, owner decision G2): radius_scale_r/g/b
+//  multiply ALL lobes of that record, including the ring, as lobes(c) does.
+//
+//  schema v59 THE RING: a SUBTRACTED lobe, appended with a NEGATIVE weight
+//  when ring_um > 0 and ring_weight > 0. multi_gaussian normalises by the
+//  SIGNED sum, so the kernel is sum(w_i G_i) - ring_weight G_ring over
+//  (sum w_i - ring_weight). The ring is the support return's annulus
+//  (r_c = 2t/sqrt(n^2-1)): no totally reflected light lands inside it.
+//
+//  ⚠ 2026-10-06 (FFT, owner decision): NO LOBE IS DROPPED ANY MORE. The
+//  separable engine discarded a lobe below 0.25 px (and the ring with it)
+//  because its sampled kernel collapsed to one tap there. film_sim never did:
+//  a narrow Gaussian's transfer is simply close to 1 out to Nyquist. With the
+//  frequency-domain filter the engine applies exactly film_sim's kernel at
+//  every resolution, which is the maximum flow of the three implementations.
+// ---------------------------------------------------------------------------
+inline void AlgoHalationTransfer
+(
+    const film::HalationSpec& hal,
+    const int32_t             channel,
+    AlgoFreqTransfer&         t
+) noexcept
+{
+    const float kScale[3] = { hal.radius_scale_r, hal.radius_scale_g, hal.radius_scale_b };
+    const HighPrecType k = static_cast<HighPrecType>(kScale[(channel < 0) ? 0 : ((channel > 2) ? 2 : channel)]);
+
+    HighPrecType radiiUm[ALGO_HALATION_LOBES + 1];
+    HighPrecType weights[ALGO_HALATION_LOBES + 1];
+    int32_t n = 0;
+    for (int32_t i = 0; i < ALGO_HALATION_LOBES; i++)
+    {
+        radiiUm[n] = static_cast<HighPrecType>(hal.radii_um[i]) * k;
+        weights[n] = static_cast<HighPrecType>(hal.weights[i]);
+        n++;
+    }
+    if ((hal.ring_um > 0.0f) && (hal.ring_weight > 0.0f))
+    {
+        radiiUm[n] = static_cast<HighPrecType>(hal.ring_um) * k;
+        weights[n] = -static_cast<HighPrecType>(hal.ring_weight);
+        n++;
+    }
+    AlgoFreqSetMultiGaussian(t, radiiUm, weights, n);
+}
+
+
+// ---------------------------------------------------------------------------
 //  Numerically safe softplus: k * log(1 + exp(x/k)).
 //
 //  Exposed because the same ramp shape is used by the characteristic curve, and
@@ -188,5 +245,6 @@ void AlgoStage05_Halation
     const int32_t            pitch,
     const film::FilmProfile& profile,
     const AlgoControls&      params,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept;

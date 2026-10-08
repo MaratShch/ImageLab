@@ -696,99 +696,14 @@ inline float FilmMtfResponse(const MTFSpec& m, int channel, float f)
 }
 
 
-/// One row of the separable equivalent of the measured MTF rolloff.
-struct MtfKernelRow {
-    float q;    ///< the exact stored rolloff exponent this row serves
-    float w1;   ///< weight of the tight lobe; the wide lobe carries 1 - w1
-    float s1;   ///< tight-lobe sigma, as a MULTIPLE of the legacy base sigma
-    float s2;   ///< wide-lobe sigma, same units
-};
-
-
-/// Separable two-Gaussian equivalent of 1/(1+(f/f50)^q). Mirrors
-/// film_profiles.mtf_kernel() exactly, including its refusal to interpolate.
-///
-/// ⚠ WHY THIS EXISTS. FilmMtfResponse() is the law and it is a FREQUENCY-DOMAIN
-/// form; this engine convolves separable spatial Gaussians and has no FFT, so
-/// until 2026-09-03 every stock with a measured q rendered on the legacy single
-/// Gaussian -- correct at f50 by construction and up to 3.8x too much modulation
-/// at 2x f50. That state was recorded in cpp_parity's LAW_BYPASS_BASELINE. The
-/// blur stage already accepts a WEIGHTED SUM of Gaussians, because the adjacency
-/// band-pass needed one, so the law crosses over as two more lobes and needs no
-/// new machinery.
-///
-/// ⚠ EXACT LOOKUP, NEVER INTERPOLATED. The two-lobe family has two disjoint
-/// optimal basins -- below q ~ 3.0 a small tight lobe on a wide one, above it a
-/// slightly over-weighted narrow lobe minus a very wide one -- and a table
-/// interpolated across that switch fits neither side. Every q here is a literal
-/// stored on a profile.
-///
-/// Returns false when q is not tabulated, which is the signal to keep the legacy
-/// single Gaussian. ⚠ THE ROWS BELOW ARE EMITTED FROM film_profiles._MTF_KERNEL_TABLE
-/// AT GENERATION (2026-10-04); until then they were a 22-row literal that had fallen
-/// 49 rows behind the Python table, so 44 stocks with a measured q rendered the
-/// single Gaussian in C++ while Python rendered the law.
-inline bool FilmMtfKernel(float q, float& w1, float& s1, float& s2)
-{
-    static const MtfKernelRow rows[] = {
-@MTF_KERNEL_ROWS@
-    };
-    const int n = static_cast<int>(sizeof(rows) / sizeof(rows[0]));
-    for (int i = 0; i < n; i++) {
-        const float d = rows[i].q - q;
-        if ((d > -5.0e-5f) && (d < 5.0e-5f)) {
-            w1 = rows[i].w1; s1 = rows[i].s1; s2 = rows[i].s2;
-            return true;
-        }
-    }
-    return false;
-}
-
-
-/// One row of the THREE-lobe separable equivalent.
-struct MtfKernelRow3 {
-    float q;    ///< the exact stored rolloff exponent this row serves
-    float w1;   ///< weight of the tight lobe
-    float w2;   ///< weight of the middle lobe; the wide lobe carries 1 - w1 - w2
-    float s1;   ///< tight-lobe sigma, as a MULTIPLE of the legacy base sigma
-    float s2;   ///< middle-lobe sigma, same units
-    float s3;   ///< wide-lobe sigma, same units
-};
-
-
-/// Separable THREE-Gaussian equivalent, for exponents the two-lobe family
-/// cannot reach. Mirrors film_profiles.mtf_kernel3() exactly.
-///
-/// ⚠ WHY A THIRD LOBE EXISTS. KODAK TECHNICAL PAN's measured rolloff is
-/// q = 1.071, the shallowest in the corpus and well below the two-lobe table's
-/// floor of 1.50. The best PAIR for it misses by 0.0719 against the 0.045 that
-/// table is held to; a TRIPLE lands at 0.0267, ten times better than the single
-/// Gaussian. A shallow rolloff is shallow over three decades, and two Gaussians
-/// can cover a knee and a tail but not the long shoulder between them.
-///
-/// ⚠ CONSULTED ONLY AFTER FilmMtfKernel HAS RETURNED FALSE, so no stock that
-/// the two-lobe table serves changes path or changes a pixel.
-///
-/// ⚠ IT COSTS LOBE BUDGET. The adjacency band-pass MULTIPLIES the base
-/// transfer, so each base lobe carries an inner and an outer partner: three
-/// base lobes is nine, which is why ALGO_BLUR_MAX_LOBES is 9.
-inline bool FilmMtfKernel3(float q, float& w1, float& w2,
-                           float& s1, float& s2, float& s3)
-{
-    static const MtfKernelRow3 rows[] = {
-@MTF_KERNEL3_ROWS@
-    };
-    const int n = static_cast<int>(sizeof(rows) / sizeof(rows[0]));
-    for (int i = 0; i < n; i++) {
-        const float d = rows[i].q - q;
-        if ((d > -5.0e-5f) && (d < 5.0e-5f)) {
-            w1 = rows[i].w1; w2 = rows[i].w2;
-            s1 = rows[i].s1; s2 = rows[i].s2; s3 = rows[i].s3;
-            return true;
-        }
-    }
-    return false;
-}
+/// ⚠ 2026-10-06: THE SEPARABLE MTF KERNEL TABLES ARE NO LONGER EMITTED.
+/// FilmMtfKernel / FilmMtfKernel3 (two- and three-Gaussian fits of the law
+/// above) existed because the engines had no FFT and convolved separable
+/// spatial Gaussians. Since 2026-10-06 the engines apply FilmMtfResponse's law
+/// exactly in the frequency domain on the owner's FFT library
+/// (AlgoFrequency.hpp: AlgoFreqSetMtf), so no C++ reader remains. The fitted
+/// tables stay in film_profiles.py (_MTF_KERNEL_TABLE, _MTF_KERNEL_TABLE3) for
+/// film_sim's mtf_use_kernel diagnostic, which renders the fit for comparison.
 
 
 /// Base-reflection glow. Must be added to linear exposure before the
@@ -3852,7 +3767,11 @@ def _print_block(s: PrintStock) -> str:
 # which is what MSVC's limits are. At 38 slots the largest AppendProfiles
 # function is 110 001 bytes and the largest file 161 041 (two functions'
 # worth allowed). No .vcxproj edit.
-N_DATA_SLOTS = 38          #: fixed; the .vcxproj lists these files once
+# ⚠ 2026-10-07: 38 -> 39 (owner approved). AGFA_AVIPHOT_PAN_400S made the
+# smallest feasible largest AppendProfiles function 112 080 bytes at 38 slots
+# (lowering POINTS_SPLIT_BYTES did not help: the binding slot holds no split
+# development points). OWNER ACTION: ADD film_profiles_data_39.cpp TO THE .vcxproj.
+N_DATA_SLOTS = 39          #: fixed; the .vcxproj lists these files once
 #: schema v61: a profile whose development points emit more than this many
 #: bytes has them appended by a separate function in its slot file. The
 #: per-FUNCTION ceiling below is what the split keeps; the slot FILE may then
@@ -3861,6 +3780,10 @@ N_DATA_SLOTS = 38          #: fixed; the .vcxproj lists these files once
 #: AppendProfiles to 112 124 bytes; moving the development points of every
 #: family over 8 kB into helpers (16 families, 113 helper functions, none over
 #: 9.1 kB) brings the largest function back to 110 342 at the same 38 slots.
+#: ⚠ 2026-10-07: 8 000 -> 6 000 (owner approved). AGFA_AVIPHOT_PAN_400S's arrival
+#: made the minimum feasible largest AppendProfiles function 112 472 bytes at 38
+#: slots; moving every development family over 6 kB into helpers restores the
+#: per-function ceiling without a slot (.vcxproj) change.
 POINTS_SPLIT_BYTES = 8_000
 _SPLIT_POINTS_ACTIVE = False
 _SPLIT_POINTS: list = []
@@ -4857,16 +4780,9 @@ def generate(outdir: Path | str = ".",
     # would emit an empty declaration block and every data slot would then
     # fail to compile with an undeclared identifier -- loudly, which is the
     # right failure, but avoidable by ordering.
-    # 2026-10-04: the MTF kernel tables are emitted from the Python dicts, so
-    # the C++ lookup can never fall behind the law it mirrors again.
-    k2 = "".join("        { %.4ff, %.6ff, %.6ff, %.6ff },\n" % (q, w1, s1, s2)
-                 for q, (w1, s1, s2) in sorted(fp._MTF_KERNEL_TABLE.items()))
-    k3 = "".join("        { %.4ff, %.6ff, %.6ff, %.6ff, %.6ff, %.6ff },\n"
-                 % (q, w1, w2, s1, s2, s3)
-                 for q, (w1, w2, s1, s2, s3) in sorted(fp._MTF_KERNEL_TABLE3.items()))
+    # 2026-10-06: the MTF kernel tables are no longer emitted (the engines
+    # apply the law exactly with the FFT); see the note in HPP_TEMPLATE.
     hpp_text = (HPP_TEMPLATE.replace("@GENERATED@", stamp)
-                .replace("@MTF_KERNEL_ROWS@", k2.rstrip("\n"))
-                .replace("@MTF_KERNEL3_ROWS@", k3.rstrip("\n"))
                 .replace("@SCHEMA_VERSION@", str(SCHEMA_VERSION))
                 .replace("@SIGMA_MAX@", str(fp.GRAIN_SIGMA_TABLE_MAX))
                 .replace("@MEASURED_DECLS@", _measured_decls()))

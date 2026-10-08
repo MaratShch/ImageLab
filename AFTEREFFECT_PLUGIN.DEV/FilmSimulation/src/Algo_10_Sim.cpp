@@ -115,259 +115,11 @@ AlgoType AlgoScanSigmaMm (const AlgoType f50CyclesPerMm) noexcept
 }
 
 
-namespace
-{
-    // ----------------------------------------------------------------------
-    //  Translate one plane by a sub-pixel offset, wrapping at the boundaries.
-    //
-    //  Bilinear, with the integer part of the shift folded into the source index
-    //  and only the fractional part carried in the weights.
-    //
-    //  Wrap rather than clamp, so the stage matches the circular convolution the
-    //  rest of the density-domain chain uses, and so a shift cannot manufacture a
-    //  band of repeated edge pixels.
-    //
-    //  dy, dx are the displacement of the IMAGE, so the sample is taken from
-    //  (y - dy, x - dx).
-    // ----------------------------------------------------------------------
-    // ----------------------------------------------------------------------
-    //  CATMULL-ROM SUB-PIXEL SHIFT, replacing bilinear -- 2026-08-11.
-    //
-    //  Same argument as the gate-weave sampler in stage 15, and measured in the
-    //  same experiment: a bilinear sub-pixel shift is a low-pass filter, and
-    //  registration error between the colour records is a TRANSLATION, not a
-    //  blur. On Lady.png through EASTMAN_EKTACHROME_5239 this shift alone was
-    //  costing 48 per cent of the green record's high-frequency energy
-    //  (Laplacian variance 272.7 with it, 520.0 without).
-    //
-    //  It also double-counted the scan MTF, which is applied in this very stage
-    //  a few lines below - the optical softening of the scanner lens is modelled
-    //  there explicitly, so charging for it again in the resampler is wrong twice
-    //  over.
-    //
-    //  Catmull-Rom is interpolating, so an integer shift is still the exact
-    //  identity, and its half-pixel transfer at Nyquist is ~0.87 against
-    //  bilinear's 0.5. Four taps per axis instead of two.
-    //
-    //  WRAPPED, not clamped, unlike the weave: registration error is a property
-    //  of the scanner's optical path across a frame that continues past the
-    //  aperture, and the surrounding code documents the circular convention that
-    //  the blur passes in this file also use. Keeping the two consistent is what
-    //  lets a flat field stay flat through both.
-    // ----------------------------------------------------------------------
-    //  Catmull-Rom basis expanded into four tap weights at a fixed fraction.
-    //
-    //  Computed once per call rather than per pixel: the sub-pixel displacement
-    //  is the same for the whole frame. The four weights sum to exactly one at
-    //  every t, which is what keeps a flat field flat.
-    inline void catmullWeights (const AlgoType t, AlgoType c[4]) noexcept
-    {
-        const AlgoType t2 = t * t;
-        const AlgoType t3 = t2 * t;
-
-        c[0] = static_cast<AlgoType>(-0.5) * t3
-             +                        t2
-             + static_cast<AlgoType>(-0.5) * t;
-
-        c[1] = static_cast<AlgoType>( 1.5) * t3
-             + static_cast<AlgoType>(-2.5) * t2
-             + ALGO_ONE;
-
-        c[2] = static_cast<AlgoType>(-1.5) * t3
-             + static_cast<AlgoType>( 2.0) * t2
-             + static_cast<AlgoType>( 0.5) * t;
-
-        c[3] = static_cast<AlgoType>( 0.5) * t3
-             + static_cast<AlgoType>(-0.5) * t2;
-
-        return;
-    }
-
-
-    void shiftPlaneWrap
-    (
-        const AlgoType* RESTRICT pSrc,
-        AlgoType* RESTRICT       pDst,
-        const int32_t            sizeX,
-        const int32_t            sizeY,
-        const int32_t            pitch,
-        const HighPrecType       dy,
-        const HighPrecType       dx
-    ) noexcept
-    {
-        // ------------------------------------------------------------------
-        //  THE SHIFT IS A FRAME CONSTANT, SO THE SIXTEEN WEIGHTS ARE TOO.
-        //
-        //  The first Catmull-Rom version of this function evaluated the cubic
-        //  basis per pixel and wrapped every one of its four column indices with
-        //  a modulo. Measured, that took stage 10 from 26.3 ms to 88.5 ms and the
-        //  whole HD frame from 297.7 ms to 422.4 ms - a 125 ms regression that
-        //  undid half of a day's optimisation to buy the sharpness back.
-        //
-        //  Every record is displaced by the SAME sub-pixel amount, so the four
-        //  horizontal and four vertical basis weights are computed ONCE here.
-        //  What remains is a fixed 4x4 separable convolution at an integer
-        //  offset, and the interior of the plane - everything but three columns
-        //  and three rows - needs no wrapping at all, so it is contiguous and
-        //  vectorises.
-        // ------------------------------------------------------------------
-        const HighPrecType fy = std::floor(-dy);
-        const HighPrecType fx = std::floor(-dx);
-
-        const int32_t iy = static_cast<int32_t>(fy);
-        const int32_t ix = static_cast<int32_t>(fx);
-
-        const AlgoType wy = static_cast<AlgoType>(-dy - fy);
-        const AlgoType wx = static_cast<AlgoType>(-dx - fx);
-
-        // Catmull-Rom basis at a fixed fraction, expanded to four tap weights.
-        // Sum of the four is exactly one, so a flat field stays flat.
-        AVX2_ALIGN AlgoType cx[4];
-        AVX2_ALIGN AlgoType cy[4];
-
-        catmullWeights(wx, cx);
-        catmullWeights(wy, cy);
-
-        const __m256 vcx0 = _mm256_set1_ps(cx[0]);
-        const __m256 vcx1 = _mm256_set1_ps(cx[1]);
-        const __m256 vcx2 = _mm256_set1_ps(cx[2]);
-        const __m256 vcx3 = _mm256_set1_ps(cx[3]);
-
-        const __m256 vZero = _mm256_setzero_ps();
-
-        // Interior in x: every one of the four taps lands inside [0, sizeX).
-        const int32_t xLo = MIN_VALUE(MAX_VALUE(1 - ix, 0), sizeX);
-        const int32_t xHi = CLAMP_VALUE(sizeX - 2 - ix, xLo, sizeX);
-
-        const int32_t inner  = xHi - xLo;
-        const int32_t vecs   = inner / 8;
-        const int32_t tailN  = inner - vecs * 8;
-
-        const __m256i vTail = algoTailMaskLocal(tailN);
-
-        for (int32_t y = 0; y < sizeY; y++)
-        {
-            // The four source rows, wrapped once per output row rather than per
-            // pixel. Wrapped rather than clamped: registration error is a
-            // property of the scanner's optical path, and the blur passes in this
-            // file use the same circular convention.
-            const AlgoType* RESTRICT rows[4];
-
-            for (int32_t k = 0; k < 4; k++)
-            {
-                const int32_t sy = ((y + iy + k - 1) % sizeY + sizeY) % sizeY;
-                rows[k] = pSrc + static_cast<std::ptrdiff_t>(sy) * pitch;
-            }
-
-            AlgoType* RESTRICT pOut =
-                pDst + static_cast<std::ptrdiff_t>(y) * pitch;
-
-            // --- left edge, wrapped, scalar ---
-            for (int32_t x = 0; x < xLo; x++)
-            {
-                AlgoType acc = ALGO_ZERO;
-
-                for (int32_t ky = 0; ky < 4; ky++)
-                {
-                    AlgoType h = ALGO_ZERO;
-
-                    for (int32_t kx = 0; kx < 4; kx++)
-                    {
-                        const int32_t sx =
-                            ((x + ix + kx - 1) % sizeX + sizeX) % sizeX;
-
-                        h += cx[kx] * rows[ky][sx];
-                    }
-
-                    acc += cy[ky] * h;
-                }
-
-                pOut[x] = MAX_VALUE(acc, ALGO_ZERO);
-            }
-
-            // --- interior, no wrap, vectorised ---
-            //
-            //  The four horizontal taps are CONTIGUOUS, so they are four
-            //  overlapping unaligned loads rather than a gather. Each row is
-            //  filtered horizontally into a register, then the four rows are
-            //  combined vertically - the separable form, done without ever
-            //  writing an intermediate plane.
-            int32_t x = xLo;
-
-            for (int32_t v = 0; v < vecs; v++, x += 8)
-            {
-                __m256 acc = vZero;
-
-                for (int32_t ky = 0; ky < 4; ky++)
-                {
-                    const AlgoType* RESTRICT w = rows[ky] + x + ix - 1;
-
-                    __m256 h = _mm256_mul_ps(vcx0, _mm256_loadu_ps(w));
-                    h = _mm256_fmadd_ps(vcx1, _mm256_loadu_ps(w + 1), h);
-                    h = _mm256_fmadd_ps(vcx2, _mm256_loadu_ps(w + 2), h);
-                    h = _mm256_fmadd_ps(vcx3, _mm256_loadu_ps(w + 3), h);
-
-                    acc = _mm256_fmadd_ps(_mm256_set1_ps(cy[ky]), h, acc);
-                }
-
-                // Zero floor: the cubic has negative lobes and these are
-                // exposures. Positive overshoot is edge acutance and is kept.
-                _mm256_storeu_ps(pOut + x, _mm256_max_ps(acc, vZero));
-            }
-
-            if (tailN > 0)
-            {
-                __m256 acc = vZero;
-
-                for (int32_t ky = 0; ky < 4; ky++)
-                {
-                    const AlgoType* RESTRICT w = rows[ky] + x + ix - 1;
-
-                    __m256 h = _mm256_mul_ps(vcx0,
-                                   _mm256_maskload_ps(w, vTail));
-                    h = _mm256_fmadd_ps(vcx1,
-                            _mm256_maskload_ps(w + 1, vTail), h);
-                    h = _mm256_fmadd_ps(vcx2,
-                            _mm256_maskload_ps(w + 2, vTail), h);
-                    h = _mm256_fmadd_ps(vcx3,
-                            _mm256_maskload_ps(w + 3, vTail), h);
-
-                    acc = _mm256_fmadd_ps(_mm256_set1_ps(cy[ky]), h, acc);
-                }
-
-                _mm256_maskstore_ps(pOut + x, vTail,
-                                    _mm256_max_ps(acc, vZero));
-
-                x += tailN;
-            }
-
-            // --- right edge, wrapped, scalar ---
-            for (; x < sizeX; x++)
-            {
-                AlgoType acc = ALGO_ZERO;
-
-                for (int32_t ky = 0; ky < 4; ky++)
-                {
-                    AlgoType h = ALGO_ZERO;
-
-                    for (int32_t kx = 0; kx < 4; kx++)
-                    {
-                        const int32_t sx =
-                            ((x + ix + kx - 1) % sizeX + sizeX) % sizeX;
-
-                        h += cx[kx] * rows[ky][sx];
-                    }
-
-                    acc += cy[ky] * h;
-                }
-
-                pOut[x] = MAX_VALUE(acc, ALGO_ZERO);
-            }
-        }
-
-        return;
-    }
-}
+// The sub-pixel misregistration shift was a Catmull-Rom resample here until
+// 2026-10-06. It is now film_sim's exact phase ramp, FreqGrid.shift(dy, dx),
+// multiplied into the scan transfer and applied by the frequency-domain filter
+// in the same pass as the scan MTF (AlgoFrequency.hpp) -- a translation with no
+// low-pass side effect at all, which is what the resampler was approximating.
 
 
 // ---------------------------------------------------------------------------
@@ -391,13 +143,13 @@ void AlgoStage10_ScanMtf
     const AlgoType           scanF50,
     const AlgoType           pxPerMm,
     const int32_t            frameIndex,
-    const uint32_t           seed
+    const uint32_t           seed,
+    const AlgoFreqState&     freq
 ) noexcept
 {
-    // Optical sigma of the scan, converted from millimetres on the film to pixels.
-    const AlgoType sigmaPx = AlgoScanSigmaMm(scanF50) * pxPerMm;
-
-    const bool wantBlur = (sigmaPx >= ALGO_SCAN_MIN_SIGMA_PX);
+    // Scratch planes of the separable form, unused since 2026-10-06.
+    (void)pScrA;
+    (void)pScrB;
 
     // ----------------------------------------------------------------------
     //  Registration error, in pixels.
@@ -459,53 +211,34 @@ void AlgoStage10_ScanMtf
             dx = AlgoRngNormal(cx) * static_cast<HighPrecType>(misPx);
         }
 
-        // Whether the draw actually came out large enough to be worth resampling.
-        const bool doShift = wantShift
-                          && ((MAX_VALUE(dy, -dy) >= static_cast<HighPrecType>(
-                                  ALGO_SCAN_MIN_SHIFT_PX))
-                           || (MAX_VALUE(dx, -dx) >= static_cast<HighPrecType>(
-                                  ALGO_SCAN_MIN_SHIFT_PX)));
-
         // ------------------------------------------------------------------
-        //  Apply the two operations, arranging the buffers so that the LAST one
-        //  performed writes the destination directly and no needless copy is made.
-        // ------------------------------------------------------------------
-        if (wantBlur && doShift)
-        {
-            // Blur into scratch, then shift scratch into the destination. The order
-            // does not matter mathematically - a convolution and a translation
-            // commute - but doing the blur first means the resample reads
-            // already-smooth data, where bilinear interpolation is at its most
-            // accurate.
-            AlgoGaussianBlurPlaneWrap(pIn, pScrB, pScrA,
-                                      sizeX, sizeY, pitch, sigmaPx);
-
-            shiftPlaneWrap(pScrB, pOut, sizeX, sizeY, pitch, dy, dx);
-        }
-        else if (wantBlur)
-        {
-            AlgoGaussianBlurPlaneWrap(pIn, pOut, pScrA,
-                                      sizeX, sizeY, pitch, sigmaPx);
-        }
-        else if (doShift)
-        {
-            shiftPlaneWrap(pIn, pOut, sizeX, sizeY, pitch, dy, dx);
-        }
-        else
-        {
-            // Neither operation applies. The copy is required by the
-            // retained-buffer policy, not optional.
-            AlgoCopyPlane(pIn, pOut, sizeX, sizeY, pitch);
-        }
-
-        // ------------------------------------------------------------------
-        //  Floor at zero.
+        //  film_sim:  t = grid.mtf(scan_f50, 0, 0)
+        //             if mis_px > 0 and not monochrome: t *= grid.shift(dy, dx)
+        //             dens[c] = apply_transfer(dens[c], t)
         //
-        //  Neither a Gaussian blur nor a bilinear resample can produce a negative
-        //  value from non-negative input, since both are convex combinations. The
-        //  floor is here because it costs one streaming pass and guarantees the
-        //  invariant every downstream stage relies on, rather than relying on that
-        //  reasoning surviving a future change of interpolation kernel.
+        //  One exact frequency-domain pass. Until 2026-10-06 this was a
+        //  separable Gaussian (skipped below 0.25 px) followed by a Catmull-Rom
+        //  resample (skipped below a minimum shift); film_sim applies both
+        //  for every frame, and now so does the engine.
+        // ------------------------------------------------------------------
+        {
+            AlgoFreqTransfer t;
+            AlgoFreqSetMtf(t, static_cast<HighPrecType>(scanF50), false, 0.0, 0.0, 0.0);
+            if (wantShift)
+                AlgoFreqAddShift(t, dy, dx);
+
+            if (AlgoFreqIsIdentity(t))
+                AlgoCopyPlane(pIn, pOut, sizeX, sizeY, pitch);
+            else
+                AlgoFreqFilterPlane(freq, pIn, pOut, pitch, t);
+        }
+
+        // ------------------------------------------------------------------
+        //  Floor at zero (film_sim: np.maximum(dens, 0) after stage 10).
+        //
+        //  The Gaussian transfer alone cannot take non-negative input below
+        //  zero, but the sub-pixel phase ramp is a band-limited interpolation
+        //  and rings at a hard edge, so the floor is load-bearing.
         // ------------------------------------------------------------------
         for (int32_t y = 0; y < sizeY; y++)
         {

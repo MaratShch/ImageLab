@@ -3,26 +3,25 @@
 // ---------------------------------------------------------------------------
 //  AlgoSeparableBlur.hpp
 //
-//  Shared low-level filtering primitives. Not a pipeline stage: infrastructure
-//  used by the veiling flare, halation, emulsion MTF and coupler stages, which is
-//  why it lives in its own translation unit rather than inside any one
-//  Algo_NN_Sim.cpp.
+//  Shared low-level filtering primitives. Not a pipeline stage.
+//
+//  ⚠ SINCE 2026-10-06 THE GRAIN STAGE IS THE ONLY SPATIAL BLUR USER. Every
+//  stage whose reference multiplies a half-spectrum transfer -- veiling flare,
+//  halation, emulsion MTF, DIR coupler, scan MTF, duplication, reseau -- applies
+//  that transfer exactly with the owner's FFT (AlgoFrequency.hpp). Grain stays
+//  here BY DESIGN: film_sim's grain field is defined as THIS engine's truncated,
+//  sampled, separable kernels (film_sim.kernel_axis_transfer), so the spatial
+//  blur below is not an approximation of the reference -- it is the reference
+//  operator, evaluated the cheap way.
 //
 //  Every function takes RAW POINTERS plus explicit geometry. Nothing is wrapped.
 //
-//  WHY SEPARABLE GAUSSIAN AND NOT AN FFT
+//  WRAP BOUNDARY: the reference's frequency-domain multiply is a CIRCULAR
+//  convolution, so the blurs wrap at the image edges exactly the same way.
 //
-//  The reference model filters by multiplying a half-spectrum transfer function,
-//  which makes the convolution CIRCULAR - the image wraps at its edges. A Gaussian
-//  is separable, so the same operator can be applied as two one-dimensional passes
-//  at a fraction of the cost and with no complex arithmetic, provided the boundary
-//  wraps in exactly the same way. That is what these functions do, and it is why
-//  the boundary mode is WRAP rather than the more usual clamp: the aim is to
-//  reproduce the reference, not to pick the prettiest edge behaviour.
-//
-//  The remaining difference is kernel truncation. A Gaussian has infinite support
-//  and the kernel is cut at a finite radius; ALGO_BLUR_SIGMA_CUTOFF sets how far
-//  out it is carried and therefore how small that error is.
+//  The kernel is a Gaussian sampled at integer offsets, truncated at
+//  ALGO_BLUR_SIGMA_CUTOFF sigma and renormalised to unit sum; that truncated
+//  kernel is the operator the reference models, not a source of error against it.
 // ---------------------------------------------------------------------------
 
 // Project-wide primitives, included unconditionally as required by the project
@@ -67,21 +66,9 @@ constexpr AlgoType ALGO_BLUR_SIGMA_CUTOFF = static_cast<AlgoType>(4.0);
 constexpr int32_t ALGO_BLUR_MAX_HALF_TAPS = 64;
 constexpr int32_t ALGO_BLUR_MAX_TAPS      = 2 * ALGO_BLUR_MAX_HALF_TAPS + 1;
 
-// Largest number of Gaussian lobes the multi-lobe form accepts.
-// ⚠ RAISED 4 -> 6 ON 2026-09-03 AND THE REASON IS STAGE 6, NOT THIS FILE.
-// The emulsion MTF used one base lobe plus two adjacency lobes, which is three.
-// A measured rolloff now enters as a WEIGHTED PAIR of base Gaussians (see
-// film::FilmMtfKernel), and because the adjacency band-pass multiplies the base
-// transfer rather than adding to it, each base lobe carries its own inner and
-// outer adjacency partner: 2 x 3 = 6.
-// ⚠ RAISED 6 -> 9 ON 2026-09-15b, AND AGAIN THE REASON IS STAGE 6. One measured
-// exponent fell off the bottom of the two-lobe table: KODAK TECHNICAL PAN reads
-// q = 1.071, and the best PAIR for a rolloff that shallow misses the law by
-// 0.0719 where the table's tolerance is 0.045. A TRIPLE lands at 0.0267. Three
-// base lobes each carrying an inner and an outer adjacency partner is 3 x 3 = 9.
-// Only stocks the two-lobe table cannot serve take the wider path, so the cost
-// is three unused array slots per call on everything else and no arithmetic.
-constexpr int32_t ALGO_BLUR_MAX_LOBES = 9;
+// (ALGO_BLUR_MAX_LOBES and the multi-lobe blur were removed on 2026-10-06:
+// their only callers -- veiling flare, halation, emulsion MTF -- now apply
+// film_sim's transfers exactly in the frequency domain, AlgoFrequency.hpp.)
 
 
 // ---------------------------------------------------------------------------
@@ -557,40 +544,6 @@ void AlgoGaussianBlurPlaneWrapXY
 ) noexcept;
 
 
-// ---------------------------------------------------------------------------
-//  AlgoMultiGaussianBlurPlaneWrap
-//
-//  Weighted sum of up to ALGO_BLUR_MAX_LOBES Gaussian blurs of the same plane:
-//
-//      dst = sum_k ( weight_k / sum(weights) ) * blur(src, sigma_k)
-//
-//  A single Gaussian gives a tight, plausible-looking halo. Real light scatter in
-//  glass and in emulsion has a faint bloom reaching far beyond it, and that wide
-//  low-amplitude tail is the part the eye reads as photochemical rather than
-//  digital. Summing a few Gaussians of very different widths is the cheapest way
-//  to build such a long-tailed kernel.
-//
-//  Weights are normalised internally, so they may be given in any convenient
-//  scale; only their ratios matter. That keeps the operator energy-preserving
-//  whatever the caller passes.
-//
-//  pScratchA  per-lobe result.
-//  pScratchB  separable intermediate inside each blur.
-//  Both come from the arena and must differ from pSrc and pDst.
-// ---------------------------------------------------------------------------
-void AlgoMultiGaussianBlurPlaneWrap
-(
-    const AlgoType* RESTRICT pSrc,
-    AlgoType* RESTRICT       pDst,
-    AlgoType* RESTRICT       pScratchA,
-    AlgoType* RESTRICT       pScratchB,
-    const int32_t            sizeX,
-    const int32_t            sizeY,
-    const int32_t            pitch,
-    const AlgoType           sigmaPx[ALGO_BLUR_MAX_LOBES],
-    const AlgoType           weight [ALGO_BLUR_MAX_LOBES],
-    const int32_t            lobeCount
-) noexcept;
 
 
 // ---------------------------------------------------------------------------

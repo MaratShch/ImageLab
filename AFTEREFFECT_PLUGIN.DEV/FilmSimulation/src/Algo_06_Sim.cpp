@@ -4,8 +4,9 @@
 //  Same filename, same function names, same prototypes as the scalar build.
 //  ALL ARITHMETIC IS FLOAT32; the scalar path remains the reference.
 //
-//  VECTORISED: the emulsion MTF apply, the non-negative floor, and the five-tap
-//  corner defocus - which is a genuine win, being real arithmetic over a fixed narrow
+//  VECTORISED: the non-negative floors and the five-tap corner defocus; the
+//  emulsion MTF itself is the shared frequency-domain filter (AlgoFrequency.cpp,
+//  four-lane FFT) -- the corner defocus - which is a genuine win, being real arithmetic over a fixed narrow
 //  kernel with no wrap and unit stride in x.
 //
 //  Pipeline stage 6 and its sub-stage 6b, in exposure space:
@@ -106,22 +107,14 @@ void AlgoStage06_EmulsionMtf
     const int32_t            sizeY,
     const int32_t            pitch,
     const film::FilmProfile& profile,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept
 {
+    (void)pScrBlurA;
+    (void)pScrBlurB;
+
     const film::MTFSpec& mtf = profile.mtf;
-
-    // Per-channel half-modulation frequencies. Red is lowest on a colour stock
-    // because its layer lies deepest under the gelatin.
-    const AlgoType f50[3] = { static_cast<AlgoType>(mtf.f50_r),
-                              static_cast<AlgoType>(mtf.f50_g),
-                              static_cast<AlgoType>(mtf.f50_b) };
-
-    // Development adjacency overshoot amplitude, and the diffusion length that
-    // sets the frequency at which it peaks. A zero amplitude disables the
-    // band-pass entirely and leaves a plain Gaussian.
-    const AlgoType adjacency   = static_cast<AlgoType>(mtf.adjacency);
-    const AlgoType adjacencyUm = static_cast<AlgoType>(mtf.adjacency_um);
 
     // Nothing can be expressed at a degenerate resolution. Copy rather than skip,
     // so the destination is never left holding stale contents.
@@ -131,166 +124,61 @@ void AlgoStage06_EmulsionMtf
         return;
     }
 
-    // The two adjacency lobes are the same for all three records, so their
-    // standard deviations in pixels are formed once. Micrometres to millimetres
-    // to pixels, as everywhere else in the engine.
-    const AlgoType adjInnerPx = adjacencyUm * ALGO_MTF_ADJACENCY_INNER
-                              * static_cast<AlgoType>(0.001) * pxPerMm;
-
-    const AlgoType adjOuterPx = adjacencyUm * ALGO_MTF_ADJACENCY_OUTER
-                              * static_cast<AlgoType>(0.001) * pxPerMm;
-
-    // The adjacency term is only meaningful when both its amplitude and its
-    // scale are set, and when that scale is large enough to be represented.
-    const bool wantAdjacency = (adjacency > ALGO_ZERO)
-                            && (adjOuterPx >= ALGO_MTF_MIN_SIGMA_PX);
+    // Per-channel half-modulation frequencies (film_sim: profile.mtf.f50s()).
+    const HighPrecType f50[3] = { static_cast<HighPrecType>(mtf.f50_r),
+                                  static_cast<HighPrecType>(mtf.f50_g),
+                                  static_cast<HighPrecType>(mtf.f50_b) };
 
     const AlgoType* RESTRICT srcPlane[3] = { pSrcR, pSrcG, pSrcB };
     AlgoType* RESTRICT       dstPlane[3] = { pDstR, pDstG, pDstB };
+
+    const __m256  vZero = _mm256_setzero_ps();
+    const int32_t nv    = sizeX / ALGO_AVX2_LANES_LOCAL;
+    const int32_t nt    = sizeX - nv * ALGO_AVX2_LANES_LOCAL;
+    const __m256i mt    = algoTailMaskLocal(nt);
 
     for (int32_t c = 0; c < 3; c++)
     {
         const AlgoType* RESTRICT pIn  = srcPlane[c];
         AlgoType* RESTRICT       pOut = dstPlane[c];
 
-        // ------------------------------------------------------------------
-        //  Base Gaussian for this record.
-        //
-        //  sigma_mm = K / f50 with K = sqrt(ln2 / 2) / pi, then millimetres to
-        //  pixels. An f50 of zero or below means the stock has no MTF figure for
-        //  this layer, which is treated as perfectly sharp rather than as
-        //  infinitely soft.
-        // ------------------------------------------------------------------
-        const AlgoType basePx = (f50[c] > ALGO_ZERO)
-                              ? (ALGO_MTF_SIGMA_MM_PER_INV_F50 / f50[c]) * pxPerMm
-                              : ALGO_ZERO;
-
-        // ------------------------------------------------------------------
-        //  ⚠ THE MEASURED ROLLOFF, WHICH THIS STAGE COULD NOT EXPRESS UNTIL
-        //  2026-09-03.
-        //
-        //  `film::FilmMtfResponse` is the law and it is a FREQUENCY-DOMAIN
-        //  form, 1/(1+(f/f50)^q). This engine has no FFT, so every stock
-        //  carrying a measured q rendered on the single Gaussian below --
-        //  correct at f50 by construction and up to 3.8x too much modulation at
-        //  2x f50, on 22 stocks. The state was recorded rather than hidden, in
-        //  cpp_parity's LAW_BYPASS_BASELINE, and this is it being closed.
-        //
-        //  `FilmMtfKernel` returns a WEIGHTED PAIR of Gaussians whose sigmas are
-        //  multiples of the base sigma already computed above, so the law needs
-        //  no new machinery: it becomes two lobes of the multi-Gaussian blur
-        //  this stage has always run. Worst max|error| 0.0384 against 0.1737 for
-        //  the Gaussian it replaces -- every affected stock improves.
-        //
-        //  A stock whose q is not tabulated keeps the legacy single Gaussian and
-        //  therefore renders BIT-IDENTICALLY to before, which is the property
-        //  that makes this safe to land on a 175-stock database.
-        // ------------------------------------------------------------------
-        float kW1 = 0.0f, kS1 = 0.0f, kS2 = 0.0f;
-
-        const bool wantKernel = mtf.mtf_measured
-                             && (mtf.mtf_rolloff_q > 0.0f)
-                             && (basePx > ALGO_ZERO)
-                             && film::FilmMtfKernel(mtf.mtf_rolloff_q,
-                                                    kW1, kS1, kS2);
-
-        // Nothing to filter: the emulsion is sharper than this render grid and
-        // there is no adjacency lift to apply either.
-        if ((basePx < ALGO_MTF_MIN_SIGMA_PX) && (false == wantAdjacency))
+        // Floor the incoming exposure (film_sim floors after stage 5 on every
+        // frame; idempotent when stage 5 ran). Same flow as the scalar engine.
+        for (int32_t y = 0; y < sizeY; y++)
         {
-            AlgoCopyPlane(pIn, pOut, sizeX, sizeY, pitch);
+            const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
+            const AlgoType* RESTRICT pI = pIn + off;
+            AlgoType* RESTRICT       pO = pOut + off;
+            int32_t x = 0;
+            for (int32_t v = 0; v < nv; v++, x += ALGO_AVX2_LANES_LOCAL)
+                _mm256_storeu_ps(pO + x, _mm256_max_ps(_mm256_loadu_ps(pI + x), vZero));
+            if (nt > 0)
+                _mm256_maskstore_ps(pO + x, mt, _mm256_max_ps(_mm256_maskload_ps(pI + x, mt), vZero));
+        }
+
+        // film_sim grid.mtf(f50s[c], adjacency, adjacency_um, spec, c): the
+        // measured law (or the legacy Gaussian) times the adjacency band-pass,
+        // EXACT on film_sim's frequency grid -- see the scalar twin.
+        AlgoFreqTransfer t;
+        AlgoFreqSetMtf(t, f50[c], mtf.mtf_measured,
+                       static_cast<HighPrecType>(mtf.mtf_rolloff_q),
+                       static_cast<HighPrecType>(mtf.adjacency),
+                       static_cast<HighPrecType>(mtf.adjacency_um));
+
+        if (AlgoFreqIsIdentity(t))
             continue;
-        }
 
-        // ------------------------------------------------------------------
-        //  Assemble the lobe set.
-        //
-        //  Lobe 0 is the base transfer at unit weight. Lobes 1 and 2 are the
-        //  adjacency band-pass, and because a product of Gaussian transfers is a
-        //  Gaussian whose VARIANCES add, each of them is the base convolved with
-        //  its own adjacency lobe: sigma = sqrt(base^2 + lobe^2).
-        //
-        //  The weights are 1, +a and -a. They sum to one, so the whole filter
-        //  passes DC untouched and cannot shift the exposure level - which is
-        //  what makes this an edge effect rather than a brightness change.
-        // ------------------------------------------------------------------
-        AlgoType sigmaPx[ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO };
-        AlgoType weight [ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO };
+        AlgoFreqFilterPlane(freq, pOut, pOut, pitch, t);
 
-        //  The base transfer is one lobe on the legacy path and two on the
-        //  measured one. Everything downstream is written against this pair so
-        //  the two paths differ in nothing but the lobe count.
-        AlgoType baseSigma [2] = { basePx, ALGO_ZERO };
-        AlgoType baseWeight[2] = { ALGO_ONE, ALGO_ZERO };
-        int32_t  baseLobes     = 1;
-
-        if (wantKernel)
+        // Floor at zero (film_sim: np.maximum after stage 6).
+        for (int32_t y = 0; y < sizeY; y++)
         {
-            baseSigma [0] = basePx * static_cast<AlgoType>(kS1);
-            baseWeight[0] = static_cast<AlgoType>(kW1);
-            baseSigma [1] = basePx * static_cast<AlgoType>(kS2);
-            baseWeight[1] = ALGO_ONE - static_cast<AlgoType>(kW1);
-            baseLobes     = 2;
-        }
-
-        int32_t lobes = 0;
-
-        for (int32_t k = 0; k < baseLobes; k++)
-        {
-            const HighPrecType b2 = static_cast<HighPrecType>(baseSigma[k])
-                                  * static_cast<HighPrecType>(baseSigma[k]);
-
-            sigmaPx[lobes] = baseSigma [k];
-            weight [lobes] = baseWeight[k];
-            lobes++;
-
-            if (wantAdjacency)
-            {
-                const HighPrecType in2 = static_cast<HighPrecType>(adjInnerPx)
-                                       * static_cast<HighPrecType>(adjInnerPx);
-
-                const HighPrecType out2 = static_cast<HighPrecType>(adjOuterPx)
-                                        * static_cast<HighPrecType>(adjOuterPx);
-
-                sigmaPx[lobes] = static_cast<AlgoType>(std::sqrt(b2 + in2));
-                weight [lobes] = baseWeight[k] * adjacency;
-                lobes++;
-
-                sigmaPx[lobes] = static_cast<AlgoType>(std::sqrt(b2 + out2));
-                weight [lobes] = -baseWeight[k] * adjacency;
-                lobes++;
-            }
-        }
-
-        // ------------------------------------------------------------------
-        //  Filter. Wrap boundary, matching the circular convolution of the
-        //  frequency-domain reference.
-        // ------------------------------------------------------------------
-        AlgoMultiGaussianBlurPlaneWrap(pIn, pOut,
-                                       pScrBlurA, pScrBlurB,
-                                       sizeX, sizeY, pitch,
-                                       sigmaPx, weight, lobes);
-
-        // ------------------------------------------------------------------
-        //  Floor at zero.
-        //
-        //  The negative adjacency lobe can drive a value below zero next to a
-        //  hard edge - that is the undershoot side of the overshoot, and it is
-        //  real - but a negative exposure has no meaning for the logarithm taken
-        //  at stage 8. This is a physical floor, no light at all, not a display
-        //  clamp, so it does not violate the single-final-clamp rule.
-        // ------------------------------------------------------------------
-        if (wantAdjacency)
-        {
-            for (int32_t y = 0; y < sizeY; y++)
-            {
-                AlgoType* RESTRICT pRow =
-                    pOut + static_cast<std::ptrdiff_t>(y) * pitch;
-
-                ALGO_VECTOR_HINT
-                for (int32_t x = 0; x < sizeX; x++)
-                    pRow[x] = MAX_VALUE(pRow[x], ALGO_ZERO);   /* see vector floor below */
-            }
+            AlgoType* RESTRICT pRow = pOut + static_cast<std::ptrdiff_t>(y) * pitch;
+            int32_t x = 0;
+            for (int32_t v = 0; v < nv; v++, x += ALGO_AVX2_LANES_LOCAL)
+                _mm256_storeu_ps(pRow + x, _mm256_max_ps(_mm256_loadu_ps(pRow + x), vZero));
+            if (nt > 0)
+                _mm256_maskstore_ps(pRow + x, mt, _mm256_max_ps(_mm256_maskload_ps(pRow + x, mt), vZero));
         }
     }
 

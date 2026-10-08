@@ -128,8 +128,12 @@ WIDTH_TOL = 0.05
 #: monochrome stock's own integrated sensitivity that the basis can see.
 #: These are the numbers that say the withdrawn objective was rewarding
 #: blindness, so they are asserted rather than described.
-CAPTURE = ((11.0, 0.3046), (15.0, 0.4122), (25.0, 0.6218),
-           (35.0, 0.6470), (55.0, 0.6955))
+#: Re-pinned 2026-10-07e: the corpus mean moved 0.005-0.011 when the
+#: monochrome stocks of 2026-10-07 (ROLLEI_PAN_25, ROLLEI_SUPERPAN_200,
+#: AGFA_AVIPHOT_PAN_400S with its 300-820 nm curve) joined it. Was
+#: 0.3046 / 0.4122 / 0.6218 / 0.6470 / 0.6955; still strictly rising.
+CAPTURE = ((11.0, 0.2993), (15.0, 0.4050), (25.0, 0.6110),
+           (35.0, 0.6365), (55.0, 0.6860))
 CAPTURE_TOL = 0.01
 
 

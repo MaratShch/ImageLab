@@ -217,7 +217,8 @@ void AlgoStage05_Halation
     const int32_t            pitch,
     const film::FilmProfile& profile,
     const AlgoControls&      params,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept
 {
     const film::HalationSpec& hal = profile.halation;
@@ -248,82 +249,10 @@ void AlgoStage05_Halation
         return;
     }
 
-    // ----------------------------------------------------------------------
-    //  Scatter kernel, converted from physical units to pixels.
-    //
-    //  The radii are stored in micrometres ON THE FILM, so the same stock gives
-    //  a halo of the same physical size whatever the render resolution, and a
-    //  16 mm frame shows a proportionally larger halo than a 35 mm frame of the
-    //  same scene. That is the correct behaviour and it is why the conversion
-    //  goes through px_per_mm rather than through a pixel count.
-    //
-    //      sigma_px = (radius_um / 1000) * px_per_mm
-    //
-    //  A lobe that lands below a fifth of a pixel is dropped rather than
-    //  submitted to the blur: its kernel would collapse to a single tap, which
-    //  is an identity operation costing a full separable pass.
-    // ----------------------------------------------------------------------
-    AlgoType sigmaPx[ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO, ALGO_ZERO,
-                                              ALGO_ZERO, ALGO_ZERO };
-    AlgoType weight [ALGO_BLUR_MAX_LOBES] = { ALGO_ZERO, ALGO_ZERO,
-                                              ALGO_ZERO, ALGO_ZERO };
-
-    int32_t lobes = 0;
-
-    for (int32_t k = 0; k < ALGO_HALATION_LOBES; k++)
-    {
-        // Micrometres to millimetres to pixels, in one expression so there is no
-        // intermediate to get the units wrong in.
-        const AlgoType s = static_cast<AlgoType>(hal.radii_um[k])
-                         * static_cast<AlgoType>(0.001) * pxPerMm;
-
-        const AlgoType w = static_cast<AlgoType>(hal.weights[k]);
-
-        // A quarter pixel: below this the discrete kernel has one significant
-        // tap and the pass does nothing but cost time.
-        if ((s >= static_cast<AlgoType>(0.25)) && (w > ALGO_ZERO))
-        {
-            sigmaPx[lobes] = s;
-            weight [lobes] = w;
-            lobes++;
-        }
-    }
-
-    // ----------------------------------------------------------------------
-    //  schema v59: THE RING -- a SUBTRACTED lobe, appended with a NEGATIVE
-    //  weight. AlgoMultiGaussianBlurPlaneWrap normalises by the signed sum, so
-    //  the kernel is sum(w_i G_i) - ring_weight G_ring over (sum w_i -
-    //  ring_weight), exactly film_sim's multi_gaussian(*hal.lobes()). The ring
-    //  is the support return's annulus (r_c = 2t/sqrt(n^2-1)): no totally
-    //  reflected light lands inside it. Dropped with its partner: if the
-    //  first positive lobe was below the representable radius, subtracting a
-    //  still narrower one would carve a hole the render cannot resolve.
-    // ----------------------------------------------------------------------
-    {
-        const AlgoType sR = static_cast<AlgoType>(hal.ring_um)
-                          * static_cast<AlgoType>(0.001) * pxPerMm;
-        const AlgoType wR = static_cast<AlgoType>(hal.ring_weight);
-        const AlgoType s0 = static_cast<AlgoType>(hal.radii_um[0])
-                          * static_cast<AlgoType>(0.001) * pxPerMm;
-
-        if ((wR > ALGO_ZERO) && (sR >= static_cast<AlgoType>(0.25))
-            && (s0 >= static_cast<AlgoType>(0.25))
-            && (lobes < ALGO_BLUR_MAX_LOBES))
-        {
-            sigmaPx[lobes] = sR;
-            weight [lobes] = -wR;
-            lobes++;
-        }
-    }
-
-    // Every lobe fell below the representable radius. The physical effect exists
-    // but this render cannot show it, so pass the exposure through unchanged
-    // rather than fabricating a one-pixel halo.
-    if (0 == lobes)
-    {
-        AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
-        return;
-    }
+    // Working planes the separable form needed; the frequency-domain filter
+    // keeps its spectrum in the arena (AlgoFrequency.hpp).
+    (void)pScrBlurA;
+    (void)pScrBlurB;
 
     // ----------------------------------------------------------------------
     //  Threshold and knee, in linear exposure.
@@ -404,10 +333,26 @@ void AlgoStage05_Halation
         // effective for the shorter wavelengths only.
         const AlgoType g = chanGain[c] * scale;
 
+        // A record with no path back from the base is left as it is -- and, as
+        // in film_sim, still floored at zero with the others (the floor after
+        // stage 5 applies to all three records).
         if (g <= ALGO_ZERO)
         {
-            // Still a copy, for the reason given above.
-            AlgoCopyPlane(pIn, pOut, sizeX, sizeY, pitch);
+            const __m256 vZero = _mm256_setzero_ps();
+            const int32_t nv = sizeX / ALGO_AVX2_LANES_LOCAL;
+            const int32_t nt = sizeX - nv * ALGO_AVX2_LANES_LOCAL;
+            const __m256i mt = algoTailMaskLocal(nt);
+            for (int32_t y = 0; y < sizeY; y++)
+            {
+                const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
+                const AlgoType* RESTRICT pE = pIn + off;
+                AlgoType* RESTRICT       pO = pOut + off;
+                int32_t x = 0;
+                for (int32_t v = 0; v < nv; v++, x += ALGO_AVX2_LANES_LOCAL)
+                    _mm256_storeu_ps(pO + x, _mm256_max_ps(_mm256_loadu_ps(pE + x), vZero));
+                if (nt > 0)
+                    _mm256_maskstore_ps(pO + x, mt, _mm256_max_ps(_mm256_maskload_ps(pE + x, mt), vZero));
+            }
             continue;
         }
 
@@ -456,17 +401,16 @@ void AlgoStage05_Halation
         }
 
         // ------------------------------------------------------------------
-        //  Spread the scattered light.
-        //
-        //  Wrap boundary, matching the circular convolution of the frequency
-        //  domain reference. For a kernel whose widest lobe is a fraction of a
-        //  millimetre on the film, the wrap contribution is confined to a
-        //  handful of edge pixels.
+        //  Spread the scattered light: film_sim's
+        //  apply_transfer(above, grid.multi_gaussian(*hal.lobes(c))), the
+        //  exact circular convolution, in the frequency domain (shared
+        //  AlgoFrequency.cpp, four-lane FFT).
         // ------------------------------------------------------------------
-        AlgoMultiGaussianBlurPlaneWrap(pScrAbove, pScrBlur,
-                                       pScrBlurA, pScrBlurB,
-                                       sizeX, sizeY, pitch,
-                                       sigmaPx, weight, lobes);
+        {
+            AlgoFreqTransfer t;
+            AlgoHalationTransfer(hal, c, t);
+            AlgoFreqFilterPlane(freq, pScrAbove, pScrBlur, pitch, t);
+        }
 
         // ------------------------------------------------------------------
         //  Deposit, conserving energy, and clamp at zero.

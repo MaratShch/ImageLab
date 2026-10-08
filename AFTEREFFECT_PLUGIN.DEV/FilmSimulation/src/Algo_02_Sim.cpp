@@ -255,10 +255,10 @@ void AlgoStage02b_TakingFilters
     const int32_t            sizeX,
     const int32_t            sizeY,
     const int32_t            pitch,
-    const film::FilmProfile& profile
+    const film::Matrix3&     takingMatrix
 ) noexcept
 {
-    const film::Matrix3& m = profile.taking_matrix;
+    const film::Matrix3& m = takingMatrix;
 
     // ----------------------------------------------------------------------
     //  Identity fast path, and the test must match the scalar build EXACTLY.

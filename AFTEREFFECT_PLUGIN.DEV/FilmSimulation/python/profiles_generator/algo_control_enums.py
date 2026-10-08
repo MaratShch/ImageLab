@@ -134,6 +134,24 @@ class ProcessVariantCtrl(IntEnum):
         return PROCESS_VARIANT_LABEL.get(int(self), "As shipped")
 
 
+class GrainTemporalModeCtrl(IntEnum):
+    """How stage 11 grain moves between frames (still | motion | frozen)."""
+
+    eGRAIN_TEMPORAL_STILL = 0
+    eGRAIN_TEMPORAL_MOTION = 1
+    eGRAIN_TEMPORAL_FROZEN = 2
+    eGRAIN_TEMPORAL_TOTAL = 3
+
+    @property
+    def key(self) -> str:
+        """The film_sim grain_temporal_mode string."""
+        return GRAIN_TEMPORAL_MODE_KEY.get(int(self), "")
+
+    @property
+    def label(self) -> str:
+        return GRAIN_TEMPORAL_MODE_LABEL.get(int(self), "")
+
+
 #: dupeStock draws on the same catalogue as printStock.
 DupeStockCtrl = PrintStockCtrl
 
@@ -305,6 +323,18 @@ PROCESS_VARIANT_LABEL: dict[int, str] = {
     48: 'Sheet, tray: D-19',
 }
 
+GRAIN_TEMPORAL_MODE_KEY: dict[int, str] = {
+    0: 'still',
+    1: 'motion',
+    2: 'frozen',
+}
+
+GRAIN_TEMPORAL_MODE_LABEL: dict[int, str] = {
+    0: 'Still',
+    1: 'Motion',
+    2: 'Frozen',
+}
+
 
 # ---------------------------------------------------------------------------
 # Numeric control metadata
@@ -419,6 +449,9 @@ SeedStep = 1
 PrintGrainDef = True
 ReseauDef = True
 FilmDamageEnabledDef = False
+SpectralTakingDef = False
+GrainTemporalIntegrationS = 0.2
+GrainTemporalMaxFrames = 8.0
 DamageStrengthMin = 0.0
 DamageStrengthMax = 4.0
 DamageStrengthDef = 1.0
@@ -521,6 +554,20 @@ def process_variant_key(value) -> str:
         return PROCESS_VARIANT_KEY.get(int(value), "")
     except (TypeError, ValueError):
         return ""
+
+
+def grain_temporal_mode_key(value) -> str:
+    """Resolve a control value to film_sim's grain_temporal_mode string.
+
+    Accepts the enumerator, its integer value, or the string itself. An
+    unrecognised value yields "still", the default both engines clamp to.
+    """
+    if isinstance(value, str):
+        return value
+    try:
+        return GRAIN_TEMPORAL_MODE_KEY.get(int(value), "still")
+    except (TypeError, ValueError):
+        return "still"
 
 
 def print_stock_key(value) -> str:

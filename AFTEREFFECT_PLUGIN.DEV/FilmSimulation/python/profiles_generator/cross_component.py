@@ -91,12 +91,9 @@ PROOT = Path("/root/work/proot")
 #: being listed here is a regression; one listed here that REAPPEARS also
 #: reports, so the list shrinks deliberately.
 NOT_ON_HOST = {
-    'grain_temporal_mode':
-        "a reference-only switch (still / frozen / motion). The engines "
-        "implement `still` alone -- R-T5 forbids the frame-locked field that "
-        "`frozen` is, and the `motion` amplitude scale is a perceptual "
-        "adjustment the C++ side never carried -- so exposing it would offer "
-        "the host two settings that do nothing",
+    # 'grain_temporal_mode' LEFT THIS LIST ON 2026-10-06 (owner decision G6):
+    # the engines implement all three modes and the host draws it as
+    # grainTemporalMode, availability bit 48.
     'curve_measured':
         "a reference-only escape hatch added with the schema v55 measured "
         "curve, so a render can be compared against the softplus fit the "

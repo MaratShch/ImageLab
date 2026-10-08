@@ -60,6 +60,10 @@
 // FilmProfile and FilmFormat, for the caller-owned lookup tables below.
 #include "film_profiles.hpp"
 
+// AlgoFreqState: the FFT plan, spectrum and tables of the frequency-domain
+// stages (owner's FFT library, 2026-10-06).
+#include "AlgoFrequency.hpp"
+
 #include <cstddef>   // std::size_t
 #include <cstdint>   // int32_t, int64_t, uint8_t
 
@@ -239,6 +243,15 @@ struct MemHandler
     AlgoType* Scr_Grain_G;
     AlgoType* Scr_Grain_B;
 
+    // --- frequency domain (2026-10-06) -------------------------------------
+    // FFT plan for this geometry, one half spectrum, the FFT work area and the
+    // per-transfer 1D tables, all four carved from this arena and built once
+    // by the allocator. Used by stages 3b, 5, 6, 9, 10, 13 and 14b, which apply
+    // film_sim's half-spectrum transfers exactly (AlgoFrequency.hpp). A plain
+    // aggregate of pointers and plan constants, so MemHandler stays trivially
+    // copyable.
+    AlgoFreqState Freq;
+
     std::size_t totalSize;   // bytes obtained from the pool
 };
 
@@ -297,8 +310,7 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
 void free_memory_buffers (MemHandler& algoMemHandler) noexcept;
 
 
-inline bool mem_handler_valid(const MemHandler& hndl) noexcept
+inline bool mem_handler_valid (const MemHandler& hndl) noexcept
 {
     return (hndl.memBlockId >= 0 && hndl.SuperBufferHead != nullptr) ? true : false;
 }
-

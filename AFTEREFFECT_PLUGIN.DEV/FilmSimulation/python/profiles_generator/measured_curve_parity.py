@@ -63,6 +63,7 @@ sys.path.insert(0, str(HERE))
 
 import film_profiles as FP            # noqa: E402
 import film_sim as FS                 # noqa: E402
+import engine_env  # noqa: F401 -- owner FFT include path for engine compiles (2026-10-06)
 
 #: ⚠ 1e-6 AND NOT 1e-12, AND THE REASON IS STORAGE RATHER THAN ARITHMETIC.
 #: The scalar build's AlgoType is double, so the interpolation itself runs in

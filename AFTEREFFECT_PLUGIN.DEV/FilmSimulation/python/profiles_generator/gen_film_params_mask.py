@@ -11,7 +11,9 @@ arrangement exists to prevent.
 
   bit 0   = the SECOND column of the matrix (`filmFormat`)
   bit N   = matrix column N + 2
-  last    = `seed`, Render / Master Seed
+  `seed`  = Render / Master Seed, the last bit of the original panel (46)
+  after   = controls APPENDED since (2026-10-06: spectralTaking 47,
+            grainTemporalMode 48), so no earlier bit ever moves
 
 `filmProfile` (matrix column 1) has NO BIT. It is always available -- it is the
 control that selects the film, so a host that greyed it could never reach any
@@ -66,6 +68,9 @@ _spec.loader.exec_module(_matrix)
 #: stop rather than silently shift every bit by one.
 EXCLUDED_FIELD = "filmProfile"
 
+#: Controls appended after `seed`, in bit order (2026-10-06, owner G4 / G6).
+APPENDED_FIELDS = ("spectralTaking", "grainTemporalMode")
+
 BITS_PER_GROUP = 8          # digit-separator grouping in the emitted literals
 
 
@@ -93,10 +98,17 @@ def bit_columns() -> list[tuple[str, str, object]]:
             f"{len(out)} controls carry a bit and a uint64_t holds 64. The "
             "mask type has to widen, or the panel has to shed a control; "
             "either way this is not a decision a generator may take.")
-    if out[-1][2] != "seed":
+    # ⚠ BIT STABILITY (2026-10-06). `seed` was the last panel control and its
+    # bit (46) is part of the host contract; controls added later are APPENDED
+    # after it (APPENDED_FIELDS, in this order), so every earlier bit keeps its
+    # value. Anything else at the tail means a control was INSERTED and every
+    # later bit would move -- refuse rather than renumber silently.
+    tail = [c[2] for c in out[out.index(next(c for c in out if c[2] == "seed")) + 1:]] \
+        if any(c[2] == "seed" for c in out) else None
+    if tail is None or tail != list(APPENDED_FIELDS):
         raise RuntimeError(
-            f"the last panel control is {out[-1][2]!r}, not 'seed'. The header "
-            "documents its highest bit as Render / Master Seed.")
+            f"the controls after 'seed' are {tail!r}, expected {list(APPENDED_FIELDS)!r}. "
+            "New controls are appended at the end of the panel so no bit moves.")
     return out
 
 
@@ -152,7 +164,11 @@ def render(profiles, names) -> str:
     w("//")
     w("// Bit 0 is the LEAST significant bit and is `Film Format`. Bits then follow")
     w("// the Effect Control Panel's own order, group by group, as the mockup draws")
-    w(f"// it; the highest assigned bit is {len(cols) - 1}, `Render / Master Seed`.")
+    _seed_bit = [c[2] for c in cols].index("seed")
+    w(f"// it, up to bit {_seed_bit}, `Render / Master Seed`. Controls added since are")
+    w(f"// APPENDED after it so no earlier bit moves: "
+      + ", ".join(f"bit {i} `{c[1]}`" for i, c in enumerate(cols) if i > _seed_bit)
+      + f". Highest assigned bit: {len(cols) - 1}.")
     w("//")
     w("//   1  the control IS available for that film -- a stage will act on it")
     w("//   0  the control is NOT available: either the database has no figure and")

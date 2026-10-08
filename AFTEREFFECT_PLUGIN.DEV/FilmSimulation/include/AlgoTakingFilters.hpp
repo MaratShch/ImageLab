@@ -82,7 +82,10 @@ constexpr AlgoType ALGO_TAKING_IDENTITY_EPS = static_cast<AlgoType>(1.0e-6);
 //      dst_g = m[1][0]*src_r + m[1][1]*src_g + m[1][2]*src_b
 //      dst_b = m[2][0]*src_r + m[2][1]*src_g + m[2][2]*src_b
 //
-//  where m is profile.taking_matrix.
+//  where m is the RESOLVED taking matrix: profile.taking_matrix, or, when the
+//  spectralTaking control is on and the stock carries three-layer curves, the
+//  matrix AlgoSpectralTakingMatrix derives from them (resolved once per frame
+//  in Algorithm_Main, 2026-10-06, owner decision G4).
 //
 //  src  stage-2 output: exposure units, mid grey at 1.0.
 //  dst  the stage-2b buffer, same units.
@@ -106,5 +109,5 @@ void AlgoStage02b_TakingFilters
     const int32_t            sizeX,
     const int32_t            sizeY,
     const int32_t            pitch,
-    const film::FilmProfile& profile
+    const film::Matrix3&     takingMatrix
 ) noexcept;

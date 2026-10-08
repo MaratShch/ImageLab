@@ -29,21 +29,23 @@
 //  scattered by both. The per-channel f50 triple carries that, and it is a real
 //  and visible asymmetry, not a modelling convenience.
 //
-//  THE GAUSSIAN FORM AND ITS SIGMA
+//  THE TRANSFER (film_sim FreqGrid.mtf, 2026-10-06 exact in the engines)
 //
-//  The reference expresses the transfer directly in the frequency domain as
+//  The reference expresses the transfer in the frequency domain, per channel,
+//  with f in cycles/mm on the frame's grid:
 //
-//      MTF(f) = exp(-ln2 * (f / f50)^2)
+//      measured stock (mtf_measured, q > 0):  MTF(f) = 1 / (1 + (f/f50)^q)
+//      otherwise (the legacy law):           MTF(f) = exp(-ln2 * (f/f50)^2)
+//      f50 <= 0:                             MTF(f) = 1
 //
-//  which gives MTF(f50) = 0.5 exactly. A Gaussian blur of standard deviation s
-//  millimetres has the transfer exp(-2 pi^2 s^2 f^2). Equating the exponents,
-//
-//      ln2 / f50^2 = 2 pi^2 s^2
-//      s = sqrt(ln2 / 2) / (pi * f50)
-//
-//  so the frequency-domain filter is exactly a spatial Gaussian blur, and no
-//  transform is needed to apply it. The constant sqrt(ln2/2)/pi is folded into
-//  ALGO_MTF_SIGMA_MM_PER_INV_F50 below.
+//  Both laws give MTF(f50) = 0.5 exactly (film::FilmMtfResponse is the one
+//  definition). The engines evaluate the SAME law on the SAME grid and apply it
+//  with the owner's FFT (AlgoFrequency.hpp), so stage 6 is now the identical
+//  circular convolution in all three implementations. Until 2026-10-06 the
+//  engines, having no FFT, convolved separable Gaussians: one for the legacy law
+//  and a two- or three-lobe fit (film::FilmMtfKernel / FilmMtfKernel3) for the
+//  measured one, and skipped any lobe below 0.25 px. Those tables remain in the
+//  database for film_sim's mtf_use_kernel diagnostic only.
 //
 //  DEVELOPMENT ADJACENCY
 //
@@ -52,23 +54,14 @@
 //  the released inhibitor diffuse sideways out of a dense area into an adjacent
 //  light one, suppressing development there and exaggerating the edge. The
 //  effect peaks at the diffusion scale and returns to unity at both DC and high
-//  frequency, so it is a BAND-PASS lift:
+//  frequency, so it is a BAND-PASS lift multiplying the base transfer:
 //
 //      lift(f) = 1 + a * ( G(0.4 * adj) - G(2.0 * adj) )
 //
-//  A plain unsharp term of the form 1 + a - a*G would instead settle at 1 + a
-//  for every high frequency, which is a permanent global sharpening and not an
-//  adjacency effect at all.
-//
-//  Multiplying the base transfer by that lift expands to three Gaussian terms,
-//
-//      MTF * lift = MTF + a * MTF*G1 - a * MTF*G2
-//
-//  and a product of Gaussians in the frequency domain is a Gaussian whose
-//  variances add. So the whole stage, adjacency included, is a weighted sum of
-//  three spatial Gaussian blurs with weights (1, a, -a) and standard deviations
-//  (s, sqrt(s^2 + s1^2), sqrt(s^2 + s2^2)). The weights sum to one, so the
-//  filter has unit response at DC and cannot shift the overall exposure level.
+//  (ALGO_FREQ_ADJACENCY_INNER / _OUTER). A plain unsharp term of the form
+//  1 + a - a*G would instead settle at 1 + a for every high frequency, which is
+//  a permanent global sharpening and not an adjacency effect at all. The lift is
+//  1 at DC, so the filter cannot shift the overall exposure level.
 // ---------------------------------------------------------------------------
 
 // Project-wide primitives, included unconditionally as required by the project
@@ -85,6 +78,9 @@
 // The separable multi-lobe Gaussian that carries out the filtering.
 #include "AlgoSeparableBlur.hpp"
 
+// Frequency-domain filter (owner FFT library).
+#include "AlgoFrequency.hpp"
+
 // User-facing controls, pre-validated by the caller.
 #include "AlgoControl.hpp"
 
@@ -95,75 +91,19 @@
 
 
 // ---------------------------------------------------------------------------
-//  Conversion from f50 in cycles per millimetre to Gaussian sigma in
-//  millimetres:
-//
-//      sigma_mm = sqrt(ln(2) / 2) / (pi * f50)
-//
-//  The numerator is sqrt(0.6931471805599453 / 2) = 0.5887050112577373 and
-//  dividing by pi gives 0.1873906251292776, which is the constant stored here.
-//  Multiply it by the reciprocal of f50 to obtain sigma.
-//
-//  Written out as a literal rather than assembled from std::sqrt and M_PI so it
-//  is a compile-time constant on every compiler and so the derivation above can
-//  be checked against the digits by hand.
-// ---------------------------------------------------------------------------
-//  ⚠⚠ THE DIGITS WERE WRONG UNTIL SCHEMA v48 AND THE COMMENT ABOVE INVITED THE
-//  CHECK THAT WOULD HAVE CAUGHT THEM. sqrt(0.6931471805599453 / 2) is
-//  0.5887050112577373, and dividing THAT by pi gives 0.1873906251292776 -- not
-//  0.18738564618678, which is what shipped. Wrong from the FIFTH digit,
-//  2.66e-05 relative, and the derivation printed beside it has been correct
-//  the whole time.
-//
-//  ⚠ IT HID BECAUSE THE REFERENCE ENGINE NEVER COMPUTES THIS SIGMA. Python
-//  evaluates exp(-ln2 (f/f50)^2) straight onto its frequency grid, so this
-//  constant existed only on the C++ side and had nothing to disagree with. A
-//  quantity computed in one engine and not in the other is not covered by
-//  parity testing, however thorough that testing is -- which is the general
-//  lesson, and it is not about grain.
-//
-//  The correct value was already in film_profiles twice, under
-//  GRAIN_SIGMA_PER_HALF_POWER and _TAGUCHI_F50_TO_SIGMA_UM / 1000, and v48 adds
-//  film_profiles.scan_sigma_mm() as a Python consumer so that the next
-//  disagreement is a parity failure instead of a secret. G-V48-KSIGMA pins it.
-// ---------------------------------------------------------------------------
-constexpr AlgoType ALGO_MTF_SIGMA_MM_PER_INV_F50 =
-    static_cast<AlgoType>(0.1873906251292776);
-
-// ---------------------------------------------------------------------------
-//  Adjacency lobe scales, as multiples of the specified diffusion length.
-//
-//  The inner lobe at 0.4 of the scale and the outer at 2.0 give a band-pass
-//  whose peak sits at the diffusion length itself. These are the shape of the
-//  effect rather than free parameters: moving them moves the frequency at which
-//  the overshoot peaks, which is set by chemistry.
-// ---------------------------------------------------------------------------
-constexpr AlgoType ALGO_MTF_ADJACENCY_INNER = static_cast<AlgoType>(0.4);
-constexpr AlgoType ALGO_MTF_ADJACENCY_OUTER = static_cast<AlgoType>(2.0);
-
-// ---------------------------------------------------------------------------
-//  Smallest sigma in pixels that is worth submitting to a separable blur.
-//
-//  Below a quarter of a pixel the discrete kernel has a single significant tap,
-//  so the pass is an identity that costs two full sweeps of the image.
-// ---------------------------------------------------------------------------
-constexpr AlgoType ALGO_MTF_MIN_SIGMA_PX = static_cast<AlgoType>(0.25);
-
-
-// ---------------------------------------------------------------------------
 //  Stage 6: emulsion MTF.
 //
 //  pSrcR/G/B     linear exposure in
 //  pDstR/G/B     linear exposure out, clamped at zero
-//  pScrBlurA     scratch: separable blur workspace
-//  pScrBlurB     scratch: separable blur workspace
+//  pScrBlurA     unused since 2026-10-06 (kept for the stable signature)
+//  pScrBlurB     unused since 2026-10-06
+//  freq          frequency-domain state (AlgoFrequency.hpp), for this frame
 //  sizeX/sizeY   active pixel extent
 //  pitch         row stride in ELEMENTS
 //  profile       stock being simulated
 //  pxPerMm       render resolution, used to turn cycles/mm into pixels
 //
-//  The two scratch planes must be distinct from each other, from the source and
-//  from the destination.
+//  Source and destination must be distinct planes.
 // ---------------------------------------------------------------------------
 void AlgoStage06_EmulsionMtf
 (
@@ -179,5 +119,6 @@ void AlgoStage06_EmulsionMtf
     const int32_t            sizeY,
     const int32_t            pitch,
     const film::FilmProfile& profile,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept;

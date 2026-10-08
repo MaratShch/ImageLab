@@ -1481,7 +1481,8 @@ void AlgoStage09_DirCoupler
     const int32_t            pitch,
     const film::FilmProfile& profile,
     const AlgoControls&      params,
-    const AlgoType           pxPerMm
+    const AlgoType           pxPerMm,
+    const AlgoFreqState&     freq
 ) noexcept
 {
     const film::CouplerSpec& cp = profile.couplers;
@@ -1510,24 +1511,83 @@ void AlgoStage09_DirCoupler
     // mean of one thing is itself.
     const bool wantLong = (s > ALGO_ZERO)
                        && (false == profile.is_monochrome)
-                       && (radiusPx >= ALGO_COUPLER_MIN_SIGMA_PX);
+                       && (radiusPx > ALGO_ZERO);   // 2026-10-06: sub-pixel gate removed (owner)
 
     // The short-range term is within a single layer, so it applies to monochrome
     // stocks too - and is in fact the dominant coupler effect on them.
     const bool wantEdge = (e > ALGO_ZERO)
-                       && (edgePx >= ALGO_COUPLER_MIN_SIGMA_PX);
+                       && (edgePx > ALGO_ZERO);
 
     // Copy first, unconditionally, then modify in place. Both components are
     // read-modify-write against a blurred version of the data, so a destination
     // that already holds the incoming densities is the natural starting state -
     // and it satisfies the retained-buffer policy even when neither component is
     // active.
-    AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
-
     if ((false == wantLong) && (false == wantEdge))
+    {
+        AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
         return;
+    }
 
     AlgoType* RESTRICT dstPlane[3] = { pDstR, pDstG, pDstB };
+
+    // ----------------------------------------------------------------------
+    //  BOTH components: evaluated together in the frequency domain
+    //  (2026-10-06). film_sim's two steps are linear until the final floor:
+    //
+    //      x'_c  = x_c + s (x_c - G_r * mean(x))       = (1+s) x_c - s G_r * mean(x)
+    //      x''_c = x'_c + e (x'_c - G_e * x'_c)        = ((1+e) - e G_e) * x'_c
+    //
+    //  so in the frequency domain, with X_c the record spectra:
+    //
+    //      X'_c  = (1+s) X_c - s T_r (X_0 + X_1 + X_2) / 3     (AlgoFreqMeanMix3)
+    //      x''_c = irfft2( X'_c ((1+e) - e T_e) )              (AlgoFreqInverse)
+    //
+    //  -- six transforms instead of the eight the step-by-step form needs (one
+    //  pair for the mean, one per record for the edge term), with the identical
+    //  result up to rounding. Only one of the two active keeps the step form,
+    //  which is cheaper there (two transforms for the long term alone).
+    // ----------------------------------------------------------------------
+    const bool fused = wantLong && wantEdge;
+    if (fused)
+    {
+        AlgoFreqForward(freq, pSrcR, pitch, 0);
+        AlgoFreqForward(freq, pSrcG, pitch, 1);
+        AlgoFreqForward(freq, pSrcB, pitch, 2);
+
+        AlgoFreqTransfer tLong;
+        AlgoFreqSetGaussian(tLong, static_cast<HighPrecType>(cp.radius_um));
+        AlgoFreqMeanMix3(freq, 1.0 + static_cast<HighPrecType>(s),
+                         -static_cast<HighPrecType>(s), tLong);
+
+        AlgoFreqTransfer tEdge;
+        AlgoFreqTransferClear(tEdge);
+        AlgoFreqSumAdd(tEdge.sumA, 0.0, 1.0 + static_cast<HighPrecType>(e));
+        AlgoFreqSumAdd(tEdge.sumA, AlgoFreqGaussianA(static_cast<HighPrecType>(cp.edge_um)),
+                       -static_cast<HighPrecType>(e));
+
+        for (int32_t c = 0; c < 3; c++)
+        {
+            AlgoFreqInverse(freq, c, tEdge, dstPlane[c], pitch);
+
+            // Floor at zero -- in this file the floor rides in the last term's
+            // own pass, and on the fused path that pass is the inverse transform.
+            AlgoType* RESTRICT pO = dstPlane[c];
+            for (int32_t y = 0; y < sizeY; y++)
+            {
+                AlgoType* RESTRICT rO = pO + static_cast<std::ptrdiff_t>(y) * pitch;
+
+                ALGO_VECTOR_HINT
+                for (int32_t x = 0; x < sizeX; x++)
+                    rO[x] = MAX_VALUE(rO[x], ALGO_ZERO);
+            }
+        }
+    }
+    else
+    {
+        // One component: modify a copy in place, step by step.
+        AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
+    }
 
     // ----------------------------------------------------------------------
     //  Long-range component.
@@ -1537,7 +1597,7 @@ void AlgoStage09_DirCoupler
     //  agree, sits at its own mean and is left alone, while a colour is driven
     //  further from it. Saturation rises and gamma does not.
     // ----------------------------------------------------------------------
-    if (wantLong)
+    if (wantLong && (false == fused))
     {
         // Mean of the three densities, built into its own plane.
         const AlgoType third = ALGO_ONE / static_cast<AlgoType>(3.0);
@@ -1557,13 +1617,15 @@ void AlgoStage09_DirCoupler
                 pM[x] = (pR[x] + pG[x] + pB[x]) * third;
         }
 
-        // Blur it over the inhibitor's diffusion distance. Wrap boundary, matching
-        // the circular convolution of the frequency-domain reference; the radius is
-        // a few micrometres on the film, so the wrap contribution is confined to a
-        // handful of edge pixels.
-        AlgoGaussianBlurPlaneWrap(pScrDbar, pScrDbarBlur,
-                                  pScrBlurA,
-                                  sizeX, sizeY, pitch, radiusPx);
+        // Blur it over the inhibitor's diffusion distance -- the same circular
+        // convolution as the reference, so the edges wrap identically.
+        {
+            // film_sim: dbar_blur = apply_transfer(dbar, grid.gaussian(cp.radius_um)),
+            // exact, in the frequency domain (AlgoFrequency.hpp, 2026-10-06).
+            AlgoFreqTransfer t;
+            AlgoFreqSetGaussian(t, static_cast<HighPrecType>(cp.radius_um));
+            AlgoFreqFilterPlane(freq, pScrDbar, pScrDbarBlur, pitch, t);
+        }
 
         for (int32_t c = 0; c < 3; c++)
         {
@@ -1593,7 +1655,7 @@ void AlgoStage09_DirCoupler
     //  long-range term, because the inhibitor released at the short scale responds
     //  to the density that the long-range redistribution has already produced.
     // ----------------------------------------------------------------------
-    if (wantEdge)
+    if (wantEdge && (false == fused))
     {
         for (int32_t c = 0; c < 3; c++)
         {
@@ -1602,9 +1664,13 @@ void AlgoStage09_DirCoupler
             // Blurred copy of this channel. pScrDbarBlur is reused as the
             // destination: the long-range term has finished with it, and the two
             // components never need their blurs at the same time.
-            AlgoGaussianBlurPlaneWrap(pO, pScrDbarBlur,
-                                      pScrBlurA,
-                                      sizeX, sizeY, pitch, edgePx);
+            {
+                // film_sim: blurred = apply_transfer(dens[:, :, c],
+                // grid.gaussian(cp.edge_um)), exact, in the frequency domain.
+                AlgoFreqTransfer t;
+                AlgoFreqSetGaussian(t, static_cast<HighPrecType>(cp.edge_um));
+                AlgoFreqFilterPlane(freq, pO, pScrDbarBlur, pitch, t);
+            }
 
             for (int32_t y = 0; y < sizeY; y++)
             {
@@ -1631,12 +1697,13 @@ void AlgoStage09_DirCoupler
     //  single-final-clamp rule.
     // ----------------------------------------------------------------------
     // 2026-10-04: the floor at zero is applied inside the last term's own
-    // pass above (edge term if present, else the long-range term), not here.
+    // pass above (edge term if present, else the long-range term; on the fused
+    // path right after the inverse transform), not here.
 
-    // pScrBlurB is not needed by this stage - both blurs here are single-lobe and
-    // a single-lobe separable pass needs only one intermediate plane. It stays in
-    // the signature so the stage's scratch requirement does not change if a second
-    // lobe is ever added to either diffusion term.
+    // pScrBlurA / pScrBlurB are not needed since 2026-10-06: both blurs are the
+    // frequency-domain filter, whose spectrum lives in the arena. They stay in
+    // the signature so the stage's scratch contract does not change.
+    (void)pScrBlurA;
     (void)pScrBlurB;
 
     return;
