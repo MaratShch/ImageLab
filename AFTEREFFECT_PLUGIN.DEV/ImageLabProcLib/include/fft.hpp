@@ -6,6 +6,8 @@
 #include "fft_split_radix.hpp"
 #include "fft_cooley_tukey.hpp"
 #include "fft_czt.hpp"
+#include "fft_plan.hpp"      // planned engine: Plan1D, caller-owned memory
+#include "fft_real2d.hpp"    // planned real 2D (rfft2 layout); AVX2 lanes: fft_real2d_avx2.hpp
 #include "Common.hpp"
 
 namespace FourierTransform

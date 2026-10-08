@@ -162,8 +162,13 @@
     <ClInclude Include="include\fft.hpp" />
     <ClInclude Include="include\fft_cooley_tukey.hpp" />
     <ClInclude Include="include\fft_czt.hpp" />
+    <ClInclude Include="include\fft_lane_avx2.hpp" />
+    <ClInclude Include="include\fft_lane_scalar.hpp" />
     <ClInclude Include="include\fft_mixed_radix.hpp" />
+    <ClInclude Include="include\fft_plan.hpp" />
     <ClInclude Include="include\fft_prime.hpp" />
+    <ClInclude Include="include\fft_real2d.hpp" />
+    <ClInclude Include="include\fft_real2d_avx2.hpp" />
     <ClInclude Include="include\fft_split_radix.hpp" />
     <ClInclude Include="include\ProcLibExport.hpp" />
     <ClInclude Include="include\utils.hpp" />

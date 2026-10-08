@@ -40,7 +40,7 @@ inline void utils_transpose_complex_2d
             {
                 const auto* src_row = src_block_base + i * width;
 
-                auto* dst_col = dst_block_base + i;
+                 auto* dst_col = dst_block_base + i;
 
                 for (ptrdiff_t j = 0; j < block_w; ++j)
                 {

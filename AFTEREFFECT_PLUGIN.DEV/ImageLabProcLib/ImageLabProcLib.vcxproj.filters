@@ -111,6 +111,21 @@
     <ClInclude Include="..\Common\AefxDevPatch.hpp">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="include\fft_lane_avx2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\fft_lane_scalar.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\fft_plan.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\fft_real2d.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="include\fft_real2d_avx2.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DllMain.cpp">
