@@ -35,7 +35,7 @@ GlobalSetup(
 {
     PF_Err	err = PF_Err_NONE;
 
-    // Builds all 155 profiles exactly once. Thread-safe; repeat calls
+    // Builds all 224 profiles exactly once. Thread-safe; repeat calls
     // (AE can call GlobalSetup more than once) return true immediately.
     if (false == film::LoadFilmDataBase())
         return PF_Err_OUT_OF_MEMORY;   // only failure cause; a later call retries
@@ -191,7 +191,7 @@ UserChangedParam
     const PF_UserChangedParamExtra	*which_hitP
 )
 {
-    return PF_Err_NONE;
+    return user_update_params_handler (in_data, out_data, params, outputP, which_hitP);
 }
 
 

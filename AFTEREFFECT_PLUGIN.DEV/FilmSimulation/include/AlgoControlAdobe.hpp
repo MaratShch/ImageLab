@@ -28,10 +28,7 @@ inline constexpr bool get_check_box_value(PF_ParamDef* params[], const FilmSimul
     return (0 != params[UnderlyingType(idx)]->u.bd.value);
 }
 
-
 inline constexpr bool is_control_available(const film::eFILM_CONTROL_BIT bit, const uint64_t mask) noexcept
 {
-    // The entire calculation is done inside a single return statement
-    return static_cast<bool>((1ull << UnderlyingType(bit)) & mask);
+    return static_cast<bool>(0ull != ((1ull << UnderlyingType(bit)) & mask));
 }
-

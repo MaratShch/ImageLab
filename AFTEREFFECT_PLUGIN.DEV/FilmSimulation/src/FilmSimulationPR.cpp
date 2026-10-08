@@ -15,7 +15,7 @@ PF_Err ProcessImgInPR
 	PF_OutData*   out_data,
 	PF_ParamDef*  params[],
 	PF_LayerDef*  output
-) noexcept
+)
 {
 	PF_Err err = PF_Err_NONE;
 

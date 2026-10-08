@@ -95,16 +95,25 @@ IsDisabledUI (const PF_ParamUIFlags uiFlag) noexcept
 	return ((uiFlag & PF_PUI_DISABLED) ? true : false);
 }
 
-inline void DisableUI (PF_ParamUIFlags uiFlag) noexcept
+inline void DisableUI (PF_ParamUIFlags& uiFlag) noexcept
 {
 	uiFlag |= PF_PUI_DISABLED;
 	return;
 }
 
-inline void EnableUI (PF_ParamUIFlags uiFlag) noexcept
+inline void EnableUI (PF_ParamUIFlags& uiFlag) noexcept
 {
 	uiFlag &= ~PF_PUI_DISABLED;
 	return;
+}
+
+inline void set_control_status (PF_ParamUIFlags& uiFlag, bool ctrlStatus) noexcept
+{
+    if (true == ctrlStatus)
+        EnableUI(uiFlag);
+    else
+        DisableUI(uiFlag);
+    return;
 }
 
 

@@ -4,10 +4,64 @@
 #include "AlgoControlEnums.hpp"
 #include "AlgoAdobeControlEnums.hpp"
 #include "film_params_mask.hpp"
+#include "CompileTimeUtils.hpp"
+#include "CommonAdobeAE.hpp"
+
+
+static void on_film_stock_changes (PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]) noexcept
+{
+    const film::eFILM_PROFILE filmProfile = get_list_box_value<film::eFILM_PROFILE>(params, FilmSimulationCtrl::FILM_STOCK);
+    const uint64_t filmMask = film::kFilmControlAvailability[UnderlyingType(filmProfile)];
+
+    const auto site = AEFX_SuiteScoper<PF_ParamUtilsSuite3> (in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+
+    set_control_status (params[UnderlyingType(FilmSimulationCtrl::FILM_FORMAT)]->ui_flags,     is_control_available(film::eCTRL_BIT_FILM_FORMAT, filmMask));
+    site->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(FilmSimulationCtrl::FILM_FORMAT), params[UnderlyingType(FilmSimulationCtrl::FILM_FORMAT)]);
+
+    set_control_status (params[UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT)]->ui_flags, is_control_available(film::eCTRL_BIT_PROCESS_VARIANT, filmMask));
+    site->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT), params[UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT)]);
+
+    return;
+}
+
+
+PF_Err user_update_params_handler
+(
+    PF_InData						*in_data,
+    PF_OutData						*out_data,
+    PF_ParamDef						*params[],
+    PF_LayerDef						*outputP,
+    const PF_UserChangedParamExtra	*which_hitP
+)
+{
+    switch (which_hitP->param_index)
+    {
+        case UnderlyingType(FilmSimulationCtrl::FILM_STOCK):
+            on_film_stock_changes(in_data, out_data, params);
+        break;
+
+        default:
+        break;
+    }
+
+    return PF_Err_NONE;
+}
+
+
+PF_Err user_update_params_ui
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_ParamDef			*params[],
+    PF_LayerDef			*outputP
+)
+{
+    return PF_Err_NONE;
+}
 
 
 
-AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int32_t idx)
+AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int32_t idx)
 {
     CACHE_ALIGN AlgoControls algoParams = getAlgoControlsDefault();
 

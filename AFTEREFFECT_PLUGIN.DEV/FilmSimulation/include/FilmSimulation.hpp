@@ -23,7 +23,7 @@ PF_Err ProcessImgInPR
 	PF_OutData*   out_data,
 	PF_ParamDef*  params[],
 	PF_LayerDef*  output
-) noexcept;
+);
 
 PF_Err
 ProcessImgInAE
@@ -32,7 +32,7 @@ ProcessImgInAE
 	PF_OutData*		out_data,
 	PF_ParamDef*	params[],
 	PF_LayerDef*	output
-) noexcept;
+);
 
 PF_Err
 FilmSimulation_PreRender
@@ -70,6 +70,23 @@ AlgoControls getAlgoControls
     PF_ParamDef* params[],
     const double fps,
     const int32_t idx
+);
+
+PF_Err user_update_params_handler
+(
+    PF_InData						*in_data,
+    PF_OutData						*out_data,
+    PF_ParamDef						*params[],
+    PF_LayerDef						*outputP,
+    const PF_UserChangedParamExtra	*which_hitP
+);
+
+PF_Err user_update_params_ui
+(
+    PF_InData			*in_data,
+    PF_OutData			*out_data,
+    PF_ParamDef			*params[],
+    PF_LayerDef			*outputP
 );
 
 #endif // __IMAGE_LAB_IMAGE_FILM_SIMULATION_FILTER__
