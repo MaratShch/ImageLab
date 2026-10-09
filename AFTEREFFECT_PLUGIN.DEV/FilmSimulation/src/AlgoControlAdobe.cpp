@@ -130,5 +130,44 @@ AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int
     if (is_control_available(film::eCTRL_BIT_SCANNER_FIXED_PATTERN, filmMask))
         algoParams.scannerFixedPattern = get_slider_value(params, FilmSimulationCtrl::SCANNER_FIXED_PATTERN);
 
+    // Film damages
+    if (is_control_available(film::eCTRL_BIT_FILM_DAMAGE_ENABLED, filmMask))
+        algoParams.filmDamageEnabled = get_check_box_value(params, FilmSimulationCtrl::ENABLE_FILM_DAMAGE);
+    if (true == algoParams.filmDamageEnabled)
+    {
+        if (is_control_available(film::eCTRL_BIT_DAMAGE_STRENGTH, filmMask))
+            algoParams.damage.damageStrength = get_slider_value(params, FilmSimulationCtrl::OVERALL_STRENGHT);
+        if (is_control_available(film::eCTRL_BIT_DUST_LEVEL, filmMask))
+            algoParams.damage.dustLevel = get_slider_value(params, FilmSimulationCtrl::DUST);
+        if (is_control_available(film::eCTRL_BIT_DEBRIS_LEVEL, filmMask))
+            algoParams.damage.debrisLevel = get_slider_value(params, FilmSimulationCtrl::DEBRIS);
+        if (is_control_available(film::eCTRL_BIT_FIBRE_LEVEL, filmMask))
+            algoParams.damage.fibreLevel = get_slider_value(params, FilmSimulationCtrl::FIBRES);
+        if (is_control_available(film::eCTRL_BIT_DIRT_CLUMPING, filmMask))
+            algoParams.damage.dirtClumping = get_slider_value(params, FilmSimulationCtrl::CLUMPING);
+        if (is_control_available(film::eCTRL_BIT_GATE_DIRT, filmMask))
+            algoParams.damage.gateDirt = get_slider_value(params, FilmSimulationCtrl::GATE_DIRT);
+        if (is_control_available(film::eCTRL_BIT_SCRATCH_TRANSPORT, filmMask))
+            algoParams.damage.scratchTransport = get_slider_value(params, FilmSimulationCtrl::TRANSPORT_SCRATCHES);
+        if (is_control_available(film::eCTRL_BIT_SCRATCH_HANDLING, filmMask))
+            algoParams.damage.scratchHandling = get_slider_value(params, FilmSimulationCtrl::HANDLING_SCRATCHES);
+        if (is_control_available(film::eCTRL_BIT_WEAVE_AMOUNT, filmMask))
+            algoParams.damage.weaveAmount = get_slider_value(params, FilmSimulationCtrl::GATE_WAVE);
+        if (is_control_available(film::eCTRL_BIT_DAMAGE_EVENTS, filmMask))
+            algoParams.damage.damageEvents = get_slider_value(params, FilmSimulationCtrl::SPLICE_AND_TEAR_EVENTS);
+        if (is_control_available(film::eCTRL_BIT_PROCESSING_QUALITY, filmMask))
+            algoParams.damage.processingQuality = get_slider_value(params, FilmSimulationCtrl::PROCESSING_QUALITY);
+        if (is_control_available(film::eCTRL_BIT_DRYING_MARKS, filmMask))
+            algoParams.damage.dryingMarks = get_slider_value(params, FilmSimulationCtrl::DRYING_MARKS);
+        if (is_control_available(film::eCTRL_BIT_STORAGE_SEVERITY, filmMask))
+            algoParams.damage.storageSeverity = get_slider_value(params, FilmSimulationCtrl::STORAGE_SEVERITY);
+        if (is_control_available(film::eCTRL_BIT_COLOUR_VEIL, filmMask))
+            algoParams.damage.colourVeil = get_slider_value(params, FilmSimulationCtrl::COLOUR_VEIL);
+        if (is_control_available(film::eCTRL_BIT_FLICKER_STOPS, filmMask))
+            algoParams.damage.flickerStops = get_slider_value(params, FilmSimulationCtrl::PRINTER_FLICKER);
+        if (is_control_available(film::eCTRL_BIT_SCANNER_ARTIFACTS, filmMask))
+            algoParams.damage.scannerArtifacts = get_slider_value(params, FilmSimulationCtrl::SCANNER_ARTIFACTS);
+    }
+
     return algoParams;
 }
