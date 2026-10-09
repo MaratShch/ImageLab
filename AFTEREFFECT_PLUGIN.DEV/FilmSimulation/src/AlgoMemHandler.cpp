@@ -135,7 +135,7 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
 {
     // Zero-initialised, so every failure path below can simply return it: a
     // caller testing SuperBufferHead sees null and totalSize sees zero.
-    MemHandler algoMemHandler{};
+    CACHE_ALIGN MemHandler algoMemHandler{};
 
     if (sizeX <= 0 || sizeY <= 0 ||
         sizeX > ALGO_MAX_DIMENSION || sizeY > ALGO_MAX_DIMENSION)

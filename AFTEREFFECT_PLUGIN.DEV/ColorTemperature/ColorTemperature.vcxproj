@@ -221,6 +221,9 @@ cl /D "MSWindows" /EP $(ProjectDir)\%(Filename).rrc &gt;  "$(ProjectDir)\%(Filen
   <ItemGroup>
     <ResourceCompile Include="ColorTemperature.rc" />
   </ItemGroup>
+  <ItemGroup>
+    <None Include="python\cct_bar.py" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

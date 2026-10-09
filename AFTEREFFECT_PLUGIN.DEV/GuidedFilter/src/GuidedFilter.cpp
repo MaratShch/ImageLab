@@ -1,6 +1,7 @@
 #include "GuidedFilter.hpp"
+#include "GuidedFilterEnum.hpp"
 #include "PrSDKAESupport.h"
-
+#include "ImageLabMemInterface.hpp"
 
 
 static PF_Err
@@ -30,6 +31,9 @@ GlobalSetup(
 	PF_LayerDef		*output)
 {
 	PF_Err	err = PF_Err_NONE;
+
+    if (false == LoadMemoryInterfaceProvider(in_data))
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
 	constexpr PF_OutFlags out_flags1 =
 		PF_OutFlag_PIX_INDEPENDENT |
@@ -64,6 +68,7 @@ GlobalSetup(
 		(*pixelFormatSuite->ClearSupportedPixelFormats)(in_data->effect_ref);
 
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_8u);
+/*
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_16u);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_BGRA_4444_32f_Linear);
@@ -96,6 +101,7 @@ GlobalSetup(
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_PRGB_4444_32f_Linear);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_XRGB_4444_32f_Linear);
         (*pixelFormatSuite->AddSupportedPixelFormat)(in_data->effect_ref, PrPixelFormat_RGB_444_10u);
+*/
     }
 
 	return err;
@@ -109,8 +115,8 @@ GlobalSetdown(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
-	/* nothing to do */
-	return PF_Err_NONE;
+    UnloadMemoryInterfaceProvider();
+    return PF_Err_NONE;
 }
 
 
@@ -122,6 +128,83 @@ ParamsSetup(
 	PF_ParamDef		*params[],
 	PF_LayerDef		*output)
 {
+    CACHE_ALIGN PF_ParamDef	def;
+
+    constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamUIFlags ui_flags = PF_PUI_CONTROL;
+
+    // add 'Filter Mode' popup
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        ctrlItemNames[0],
+        UnderlyingType(FilterMode::TotalModes),
+        UnderlyingType(FilterMode::Entire_Image),
+        gFilterModeStr,
+        UnderlyingType(CtrlItems::gFILTER_MODE));
+
+    // add 'Radius' slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_SLIDER(
+        ctrlItemNames[1],
+        AlgoRadiusMin,
+        AlgoRadiusMax,
+        AlgoRadiusMin,
+        AlgoRadiusMax,
+        AlgoRadiusDef,
+        UnderlyingType(CtrlItems::gFILTER_RADIUS));
+
+    // add 'Epsilon' float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        ctrlItemNames[2],
+        AlgoEpsilonMin,
+        AlgoEpsilonMax,
+        AlgoEpsilonMin,
+        AlgoEpsilonMax,
+        AlgoEpsilonDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(CtrlItems::gFILTER_EPSILON));
+
+    // add 'Show Map' check-box
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_CHECKBOXX(
+        ctrlItemNames[3],
+        FALSE,
+        0,
+        UnderlyingType(CtrlItems::gFILTER_SHOW_MAP));
+
+    // add 'Skin Tolerance' float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        ctrlItemNames[4],
+        AlgoSkinToleranceMin,
+        AlgoSkinToleranceMax,
+        AlgoSkinToleranceMin,
+        AlgoSkinToleranceMax,
+        AlgoSkinToleranceDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(CtrlItems::gFILTER_SKIN_TOLERANCE));
+
+    // add 'Skin Softness' float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        ctrlItemNames[5],
+        AlgoSkinSoftnessMin,
+        AlgoSkinSoftnessMax,
+        AlgoSkinSoftnessMin,
+        AlgoSkinSoftnessMax,
+        AlgoSkinSoftnessDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(CtrlItems::gFILTER_SKIN_SOFTNESS));
+
+    // Set total number of control items
+    out_data->num_params = UnderlyingType(CtrlItems::gFILTER_TOTAL_PARAMETERS);
 
 	return PF_Err_NONE;
 }

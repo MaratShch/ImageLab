@@ -155,16 +155,27 @@
     <ClInclude Include="include\AlgoControls.hpp" />
     <ClInclude Include="include\AlgoMemHandler.hpp" />
     <ClInclude Include="include\AlgoPixelTraits.hpp" />
+    <ClInclude Include="include\AlgorithmMain.hpp" />
+    <ClInclude Include="include\AlgorithmProces.hpp" />
     <ClInclude Include="include\GuidedFilter.hpp" />
     <ClInclude Include="include\GuidedFilterEnum.hpp" />
+    <ClInclude Include="include\ImageLabMemInterface.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\AlgoApplyFilter.cpp" />
+    <ClCompile Include="src\AlgoBoxBlur.cpp" />
     <ClCompile Include="src\AlgoColorDispatcher.cpp" />
     <ClCompile Include="src\AlgoColorDispatcherOut.cpp" />
+    <ClCompile Include="src\AlgoComputeCoefficients.cpp" />
+    <ClCompile Include="src\AlgoControls.cpp" />
+    <ClCompile Include="src\AlgoMemHandler.cpp" />
+    <ClCompile Include="src\AlgorithmMain.cpp" />
+    <ClCompile Include="src\AlgoSkinConfidence.cpp" />
     <ClCompile Include="src\GuidedFilter.cpp" />
     <ClCompile Include="src\GuidedFilterAE.cpp" />
     <ClCompile Include="src\GuidedFilterPR.cpp" />
     <ClCompile Include="src\GuidedFilterSR.cpp" />
+    <ClCompile Include="src\ImageLabMemInterface.cpp" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="GuidedFilter.r">

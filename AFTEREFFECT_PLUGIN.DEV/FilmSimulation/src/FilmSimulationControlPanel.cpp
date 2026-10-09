@@ -216,6 +216,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         StorageYearsMax,
         StorageYearsDef,
         UnderlyingType(FilmSimulationCtrl::YEARS_OF_DARK_STORAGE));
+    totalParams++;
 
     // Storage Temperature
     PF_ADD_SLIDER(
@@ -226,6 +227,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         StorageCelsiusMax,
         StorageCelsiusDef,
         UnderlyingType(FilmSimulationCtrl::STORAGE_TEMPERATURE));
+    totalParams++;
 
     // Batch Position [16]
 
@@ -766,7 +768,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     totalParams++;
 
 
-    // Assign totalnumber of control items
+    // Set total number of control items
     out_data->num_params = totalParams;
 
     return PF_Err_NONE;

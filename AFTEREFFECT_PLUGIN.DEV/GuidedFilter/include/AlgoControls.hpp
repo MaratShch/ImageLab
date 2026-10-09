@@ -3,42 +3,9 @@
 
 #include <cstdint>
 #include <algorithm>
+#include "GuidedFilterEnum.hpp"
+#include "AE_Effect.h"
 
-// ============================================================================
-// Processing mode (Render control: ListBox / popup).
-// The numeric values are part of the contract between the Render controls and
-// the algorithm: ListBox item index == static_cast<uint32_t>(FilterMode).
-//   Item 0: "Entire Image"   Item 1: "Human Skin"   Item 2: "Background"
-// ============================================================================
-enum class FilterMode : uint32_t
-{
-    Entire_Image = 0,
-    Skin,
-    Background
-};
-
-// ============================================================================
-// Control ranges and defaults (for the Render-control definitions and for the
-// algorithm-side validation in Algorithm_Main). Values outside a range are
-// clamped by the algorithm; non-finite floats are replaced by the default.
-// ============================================================================
-constexpr int32_t AlgoRadiusMin         = 0;        // 0 = identity
-constexpr int32_t AlgoRadiusMax         = 255;
-constexpr int32_t AlgoRadiusDef         = 8;
-
-constexpr float   AlgoEpsilonMin        = 0.00001f;
-constexpr float   AlgoEpsilonMax        = 1.0f;
-constexpr float   AlgoEpsilonDef        = 0.01f;
-
-constexpr float   AlgoSkinToleranceMin  = 0.25f;
-constexpr float   AlgoSkinToleranceMax  = 2.0f;
-constexpr float   AlgoSkinToleranceDef  = 1.0f;
-constexpr float   AlgoSkinToleranceStep = 0.05f;
-
-constexpr float   AlgoSkinSoftnessMin   = 0.0f;
-constexpr float   AlgoSkinSoftnessMax   = 1.0f;
-constexpr float   AlgoSkinSoftnessDef   = 0.25f;
-constexpr float   AlgoSkinSoftnessStep  = 0.05f;
 
 struct AlgoControls
 {
@@ -108,7 +75,7 @@ struct AlgoControls
     float skinSoftness;
 };
 
-inline AlgoControls getAlgoControlsDefault(void)
+inline AlgoControls getAlgoControlsDefault(void) noexcept
 {
     AlgoControls ctrl;
     ctrl.radius            = AlgoRadiusDef;
@@ -119,5 +86,7 @@ inline AlgoControls getAlgoControlsDefault(void)
     ctrl.skinSoftness      = AlgoSkinSoftnessDef;
     return ctrl;
 }
+
+const AlgoControls getAlgoControls (PF_ParamDef* params[]);
 
 #endif // __IMAGE_LAB_GUIDED_FILTER_CONTROLS__

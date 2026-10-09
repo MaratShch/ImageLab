@@ -15,6 +15,9 @@
     <Filter Include="include">
       <UniqueIdentifier>{88569e79-6655-4f2e-854b-b0daec7edc6b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="python">
+      <UniqueIdentifier>{ab773a9a-79a4-42f0-bc46-3b486e07ba0d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Common\ClassRestrictions.hpp">
@@ -176,5 +179,10 @@
     <CustomBuild Include="ColorTemperature.r">
       <Filter>resource</Filter>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="python\cct_bar.py">
+      <Filter>python</Filter>
+    </None>
   </ItemGroup>
 </Project>
