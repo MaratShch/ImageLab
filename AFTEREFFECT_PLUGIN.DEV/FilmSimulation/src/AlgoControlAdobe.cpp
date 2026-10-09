@@ -8,18 +8,25 @@
 #include "CommonAdobeAE.hpp"
 
 
-static void on_film_stock_changes (PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[]) noexcept
+// Not noexcept: AEFX_SuiteScoper THROWS (a PF_Err) when the suite cannot be
+// acquired, and a throw out of a noexcept function is std::terminate -- the host
+// process dies. The caller catches and returns the error to AE instead.
+static void on_film_stock_changes(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[])
 {
     const film::eFILM_PROFILE filmProfile = get_list_box_value<film::eFILM_PROFILE>(params, FilmSimulationCtrl::FILM_STOCK);
     const uint64_t filmMask = film::kFilmControlAvailability[UnderlyingType(filmProfile)];
 
-    const auto site = AEFX_SuiteScoper<PF_ParamUtilsSuite3> (in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
+    const auto site = AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
 
-    set_control_status (params[UnderlyingType(FilmSimulationCtrl::FILM_FORMAT)]->ui_flags,     is_control_available(film::eCTRL_BIT_FILM_FORMAT, filmMask));
-    site->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(FilmSimulationCtrl::FILM_FORMAT), params[UnderlyingType(FilmSimulationCtrl::FILM_FORMAT)]);
+    // AE SDK: PF_UpdateParamUI must receive a COPY of the param def -- never the
+    // PF_ParamDef passed in params[] (see the SDK "Supervisor" sample).
+    PF_ParamDef formatDef = *params[UnderlyingType(FilmSimulationCtrl::FILM_FORMAT)];
+    set_control_status(formatDef.ui_flags, is_control_available(film::eCTRL_BIT_FILM_FORMAT, filmMask));
+    site->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(FilmSimulationCtrl::FILM_FORMAT), &formatDef);
 
-    set_control_status (params[UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT)]->ui_flags, is_control_available(film::eCTRL_BIT_PROCESS_VARIANT, filmMask));
-    site->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT), params[UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT)]);
+    PF_ParamDef variantDef = *params[UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT)];
+    set_control_status(variantDef.ui_flags, is_control_available(film::eCTRL_BIT_PROCESS_VARIANT, filmMask));
+    site->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT), &variantDef);
 
     return;
 }
@@ -37,7 +44,20 @@ PF_Err user_update_params_handler
     switch (which_hitP->param_index)
     {
         case UnderlyingType(FilmSimulationCtrl::FILM_STOCK):
-            on_film_stock_changes(in_data, out_data, params);
+        {
+            try
+            {
+                on_film_stock_changes(in_data, out_data, params);
+            }
+            catch (const PF_Err& thrownErr)
+            {
+                return thrownErr;
+            }
+            catch (...)
+            {
+                return PF_Err_INTERNAL_STRUCT_DAMAGED;
+            }
+        }
         break;
 
         default:
@@ -61,7 +81,7 @@ PF_Err user_update_params_ui
 
 
 
-AlgoControls getAlgoControls (PF_ParamDef* params[], const double fps, const int32_t idx)
+AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int32_t idx)
 {
     CACHE_ALIGN AlgoControls algoParams = getAlgoControlsDefault();
 
