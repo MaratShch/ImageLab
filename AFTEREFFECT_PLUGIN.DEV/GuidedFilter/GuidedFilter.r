@@ -48,7 +48,7 @@ resource 'PiPL' (16000) {
             1572865
 #else
             1574401
-#endif                                	
+#endif                               	
 		},
 		/* [9] */
 		AE_Effect_Info_Flags {
@@ -56,11 +56,11 @@ resource 'PiPL' (16000) {
 		},
 		/* [10] */
 		AE_Effect_Global_OutFlags {
-			100664386
+			10064386
 		},
 
 		AE_Effect_Global_OutFlags_2 {
-			131144
+			136264
 		},
 		/* [11] */
 		AE_Effect_Match_Name {
