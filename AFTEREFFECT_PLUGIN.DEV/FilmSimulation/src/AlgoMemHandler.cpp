@@ -13,7 +13,6 @@
 #include "AlgoMemHandler.hpp" 
 #include "ImageLabMemInterface.hpp"
 
-#include <cstdio>
 #include <vector>
 
 
@@ -135,7 +134,7 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
 {
     // Zero-initialised, so every failure path below can simply return it: a
     // caller testing SuperBufferHead sees null and totalSize sees zero.
-    CACHE_ALIGN MemHandler algoMemHandler{};
+    MemHandler algoMemHandler{};
 
     if (sizeX <= 0 || sizeY <= 0 ||
         sizeX > ALGO_MAX_DIMENSION || sizeY > ALGO_MAX_DIMENSION)
@@ -280,7 +279,11 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
           + ALGO_FREQ_SLICE_COUNT;
 
     if (stack.slices != expectedSlices)
+    {
+        // A mismatch is a coding error in THIS file, not a runtime condition. Refuse
+        // rather than hand back an arena whose layout does not match the struct.
         return algoMemHandler;
+    }
 
     // ==================================================================
     // 3. ONE ALLOCATION
@@ -302,13 +305,10 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
 
 
     void* pBlock = nullptr;
-
     const int32_t blockId = GetMemoryBlock(static_cast<int32_t>(requiredBytes), static_cast<int32_t>(ALGO_ALIGN_BYTES), &pBlock);
     if (blockId < 0 || nullptr == pBlock)
         return algoMemHandler;
 
-    if (nullptr != pBlock)
-    {
         uint8_t* superBuffer = reinterpret_cast<uint8_t*>(pBlock);
 
         algoMemHandler.SuperBufferHead = superBuffer; 
@@ -398,7 +398,6 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
         algoMemHandler.Scr_Grain_R = asAlgo(offGrain[0]);
         algoMemHandler.Scr_Grain_G = asAlgo(offGrain[1]);
         algoMemHandler.Scr_Grain_B = asAlgo(offGrain[2]);
-    }
     
     // Build the FFT plan (twiddles, digit-reversal tables) into the arena once
     // for this geometry. Refusal returns the block and a zeroed handler, the
@@ -420,7 +419,7 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
 // ---------------------------------------------------------------------------
 //  free_memory_buffers
 // ---------------------------------------------------------------------------
-void free_memory_buffers (MemHandler& algoMemHandler) noexcept
+void free_memory_buffers(MemHandler& algoMemHandler) noexcept
 {
     // Safe on an already-zeroed handler and safe to call twice: the null test
     // covers both, so a double free cannot reach the pool.

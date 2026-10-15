@@ -167,7 +167,6 @@
     <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="include\AlgoAdobeControlEnums.hpp" />
     <ClInclude Include="include\AlgoControlAdobe.hpp" />
-    <ClInclude Include="include\AlgoControlEnums.hpp" />
     <ClInclude Include="include\AlgoControlValues.hpp" />
     <ClInclude Include="include\AlgoEgressAVX2.hpp" />
     <ClInclude Include="include\AlgoIngestAVX2.hpp" />
@@ -177,7 +176,6 @@
     <ClInclude Include="include\AlgoPrFormatMath.hpp" />
     <ClInclude Include="include\FilmSimulation.hpp" />
     <ClInclude Include="include\ImageLabMemInterface.hpp" />
-    <ClInclude Include="include\LoadFilmDataBase.h" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="FilmSimulation.r">

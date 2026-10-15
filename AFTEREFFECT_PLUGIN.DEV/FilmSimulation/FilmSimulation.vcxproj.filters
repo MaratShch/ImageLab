@@ -87,9 +87,6 @@
     <ClInclude Include="include\AlgoControlAdobe.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgoControlEnums.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="include\AlgoControlValues.hpp">
       <Filter>include</Filter>
     </ClInclude>
@@ -115,9 +112,6 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\ImageLabMemInterface.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\LoadFilmDataBase.h">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
