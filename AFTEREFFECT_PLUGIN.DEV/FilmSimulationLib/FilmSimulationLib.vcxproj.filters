@@ -1,0 +1,544 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="database">
+      <UniqueIdentifier>{7496a952-7238-4eb2-9d47-78af55b0b249}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="algorithm">
+      <UniqueIdentifier>{c2b2a913-4637-47b0-b189-851bf0ca2624}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="algorithm\include">
+      <UniqueIdentifier>{005ac2de-0d19-4348-81b0-d3a34aa768b3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="algorithm\src">
+      <UniqueIdentifier>{56a94b8a-7593-4670-b86a-23776b4dbc03}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="database\include">
+      <UniqueIdentifier>{a15a0fd1-d42d-40ba-9a49-52542afc7b99}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="database\src">
+      <UniqueIdentifier>{558ebaf5-fd94-4163-bfc2-71644bbb9365}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python">
+      <UniqueIdentifier>{387ed8bf-4035-4cf5-ba85-0da69cfa1f25}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\old_films_analyzing">
+      <UniqueIdentifier>{5bcc0f8e-512f-42e6-8dd0-1942e73918af}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="python\profiles_generator">
+      <UniqueIdentifier>{a4e33a70-b34a-4992-9c94-545c89b1d1db}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="database\src\film_profiles.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_01.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_02.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_03.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_04.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_05.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_06.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_07.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_08.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_09.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_10.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_11.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_12.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_13.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_14.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_15.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_16.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_17.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_18.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_19.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_20.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_21.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_22.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_23.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_24.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_25.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_26.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_27.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_28.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_29.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_30.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_31.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_32.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_33.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_34.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_35.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_36.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_37.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_38.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_39.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_40.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_41.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_42.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_43.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_44.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_45.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_46.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_47.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_48.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_49.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_50.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_51.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_52.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_53.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_54.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_55.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_56.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_57.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_58.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_59.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_60.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_61.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_62.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_63.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_64.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_65.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_66.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_67.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_68.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_69.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_70.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_71.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_72.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_73.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_74.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_75.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\LoadFilmDataBase.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_02_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_03_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_04_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_05_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_06_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_07_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_08_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_09_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_10_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_11_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_12_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_13_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_14_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_15_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_16_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\Algo_17_Sim.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoDefectField.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoFrequency.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgorithmMain.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoSeparableBlur.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoSpectralSensitivity.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_01.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_02.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_03.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_04.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_05.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_06.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_07.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\src\AlgoControl.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="database\include\film_enum.hpp">
+      <Filter>database\include</Filter>
+    </ClInclude>
+    <ClInclude Include="database\include\film_params_mask.hpp">
+      <Filter>database\include</Filter>
+    </ClInclude>
+    <ClInclude Include="database\include\film_profile_serial.hpp">
+      <Filter>database\include</Filter>
+    </ClInclude>
+    <ClInclude Include="database\include\film_profiles.hpp">
+      <Filter>database\include</Filter>
+    </ClInclude>
+    <ClInclude Include="database\include\film_profiles_detail.hpp">
+      <Filter>database\include</Filter>
+    </ClInclude>
+    <ClInclude Include="database\include\film_schema_version.h">
+      <Filter>database\include</Filter>
+    </ClInclude>
+    <ClInclude Include="database\include\LoadFilmDataBase.h">
+      <Filter>database\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoBatchPosition.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoBromideDrag.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoCallier.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoCharacteristicCurve.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoCoatingField.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoControl.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoControlEnums.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoCornerDefocus.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoCounterRng.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoCurveLut.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoDefectField.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoDevelopmentTime.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoDirCoupler.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoDuplication.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoDyeImpurity.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoEdgeFog.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoEmulsionMtf.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoEmulsionRecord.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoFftLane.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoFilmCoord.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoFinalClamp.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoFrequency.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoGateDefects.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoGateWeave.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoGrain.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoHalation.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoInterimage.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoMemHandler.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoNegativeDefects.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoPassThrough.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoProcessingDefects.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoProcessVariant.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoReciprocity.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoRelativeExposure.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoReseauReconstruct.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgorithmMain.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoScanMtf.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoScannerArtifacts.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoSeparableBlur.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoSilverTone.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoSpectralSensitivity.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoSpectralUpsamplingTable.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoStockColourBalance.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoStorageAge.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoTakingFilters.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoTemporalFlicker.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoTransmittance.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoTypes.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoVeilingFlare.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\film_params_mask.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="database\include\film_names.txt">
+      <Filter>database\include</Filter>
+    </Text>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="python\old_films_analyzing\analyze_film_scans.py">
+      <Filter>python\old_films_analyzing</Filter>
+    </None>
+    <None Include="python\color_checker.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\image_diff.py">
+      <Filter>python</Filter>
+    </None>
+    <None Include="python\png_compare.py">
+      <Filter>python</Filter>
+    </None>
+  </ItemGroup>
+</Project>

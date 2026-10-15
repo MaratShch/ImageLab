@@ -1,0 +1,312 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{0D6E18CB-81F8-46A1-83D7-7F8A0F31F803}</ProjectGuid>
+    <RootNamespace>FilmSimulationLib</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.19041.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <CharacterSet>NotSet</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>Intel C++ Compiler 19.0</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>NotSet</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <TargetExt>.dll</TargetExt>
+    <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <TargetExt>.dll</TargetExt>
+    <OutDir>$(SolutionDir)\BUILD.OUT\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\BUILD.OUT\TEMP\$(ProjectName)\$(Configuration)\</IntDir>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Disabled</Optimization>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>database\include;algorithm\include;..\Common;..\ImageLabProcLib\include</AdditionalIncludeDirectories>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <Optimization>Full</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <AdditionalIncludeDirectories>database\include;algorithm\include;..\Common;..\ImageLabProcLib\include</AdditionalIncludeDirectories>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <InterproceduralOptimization>SingleFile</InterproceduralOptimization>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="algorithm\src\AlgoControl.cpp" />
+    <ClCompile Include="algorithm\src\AlgoDefectField.cpp" />
+    <ClCompile Include="algorithm\src\AlgoFrequency.cpp" />
+    <ClCompile Include="algorithm\src\AlgorithmMain.cpp" />
+    <ClCompile Include="algorithm\src\AlgoSeparableBlur.cpp" />
+    <ClCompile Include="algorithm\src\AlgoSpectralSensitivity.cpp" />
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_01.cpp" />
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_02.cpp" />
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_03.cpp" />
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_04.cpp" />
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_05.cpp" />
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_06.cpp" />
+    <ClCompile Include="algorithm\src\AlgoSpectralUpsamplingTable_07.cpp" />
+    <ClCompile Include="algorithm\src\Algo_02_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_03_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_04_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_05_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_06_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_07_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_08_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_09_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_10_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_11_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_12_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_13_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_14_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_15_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_16_Sim.cpp" />
+    <ClCompile Include="algorithm\src\Algo_17_Sim.cpp" />
+    <ClCompile Include="database\src\film_profiles.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_01.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_02.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_03.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_04.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_05.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_06.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_07.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_08.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_09.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_10.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_11.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_12.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_13.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_14.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_15.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_16.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_17.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_18.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_19.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_20.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_21.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_22.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_23.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_24.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_25.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_26.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_27.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_28.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_29.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_30.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_31.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_32.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_33.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_34.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_35.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_36.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_37.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_38.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_39.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_40.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_41.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_42.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_43.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_44.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_45.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_46.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_47.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_48.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_49.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_50.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_51.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_52.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_53.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_54.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_55.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_56.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_57.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_58.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_59.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_60.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_61.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_62.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_63.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_64.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_65.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_66.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_67.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_68.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_69.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_70.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_71.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_72.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_73.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_74.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_75.cpp" />
+    <ClCompile Include="database\src\LoadFilmDataBase.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="algorithm\include\AlgoBatchPosition.hpp" />
+    <ClInclude Include="algorithm\include\AlgoBromideDrag.hpp" />
+    <ClInclude Include="algorithm\include\AlgoCallier.hpp" />
+    <ClInclude Include="algorithm\include\AlgoCharacteristicCurve.hpp" />
+    <ClInclude Include="algorithm\include\AlgoCoatingField.hpp" />
+    <ClInclude Include="algorithm\include\AlgoControl.hpp" />
+    <ClInclude Include="algorithm\include\AlgoControlEnums.hpp" />
+    <ClInclude Include="algorithm\include\AlgoCornerDefocus.hpp" />
+    <ClInclude Include="algorithm\include\AlgoCounterRng.hpp" />
+    <ClInclude Include="algorithm\include\AlgoCurveLut.hpp" />
+    <ClInclude Include="algorithm\include\AlgoDefectField.hpp" />
+    <ClInclude Include="algorithm\include\AlgoDevelopmentTime.hpp" />
+    <ClInclude Include="algorithm\include\AlgoDirCoupler.hpp" />
+    <ClInclude Include="algorithm\include\AlgoDuplication.hpp" />
+    <ClInclude Include="algorithm\include\AlgoDyeImpurity.hpp" />
+    <ClInclude Include="algorithm\include\AlgoEdgeFog.hpp" />
+    <ClInclude Include="algorithm\include\AlgoEmulsionMtf.hpp" />
+    <ClInclude Include="algorithm\include\AlgoEmulsionRecord.hpp" />
+    <ClInclude Include="algorithm\include\AlgoFftLane.hpp" />
+    <ClInclude Include="algorithm\include\AlgoFilmCoord.hpp" />
+    <ClInclude Include="algorithm\include\AlgoFinalClamp.hpp" />
+    <ClInclude Include="algorithm\include\AlgoFrequency.hpp" />
+    <ClInclude Include="algorithm\include\AlgoGateDefects.hpp" />
+    <ClInclude Include="algorithm\include\AlgoGateWeave.hpp" />
+    <ClInclude Include="algorithm\include\AlgoGrain.hpp" />
+    <ClInclude Include="algorithm\include\AlgoHalation.hpp" />
+    <ClInclude Include="algorithm\include\AlgoInterimage.hpp" />
+    <ClInclude Include="algorithm\include\AlgoMemHandler.hpp" />
+    <ClInclude Include="algorithm\include\AlgoNegativeDefects.hpp" />
+    <ClInclude Include="algorithm\include\AlgoPassThrough.hpp" />
+    <ClInclude Include="algorithm\include\AlgoProcessingDefects.hpp" />
+    <ClInclude Include="algorithm\include\AlgoProcessVariant.hpp" />
+    <ClInclude Include="algorithm\include\AlgoReciprocity.hpp" />
+    <ClInclude Include="algorithm\include\AlgoRelativeExposure.hpp" />
+    <ClInclude Include="algorithm\include\AlgoReseauReconstruct.hpp" />
+    <ClInclude Include="algorithm\include\AlgorithmMain.hpp" />
+    <ClInclude Include="algorithm\include\AlgoScanMtf.hpp" />
+    <ClInclude Include="algorithm\include\AlgoScannerArtifacts.hpp" />
+    <ClInclude Include="algorithm\include\AlgoSeparableBlur.hpp" />
+    <ClInclude Include="algorithm\include\AlgoSilverTone.hpp" />
+    <ClInclude Include="algorithm\include\AlgoSpectralSensitivity.hpp" />
+    <ClInclude Include="algorithm\include\AlgoSpectralUpsamplingTable.hpp" />
+    <ClInclude Include="algorithm\include\AlgoStockColourBalance.hpp" />
+    <ClInclude Include="algorithm\include\AlgoStorageAge.hpp" />
+    <ClInclude Include="algorithm\include\AlgoTakingFilters.hpp" />
+    <ClInclude Include="algorithm\include\AlgoTemporalFlicker.hpp" />
+    <ClInclude Include="algorithm\include\AlgoTransmittance.hpp" />
+    <ClInclude Include="algorithm\include\AlgoTypes.hpp" />
+    <ClInclude Include="algorithm\include\AlgoVeilingFlare.hpp" />
+    <ClInclude Include="algorithm\include\film_params_mask.hpp" />
+    <ClInclude Include="database\include\film_enum.hpp" />
+    <ClInclude Include="database\include\film_params_mask.hpp" />
+    <ClInclude Include="database\include\film_profiles.hpp" />
+    <ClInclude Include="database\include\film_profiles_detail.hpp" />
+    <ClInclude Include="database\include\film_profile_serial.hpp" />
+    <ClInclude Include="database\include\film_schema_version.h" />
+    <ClInclude Include="database\include\LoadFilmDataBase.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="database\include\film_names.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="python\color_checker.py" />
+    <None Include="python\image_diff.py" />
+    <None Include="python\old_films_analyzing\analyze_film_scans.py" />
+    <None Include="python\png_compare.py" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>

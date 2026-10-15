@@ -46,7 +46,7 @@
 #endif
 
 
-inline void AEFX_INIT_PARAM_STRUCTURE(PF_ParamDef& strDef, const PF_ParamFlags& paramFlag, const PF_ParamUIFlags& uiFlag) noexcept
+inline void AEFX_INIT_PARAM_STRUCTURE(PF_ParamDef& strDef, const PF_ParamFlags paramFlag, const PF_ParamUIFlags uiFlag) noexcept
 {
 	AEFX_CLR_STRUCT_EX(strDef);
 	strDef.flags = paramFlag;

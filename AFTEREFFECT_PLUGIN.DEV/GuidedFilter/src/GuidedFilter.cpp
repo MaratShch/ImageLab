@@ -130,8 +130,8 @@ ParamsSetup(
 {
     CACHE_ALIGN PF_ParamDef	def;
 
-    constexpr PF_ParamFlags   flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
-    constexpr PF_ParamUIFlags ui_flags = PF_PUI_CONTROL;
+    constexpr PF_ParamFlags     flags = PF_ParamFlag_SUPERVISE | PF_ParamFlag_CANNOT_TIME_VARY | PF_ParamFlag_CANNOT_INTERP;
+    constexpr PF_ParamUIFlags   ui_flags = PF_PUI_NONE;
 
     // add 'Filter Mode' popup
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
