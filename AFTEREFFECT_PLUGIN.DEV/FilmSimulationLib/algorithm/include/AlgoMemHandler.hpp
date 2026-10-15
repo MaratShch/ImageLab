@@ -63,8 +63,6 @@
 // AlgoFreqState: the FFT plan, spectrum and tables of the frequency-domain
 // stages (owner's FFT library, 2026-10-06).
 #include "AlgoFrequency.hpp"
-// ALGO_JH_COUNT, the size of the spectral-upsampling response table.
-#include "AlgoSpectralUpsamplingTable.hpp"
 
 #include <cstddef>   // std::size_t
 #include <cstdint>   // int32_t, int64_t, uint8_t
@@ -254,15 +252,6 @@ struct MemHandler
     // copyable.
     AlgoFreqState Freq;
 
-    // --- spectral-upsampling response table (2026-10-13) --------------------
-    // ALGO_SPECTRAL_UPSAMPLING_LUT_COUNT floats (3 faces x 64 x 64 x 3 layers,
-    // 147 456 bytes), written once per frame by AlgoSpectralUpsamplingLut and
-    // read only by AlgoStage02b_SpectralUpsampling, and only when
-    // spectralTaking && spectralUpsampling. Its own slice, the LAST in the
-    // arena so no earlier offset moved; never aliased with an image plane, so
-    // the stage's RESTRICT on it is true.
-    float* Scr_SpectralLut;
-
     std::size_t totalSize;   // bytes obtained from the pool
 };
 
@@ -308,8 +297,7 @@ struct MemHandler
 //  dbgPrn: print the layout and per-buffer offsets. Diagnostic only, off in
 //  production, and it writes nothing when false.
 // ---------------------------------------------------------------------------
-MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY,
-                                 const bool dbgPrn) noexcept;
+MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexcept;
 
 
 // ---------------------------------------------------------------------------
@@ -320,3 +308,9 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY,
 //  safe to call twice.
 // ---------------------------------------------------------------------------
 void free_memory_buffers (MemHandler& algoMemHandler) noexcept;
+
+
+inline bool mem_handler_valid (MemHandler& hndl) noexcept
+{
+    return (hndl.memBlockId >= 0 && hndl.SuperBufferHead != nullptr) ? true : false;
+}

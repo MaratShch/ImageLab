@@ -25,7 +25,7 @@ PF_Err ProcessImgInPR
     const A_long sizeX = pfLayer->extent_hint.right  - pfLayer->extent_hint.left;
     const A_long rowBytes = pfLayer->rowbytes;
 
-    MemHandler memHndl = alloc_memory_buffers (sizeX, sizeY);
+    MemHandler memHndl = alloc_memory_buffers (static_cast<int32_t>(sizeX), static_cast<int32_t>(sizeY));
     if (true == mem_handler_valid(memHndl))
     {
         PF_Err errFormat = PF_Err_INVALID_INDEX;

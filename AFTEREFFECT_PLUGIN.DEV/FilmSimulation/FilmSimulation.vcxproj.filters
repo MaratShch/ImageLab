@@ -81,136 +81,16 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
-    <ClInclude Include="include\FilmSimulation.hpp">
+    <ClInclude Include="include\AlgoAdobeControlEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgorithmMain.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoControl.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoMemHandler.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoTypes.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoControlValues.hpp">
+    <ClInclude Include="include\AlgoControlAdobe.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\AlgoControlEnums.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\ImageLabMemInterface.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoCharacteristicCurve.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoCoatingField.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoCornerDefocus.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoCounterRng.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoDefectField.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoDirCoupler.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoDuplication.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoDyeImpurity.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoEdgeFog.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoEmulsionMtf.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoEmulsionRecord.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoFilmCoord.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoFinalClamp.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoGateDefects.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoGateWeave.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoGrain.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoHalation.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoInterimage.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoNegativeDefects.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoRelativeExposure.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoReseauReconstruct.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoScanMtf.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoSeparableBlur.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoSilverTone.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoStockColourBalance.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoTakingFilters.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoTemporalFlicker.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoTransmittance.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoVeilingFlare.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoSpectralSensitivity.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\film_enum.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\film_profiles.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\film_profiles_detail.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\LoadFilmDataBase.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoCallier.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoReciprocity.hpp">
+    <ClInclude Include="include\AlgoControlValues.hpp">
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="include\AlgoEgressAVX2.hpp">
@@ -231,266 +111,15 @@
     <ClInclude Include="include\AlgoPrFormatMath.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgoCurveLut.hpp">
+    <ClInclude Include="include\FilmSimulation.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgoProcessVariant.hpp">
+    <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgoBromideDrag.hpp">
+    <ClInclude Include="include\LoadFilmDataBase.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\AlgoAdobeControlEnums.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoDevelopmentTime.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoStorageAge.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\film_schema_version.h">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\film_params_mask.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoControlAdobe.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoBatchPosition.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoPassThrough.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\film_profile_serial.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoFftLane.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-    <ClInclude Include="include\AlgoFrequency.hpp">
-      <Filter>include</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="src\FilmSimulation.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\FilmSimulationAE.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\FilmSimulationPR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\FilmSimulationSR.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgorithmMain.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoControl.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\ImageLabMemInterface.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\FilmSimulationGUI.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoMemHandler.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_02_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_03_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_04_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_05_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_06_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_07_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_08_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_09_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_10_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_11_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_12_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_13_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_14_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_15_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_16_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\Algo_17_Sim.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoDefectField.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoSeparableBlur.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\FilmSimulationControlPanel.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoSpectralSensitivity.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_01.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_02.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_03.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_04.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_05.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_06.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_07.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_08.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_09.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_10.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_11.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_12.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_13.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_14.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_15.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_16.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\LoadFilmDataBase.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_17.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_18.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_19.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_20.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoControlAdobe.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_21.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_22.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_23.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_24.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_25.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_26.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_27.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_28.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_29.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_30.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_31.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_32.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_33.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_34.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_35.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_36.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_37.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_38.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\AlgoFrequency.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\film_profiles_data_39.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="FilmSimulation.rc">
@@ -503,8 +132,32 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="include\film_names.txt">
-      <Filter>include</Filter>
-    </Text>
+    <ClCompile Include="src\AlgoControlAdobe.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulation.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulationAE.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulationControlPanel.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulationGUI.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulationPR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FilmSimulationSR.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ImageLabMemInterface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\AlgoMemHandler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
