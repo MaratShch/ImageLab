@@ -22,6 +22,7 @@ enum class FilmSimulationCtrl : int32_t
     DEVELOPMENT_ENABLE,
     DEVELOPMENT_TIME,
     DEVELOPMENT_TEMPERATURE,
+//    DEVELOPER_INDEX,
     YEARS_OF_DARK_STORAGE,
     STORAGE_TEMPERATURE,
     BATCH_POSITION,
@@ -69,11 +70,20 @@ enum class FilmSimulationCtrl : int32_t
     COLOUR_VEIL,
     PRINTER_FLICKER,
     SCANNER_ARTIFACTS,
+    GROUP_STOP_FILM_DAMAGE_AND_AGE,
+    GROUP_START_SPECTRAL_AND_TEMPORAL,
+    SPECTRAL_TAKING_MATRIX,
+    GRAIN_TEMPORAL_MODE,
+    SPECTRAL_UPSAMPLING,
+    GROUP_STOP_SPECTRAL_AND_TEMPORAL,
+    GROUP_START_RAW_STOCK,
+    FILM_AGE_EXPIRED_STOCK,
+    GROUP_STOP_RAW_STOCK,
     TOTAL_PARAMS
 };
 
 constexpr char itemNames[][32] = {
-    " ",
+    " ",                            // 0
     "Film Stock",
     "Film Stock",
     "Film Format",
@@ -83,7 +93,7 @@ constexpr char itemNames[][32] = {
     "Exposure Time",
     "Mid-Gray Target",
     "Black Point Stretch",
-    "Development And Storage",
+    "Development And Storage",      // 10
     "Development Enable",
     "Development Time",
     "Development Temperature",
@@ -93,7 +103,7 @@ constexpr char itemNames[][32] = {
     "Colour & White Balance",
     "Scene Colour Temperature",
     "White Balance Strength",
-    "Print & Duplication",
+    "Print & Duplication",          // 20
     "Print Stock",
     "Duplication Generation",
     "Intermediate Stock",
@@ -103,7 +113,7 @@ constexpr char itemNames[][32] = {
     "Halation",
     "DIR Couplers",
     "Misregistration",
-    "Coating Unevenness",
+    "Coating Unevenness",           // 30
     "Reseau Reconstruction",
     "Lens and Reader",
     "Veiling Flare",
@@ -113,7 +123,7 @@ constexpr char itemNames[][32] = {
     "Film Damage and Age",
     "Enable Film Damage",
     "Overall Strength",
-    "Damage Seed",
+    "Damage Seed",                  // 40
     "Dust",
     "Debris",
     "Fibres",
@@ -123,12 +133,18 @@ constexpr char itemNames[][32] = {
     "Splice and Tear Events",
     "Transport Scratches",
     "Handling Scratches",
-    "Processing Quality",
+    "Processing Quality",           // 50
     "Drying Marks",
     "Storage Severity",
     "Colour Veil",
     "Printer Flicker",
-    "Scanner Artifacts"
+    "Scanner Artifacts",
+    "Spectral and Temporal",
+    "Spectral Taking Matrix",
+    "Grain Temporal Mode",
+    "Spectral Upsampling",
+    "Raw Stock",                    // 60
+    "Film Age (expired stock)"
 };
 
 

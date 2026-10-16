@@ -874,11 +874,16 @@ constexpr double ScannerArtifactsMax  = 2.0;
 constexpr double ScannerArtifactsDef  = 0.20;
 constexpr double ScannerArtifactsStep = 0.01;
 
-
 // Gate weave amplitude. Floor enforced at stage 15.
 constexpr double SpliceAndTearsEventstMin = 0.0;
 constexpr double SpliceAndTearsEventstMax = 2.0;
 constexpr double SpliceAndTearsEventstDef = 0.20;
 constexpr double SpliceAndTearsEventsttep = 0.01;
+
+// Film age months
+constexpr double FilmAgeMin = 0.0;
+constexpr double FilmAgeMax = 600.0;
+constexpr double FilmAgeDef = FilmAgeMin;
+constexpr double FilmAgeStep = 4.0;
 
 #endif // __IMAGE_LAB2_ALGO_CONTROL_ENUMERATORS__

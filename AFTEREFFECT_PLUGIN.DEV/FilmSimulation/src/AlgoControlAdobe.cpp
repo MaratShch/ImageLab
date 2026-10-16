@@ -107,6 +107,8 @@ AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int3
         algoParams.developmentMinutes = get_float_slider_value(params, FilmSimulationCtrl::DEVELOPMENT_TIME);
     if (is_control_available(film::eCTRL_BIT_DEVELOPMENT_CELSIUS, filmMask))
         algoParams.developmentCelsius = get_float_slider_value(params, FilmSimulationCtrl::DEVELOPMENT_TEMPERATURE);
+//    if (is_control_available(film::eCTRL_BIT_DEVELOPER_INDEX, filmMask))
+//        algoParams.developerIndex = ;////
     if (is_control_available(film::eCTRL_BIT_STORAGE_YEARS, filmMask))
         algoParams.storageYears = get_slider_value(params, FilmSimulationCtrl::YEARS_OF_DARK_STORAGE);
     if (is_control_available(film::eCTRL_BIT_STORAGE_CELSIUS, filmMask))
