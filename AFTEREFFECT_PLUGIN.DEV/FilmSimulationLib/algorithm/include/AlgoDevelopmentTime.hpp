@@ -96,6 +96,7 @@
 
 // film::FilmProfile, film::ProcessingFamily, film::DevelopmentPoint.
 #include "film_profiles.hpp"
+#include "AlgoControlEnums.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -1027,6 +1028,32 @@ inline void AlgoDeveloperFactors
     const HighPrecType rh = static_cast<HighPrecType>(ref->development_halo_width_um);
     if ((qr > zero) && (rr > zero)) fRms = qr / rr;
     if ((qh > zero) && (rh > zero)) fAdj = qh / rh;
+}
+
+// ---------------------------------------------------------------------------
+//  AlgoDeveloperRowFromCtrl -- the stock's own grain_points row for the
+//  DeveloperCtrl list-box value, or -1 (render as shipped) when the value is
+//  eAS_SHIPPED, out of range, or a developer this stock was not measured in.
+//  2026-10-16f. Twin: film_sim.developer_row_for.
+// ---------------------------------------------------------------------------
+inline int32_t AlgoDeveloperRowFromCtrl
+(
+    const film::FilmProfile& base,
+    const DeveloperCtrl      ctrl
+) noexcept
+{
+    const int32_t v = static_cast<int32_t>(ctrl);
+    if ((v <= 0) || (v >= DeveloperCtrlCount))
+        return -1;
+    const std::string key(DeveloperCtrlKey[v]);
+    if (key.empty())
+        return -1;
+    const std::vector<film::DeveloperGrainPoint>& rows =
+        base.processing_family.grain_points;
+    for (std::size_t i = 0; i < rows.size(); ++i)
+        if (AlgoDeveloperNameEq(rows[i].developer, key))
+            return static_cast<int32_t>(i);
+    return -1;
 }
 
 // ---------------------------------------------------------------------------

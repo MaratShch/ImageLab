@@ -541,14 +541,16 @@ void Algorithm_Main
     // -----------------------------------------------------------------------
     //  THE DEVELOPER (schema v60), straight after the time: both describe the
     //  development. Ratios between one laboratory's rows for this film -- see
-    //  AlgoDevelopmentTime.hpp. Inert at -1 and on every stock with no rows;
+    //  AlgoDevelopmentTime.hpp. Inert at eAS_SHIPPED, on a developer the stock was
+    //  not measured in, and on every stock with no rows;
     //  `developerStore` is then never written.
     // -----------------------------------------------------------------------
     film::FilmProfile developerStore;
 
     const film::FilmProfile& profileDeveloperOnly =
         AlgoResolveDeveloper(profileDeveloped,
-                             algoCtrl.developerIndex,
+                             AlgoDeveloperRowFromCtrl(profileDeveloped,
+                                                      algoCtrl.developerIndex),
                              developerStore);
 
     // -----------------------------------------------------------------------

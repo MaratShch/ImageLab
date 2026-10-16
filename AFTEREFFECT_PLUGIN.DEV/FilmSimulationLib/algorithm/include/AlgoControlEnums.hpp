@@ -504,16 +504,116 @@ constexpr double DevelopmentCelsiusMax  = 24.0;
 constexpr double DevelopmentCelsiusDef  = DevelopmentCelsiusSentinel;
 constexpr double DevelopmentCelsiusStep = 0.5;
 
-// Developer row (schema v60): an index into the stock's own
-// film::ProcessingFamily::grain_points, -1 = the developer the stored profile
-// represents. The upper bound is the ENVELOPE (GRAIN_DEVELOPER_MAX - 1 in
-// film_profiles.py); a stock's own range is its row count, and an index past
-// it is treated as the sentinel. Four stocks carry rows at schema v60.
-constexpr int32_t DeveloperIndexSentinel = -1;
-constexpr int32_t DeveloperIndexMin  = -1;
-constexpr int32_t DeveloperIndexMax  = 11;
-constexpr int32_t DeveloperIndexDef  = DeveloperIndexSentinel;
-constexpr int32_t DeveloperIndexStep = 1;
+// ---------------------------------------------------------------------------
+//  Developer (list box)  --  2026-10-16f, owner request
+// ---------------------------------------------------------------------------
+//  Develops the film in another DEVELOPER, from one laboratory's measurements
+//  of that same film in each (Bernhard W. Schmidt: T-MAX 100, T-MAX 400,
+//  Tri-X 400TX, Pan F -- film::ProcessingFamily::grain_points). rms
+//  granularity and the adjacency (development-halo) scale move by RATIOS to
+//  the stock's reference developer row.
+//
+//  The control is a GLOBAL enumeration, like ProcessVariantCtrl: each value
+//  names ONE developer and means the same on every stock. Until 2026-10-16f
+//  it was a bare row index (DeveloperIndexMin/Max/Def, -1 = sentinel) into
+//  each stock's own rows, which a list box cannot present: row 2 was a
+//  different developer on different stocks.
+//
+//  WHICH STOCK OFFERS WHICH DEVELOPER is answered per stock, by searching its
+//  grain_points for the developer's key (AlgoDeveloperRowFromCtrl,
+//  AlgoDevelopmentTime.hpp). A developer the loaded stock was not measured in
+//  renders AS SHIPPED -- the host should grey the entry -- and so does every
+//  stock without rows (226 of 230). eAS_SHIPPED is entry 0, the developer the
+//  stored profile represents (D-76 on all four stocks today, so eD76 renders
+//  identically to eAS_SHIPPED there).
+//
+//  THE ORDER IS FIXED AND THE TABLES BELOW ARE INDEX ALIGNED WITH IT. The
+//  keys are the exact film::DeveloperGrainPoint::developer strings, and
+//  verify.py (G-DEVELOPER-CTRL) refuses the build unless they equal the set
+//  of developer names in the database, in either direction. A developer
+//  added to the database is APPENDED before TOTAL_DEVELOPERS so that no
+//  stored value moves.
+enum class DeveloperCtrl : int32_t
+{
+    eAS_SHIPPED = 0,    //  the developer the stored profile represents
+    eATOMAL,            //  Atomal
+    eD76,               //  Kodak D-76
+    eFX39,              //  Adox FX-39
+    eMICROPHEN,         //  Ilford Microphen
+    eRODINAL,           //  Rodinal
+    eSD2525,            //  SD 25/25
+    eSHADOWMAX_19Z,     //  Shadowmax 19/z
+    eWEHNER_ALPHA,      //  Wehner / Alpha
+    eXTOL,              //  Kodak XTOL
+
+    //  \warning TOTAL_DEVELOPERS IS A COUNT, NOT A DEVELOPER. It must stay
+    //  last, must never be offered in the list box, and must never be stored.
+    TOTAL_DEVELOPERS
+};
+
+//  The count as a plain integer, for array bounds and loop limits.
+constexpr int32_t DeveloperCtrlCount =
+    static_cast<int32_t>(DeveloperCtrl::TOTAL_DEVELOPERS);
+
+constexpr DeveloperCtrl DeveloperCtrlDef = DeveloperCtrl::eAS_SHIPPED;
+
+//  Display strings for the list box, pipe separated in enumerator order.
+//  TOTAL_DEVELOPERS is absent by design; eAS_SHIPPED is entry 0.
+constexpr char DeveloperCtrlStr[] =
+    "As shipped|"
+    "Atomal|"
+    "D-76|"
+    "FX-39|"
+    "Microphen|"
+    "Rodinal|"
+    "SD 25/25|"
+    "Shadowmax 19/z|"
+    "Wehner/Alpha|"
+    "XTOL";
+
+constexpr const char* const DeveloperCtrlNoneStr = "As shipped";
+
+//  The same strings indexed by enumerator.
+constexpr const char* const DeveloperCtrlName[] =
+{
+    "As shipped",
+    "Atomal",
+    "D-76",
+    "FX-39",
+    "Microphen",
+    "Rodinal",
+    "SD 25/25",
+    "Shadowmax 19/z",
+    "Wehner/Alpha",
+    "XTOL",
+};
+
+//  Database keys, index aligned with DeveloperCtrl: the exact
+//  film::DeveloperGrainPoint::developer strings.
+//  \warning ENTRY 0 IS EMPTY AND MUST STAY EMPTY: the resolver refuses an
+//  empty key, so eAS_SHIPPED always renders the stored profile.
+constexpr const char* const DeveloperCtrlKey[] =
+{
+    "",
+    "Atomal",
+    "D76",
+    "FX39",
+    "Microphen",
+    "Rodinal",
+    "SD2525",
+    "Shadowmax 19/z",
+    "Wehner/Alpha",
+    "XTOL",
+};
+
+static_assert(
+    static_cast<int32_t>(sizeof(DeveloperCtrlName)
+                         / sizeof(DeveloperCtrlName[0])) == DeveloperCtrlCount,
+    "DeveloperCtrlName must have exactly TOTAL_DEVELOPERS entries");
+static_assert(
+    static_cast<int32_t>(sizeof(DeveloperCtrlKey)
+                         / sizeof(DeveloperCtrlKey[0])) == DeveloperCtrlCount,
+    "DeveloperCtrlKey must have exactly TOTAL_DEVELOPERS entries");
 
 // Years of DARK STORAGE since processing, for image-dye fade. Zero is the OFF
 // sentinel and is fresh film, not a minimum.
@@ -560,6 +660,16 @@ constexpr double FilmAgeMonthsMin  =   0.0;
 constexpr double FilmAgeMonthsMax  = 600.0;
 constexpr double FilmAgeMonthsDef  = FilmAgeMonthsOff;
 constexpr double FilmAgeMonthsStep =   1.0;
+
+// ⚠ OWNER'S PANEL CONSTANTS FOR THE SAME CONTROL (2026-10-16f, owner request),
+// kept VERBATIM -- do not rename or "merge" them. Same range and default as
+// FilmAgeMonths* above; the panel steps by 4 months, the engine clamps with
+// FilmAgeMonthsMin/Max (identical limits).
+// Film age months
+constexpr double FilmAgeMin = 0.0;
+constexpr double FilmAgeMax = 600.0;
+constexpr double FilmAgeDef = FilmAgeMin;
+constexpr double FilmAgeStep = 4.0;
 
 // -- duplication -----------------------------------------------------------
 
@@ -874,16 +984,11 @@ constexpr double ScannerArtifactsMax  = 2.0;
 constexpr double ScannerArtifactsDef  = 0.20;
 constexpr double ScannerArtifactsStep = 0.01;
 
+
 // Gate weave amplitude. Floor enforced at stage 15.
 constexpr double SpliceAndTearsEventstMin = 0.0;
 constexpr double SpliceAndTearsEventstMax = 2.0;
 constexpr double SpliceAndTearsEventstDef = 0.20;
 constexpr double SpliceAndTearsEventsttep = 0.01;
-
-// Film age months
-constexpr double FilmAgeMin = 0.0;
-constexpr double FilmAgeMax = 600.0;
-constexpr double FilmAgeDef = FilmAgeMin;
-constexpr double FilmAgeStep = 4.0;
 
 #endif // __IMAGE_LAB2_ALGO_CONTROL_ENUMERATORS__

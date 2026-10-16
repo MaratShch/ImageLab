@@ -357,9 +357,9 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     controls.processVariant     = ProcessVariantCtrlDef;
     controls.developmentMinutes = -1.0;
     controls.developmentCelsius = -1.0;
-    //    * developerIndex (schema v60): -1 is the sentinel and 0 is a REAL
-    //      developer row, so zero-init would select one. Assigned explicitly.
-    controls.developerIndex     = -1;     // == DeveloperIndexDef
+    //    * developerIndex: a DeveloperCtrl list-box value since 2026-10-16f;
+    //      eAS_SHIPPED (0) renders the stored profile. Assigned explicitly.
+    controls.developerIndex     = DeveloperCtrlDef;
     //    * storageYears' sentinel is 0 and means FRESH, so the zeroed
     //      default is already correct -- set explicitly all the same, so a
     //      reader of this function sees every control accounted for.
@@ -630,7 +630,7 @@ AlgoControls AlgoControlsClamped (const AlgoControls& in, const int32_t profileC
                                              DevelopmentMinutesMax, DevelopmentMinutesSentinel);
     c.developmentCelsius = algoClampSentinel(c.developmentCelsius, DevelopmentCelsiusMin,
                                              DevelopmentCelsiusMax, DevelopmentCelsiusSentinel);
-    c.developerIndex     = algoClampInt(c.developerIndex, DeveloperIndexMin, DeveloperIndexMax);
+    c.developerIndex     = algoClampEnum(c.developerIndex, DeveloperCtrlCount, DeveloperCtrlDef);
     c.storageYears       = algoClampCtl(c.storageYears, StorageYearsMin, StorageYearsMax, StorageYearsOff);
     c.storageCelsius     = algoClampCtl(c.storageCelsius, StorageCelsiusMin, StorageCelsiusMax, StorageCelsiusDef);
     c.filmAgeMonths      = algoClampCtl(c.filmAgeMonths, FilmAgeMonthsMin, FilmAgeMonthsMax, FilmAgeMonthsOff);

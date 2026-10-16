@@ -977,6 +977,8 @@ struct FilmDamage
 // ⚠ +1 ON 2026-10-01 (schema v60): developerIndex added after
 // developmentCelsius, and it IS consumed (AlgoResolveDeveloper). Sentinel -1,
 // assigned explicitly in getAlgoControlsDefault().
+// ⚠ 2026-10-16f: developerIndex is now a DeveloperCtrl list-box value (same
+// size and position, int32 underlying type); eAS_SHIPPED = 0 is the default.
 //
 // ⚠ +1 ON 2026-10-16 (#209): filmAgeMonths added after storageCelsius, and it
 // IS consumed (AlgoResolveFilmAge, AlgoFilmAgeLogShift). Sentinel 0 (fresh),
@@ -1850,33 +1852,36 @@ struct AlgoControls
 
     /**
      *  1  NAME           developerIndex
-     *  2  TYPE           int32_t
-     *  3  AE CONTROL     popup listing the selected stock's own developer rows
-     *                    (film::ProcessingFamily::grain_points, by developer
-     *                    name), and it MUST HIDE OR DISABLE ITSELF on a stock
-     *                    with none -- 217 of 221 at schema v60.
-     *  4  UNIT           row index into grain_points
-     *  5  MIN            -1, the sentinel: the developer the stored profile
+     *  2  TYPE           DeveloperCtrl (enum class, int32_t underlying) --
+     *                    a LIST BOX value since 2026-10-16f
+     *  3  AE CONTROL     popup, items DeveloperCtrlStr (AlgoControlEnums.hpp);
+     *                    item n (1-based) <-> DeveloperCtrl(n - 1). Grey the
+     *                    entries the selected stock was not measured in
+     *                    (AlgoDeveloperRowFromCtrl returns -1), and hide or
+     *                    disable the whole control on a stock with no rows --
+     *                    226 of 230.
+     *  4  UNIT           one developer, by name
+     *  5  MIN            eAS_SHIPPED (0): the developer the stored profile
      *                    represents (grain_reference_developer)
-     *  6  MAX            the stock's row count - 1; DeveloperIndexMax is the
-     *                    envelope (GRAIN_DEVELOPER_MAX - 1). An index past the
-     *                    stock's rows is treated as the sentinel
-     *  7  DEFAULT        -1. Reproduces every pre-v60 render BIT FOR BIT
-     *  8  STEP           1
+     *  6  MAX            DeveloperCtrlCount - 1; any value outside the range
+     *                    is clamped to eAS_SHIPPED
+     *  7  DEFAULT        eAS_SHIPPED. Reproduces every pre-v60 render BIT FOR
+     *                    BIT
+     *  8  STEP           1 (list item)
      *  9  PURPOSE        Develops the film in a different developer, from one
      *                    laboratory's measurements of THAT film in each
      *                    (Bernhard W. Schmidt: T-MAX 100, T-MAX 400, Tri-X,
      *                    Pan F).
-     * 10  OUTPUT EFFECT  rms granularity x rms_d[i]/rms_d[ref] (grain_um kept,
-     *                    so the spectrum keeps its shape); MTFSpec::adjacency_um
-     *                    x halo[i]/halo[ref] (the development-halo width at
-     *                    8 lp/mm). RATIOS ONLY: the source's rms scale is not
-     *                    Kodak's 48 um scale. Speed and contrast are NOT moved:
-     *                    the measured speeds are stored, and the Exposure
-     *                    control already owns speed.
+     * 10  OUTPUT EFFECT  rms granularity x rms_d[dev]/rms_d[ref] (grain_um
+     *                    kept, so the spectrum keeps its shape);
+     *                    MTFSpec::adjacency_um x halo[dev]/halo[ref] (the
+     *                    development-halo width at 8 lp/mm). RATIOS ONLY: the
+     *                    source's rms scale is not Kodak's 48 um scale. Speed
+     *                    and contrast are NOT moved.
      * 11  STAGES         resolved in FRAME SETUP straight after
-     *                    developmentMinutes (AlgoResolveDeveloper); read by
-     *                    stage 06 (adjacency) and stage 11 (grain)
+     *                    developmentMinutes (AlgoDeveloperRowFromCtrl ->
+     *                    AlgoResolveDeveloper); read by stage 06 (adjacency)
+     *                    and stage 11 (grain)
      * 12  INTERACTIONS   Composes with developmentMinutes: both scale rms by a
      *                    factor, and the time's gamma law is the REFERENCE
      *                    developer's -- an approximation the panel should not
@@ -1884,13 +1889,17 @@ struct AlgoControls
      *                    practice, for that control's reason.
      * 13  SCALAR/AVX2    External semantics identical; one shared frame-setup
      *                    resolver in AlgoDevelopmentTime.hpp.
-     * 14  FULL/LITE      Both: one profile copy per frame when a row is chosen.
+     * 14  FULL/LITE      Both: one profile copy per frame when a developer
+     *                    other than the reference is chosen.
      *
-     *   SENTINEL: strictly developerIndex < 0. Zero is a REAL row (the first
-     *   developer by name), so it must be assigned explicitly in
-     *   getAlgoControlsDefault() -- the processVariant trap, not repeated.
+     *   ⚠ CHANGED 2026-10-16f (owner request): until then this field was an
+     *   int32_t ROW INDEX into the stock's own grain_points with -1 as the
+     *   sentinel, which a list box cannot fill (row n named a different
+     *   developer on different stocks). It is now the global enumeration,
+     *   so the host must assign a DeveloperCtrl; an int assignment no longer
+     *   compiles, deliberately.
      */
-    int32_t developerIndex;
+    DeveloperCtrl developerIndex;
 
     /**
      *  1  NAME           storageYears
