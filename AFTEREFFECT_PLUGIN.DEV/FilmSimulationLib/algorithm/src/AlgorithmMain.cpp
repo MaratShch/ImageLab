@@ -92,9 +92,9 @@
 //
 //  A -D on the command line wins: the guard only supplies a default.
 // ---------------------------------------------------------------------------
-//#ifndef ALGO_PROFILE_STAGES
-//#define ALGO_PROFILE_STAGES 1
-//#endif
+#ifndef ALGO_PROFILE_STAGES
+#define ALGO_PROFILE_STAGES 1
+#endif
 
 #if defined(ALGO_PROFILE_STAGES) && (ALGO_PROFILE_STAGES != 0)
     #include <cstdio>    // std::fprintf, the report
@@ -118,6 +118,7 @@
 #include "AlgoProcessVariant.hpp"
 #include "AlgoDevelopmentTime.hpp"
 #include "AlgoStorageAge.hpp"        // frame setup, curve selection
+#include "AlgoFilmAge.hpp"           // frame setup + log-exposure constant (#209)
 #include "AlgoBatchPosition.hpp"     // frame setup, curve selection
 #include "AlgoInterimage.hpp"            // stage 8b
 #include "AlgoDirCoupler.hpp"            // stage 9
@@ -521,6 +522,14 @@ void Algorithm_Main
     //  it, `developStore` is never written, and the reference binds straight
     //  through. A time outside the stock's traced range takes the same path.
     // -----------------------------------------------------------------------
+    // #209: the reciprocity CONTRAST factor is read off the profile BEFORE the
+    // development controls move its gamma -- a stock with no ProcessingSpec
+    // minutes anchors its development axis on its stored gamma -- and applied
+    // after them, below. Exactly 1 when no exposure time is stated.
+    const HighPrecType recipContrast =
+        AlgoReciprocityContrastScale(profileVariant,
+                                     static_cast<HighPrecType>(algoCtrl.exposureTimeS));
+
     film::FilmProfile developStore;
 
     const film::FilmProfile& profileDeveloped =
@@ -537,10 +546,34 @@ void Algorithm_Main
     // -----------------------------------------------------------------------
     film::FilmProfile developerStore;
 
-    const film::FilmProfile& profileDeveloper =
+    const film::FilmProfile& profileDeveloperOnly =
         AlgoResolveDeveloper(profileDeveloped,
                              algoCtrl.developerIndex,
                              developerStore);
+
+    // -----------------------------------------------------------------------
+    //  #209 (2026-10-16): RECIPROCITY CONTRAST and RAW-STOCK AGE.
+    //
+    //  The maker's development correction for a long exposure, read as the
+    //  contrast the exposure itself adds (AlgoDevelopmentTime.hpp), and the
+    //  'expired film' control bounded by the stock's own standard
+    //  (AlgoFilmAge.hpp). Both move gamma or D-min only, which commute with the
+    //  development changes above. INERT AT THE DEFAULT: no exposure time and
+    //  filmAgeMonths 0 leave both stores unwritten and bind straight through.
+    // -----------------------------------------------------------------------
+    film::FilmProfile recipStore;
+
+    const film::FilmProfile& profileRecip =
+        AlgoResolveReciprocityContrast(profileDeveloperOnly,
+                                       recipContrast,
+                                       recipStore);
+
+    film::FilmProfile filmAgeStore;
+
+    const film::FilmProfile& profileDeveloper =
+        AlgoResolveFilmAge(profileRecip,
+                           algoCtrl.filmAgeMonths,
+                           filmAgeStore);
 
     // -----------------------------------------------------------------------
     //  DARK STORAGE, last of the three profile resolvers.
@@ -1262,6 +1295,20 @@ void Algorithm_Main
     AlgoReciprocityLogShift(profile,
                             static_cast<HighPrecType>(algoCtrl.exposureTimeS),
                             recipShift);
+
+    // #209: the aged stock's speed loss is the same kind of constant -- a shift
+    // of the log exposure the emulsion receives -- and joins it. Exactly 0 at
+    // filmAgeMonths 0, so the sum is the identity there.
+    {
+        const HighPrecType ageShift =
+            AlgoFilmAgeLogShift(profile, algoCtrl.filmAgeMonths);
+        if (ageShift != static_cast<HighPrecType>(0))
+        {
+            recipShift[0] += ageShift;
+            recipShift[1] += ageShift;
+            recipShift[2] += ageShift;
+        }
+    }
 
     // -----------------------------------------------------------------------
     // 8. CHARACTERISTIC CURVE                              S07 -> S08

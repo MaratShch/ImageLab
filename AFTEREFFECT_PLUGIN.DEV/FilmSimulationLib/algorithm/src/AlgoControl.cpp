@@ -369,6 +369,9 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     //      5.3. Its default is 24.0, the reference temperature of every
     //      stored dark-fade record, which is the identity.
     controls.storageCelsius     = 24.0;   // == StorageCelsiusDef
+    //    * filmAgeMonths (#209): 0 is the sentinel and is FRESH stock, so the
+    //      zeroed default is already correct -- set explicitly all the same.
+    controls.filmAgeMonths      = 0.0;    // == FilmAgeMonthsDef
 
     // film_sim: generations = 0 -- camera negative straight to print.
     controls.generations = 0;
@@ -630,6 +633,7 @@ AlgoControls AlgoControlsClamped (const AlgoControls& in, const int32_t profileC
     c.developerIndex     = algoClampInt(c.developerIndex, DeveloperIndexMin, DeveloperIndexMax);
     c.storageYears       = algoClampCtl(c.storageYears, StorageYearsMin, StorageYearsMax, StorageYearsOff);
     c.storageCelsius     = algoClampCtl(c.storageCelsius, StorageCelsiusMin, StorageCelsiusMax, StorageCelsiusDef);
+    c.filmAgeMonths      = algoClampCtl(c.filmAgeMonths, FilmAgeMonthsMin, FilmAgeMonthsMax, FilmAgeMonthsOff);
 
     c.scannerSpecular     = algoClampCtl(c.scannerSpecular, ScannerSpecularMin, ScannerSpecularMax, ScannerSpecularDef);
     c.scannerFixedPattern = algoClampCtl(c.scannerFixedPattern, ScannerFixedPatternMin, ScannerFixedPatternMax, ScannerFixedPatternDef);
@@ -664,7 +668,11 @@ AlgoControls AlgoControlsClamped (const AlgoControls& in, const int32_t profileC
     d.gateDirt          = algoClampCtl(d.gateDirt,          GateDirtMin,          GateDirtMax,          GateDirtDef);
     d.weaveAmount       = algoClampCtl(d.weaveAmount,       WeaveAmountMin,       WeaveAmountMax,       WeaveAmountDef);
     d.damageEvents      = algoClampCtl(d.damageEvents,      DamageEventsMin,      DamageEventsMax,      DamageEventsDef);
-    d.flickerStops      = algoClampCtl(d.flickerStops,      FlickerStopsMin,      FlickerStopsMax,      FlickerStopsDef);
+    // #209: a negative flickerStops is the "stock's own era value" sentinel
+    // (FlickerStopsStock) and is kept as such; anything else is clamped.
+    d.flickerStops      = (std::isfinite(d.flickerStops) && (d.flickerStops < 0.0))
+                        ? FlickerStopsStock
+                        : algoClampCtl(d.flickerStops,      FlickerStopsMin,      FlickerStopsMax,      FlickerStopsDef);
     d.scannerArtifacts  = algoClampCtl(d.scannerArtifacts,  ScannerArtifactsMin,  ScannerArtifactsMax,  ScannerArtifactsDef);
 
     return c;

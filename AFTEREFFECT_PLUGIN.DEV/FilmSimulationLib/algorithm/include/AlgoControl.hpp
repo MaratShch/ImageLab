@@ -855,9 +855,15 @@ struct FilmDamage
      *  2  TYPE           double
      *  3  AE CONTROL     slider
      *  4  UNIT           RMS exposure gain in photographic STOPS
-     *  5  MIN            0.0   (FlickerStopsMin, clamped on entry)
+     *  5  MIN            0.0   (FlickerStopsMin, clamped on entry) -- except
+     *                    the SENTINEL FlickerStopsStock = -1 (#209, 2026-10-16):
+     *                    any negative value selects the STOCK'S OWN era flicker,
+     *                    TemporalSpec::flicker_pct read as log2(1 + pct/100)
+     *                    RMS stops (tier-3 era estimates on all 226 stocks)
      *  6  MAX            0.5   (FlickerStopsMax, clamped on entry)
-     *  7  DEFAULT        0.15   (AlgoControl.cpp, getFilmDamageDefault)
+     *  7  DEFAULT        0.15   (AlgoControl.cpp, getFilmDamageDefault) -- the
+     *                    default is unchanged, so the sentinel moves nothing
+     *                    unless the host selects it
      *  8  STEP           0.01 - one hundredth of a stop is below the visible
      *                    threshold for frame-to-frame flicker
      *  9  PURPOSE        CONSUMED SINCE 2026-10-10. Temporal exposure flicker:
@@ -970,6 +976,10 @@ struct FilmDamage
 //
 // ⚠ +1 ON 2026-10-01 (schema v60): developerIndex added after
 // developmentCelsius, and it IS consumed (AlgoResolveDeveloper). Sentinel -1,
+// assigned explicitly in getAlgoControlsDefault().
+//
+// ⚠ +1 ON 2026-10-16 (#209): filmAgeMonths added after storageCelsius, and it
+// IS consumed (AlgoResolveFilmAge, AlgoFilmAgeLogShift). Sentinel 0 (fresh),
 // assigned explicitly in getAlgoControlsDefault().
 //
 // ⚠ 27 -> 28 ON 2026-09-09c: blackPointStretch added, and it IS consumed
@@ -1993,6 +2003,52 @@ struct AlgoControls
      *   refrigerated film.
      */
     double storageCelsius;
+
+    /**
+     *  1  NAME           filmAgeMonths
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
+     *                    whose standard prints no ageing bound -- the rule
+     *                    storageYears follows. ⚠ THAT IS 209 OF 226 STOCKS:
+     *                    only the 17 Soviet ТУ / ГОСТ stocks carry one
+     *                    (film_params_mask.hpp bit eCTRL_BIT_FILM_AGE_MONTHS).
+     *  4  UNIT           months between manufacture and exposure (the age of
+     *                    the UNEXPOSED stock -- not storage after processing,
+     *                    which is storageYears)
+     *  5  MIN            0, which is also the OFF sentinel and means fresh
+     *  6  MAX            600 (FilmAgeMonthsMax) -- a slider range; the model is
+     *                    held at the standard's bound beyond the guarantee
+     *  7  DEFAULT        0
+     *  8  STEP           1
+     *  9  PURPOSE        'Expired film'. Renders a roll as old as the stated
+     *                    months, bounded by the only raw-stock ageing data in
+     *                    the corpus: the acceptance bound a standard prints for
+     *                    the END of the guarantee period.
+     * 10  OUTPUT EFFECT  Fraction a = 0 through drift_free_months, linear to 1
+     *                    at guarantee_months, held at 1 beyond. Speed: a
+     *                    log10(1 - L a) shift of the emulsion's exposure, added
+     *                    to the reciprocity shift before stage 8. Negative:
+     *                    D-min + drift a in every record. Reversal: D-max -
+     *                    |drift| a with D-min held (gamma scaled). ⚠ THE RAMP IS
+     *                    A DEFINITION -- the standard fixes the end points only
+     *                    -- and nothing past the guarantee is extrapolated.
+     * 11  STAGES         FRAME SETUP (AlgoResolveFilmAge, after the developer
+     *                    resolver) and the per-frame log-exposure constants
+     *                    before stage 8 (AlgoFilmAgeLogShift)
+     * 12  INTERACTIONS   Compounds with the development controls (gamma and
+     *                    D-min changes commute) and with exposureTimeS (the two
+     *                    log shifts add). Independent of storageYears, which
+     *                    ages the PROCESSED image.
+     * 13  SCALAR/AVX2    External semantics identical; the shared header
+     *                    AlgoFilmAge.hpp runs once per frame in HighPrecType.
+     * 14  FULL/LITE      Both: frame setup only, no pixel loop.
+     *
+     *   SENTINEL: filmAgeMonths <= 0 is fresh stock; the base profile is
+     *   returned by reference and the shift is exactly 0, so 0 reproduces
+     *   pre-field renders bit for bit. Added 2026-10-16 (#209); zero-init is
+     *   already the sentinel, and getAlgoControlsDefault() assigns it anyway.
+     */
+    double filmAgeMonths;
 
     /**
      *  1  NAME           scannerSpecular

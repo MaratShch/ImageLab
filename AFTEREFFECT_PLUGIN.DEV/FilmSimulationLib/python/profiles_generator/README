@@ -1,0 +1,4 @@
+Command:
+
+set FILMSIM_ROOT=C:\path\to\folder\with\AlgoControlEnums.hpp
+python cpp_codegen.py -o out

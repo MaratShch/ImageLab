@@ -119,6 +119,10 @@ FORCE_INLINE bool AlgoPass03c (const AlgoControls& params) noexcept
     const FilmDamage& dmg = params.damage;
     const HighPrecType strength = MAX_VALUE(static_cast<HighPrecType>(dmg.damageStrength), 0.0);
     if (strength <= 0.0) return true;
+    // #209: a negative value is the stock's own era flicker (flicker_pct),
+    // which this test cannot see without the profile -- run the stage; it
+    // returns a gain of exactly 1 on a stock whose value is 0.
+    if (dmg.flickerStops < 0.0) return false;
     const HighPrecType flicker = MAX_VALUE(static_cast<HighPrecType>(dmg.flickerStops), 0.0) * strength;
     return (flicker <= 0.0);
 }

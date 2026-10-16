@@ -28,6 +28,9 @@
     <Filter Include="python\profiles_generator">
       <UniqueIdentifier>{a4e33a70-b34a-4992-9c94-545c89b1d1db}</UniqueIdentifier>
     </Filter>
+    <Filter Include="include_common">
+      <UniqueIdentifier>{595da547-40ed-48c2-b8df-48a9369db844}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="database\src\film_profiles.cpp">
@@ -348,6 +351,12 @@
     <ClCompile Include="algorithm\src\AlgoControl.cpp">
       <Filter>algorithm\src</Filter>
     </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_76.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_77.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="database\include\film_enum.hpp">
@@ -521,10 +530,85 @@
     <ClInclude Include="algorithm\include\film_params_mask.hpp">
       <Filter>algorithm\include</Filter>
     </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoFilmAge.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\AlignedAllocator.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ClassRestrictions.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransform.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Common.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormat.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonSmartRender.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmetics.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\LibExport.hpp">
+      <Filter>include_common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Common\Param_Utils.h">
+      <Filter>include_common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="database\include\film_names.txt">
       <Filter>database\include</Filter>
+    </Text>
+    <Text Include="algorithm\include\film_display_order.txt">
+      <Filter>algorithm\include</Filter>
+    </Text>
+    <Text Include="algorithm\include\film_id_migration.txt">
+      <Filter>algorithm\include</Filter>
+    </Text>
+    <Text Include="algorithm\include\film_names.txt">
+      <Filter>algorithm\include</Filter>
     </Text>
   </ItemGroup>
   <ItemGroup>
@@ -539,6 +623,30 @@
     </None>
     <None Include="python\png_compare.py">
       <Filter>python</Filter>
+    </None>
+    <None Include="python\profiles_generator\algo_control_enums.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\cpp_codegen.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\film_ids.lock">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\film_profiles.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\film_sim.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\gen_control_enums.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\README">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\scanner_reader_data.py">
+      <Filter>python\profiles_generator</Filter>
     </None>
   </ItemGroup>
 </Project>

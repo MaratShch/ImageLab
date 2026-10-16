@@ -290,3 +290,41 @@ inline const film::FilmProfile& AlgoResolveProcessVariant
 
     return store;
 }
+
+
+// ---------------------------------------------------------------------------
+//  AlgoPushRange / AlgoPushWithinRange  (#209 item 6, 2026-10-16)
+//
+//  The maker's stated push / pull latitude (film::PushSpec::max_push_stops /
+//  max_pull_stops; 38 / 31 stocks), for the HOST: how far a panel may offer to
+//  push or pull this film, and where to warn. 0 = the sheet is silent, which
+//  is not a refusal. NOT a render input -- a push renders through the stock's
+//  traced process variants and the Development Time control.
+//  film_sim.push_range / push_within_range are the same functions.
+// ---------------------------------------------------------------------------
+inline void AlgoPushRange
+(
+    const film::FilmProfile& p,
+    double&                  maxPushStops,
+    double&                  maxPullStops
+) noexcept
+{
+    maxPushStops = (p.push.max_push_stops > 0.0f) ? static_cast<double>(p.push.max_push_stops) : 0.0;
+    maxPullStops = (p.push.max_pull_stops > 0.0f) ? static_cast<double>(p.push.max_pull_stops) : 0.0;
+}
+
+inline bool AlgoPushWithinRange
+(
+    const film::FilmProfile& p,
+    const double             stops
+) noexcept
+{
+    double mp;
+    double ml;
+    AlgoPushRange(p, mp, ml);
+    if (stops > 0.0)
+        return (mp <= 0.0) || (stops <= mp + 1e-9);
+    if (stops < 0.0)
+        return (ml <= 0.0) || (-stops <= ml + 1e-9);
+    return true;
+}

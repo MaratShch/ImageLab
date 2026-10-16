@@ -38,11 +38,14 @@
 //    time base   a pure function of (damageSeed, frameIndex), so scrubbing and
 //                out-of-order rendering stay stable.
 //
-//  TemporalSpec::flicker_pct (the era RMS in percent) is NOT read: the control
-//  is already an absolute RMS in stops, and multiplying the two would need a
-//  normalisation no source supplies.
+//  TemporalSpec::flicker_pct (the era RMS in percent) is read ONLY as the
+//  stock's own DEFAULT (#209, 2026-10-16): flickerStops < 0 (FlickerStopsStock)
+//  selects log2(1 + flicker_pct / 100) RMS stops. It is never multiplied with
+//  a user value -- that would need a normalisation no source supplies. All 226
+//  values are tier-3 era estimates (TemporalSpec), and the conversion at
+//  +1 sigma is a definition.
 //
-//  INERT unless filmDamageEnabled, damageStrength > 0 and flickerStops > 0
+//  INERT unless filmDamageEnabled, damageStrength > 0 and flickerStops != 0
 //  (AlgoPass03c skips the stage entirely in that case).
 // ---------------------------------------------------------------------------
 
@@ -92,8 +95,19 @@ inline HighPrecType AlgoFlickerGain
 
     const HighPrecType strength =
         MAX_VALUE(static_cast<HighPrecType>(dmg.damageStrength), 0.0);
-    const HighPrecType stops =
-        MAX_VALUE(static_cast<HighPrecType>(dmg.flickerStops), 0.0) * strength;
+
+    // #209 (2026-10-16): a NEGATIVE flickerStops selects the STOCK'S OWN era
+    // flicker, TemporalSpec::flicker_pct (RMS exposure flicker, per cent),
+    // read as RMS stops log2(1 + pct / 100) -- the gain at +1 sigma. Any
+    // other value is the user's absolute RMS in stops, as before.
+    HighPrecType perStock = static_cast<HighPrecType>(dmg.flickerStops);
+    if (perStock < 0.0)
+    {
+        const HighPrecType pct =
+            MAX_VALUE(static_cast<HighPrecType>(profile.temporal.flicker_pct), 0.0);
+        perStock = std::log2(1.0 + pct / 100.0);
+    }
+    const HighPrecType stops = MAX_VALUE(perStock, 0.0) * strength;
 
     if (stops <= 0.0)
         return 1.0;

@@ -65,17 +65,21 @@
 //  one, and that one carries a single channel's worth of points.
 //
 //  \warning WHAT IT DOES NOT DO, so it is not filed as a bug: it does not move
-//  base fog, granularity or speed. All three move with development time in
-//  reality; none has a traced relation here. DevelopmentPoint already carries
-//  base_fog and exposure_index for the day one exists - base_fog is populated
-//  on exactly one stock today, and a relation fitted to one stock is not a
-//  relation.
+//  speed. Granularity moves through the measured rms-vs-gamma law (v59).
+//  BASE FOG MOVES SINCE #209 (2026-10-16), by the selected group's OWN
+//  DevelopmentPoint::base_fog points, where that group carries two or more:
+//  six monochrome stocks today (verify G-209-FOG). A stock without fog points moves gamma only;
+//  no relation is borrowed across stocks.
 //
 //  INERT BY DEFAULT. developmentMinutes < 0 is the sentinel, the base profile
 //  is returned by reference, nothing is copied, and every render made before
-//  this file existed is reproduced bit for bit. A time outside the stock's own
+//  this file existed is reproduced bit for bit. A time BELOW the stock's own
 //  traced range takes the same path - it is TREATED AS THE SENTINEL AND NOT
 //  CLAMPED, because extrapolating a development family is not a measurement.
+//  A time ABOVE it does too, unless a fitted RATE LAW governs the group (#209):
+//  then the law is evaluated, capped at Glafkides' 0.80 * gamma_inf usable
+//  ceiling or at the last traced value, whichever is higher. See
+//  AlgoDevelopmentAxis.
 //
 //  ONE LAW, TWO LANGUAGES. film_sim.resolve_development_time() is the
 //  reference; cpp_parity.py drives this resolver over every stock and a sweep
@@ -128,10 +132,16 @@
 inline void AlgoDevelopmentGroup
 (
     const film::FilmProfile&                          p,
-    std::vector<std::pair<HighPrecType, HighPrecType>>& out
+    std::vector<std::pair<HighPrecType, HighPrecType>>& out,
+    std::string*                                      outDeveloper = nullptr,
+    std::string*                                      outVessel    = nullptr,
+    std::vector<std::pair<HighPrecType, HighPrecType>>* outFog     = nullptr
 ) noexcept
 {
     out.clear();
+    if (nullptr != outDeveloper) outDeveloper->clear();
+    if (nullptr != outVessel)    outVessel->clear();
+    if (nullptr != outFog)       outFog->clear();
 
     const std::vector<film::DevelopmentPoint>& pts = p.processing_family.points;
     if (pts.empty())
@@ -146,6 +156,10 @@ inline void AlgoDevelopmentGroup
     std::vector<std::string>                                        devs;
     std::vector<std::string>                                        dils;
     std::vector<std::string>                                        eds;
+    // #209: the group's vessel (for the rate-law match) and its own base-fog
+    // points (minutes, base_fog > 0), carried beside the contrast points.
+    std::vector<std::string>                                        vess;
+    std::vector<std::vector<std::pair<HighPrecType, HighPrecType>>> fogs;
 
     for (std::size_t i = 0u; i < pts.size(); ++i)
     {
@@ -190,10 +204,18 @@ inline void AlgoDevelopmentGroup
             devs.push_back(q.developer);
             dils.push_back(q.dilution);
             eds.push_back(q.edition);
+            vess.push_back(q.vessel);
+            fogs.push_back(std::vector<std::pair<HighPrecType, HighPrecType>>());
         }
         groups[slot].push_back(
             std::make_pair(static_cast<HighPrecType>(q.minutes),
                            static_cast<HighPrecType>(v)));
+        if (q.base_fog > 0.0)
+        {
+            fogs[slot].push_back(
+                std::make_pair(static_cast<HighPrecType>(q.minutes),
+                               static_cast<HighPrecType>(q.base_fog)));
+        }
     }
 
     auto sortByTime = [](std::vector<std::pair<HighPrecType, HighPrecType>>& g)
@@ -345,14 +367,238 @@ inline void AlgoDevelopmentGroup
 
     out = groups[pick];
     sortByTime(out);
+
+    if (nullptr != outDeveloper) *outDeveloper = devs[pick];
+    if (nullptr != outVessel)    *outVessel    = vess[pick];
+    if ((nullptr != outFog) && (fogs[pick].size() >= 2u))
+    {
+        *outFog = fogs[pick];
+        sortByTime(*outFog);
+    }
 }
 
 
 // ---------------------------------------------------------------------------
-//  AlgoDevelopmentGammaScale
+//  AlgoDevelopmentAxis  (#209, 2026-10-16)
 //
-//  The factor by which `minutes` moves this stock's gamma. Exactly 1.0 on
-//  every refusal path, which is what keeps the sentinel bit-exact.
+//  Everything the Development Time control reads, built once: the selected
+//  group's points, the traced range, the anchor time, the governing RATE LAW
+//  if there is one, and the group's own base-fog points.
+//  film_sim.development_axis is the reference.
+//
+//  THE LAW (schema v29 / v41 fields, first read here). Chosen the way
+//  ProcessingFamily.validate checks one, so the law that drives the control
+//  is the law the build has already tested against these very points:
+//    1. a DevelopmentLaw in `laws` matching the group's developer and vessel
+//       (empty strings are wildcards; the first match wins);
+//    2. otherwise the family-level law, ONLY when `laws` is empty;
+//    3. otherwise none, and the points are read on the linear chord.
+//  Inside the traced range the law is evaluated as fitted. Past the last
+//  point it continues up to Glafkides' 0.80 * gamma_inf usable ceiling, or
+//  is held at the last traced value where the data already exceed that
+//  ceiling (Jones & Crabtree's MQ 80 reaches 0.90 on a 0.993 asymptote).
+//
+//  THE FOG. DevelopmentPoint::base_fog of the SAME group, >= 2 points,
+//  linear in time and held flat outside them.
+// ---------------------------------------------------------------------------
+struct AlgoDevelopmentAxis
+{
+    std::vector<std::pair<HighPrecType, HighPrecType>> pts;
+    std::vector<std::pair<HighPrecType, HighPrecType>> fog;
+    HighPrecType lo     = 0;
+    HighPrecType hi     = 0;
+    HighPrecType ref    = 0;
+    bool         hasLaw = false;
+    HighPrecType gInf   = 0;
+    HighPrecType k      = 0;
+    HighPrecType t0     = 0;
+    HighPrecType top    = 0;     ///< ceiling past the last traced point
+
+    HighPrecType Raw(const HighPrecType t) const noexcept
+    {
+        const HighPrecType dt = t - t0;
+        if (dt <= static_cast<HighPrecType>(0))
+            return static_cast<HighPrecType>(0);
+        return gInf * (static_cast<HighPrecType>(1) - std::exp(-k * dt));
+    }
+
+    HighPrecType At(const HighPrecType t) const noexcept
+    {
+        if (hasLaw)
+        {
+            const HighPrecType g = Raw(t);
+            return ((t > hi) && (g > top)) ? top : g;
+        }
+        for (std::size_t i = 1u; i < pts.size(); ++i)
+        {
+            const HighPrecType ta = pts[i - 1u].first;
+            const HighPrecType tb = pts[i].first;
+            if ((t >= ta) && (t <= tb))
+            {
+                if (tb == ta)
+                    return pts[i - 1u].second;
+                return pts[i - 1u].second
+                     + (pts[i].second - pts[i - 1u].second)
+                     * (t - ta) / (tb - ta);
+            }
+        }
+        return pts.back().second;
+    }
+
+    HighPrecType FogAt(const HighPrecType t) const noexcept
+    {
+        if (t <= fog.front().first) return fog.front().second;
+        if (t >= fog.back().first)  return fog.back().second;
+        for (std::size_t i = 1u; i < fog.size(); ++i)
+        {
+            const HighPrecType ta = fog[i - 1u].first;
+            const HighPrecType tb = fog[i].first;
+            if ((t >= ta) && (t <= tb))
+            {
+                if (tb == ta)
+                    return fog[i - 1u].second;
+                return fog[i - 1u].second
+                     + (fog[i].second - fog[i - 1u].second)
+                     * (t - ta) / (tb - ta);
+            }
+        }
+        return fog.back().second;
+    }
+};
+
+inline bool AlgoDevelopmentAxisBuild
+(
+    const film::FilmProfile& p,
+    AlgoDevelopmentAxis&     ax
+) noexcept
+{
+    if (!p.is_monochrome)
+        return false;
+
+    std::string dev;
+    std::string vessel;
+    AlgoDevelopmentGroup(p, ax.pts, &dev, &vessel, &ax.fog);
+    if (ax.pts.size() < 2u)
+        return false;
+
+    ax.lo = ax.pts.front().first;
+    ax.hi = ax.pts.back().first;
+
+    // The anchor: ProcessingSpec::minutes inside the range, else the time the
+    // CHORD gives the stored gamma (unchanged from before #209 -- the anchor is
+    // a time, and the same time is found whether or not a law then reads it).
+    HighPrecType ref = static_cast<HighPrecType>(p.processing.minutes);
+    if ((ref < ax.lo) || (ref > ax.hi))
+    {
+        const HighPrecType gStored = static_cast<HighPrecType>(p.curves.g.gamma);
+        const HighPrecType gA = ax.pts.front().second;
+        const HighPrecType gB = ax.pts.back().second;
+        const HighPrecType gLo = (gA < gB) ? gA : gB;
+        const HighPrecType gHi = (gA < gB) ? gB : gA;
+
+        if ((gStored < gLo) || (gStored > gHi))
+            return false;
+
+        bool found = false;
+        for (std::size_t i = 1u; i < ax.pts.size(); ++i)
+        {
+            const HighPrecType g0 = ax.pts[i - 1u].second;
+            const HighPrecType g1 = ax.pts[i].second;
+            const HighPrecType a  = (g0 < g1) ? g0 : g1;
+            const HighPrecType b  = (g0 < g1) ? g1 : g0;
+
+            if ((gStored >= a) && (gStored <= b))
+            {
+                const HighPrecType ta = ax.pts[i - 1u].first;
+                const HighPrecType tb = ax.pts[i].first;
+                ref = (g1 == g0)
+                    ? ta
+                    : (ta + (tb - ta) * (gStored - g0) / (g1 - g0));
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+            return false;
+    }
+    ax.ref = ref;
+
+    // The governing law (see the header note).
+    const film::ProcessingFamily& fam = p.processing_family;
+    ax.hasLaw = false;
+    for (std::size_t i = 0u; i < fam.laws.size(); ++i)
+    {
+        const film::DevelopmentLaw& L = fam.laws[i];
+        if (!L.hasRateLaw())
+            continue;
+        if (!L.developer.empty() && !dev.empty() && (L.developer != dev))
+            continue;
+        if (!L.vessel.empty() && !vessel.empty() && (L.vessel != vessel))
+            continue;
+        ax.hasLaw = true;
+        ax.gInf = static_cast<HighPrecType>(L.gamma_infinity);
+        ax.k    = static_cast<HighPrecType>(L.dev_rate_k);
+        ax.t0   = static_cast<HighPrecType>(L.induction_t0_min);
+        break;
+    }
+    if (!ax.hasLaw && fam.laws.empty() && fam.hasRateLaw())
+    {
+        ax.hasLaw = true;
+        ax.gInf = static_cast<HighPrecType>(fam.gamma_infinity);
+        ax.k    = static_cast<HighPrecType>(fam.dev_rate_k);
+        ax.t0   = static_cast<HighPrecType>(fam.induction_t0_min);
+    }
+    if (ax.hasLaw)
+    {
+        const HighPrecType ceil = static_cast<HighPrecType>(0.80) * ax.gInf;
+        const HighPrecType gHi  = ax.Raw(ax.hi);
+        ax.top = (ceil > gHi) ? ceil : gHi;
+    }
+    return true;
+}
+
+
+// ---------------------------------------------------------------------------
+//  AlgoDevelopmentTimeEffect
+//
+//  (gamma scale, base-fog shift) for `minutes`; (1, 0) on every refusal path,
+//  which is what keeps the sentinel bit-exact. Below the first traced point a
+//  time is refused; above the last one it is refused unless a law governs.
+// ---------------------------------------------------------------------------
+inline void AlgoDevelopmentTimeEffect
+(
+    const film::FilmProfile& p,
+    const HighPrecType       minutes,
+    HighPrecType&            scale,
+    HighPrecType&            fogShift
+) noexcept
+{
+    scale    = static_cast<HighPrecType>(1);
+    fogShift = static_cast<HighPrecType>(0);
+
+    if (minutes < static_cast<HighPrecType>(0))
+        return;
+
+    AlgoDevelopmentAxis ax;
+    if (!AlgoDevelopmentAxisBuild(p, ax))
+        return;
+    if (minutes < ax.lo)
+        return;
+    if ((minutes > ax.hi) && !ax.hasLaw)
+        return;
+
+    const HighPrecType gRef = ax.At(ax.ref);
+    if (gRef <= static_cast<HighPrecType>(0))
+        return;
+
+    scale = ax.At(minutes) / gRef;
+    if (ax.fog.size() >= 2u)
+        fogShift = ax.FogAt(minutes) - ax.FogAt(ax.ref);
+}
+
+
+// ---------------------------------------------------------------------------
+//  AlgoDevelopmentGammaScale -- the gamma half of the above, kept for callers.
 // ---------------------------------------------------------------------------
 inline HighPrecType AlgoDevelopmentGammaScale
 (
@@ -360,85 +606,10 @@ inline HighPrecType AlgoDevelopmentGammaScale
     const HighPrecType       minutes
 ) noexcept
 {
-    const HighPrecType one = static_cast<HighPrecType>(1);
-
-    if (minutes < static_cast<HighPrecType>(0))
-        return one;
-    if (!p.is_monochrome)
-        return one;
-
-    std::vector<std::pair<HighPrecType, HighPrecType>> pts;
-    AlgoDevelopmentGroup(p, pts);
-    if (pts.size() < 2u)
-        return one;
-
-    const HighPrecType lo = pts.front().first;
-    const HighPrecType hi = pts.back().first;
-    if ((minutes < lo) || (minutes > hi))
-        return one;
-
-    auto at = [&pts](const HighPrecType t) -> HighPrecType
-    {
-        for (std::size_t i = 1u; i < pts.size(); ++i)
-        {
-            const HighPrecType t0 = pts[i - 1u].first;
-            const HighPrecType t1 = pts[i].first;
-            if ((t >= t0) && (t <= t1))
-            {
-                if (t1 == t0)
-                    return pts[i - 1u].second;
-                return pts[i - 1u].second
-                     + (pts[i].second - pts[i - 1u].second)
-                     * (t - t0) / (t1 - t0);
-            }
-        }
-        return pts.back().second;
-    };
-
-    HighPrecType ref = static_cast<HighPrecType>(p.processing.minutes);
-
-    if ((ref < lo) || (ref > hi))
-    {
-        // Invert the family at the stored curve's own gamma. See the header
-        // note: this is the sentinel's definition expressed in measured
-        // numbers, not a substitute anchor.
-        const HighPrecType gStored = static_cast<HighPrecType>(p.curves.g.gamma);
-        const HighPrecType gA = pts.front().second;
-        const HighPrecType gB = pts.back().second;
-        const HighPrecType gLo = (gA < gB) ? gA : gB;
-        const HighPrecType gHi = (gA < gB) ? gB : gA;
-
-        if ((gStored < gLo) || (gStored > gHi))
-            return one;
-
-        bool found = false;
-        for (std::size_t i = 1u; i < pts.size(); ++i)
-        {
-            const HighPrecType g0 = pts[i - 1u].second;
-            const HighPrecType g1 = pts[i].second;
-            const HighPrecType a  = (g0 < g1) ? g0 : g1;
-            const HighPrecType b  = (g0 < g1) ? g1 : g0;
-
-            if ((gStored >= a) && (gStored <= b))
-            {
-                const HighPrecType t0 = pts[i - 1u].first;
-                const HighPrecType t1 = pts[i].first;
-                ref = (g1 == g0)
-                    ? t0
-                    : (t0 + (t1 - t0) * (gStored - g0) / (g1 - g0));
-                found = true;
-                break;
-            }
-        }
-        if (!found)
-            return one;
-    }
-
-    const HighPrecType gRef = at(ref);
-    if (gRef <= static_cast<HighPrecType>(0))
-        return one;
-
-    return at(minutes) / gRef;
+    HighPrecType k;
+    HighPrecType d;
+    AlgoDevelopmentTimeEffect(p, minutes, k, d);
+    return k;
 }
 
 
@@ -456,7 +627,8 @@ inline HighPrecType AlgoDevelopmentGammaScale
 //  \warning THE SCALE MULTIPLIES ToneCurve::gamma, THE MODEL COEFFICIENT, and
 //  not the observable mid-scale slope - the same choice AlgoProcessVariant
 //  makes for ProcessVariant::gamma_scale, made here for the same reason and
-//  stated in both files so they cannot drift apart. dmin is NOT touched.
+//  stated in both files so they cannot drift apart. dmin moves by the group's
+//  own fog shift (#209); exactly unchanged when that shift is zero.
 // ---------------------------------------------------------------------------
 //  DEVELOPMENT TEMPERATURE, added 2026-09-17d (schema v39)
 //  ------------------------------------------------------
@@ -522,7 +694,28 @@ inline HighPrecType AlgoDevelopmentEquivalentMinutes
 
     if (minutes <= static_cast<HighPrecType>(0)) return minutes;
     if (celsius <= static_cast<HighPrecType>(0)) return minutes;
-    if (c >= static_cast<HighPrecType>(0))       return minutes;
+
+    if (c >= static_cast<HighPrecType>(0))
+    {
+        // #209 (2026-10-16): THE FAMILY'S OWN Q10 where no slope is fitted
+        // (Glafkides §86, stored on three stocks). The fitted slope stays
+        // first -- it is the stock's own measurement. VALID 13-24 degC at both
+        // ends; outside that span the time is kept, as with no rule at all.
+        const HighPrecType q10 = static_cast<HighPrecType>(
+            base.processing_family.temp_q10);
+        if (q10 <= static_cast<HighPrecType>(0))     return minutes;
+
+        const HighPrecType ref = AlgoDevelopmentRefCelsius(base);
+        if (ref <= static_cast<HighPrecType>(0))     return minutes;
+        if (ref == celsius)                          return minutes;
+
+        const HighPrecType tLo = static_cast<HighPrecType>(13);
+        const HighPrecType tHi = static_cast<HighPrecType>(24);
+        if ((celsius < tLo) || (celsius > tHi) || (ref < tLo) || (ref > tHi))
+            return minutes;
+
+        return minutes * std::pow(q10, (celsius - ref) / static_cast<HighPrecType>(10));
+    }
 
     const HighPrecType ref = AlgoDevelopmentRefCelsius(base);
     if (ref <= static_cast<HighPrecType>(0))     return minutes;
@@ -571,9 +764,11 @@ inline const film::FilmProfile& AlgoResolveDevelopmentTime
         static_cast<HighPrecType>(minutes),
         static_cast<HighPrecType>(celsius));
 
-    const HighPrecType k = AlgoDevelopmentGammaScale(base, t);
+    HighPrecType k;
+    HighPrecType d;
+    AlgoDevelopmentTimeEffect(base, t, k, d);
 
-    if (k == static_cast<HighPrecType>(1))
+    if ((k == static_cast<HighPrecType>(1)) && (d == static_cast<HighPrecType>(0)))
         return base;
 
     store = base;
@@ -584,6 +779,15 @@ inline const film::FilmProfile& AlgoResolveDevelopmentTime
         static_cast<float>(static_cast<HighPrecType>(base.curves.g.gamma) * k);
     store.curves.b.gamma =
         static_cast<float>(static_cast<HighPrecType>(base.curves.b.gamma) * k);
+
+    // #209: the group's own base fog moves D-min (d == 0 leaves it bit-exact:
+    // a float widened, plus zero, narrowed back, is the same float).
+    store.curves.r.dmin =
+        static_cast<float>(static_cast<HighPrecType>(base.curves.r.dmin) + d);
+    store.curves.g.dmin =
+        static_cast<float>(static_cast<HighPrecType>(base.curves.g.dmin) + d);
+    store.curves.b.dmin =
+        static_cast<float>(static_cast<HighPrecType>(base.curves.b.dmin) + d);
 
     // schema v59: the measured rms-vs-gamma law. Every rms figure moves by the
     // same factor; grain_um_* is emitted RESOLVED and is left as it is, so the
@@ -622,6 +826,126 @@ inline const film::FilmProfile& AlgoResolveDevelopmentTime
         _mc[_k]->meas_n = 0;
     }
 
+    return store;
+}
+
+
+// ---------------------------------------------------------------------------
+//  RECIPROCITY CONTRAST  (#209 item 4, 2026-10-16)
+//
+//  ReciprocityTable::development_correction_pct sits beside the exposure
+//  correction on six sheets and was read by nothing. A maker who prints
+//  "develop 20 % less at 10 s" states that the exposure ALONE raises contrast
+//  by exactly what 20 % less development takes away. On the stock's own
+//  development axis:
+//
+//      m = gamma(t_ref) / gamma(t_ref * (1 + pct / 100))
+//
+//  The corrected time is HELD at the ends of the traced range (at the first
+//  point; at the last one where no law governs) -- the largest gain the data
+//  support, never an extrapolated one. 1.0 on every inert path.
+//  film_sim.reciprocity_development_pct / reciprocity_contrast_scale are the
+//  reference.
+//
+//  \warning READ OFF THE PROFILE BEFORE THE DEVELOPMENT CONTROLS (the anchor
+//  of a stock with no ProcessingSpec::minutes is inverted from its stored
+//  gamma), APPLIED AFTER THEM -- see AlgorithmMain.cpp.
+// ---------------------------------------------------------------------------
+inline HighPrecType AlgoReciprocityDevelopmentPct
+(
+    const film::FilmProfile& p,
+    const HighPrecType       exposureTimeS
+) noexcept
+{
+    const HighPrecType zero = static_cast<HighPrecType>(0);
+    if (exposureTimeS <= zero)
+        return zero;
+
+    const film::ReciprocityTable& tab = p.reciprocity_table;
+    const std::size_t n = tab.times_s.size();
+    if ((0u == n) || (tab.development_correction_pct.size() != n))
+        return zero;
+
+    const HighPrecType lt = static_cast<HighPrecType>(
+        std::log10(static_cast<double>(exposureTimeS)));
+    const HighPrecType x0 = static_cast<HighPrecType>(
+        std::log10(static_cast<double>(tab.times_s[0])));
+    const HighPrecType xN = static_cast<HighPrecType>(
+        std::log10(static_cast<double>(tab.times_s[n - 1u])));
+
+    if (lt <= x0)
+        return static_cast<HighPrecType>(tab.development_correction_pct[0]);
+    if (lt >= xN)
+        return static_cast<HighPrecType>(tab.development_correction_pct[n - 1u]);
+
+    std::size_t k = 0u;
+    while ((k + 1u < n)
+           && (static_cast<HighPrecType>(
+                   std::log10(static_cast<double>(tab.times_s[k + 1u]))) < lt))
+        ++k;
+
+    const HighPrecType xa = static_cast<HighPrecType>(
+        std::log10(static_cast<double>(tab.times_s[k])));
+    const HighPrecType xb = static_cast<HighPrecType>(
+        std::log10(static_cast<double>(tab.times_s[k + 1u])));
+    const HighPrecType span = xb - xa;
+    const HighPrecType f = (span <= zero) ? zero : (lt - xa) / span;
+    const HighPrecType ya = static_cast<HighPrecType>(tab.development_correction_pct[k]);
+    const HighPrecType yb = static_cast<HighPrecType>(tab.development_correction_pct[k + 1u]);
+    return ya + f * (yb - ya);
+}
+
+inline HighPrecType AlgoReciprocityContrastScale
+(
+    const film::FilmProfile& p,
+    const HighPrecType       exposureTimeS
+) noexcept
+{
+    const HighPrecType one = static_cast<HighPrecType>(1);
+
+    const HighPrecType pct = AlgoReciprocityDevelopmentPct(p, exposureTimeS);
+    if (pct == static_cast<HighPrecType>(0))
+        return one;
+
+    AlgoDevelopmentAxis ax;
+    if (!AlgoDevelopmentAxisBuild(p, ax))
+        return one;
+
+    HighPrecType t1 = ax.ref * (one + pct / static_cast<HighPrecType>(100));
+    if (t1 < ax.lo)
+        t1 = ax.lo;
+    if ((t1 > ax.hi) && !ax.hasLaw)
+        t1 = ax.hi;
+
+    const HighPrecType g0 = ax.At(ax.ref);
+    const HighPrecType g1 = ax.At(t1);
+    if ((g0 <= static_cast<HighPrecType>(0)) || (g1 <= static_cast<HighPrecType>(0)))
+        return one;
+    return g0 / g1;
+}
+
+//  `base` with its gamma multiplied by `scale`; `base` itself at exactly 1.
+//  The measured tables are dropped, as at every other gamma change.
+inline const film::FilmProfile& AlgoResolveReciprocityContrast
+(
+    const film::FilmProfile& base,
+    const HighPrecType       scale,
+    film::FilmProfile&       store
+) noexcept
+{
+    if (scale == static_cast<HighPrecType>(1))
+        return base;
+
+    store = base;
+    film::ToneCurve* const c[3] = { &store.curves.r, &store.curves.g, &store.curves.b };
+    for (int32_t i = 0; i < 3; i++)
+    {
+        c[i]->gamma = static_cast<float>(static_cast<HighPrecType>(c[i]->gamma) * scale);
+        c[i]->meas_x = nullptr;
+        c[i]->meas_d = nullptr;
+        c[i]->meas_m = nullptr;
+        c[i]->meas_n = 0;
+    }
     return store;
 }
 

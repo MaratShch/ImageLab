@@ -236,9 +236,32 @@
     <ClCompile Include="database\src\film_profiles_data_73.cpp" />
     <ClCompile Include="database\src\film_profiles_data_74.cpp" />
     <ClCompile Include="database\src\film_profiles_data_75.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_76.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_77.cpp" />
     <ClCompile Include="database\src\LoadFilmDataBase.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Common\AefxDevPatch.hpp" />
+    <ClInclude Include="..\Common\AlignedAllocator.hpp" />
+    <ClInclude Include="..\Common\ClassRestrictions.hpp" />
+    <ClInclude Include="..\Common\ColorTransform.hpp" />
+    <ClInclude Include="..\Common\ColorTransformMatrix.hpp" />
+    <ClInclude Include="..\Common\Common.hpp" />
+    <ClInclude Include="..\Common\CommonAdobeAE.hpp" />
+    <ClInclude Include="..\Common\CommonAuxPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonBitsOperations.hpp" />
+    <ClInclude Include="..\Common\CommonColorTemperature.hpp" />
+    <ClInclude Include="..\Common\CommonDebugUtils.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormat.hpp" />
+    <ClInclude Include="..\Common\CommonPixFormatSFINAE.hpp" />
+    <ClInclude Include="..\Common\CommonSmartRender.hpp" />
+    <ClInclude Include="..\Common\CommonTypeTraits.hpp" />
+    <ClInclude Include="..\Common\CompileTimeUtils.hpp" />
+    <ClInclude Include="..\Common\FastAriphmetics.hpp" />
+    <ClInclude Include="..\Common\FastAriphmeticsAVX.hpp" />
+    <ClInclude Include="..\Common\ImageLabCUDA.hpp" />
+    <ClInclude Include="..\Common\LibExport.hpp" />
+    <ClInclude Include="..\Common\Param_Utils.h" />
     <ClInclude Include="algorithm\include\AlgoBatchPosition.hpp" />
     <ClInclude Include="algorithm\include\AlgoBromideDrag.hpp" />
     <ClInclude Include="algorithm\include\AlgoCallier.hpp" />
@@ -258,6 +281,7 @@
     <ClInclude Include="algorithm\include\AlgoEmulsionMtf.hpp" />
     <ClInclude Include="algorithm\include\AlgoEmulsionRecord.hpp" />
     <ClInclude Include="algorithm\include\AlgoFftLane.hpp" />
+    <ClInclude Include="algorithm\include\AlgoFilmAge.hpp" />
     <ClInclude Include="algorithm\include\AlgoFilmCoord.hpp" />
     <ClInclude Include="algorithm\include\AlgoFinalClamp.hpp" />
     <ClInclude Include="algorithm\include\AlgoFrequency.hpp" />
@@ -298,6 +322,9 @@
     <ClInclude Include="database\include\LoadFilmDataBase.h" />
   </ItemGroup>
   <ItemGroup>
+    <Text Include="algorithm\include\film_display_order.txt" />
+    <Text Include="algorithm\include\film_id_migration.txt" />
+    <Text Include="algorithm\include\film_names.txt" />
     <Text Include="database\include\film_names.txt" />
   </ItemGroup>
   <ItemGroup>
@@ -305,6 +332,14 @@
     <None Include="python\image_diff.py" />
     <None Include="python\old_films_analyzing\analyze_film_scans.py" />
     <None Include="python\png_compare.py" />
+    <None Include="python\profiles_generator\algo_control_enums.py" />
+    <None Include="python\profiles_generator\cpp_codegen.py" />
+    <None Include="python\profiles_generator\film_ids.lock" />
+    <None Include="python\profiles_generator\film_profiles.py" />
+    <None Include="python\profiles_generator\film_sim.py" />
+    <None Include="python\profiles_generator\gen_control_enums.py" />
+    <None Include="python\profiles_generator\README" />
+    <None Include="python\profiles_generator\scanner_reader_data.py" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

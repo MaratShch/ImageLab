@@ -548,6 +548,19 @@ constexpr double StorageCelsiusMax  =  30.0;
 constexpr double StorageCelsiusDef  =  24.0;
 constexpr double StorageCelsiusStep =   0.5;
 
+// Age of the UNEXPOSED stock at exposure, months -- the 'expired film' control
+// (#209, 2026-10-16). Zero is the OFF sentinel and is fresh stock.
+// ⚠ INERT ON 209 OF 226 STOCKS and must hide or disable itself there: only a
+// stock whose standard prints an AGEING BOUND (ToleranceSpec ageing_* fields,
+// 17 Soviet stocks) can respond. The resolver ramps from the drift-free period
+// to the bound at the end of the guarantee and HOLDS the bound beyond it, so
+// the upper limit is a range of the slider, not a model limit.
+constexpr double FilmAgeMonthsOff  =   0.0;
+constexpr double FilmAgeMonthsMin  =   0.0;
+constexpr double FilmAgeMonthsMax  = 600.0;
+constexpr double FilmAgeMonthsDef  = FilmAgeMonthsOff;
+constexpr double FilmAgeMonthsStep =   1.0;
+
 // -- duplication -----------------------------------------------------------
 
 // Duplication generations. THE ONLY CONTROL IN THE STRUCTURE WITH AN ENFORCED
@@ -849,6 +862,11 @@ constexpr double FlickerStopsMin  = 0.0;
 constexpr double FlickerStopsMax  = 0.5;
 constexpr double FlickerStopsDef  = 0.15;
 constexpr double FlickerStopsStep = 0.01;
+// #209 (2026-10-16): a NEGATIVE value is the "stock's own era flicker"
+// sentinel -- TemporalSpec::flicker_pct converted to RMS stops as
+// log2(1 + pct / 100). The default stays 0.15, so no render changes unless
+// the host selects the sentinel.
+constexpr double FlickerStopsStock = -1.0;
 
 // Scanner-introduced artefacts - end of stage 16 (2026-10-10).
 constexpr double ScannerArtifactsMin  = 0.0;
