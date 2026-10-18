@@ -113,13 +113,16 @@ AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int3
         algoParams.storageYears = get_slider_value(params, FilmSimulationCtrl::YEARS_OF_DARK_STORAGE);
     if (is_control_available(film::eCTRL_BIT_STORAGE_CELSIUS, filmMask))
         algoParams.storageCelsius = get_slider_value(params, FilmSimulationCtrl::STORAGE_TEMPERATURE);   // FIX: was storageYears
-
     if (is_control_available(film::eCTRL_BIT_SCENE_KELVIN, filmMask))
         algoParams.sceneKelvin = get_slider_value(params, FilmSimulationCtrl::SCENE_COLOUR_TEMPERATURE);
     if (is_control_available(film::eCTRL_BIT_PRINT_STOCK, filmMask))
         algoParams.printStock = get_list_box_value<PrintStockCtrl>(params, FilmSimulationCtrl::PRINT_STOCK);
-    if (is_control_available(film::eCTRL_BIT_GENERATIONS, filmMask))
+
+#if 0
+    if (is_control_available(film::eCTRL_BIT_GENERATIONS, filmMask)) // !!!!!!!
         algoParams.generations = static_cast<int32_t>(get_slider_value(params, FilmSimulationCtrl::DUPLICATION_GENERATION));
+
+
     if (is_control_available(film::eCTRL_BIT_DUPE_STOCK, filmMask))
     {
         const DupeStockCtrl dupe = get_list_box_value<DupeStockCtrl>(params, FilmSimulationCtrl::INTERMEDIATE_STOCK);
@@ -127,6 +130,7 @@ AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int3
             ? dupe
             : DupeStockCtrlDef;   // eDUPE_FINE_GRAIN
     }
+#endif
     if (is_control_available(film::eCTRL_BIT_PRINT_GRAIN, filmMask))
         algoParams.printGrain = get_check_box_value(params, FilmSimulationCtrl::PRINT_GRAIN);
 
@@ -190,6 +194,7 @@ AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int3
         if (is_control_available(film::eCTRL_BIT_SCANNER_ARTIFACTS, filmMask))
             algoParams.damage.scannerArtifacts = get_slider_value(params, FilmSimulationCtrl::SCANNER_ARTIFACTS);
     }
+
 
     return algoParams;
 }
