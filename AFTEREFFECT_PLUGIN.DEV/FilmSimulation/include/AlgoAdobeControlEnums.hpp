@@ -22,7 +22,7 @@ enum class FilmSimulationCtrl : int32_t
     DEVELOPMENT_ENABLE,
     DEVELOPMENT_TIME,
     DEVELOPMENT_TEMPERATURE,
-//    DEVELOPER_INDEX,
+    DEVELOPER_INDEX,
     YEARS_OF_DARK_STORAGE,
     STORAGE_TEMPERATURE,
     BATCH_POSITION,
@@ -46,7 +46,9 @@ enum class FilmSimulationCtrl : int32_t
     RESEAU_RECONSTRUCTION,
     GROUP_STOP_EMULSION_CHARACTER,
     GROUP_START_LENS_AND_READER,
+    VEILING_FLARE_AUTO,     // check-box: use the stock's own flare (engine sentinel -1)
     VEILING_FLARE,
+    CORNER_FALLOFF_AUTO,    // check-box: use the stock's own falloff (engine sentinel -1)
     CORNER_FALLOFF,
     SCANNER_SPECULARITY,
     SCANNER_FIXED_PATTERN,
@@ -144,7 +146,10 @@ constexpr char itemNames[][32] = {
     "Grain Temporal Mode",
     "Spectral Upsampling",
     "Raw Stock",                    // 60
-    "Film Age (expired stock)"
+    "Film Age (expired stock)",
+    "Developer",
+    "Veiling Flare: Stock's Own",
+    "Corner Falloff: Stock's Own"   // 64
 };
 
 

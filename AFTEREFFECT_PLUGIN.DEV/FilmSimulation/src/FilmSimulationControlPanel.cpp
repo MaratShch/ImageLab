@@ -3,6 +3,7 @@
 #include "AlgoAdobeControlEnums.hpp"
 #include "FilmSimulation.hpp"
 #include "film_enum.hpp"
+#include "AlgoControlValues.hpp"
 
 CACHE_ALIGN constexpr char filmList[] = {
     #include "film_names.txt"
@@ -49,7 +50,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     PF_ADD_POPUP(
         itemNames[2],
         UnderlyingType(film::eFILM_PROFILE::eTOTAL_FILMS_PROFILES),
-        UnderlyingType(film::eFILM_PROFILE::eAGFA_APX_25),
+        UnderlyingType(film::eFILM_PROFILE::eAGFA_APX_25) + 1,      // AE pop-ups are 1-based
         filmList,
         UnderlyingType(FilmSimulationCtrl::FILM_STOCK));
     totalParams++;
@@ -69,7 +70,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     PF_ADD_POPUP(
         itemNames[4],
         ProcessVariantCtrlCount,
-        UnderlyingType(ProcessVariantCtrl::eAS_SHIPPED),
+        UnderlyingType(ProcessVariantCtrl::eAS_SHIPPED) + 1,        // AE pop-ups are 1-based
         ProcessVariantCtrlStr,
         UnderlyingType(FilmSimulationCtrl::PROCESS_VARIANT));
     totalParams++;
@@ -172,7 +173,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_CHECKBOXX(
         itemNames[11],
-        FALSE, 
+        DevelopmentEnableUiDef ? TRUE : FALSE,
         0, 
         UnderlyingType(FilmSimulationCtrl::DEVELOPMENT_ENABLE));
     totalParams++;
@@ -185,7 +186,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         DevelopmentMinutesMax,
         DevelopmentMinutesMin,
         DevelopmentMinutesMax,
-        DevelopmentMinutesMin,
+        DevelopmentMinutesUiDef,    // engine default is the -1 sentinel; Development Enable selects it
         PF_Precision_TENTHS,
         0,
         0,
@@ -200,11 +201,21 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         DevelopmentCelsiusMax,
         DevelopmentCelsiusMin,
         DevelopmentCelsiusMax,
-        DevelopmentCelsiusDef,
+        DevelopmentCelsiusUiDef,    // engine default is the -1 sentinel; Development Enable selects it
         PF_Precision_TENTHS,
         0,
         0,
         UnderlyingType(FilmSimulationCtrl::DEVELOPMENT_TEMPERATURE));
+    totalParams++;
+
+    // Developer ListBox
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_POPUP(
+        itemNames[62],
+        DeveloperCtrlCount,
+        UnderlyingType(DeveloperCtrl::eAS_SHIPPED) + 1,             // AE pop-ups are 1-based
+        DeveloperCtrlStr,
+        UnderlyingType(FilmSimulationCtrl::DEVELOPER_INDEX));
     totalParams++;
 
     // Development & Storage slider
@@ -229,7 +240,20 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         UnderlyingType(FilmSimulationCtrl::STORAGE_TEMPERATURE));
     totalParams++;
 
-    // Batch Position [16]
+    // Batch Position float slider
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_FLOAT_SLIDERX(
+        itemNames[16],
+        BatchPositionMin,
+        BatchPositionMax,
+        BatchPositionMin,
+        BatchPositionMax,
+        BatchPositionDef,
+        PF_Precision_HUNDREDTHS,
+        0,
+        0,
+        UnderlyingType(FilmSimulationCtrl::BATCH_POSITION));
+    totalParams++;
 
     // Close group item
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
@@ -291,7 +315,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     PF_ADD_POPUP(
         itemNames[21],
         UnderlyingType(PrintStockCtrl::ePRINT_STOCK_TOTAL),
-        UnderlyingType(PrintStockCtrl::eSTOCKS_OWN),
+        UnderlyingType(PrintStockCtrl::eSTOCKS_OWN) + 1,            // AE pop-ups are 1-based
         PrintStockCtrlStr,
         UnderlyingType(FilmSimulationCtrl::PRINT_STOCK));
     totalParams++;
@@ -321,7 +345,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
     PF_ADD_CHECKBOXX(
         itemNames[24],
-        FALSE,
+        PrintGrainDef ? TRUE : FALSE,
         0,
         UnderlyingType(FilmSimulationCtrl::PRINT_GRAIN));
     totalParams++;
@@ -440,6 +464,15 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         UnderlyingType(FilmSimulationCtrl::GROUP_START_LENS_AND_READER));
     totalParams++;
 
+    // Veiling Flare: stock's own check-box (engine sentinel -1)
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_CHECKBOXX(
+        itemNames[63],
+        FlareStockOwnUiDef ? TRUE : FALSE,
+        0,
+        UnderlyingType(FilmSimulationCtrl::VEILING_FLARE_AUTO));
+    totalParams++;
+
     // Veiling Flare float slider
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_ADD_FLOAT_SLIDERX(
@@ -448,11 +481,20 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         FlareMax,
         FlareMin,
         FlareMax,
-        FlareDef,
+        FlareUiDef,                 // used when "Stock's Own" is unticked
         PF_Precision_THOUSANDTHS,
         0,
         0,
         UnderlyingType(FilmSimulationCtrl::VEILING_FLARE));
+    totalParams++;
+
+    // Corner Falloff: stock's own check-box (engine sentinel -1)
+    AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_flags);
+    PF_ADD_CHECKBOXX(
+        itemNames[64],
+        VignetteStockOwnUiDef ? TRUE : FALSE,
+        0,
+        UnderlyingType(FilmSimulationCtrl::CORNER_FALLOFF_AUTO));
     totalParams++;
 
     // Corner Falloff float slider
@@ -463,7 +505,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         VignetteMax,
         VignetteMin,
         VignetteMax,
-        VignetteDef,
+        VignetteUiDef,              // used when "Stock's Own" is unticked
         PF_Precision_TENTHS,
         0,
         0,
@@ -660,7 +702,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
         PF_Precision_HUNDREDTHS,
         0,
         0,
-        UnderlyingType(FilmSimulationCtrl::SPLICE_AND_TEAR_EVENTS));
+        UnderlyingType(FilmSimulationCtrl::TRANSPORT_SCRATCHES));
     totalParams++;
 
     // Handling Scratches float slider
@@ -796,7 +838,7 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     PF_ADD_POPUP(
         itemNames[58],
         UnderlyingType(GrainTemporalModeCtrl::eGRAIN_TEMPORAL_TOTAL),
-        UnderlyingType(GrainTemporalModeCtrl::eGRAIN_TEMPORAL_STILL),
+        UnderlyingType(GrainTemporalModeCtrl::eGRAIN_TEMPORAL_STILL) + 1,   // AE pop-ups are 1-based
         GrainTemporalModeCtrlStr,
         UnderlyingType(FilmSimulationCtrl::GRAIN_TEMPORAL_MODE));
     totalParams++;
@@ -841,6 +883,15 @@ PF_Err SetupControlElements (PF_InData* in_data, PF_OutData* out_data)
     AEFX_INIT_PARAM_STRUCTURE(def, flags, ui_disabled_flags);
     PF_END_TOPIC(UnderlyingType(FilmSimulationCtrl::GROUP_STOP_RAW_STOCK));
     totalParams++;
+
+    // AE counts the input layer (param 0) in num_params; totalParams does not.
+    totalParams++;
+
+    // params[] is indexed by FilmSimulationCtrl, so the registration order above
+    // must match the enumeration one for one. A control added to the enum and not
+    // registered (as Batch Position was) shifts every later control by one.
+    if (totalParams != static_cast<A_long>(UnderlyingType(FilmSimulationCtrl::TOTAL_PARAMS)))
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
     // Set total number of control items
     out_data->num_params = totalParams;
