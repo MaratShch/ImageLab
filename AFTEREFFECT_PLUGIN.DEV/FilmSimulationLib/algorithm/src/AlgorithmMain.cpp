@@ -1410,15 +1410,40 @@ void Algorithm_Main
     //     unless a class level is non-zero, so the clean pipeline pays one branch.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("09b  negative defects");
+
+    // 2026-10-20b: when particulate or abrasion defects are on, stage 9b also
+    // returns the ADDITIVE defect density it laid down, in the log-exposure
+    // triple (free from here until stage 13 uses it as scratch). Stage 10 then
+    // filters it with the image's own scan transfer and stage 11 adds grain to
+    // the film UNDER the defects. Off - the default - nothing changes.
+    bool hasDefPlane = false;
+
     if (false == AlgoPass09b(algoCtrl))
     {
+        const FilmDamage& dmgDef = algoCtrl.damage;
+        const HighPrecType strengthDef =
+            MAX_VALUE(static_cast<HighPrecType>(dmgDef.damageStrength), 0.0);
+
+        // Only worth it when grain will actually run (stage 11 not passed
+        // through). ⚠ Stage 9c (bromide drag, inert on every stock today)
+        // scales net density after the plane is taken; if it is ever given
+        // data the plane would slightly over-state the defect there.
+        hasDefPlane = (false == AlgoPass11(algoCtrl))
+            && algoCtrl.filmDamageEnabled && (strengthDef > 0.0)
+            && ((dmgDef.dustLevel > 0.0) || (dmgDef.debrisLevel > 0.0)
+                || (dmgDef.fibreLevel > 0.0) || (dmgDef.scratchTransport > 0.0)
+                || (dmgDef.scratchHandling > 0.0));
+
         dst = AlgoStageDst(t09b, t09, cur);
         AlgoStage09b_NegativeDefects(cur.r, cur.g, cur.b,
                                      dst.r, dst.g, dst.b,
                                      sizeX, sizeY, pitch,
                                      profile, algoCtrl,
                                      negWidthMm, negHeightMm, framePitchMm, pxPerMm,
-                                     frameIndex, frameRate, ALGO_SALT_NEG_DEFECTS);
+                                     frameIndex, frameRate, ALGO_SALT_NEG_DEFECTS,
+                                     hasDefPlane ? logER : nullptr,
+                                     hasDefPlane ? logEG : nullptr,
+                                     hasDefPlane ? logEB : nullptr);
         cur = dst;
     }
 
@@ -1480,6 +1505,23 @@ void Algorithm_Main
                             frameIndex, ALGO_SALT_MISREG,
                             memHandler.Freq);
         cur = dst;
+
+        // 2026-10-20b: the additive-defect plane through the SAME transfer
+        // (same frame, same seed, so the same registration shift), via the
+        // grain scratch triple, which is free until stage 11 starts.
+        if (hasDefPlane)
+        {
+            AlgoStage10_ScanMtf(logER, logEG, logEB,
+                                scrDbar, scrDbarBlur, scrBlurA,
+                                scrGrainR, scrGrainG,      // unused by the stage
+                                sizeX, sizeY, pitch,
+                                profile, algoCtrl, scanF50, pxPerMm,
+                                frameIndex, ALGO_SALT_MISREG,
+                                memHandler.Freq);
+
+            AlgoCopyImage(scrDbar, scrDbarBlur, scrBlurA, logER, logEG, logEB,
+                          sizeX, sizeY, pitch);
+        }
     }
 
     // -----------------------------------------------------------------------
@@ -1523,7 +1565,10 @@ void Algorithm_Main
                           scrGrainR, scrGrainG, scrGrainB,
                           sizeX, sizeY, pitch,
                           profile, algoCtrl, scanSigmaPx, pxPerMm,
-                          hasMosaic, frameIndex, ALGO_SALT_GRAIN);
+                          hasMosaic, frameIndex, ALGO_SALT_GRAIN,
+                          hasDefPlane ? logER : nullptr,
+                          hasDefPlane ? logEG : nullptr,
+                          hasDefPlane ? logEB : nullptr);
         cur = dst;
     }
 
@@ -1639,6 +1684,9 @@ void Algorithm_Main
     //     behaviour that a single-stage grain model cannot produce at all.
     //
     //     Then density to display-linear transmittance, normalised against the final
+    //     (2026-10-20b: ONE white for the three channels - the lightest clear film -
+    //     at ALGO_DISPLAY_CLEAR_WHITE 0.947, so the base keeps its tint; stage 17
+    //     rolls values above it off with a shoulder. AlgoDisplayWhite.hpp.)
     //     curve's own endpoints. That normalisation is what the anchor solves aimed
     //     at, so the two must use the same expression.
     //

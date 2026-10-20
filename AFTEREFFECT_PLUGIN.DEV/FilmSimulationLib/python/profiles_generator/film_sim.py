@@ -268,8 +268,33 @@ def density_scalar(log_e: float, c: ToneCurve) -> float:
     )
 
 
+# 2026-10-20b (owner-approved): WHERE CLEAR FILM LANDS ON THE DISPLAY.
+# Twin of AlgoDisplayWhite.hpp. One white reference for all three channels -
+# the LIGHTEST channel's clear film, so a print or slide base keeps its own
+# colour - landing at DISPLAY_CLEAR_WHITE instead of 1.0: 0.947 linear, code
+# 249 after sRGB encoding, the plateau of the largest opaque particle in the
+# owner's reference collage (R5C1, SVEMA; provisional, one particle, one
+# scanner). Above it a smooth shoulder towards 1.0 replaces the hard clip.
+DISPLAY_CLEAR_WHITE = 0.947
+
+
+def white_dmin(curves) -> float:
+    """The white reference density of a final curve set: its lightest D-min."""
+    return min(float(c.dmin) for c in curves)
+
+
+def highlight_shoulder(x):
+    """Slope-1 roll-off above DISPLAY_CLEAR_WHITE, asymptotic to 1.0 (stage 17)."""
+    h = np.float32(DISPLAY_CLEAR_WHITE)
+    r = np.float32(1.0 - DISPLAY_CLEAR_WHITE)
+    d = np.maximum(x - h, np.float32(0.0))
+    # (1 - H) d / ((1 - H) + d): no overflowing product (AlgoHighlightShoulder).
+    return (np.minimum(x, h) + (r * d) / (r + d)).astype(np.float32)
+
+
 def _normalised_transmittance(d: float, c: ToneCurve,
-                              black_point_stretch: float = 1.0) -> float:
+                              black_point_stretch: float = 1.0,
+                              white_d: float | None = None) -> float:
     """Density to display-normalised transmittance for one curve.
 
     ⚠ THIS IS THE SAME EXPRESSION AS STAGE 14 AND IT HAS TO STAY THAT WAY. The
@@ -279,9 +304,12 @@ def _normalised_transmittance(d: float, c: ToneCurve,
     through every solver rather than applied once at the end. See the field's
     own note in `RenderSettings`.
     """
-    t_max = 10.0 ** (-c.dmin)                          # clear film: brightest
+    # 2026-10-20b: white = the lightest channel's clear film (white_d), landing
+    # at DISPLAY_CLEAR_WHITE; the per-channel D-min is used only when no white
+    # reference is given.
+    t_max = 10.0 ** (-(c.dmin if white_d is None else white_d))
     t_min = black_point_stretch * 10.0 ** (-c.dmax)    # the black point
-    return (10.0 ** (-d) - t_min) / (t_max - t_min)
+    return DISPLAY_CLEAR_WHITE * (10.0 ** (-d) - t_min) / (t_max - t_min)
 
 
 def _bisect(fn, lo: float, hi: float, target: float, rising: bool) -> float:
@@ -540,7 +568,8 @@ def solve_anchors(
                     # the projector's or scanner's directionality applies here too.
                     mixed = _cal_apply([mixed] * 3)[c]
                     return _normalised_transmittance(
-                        mixed, curves[c], black_point_stretch)
+                        mixed, curves[c], black_point_stretch,
+                        white_dmin(curves))
 
                 target = grey_target / _tint_factor(profile, c)
                 trims[c] = _bisect(fn, -8.0, 8.0, target, rising=True)
@@ -695,7 +724,8 @@ def solve_stage_offsets(
                 dp[c] = density_scalar(off - d_mid[c], dst_curves[c])
                 mixed = sum(dst_matrix[c][k] * dp[k] for k in range(3))
                 return _normalised_transmittance(
-                    mixed, dst_curves[c], black_point_stretch)
+                    mixed, dst_curves[c], black_point_stretch,
+                    white_dmin(dst_curves))
 
             # More offset means more print exposure, more density, darker print.
             offsets[c] = _bisect(
@@ -2319,6 +2349,32 @@ def developer_factors(profile, index: int) -> tuple[float, float]:
         if (q.development_halo_width_um > 0.0
             and ref.development_halo_width_um > 0.0) else 1.0
     return f_rms, f_adj
+
+
+def developer_row_for(profile, ctrl) -> int:
+    """The stock's own grain_points row for a Developer list-box value.
+
+    -1 (render as shipped) for eAS_SHIPPED, a value out of range, or a
+    developer this stock was not measured in. Keys come from
+    `algo_control_enums.DEVELOPER_KEY`, the mirror of DeveloperCtrlKey.
+    Twin: AlgoDeveloperRowFromCtrl (AlgoDevelopmentTime.hpp), 2026-10-16f.
+    """
+    import algo_control_enums as _ace
+    try:
+        v = int(ctrl)
+    except (TypeError, ValueError):
+        return -1
+    if v <= 0 or v >= _ace.DeveloperCtrlCount:
+        return -1
+    key = _ace.DEVELOPER_KEY.get(v, "").strip().lower()
+    if not key:
+        return -1
+    fam = getattr(profile, "processing_family", None)
+    rows = tuple(getattr(fam, "grain_points", ()) or ()) if fam else ()
+    for i, q in enumerate(rows):
+        if q.developer.strip().lower() == key:
+            return i
+    return -1
 
 
 def resolve_developer(profile, index: int):
@@ -4308,10 +4364,13 @@ class RenderSettings:
     #: gamma-bearing development family, which is most of them.
     development_minutes: float = -1.0
     development_celsius: float = -1.0
-    #: Schema v60: which row of `processing_family.grain_points` to develop
-    #: in, or -1 for the developer the stored profile represents. See
-    #: `resolve_developer`; inert on every stock without developer rows.
-    developer_index: int = -1
+    #: The Developer LIST-BOX value (algo_control_enums.DeveloperCtrl) since
+    #: 2026-10-16f -- the twin of AlgoControls::developerIndex. 0 =
+    #: eAS_SHIPPED, the developer the stored profile represents. Mapped to the
+    #: stock's own grain_points row by `developer_row_for`; a developer the
+    #: stock was not measured in renders as shipped. Until 2026-10-16f this
+    #: was a bare row index with -1 as the sentinel.
+    developer_index: int = 0
     #: Years of DARK STORAGE since processing. 0 = fresh, which is
     #: the default and is inert on every stock. See
     #: `resolve_storage_age`; only stocks carrying a published
@@ -4885,7 +4944,8 @@ def simulate(
         getattr(settings, 'development_celsius', -1.0))
     # schema v60, straight after the time: both describe the development, and
     # the two act on disjoint quantities except rms, where both are factors.
-    profile = resolve_developer(profile, getattr(settings, 'developer_index', -1))
+    profile = resolve_developer(
+        profile, developer_row_for(profile, getattr(settings, 'developer_index', 0)))
     profile = resolve_reciprocity_contrast(profile, _recip_m)
     # #209: the raw stock's age. It happened BEFORE exposure and development,
     # but it moves D-min (negative) or D-max (reversal) only, which commutes
@@ -5769,9 +5829,12 @@ def simulate(
 
     np.maximum(out, np.float32(0.0), out=out)
 
+    # 2026-10-20b: one white for all three channels (the lightest clear film),
+    # landing at DISPLAY_CLEAR_WHITE - see white_dmin / AlgoDisplayWhite.hpp.
+    _wd = white_dmin(final_curves)
     for c in range(3):
         fc = final_curves[c]
-        t_max = 10.0 ** (-fc.dmin)   # clear film: the brightest it can be
+        t_max = 10.0 ** (-_wd)       # the lightest channel's clear film
         # ⚠ THE BLACK POINT IS NOW A CONTROL, not a constant. `t_min` used to be
         # 10^-Dmax unconditionally, which stretched every stock's Dmax down to
         # output zero and destroyed everything at or beyond it. Full rationale,
@@ -5787,7 +5850,8 @@ def simulate(
         # s < 1 it is what stops an over-dense pixel encoding to code 0 anyway.
         np.minimum(out[:, :, c], np.float32(fc.dmax), out=out[:, :, c])
         trans = np.power(np.float32(10.0), -out[:, :, c], dtype=np.float32)
-        out[:, :, c] = ((trans - t_min) / (t_max - t_min)).astype(np.float32)
+        out[:, :, c] = (DISPLAY_CLEAR_WHITE * (trans - t_min)
+                        / (t_max - t_min)).astype(np.float32)
 
     # -- 14b. reseau reconstruction ------------------------------------------
     # Projection sends light back through the same filter grid in register, and
@@ -5822,6 +5886,10 @@ def simulate(
         out[:, :, 0] *= (1.0 + np.float32(0.28) * tone * w)
         out[:, :, 2] *= (1.0 - np.float32(0.22) * tone * w)
 
+    # 2026-10-20b: the stage-17 twin - a smooth shoulder above clear white,
+    # then the clamp (NaN to zero, as both C++ builds).
+    out = np.nan_to_num(out, nan=0.0)
+    out = highlight_shoulder(np.maximum(out, np.float32(0.0)))
     return np.clip(out, 0.0, 1.0, out=out)
 
 

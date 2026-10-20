@@ -88,6 +88,8 @@
 
 // The single source of the engine's numeric types and alignment policy.
 #include "AlgoTypes.hpp"
+// 2026-10-20c: this header's compile-time constants live in film_damage_constants.hpp.
+#include "film_damage_constants.hpp"
 
 // Buffer layout and the geometry fields that travel with it.
 #include "AlgoMemHandler.hpp"
@@ -107,67 +109,6 @@
 #include "film_profiles.hpp"
 
 #include <cstdint>   // int32_t, uint32_t
-
-
-// ---------------------------------------------------------------------------
-//  Octaves in the weave's temporal noise.
-//
-//  5. The lowest octave has the period set by the profile's corner frequency and
-//  each one above halves it, so five octaves span a factor of sixteen in
-//  frequency - from the corner down to the frame rate, which is where the
-//  representable band ends. A sixth would sit above Nyquist and only alias.
-// ---------------------------------------------------------------------------
-constexpr int32_t ALGO_WEAVE_OCTAVES = 5;
-
-// ---------------------------------------------------------------------------
-//  Variance lost to interpolating the temporal lattice.
-//
-//  26/35, exactly.
-//
-//  The noise is built by interpolating independent values on a lattice of frame
-//  indices, and a smoothly interpolated point is a weighted MEAN of its two
-//  neighbours - so its variance is the sum of the squared weights, which is one
-//  only exactly at a node. With W = 3u^2 - 2u^3:
-//
-//      E[W]   = 1/2
-//      E[W^2] = 9/5 - 12/6 + 4/7 = 13/35
-//      E[(1-W)^2 + W^2] = 1 - 2E[W] + 2E[W^2] = 26/35
-//
-//  Dividing it out is what makes the requested RMS amplitude the amplitude that
-//  actually appears. The same mistake in the two-dimensional dirt field produced a
-//  weave that measured three quarters of what was asked for, which is small enough
-//  to look plausible and wrong enough to fail a measurement.
-//
-//  ANYONE CHANGING THE INTERPOLATION KERNEL MUST RECOMPUTE THIS.
-// ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_WEAVE_INTERP_VARIANCE = 26.0 / 35.0;
-
-// ---------------------------------------------------------------------------
-//  Micrometres per millimetre. Weave amplitudes are quoted in micrometres on the
-//  negative; the geometry is in millimetres.
-// ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_WEAVE_UM_PER_MM = 1000.0;
-
-// ---------------------------------------------------------------------------
-//  Smallest displacement worth resampling the frame for, pixels.
-//
-//  1/512 of a pixel. Below this the bilinear weights round to a pass-through and
-//  the whole stage is an expensive copy, so it takes the copy path instead. This
-//  is not a quality compromise: a 1/512 pixel shift is far below the precision of
-//  the storage type at any bit depth a host will ever hand over.
-// ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_WEAVE_MIN_SHIFT_PX = 1.0 / 512.0;
-
-// ---------------------------------------------------------------------------
-//  Generator stream tags for the two axes.
-//
-//  Separate, so that horizontal and vertical weave are independent. Sharing a
-//  stream would make the image travel along a diagonal, which is a distinctive and
-//  quite wrong-looking motion.
-// ---------------------------------------------------------------------------
-constexpr uint32_t ALGO_WEAVE_TAG_X = 0x0057EA01u;
-constexpr uint32_t ALGO_WEAVE_TAG_Y = 0x0057EA02u;
-
 
 // ---------------------------------------------------------------------------
 //  AlgoWeaveNoise
@@ -190,7 +131,6 @@ HighPrecType AlgoWeaveNoise
     const uint32_t     seed,
     const uint32_t     tag
 ) noexcept;
-
 
 // ---------------------------------------------------------------------------
 //  Stage 15: gate weave.

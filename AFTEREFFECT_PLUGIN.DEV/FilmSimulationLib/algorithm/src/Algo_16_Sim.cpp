@@ -34,6 +34,7 @@
 // include order to be in scope.
 #include "Common.hpp"
 #include "AlgoGateDefects.hpp"
+#include "AlgoDefectOptics.hpp"   // 2026-10-20b: smooth time processes
 #include "AlgoScannerArtifacts.hpp"   // 2026-10-10: damage.scannerArtifacts
 
 #include "FastAriphmeticsAVX.hpp"
@@ -77,19 +78,7 @@ namespace
 
 namespace
 {
-    // ----------------------------------------------------------------------
-    //  Micrometres per millimetre.
-    // ----------------------------------------------------------------------
-    constexpr HighPrecType ALGO_GATE_UM_PER_MM = 1000.0;
-
-    // ----------------------------------------------------------------------
-    //  Smallest opacity worth rasterising.
-    //
-    //  One part in a thousand of transmittance is far below one code value at any
-    //  bit depth a host will hand over, so a particle fainter than this cannot
-    //  change the output and only costs a bounding box.
-    // ----------------------------------------------------------------------
-    constexpr HighPrecType ALGO_GATE_ALPHA_EPSILON = 1.0e-3;
+    // ALGO_GATE_UM_PER_MM, ALGO_GATE_ALPHA_EPSILON: film_damage_constants.hpp (2026-10-20c).
 
 
     // ----------------------------------------------------------------------
@@ -258,62 +247,59 @@ namespace
 
 
     // ----------------------------------------------------------------------
-    //  Move a living gate mark, for THIS frame only.
+    //  Drift a living gate mark to where it is at time t (2026-10-20b).
     //
-    //  ⚠ THE ONE THING THAT STOPS A SURVIVING PARTICLE BEING A DEAD STAMP. Every
-    //  other property of a gate mark is drawn once from its slot's stream and is
-    //  therefore bit-identical on every frame the particle lives - which, before
-    //  this existed, meant the same pixels for up to five thousand consecutive
-    //  frames. That is not a photographic defect; it is a mark on the glass, and
-    //  the eye names it as such at once.
+    //  A particle wedged at the aperture edge is scraped by the film moving past
+    //  it: it shifts within its lodging, rocks, and partly lifts and re-seats, so
+    //  its opacity changes. It stays the SAME particle in the SAME region.
     //
-    //  A real particle wedged at the aperture edge is being scraped by film moving
-    //  past it at 456 mm per second. It shifts within its lodging, it rocks, it
-    //  partly lifts and re-seats, and its effective opacity changes as it does. It
-    //  stays in the SAME REGION - that is what makes it gate dirt and not loose
-    //  dirt - but it is never in the same place twice.
+    //  Every quantity is a smooth unit Gaussian process of screen TIME keyed on
+    //  the slot (AlgoDefectSmoothNoise, correlation ALGO_GATE_DRIFT_CORR_S), so
+    //  consecutive frames differ by a small, correlated step - no independent
+    //  per-frame redraw and no random disappearance (the former 10 % blink).
+    //  Pure function of (slot, t): any frame renders alone, at any frame rate,
+    //  and the motion in SECONDS is the same at 24 or 60 fps.
     //
-    //  Keyed on the slot counter AND the frame, so this stays a pure function of
-    //  (damageSeed, reel, ordinal, frameIndex): any frame still renders alone, out
-    //  of order, on any thread, with no history.
-    //
-    //  Returns false when the particle is absent from this frame entirely - the
-    //  film has momentarily lifted it clear of the aperture. Absence is deliberate
-    //  and is the strongest single cue: a mark present on EVERY frame of a shot
-    //  reads as static however much it wobbles.
+    //  varScale = defectVariability / 0.5: 0 freezes the particle, 1 is the
+    //  reference amplitude, 2 twice it.
     // ----------------------------------------------------------------------
-    inline bool gateFrameJitter
+    inline void gateDrift
     (
         const uint64_t     slotCounter,
-        const int32_t      frameIndex,
+        const HighPrecType tSec,
         const HighPrecType scale,          // pixels per millimetre
+        const HighPrecType varScale,
         GateMark&          m
     ) noexcept
     {
-        // A stream of this slot's own, advanced by the frame. The frame goes
-        // through the hash rather than being added to the counter, so adjacent
-        // frames land far apart in counter space.
-        const uint64_t fc = AlgoDefectHash(
-            static_cast<uint32_t>(slotCounter ^ (slotCounter >> 32)),
-            frameIndex, 0, ALGO_GATE_TAG_JITTER);
+        if (varScale <= 0.0)
+            return;
 
-        if (AlgoRngUniform01(fc) < ALGO_GATE_BLINK_PROB)
-            return false;
+        const uint32_t ks = AlgoDefectSubSeed(slotCounter);
+
+        const HighPrecType inv3 = 0.57735026918962576451;   // 1 / sqrt(3)
 
         const HighPrecType wanderPx =
-            (ALGO_GATE_JITTER_UM / ALGO_GATE_UM_PER_MM) * scale;
+            (ALGO_GATE_JITTER_UM / ALGO_GATE_UM_PER_MM) * scale * inv3 * varScale;
 
-        m.pxX += wanderPx * (2.0 * AlgoRngUniform01(fc + 1u) - 1.0);
-        m.pxY += wanderPx * (2.0 * AlgoRngUniform01(fc + 2u) - 1.0);
+        m.pxX += wanderPx * AlgoDefectSmoothNoise(ks, 0, ALGO_GATE_TAG_JITTER,
+                                                  tSec, ALGO_GATE_DRIFT_CORR_S);
+        m.pxY += wanderPx * AlgoDefectSmoothNoise(ks, 1, ALGO_GATE_TAG_JITTER,
+                                                  tSec, ALGO_GATE_DRIFT_CORR_S);
 
-        m.angleRad += ALGO_GATE_JITTER_ANGLE_RAD
-                    * (2.0 * AlgoRngUniform01(fc + 3u) - 1.0);
+        m.angleRad += ALGO_GATE_JITTER_ANGLE_RAD * inv3 * varScale
+                    * AlgoDefectSmoothNoise(ks, 2, ALGO_GATE_TAG_JITTER,
+                                            tSec, ALGO_GATE_DRIFT_CORR_S);
 
-        m.alpha *= ALGO_GATE_JITTER_ALPHA_MIN
-                 + (1.0 - ALGO_GATE_JITTER_ALPHA_MIN)
-                 * AlgoRngUniform01(fc + 4u);
+        // Opacity factor in [1 - (1 - min) varScale, 1]: the normal CDF of a
+        // unit process is uniform on (0, 1) at any one time and smooth in time.
+        const HighPrecType u = AlgoDefectNormalCdf(AlgoDefectSmoothNoise(
+            ks, 3, ALGO_GATE_TAG_JITTER, tSec, ALGO_GATE_DRIFT_CORR_S));
 
-        return true;
+        m.alpha *= MAX_VALUE(1.0 - (1.0 - ALGO_GATE_JITTER_ALPHA_MIN) * varScale * u,
+                             0.0);
+
+        return;
     }
 
 
@@ -470,18 +456,28 @@ void AlgoStage16_GateDefects
     // Frames elapsed since this reel started.
     const HighPrecType intoReel = framePos - (reelReal * reelFrames);
 
+    // 2026-10-20b: the same, in SECONDS of screen time - every rate below is
+    // per second, so the gate renews at the same pace at any frame rate.
+    const HighPrecType intoReelS = intoReel / fps;
+    const HighPrecType tSec      = framePos / fps;
+
+    // defectVariability and defectVisibility (2026-10-20b).
+    const HighPrecType varScale = MAX_VALUE(
+        static_cast<HighPrecType>(dmg.defectVariability), 0.0) / 0.5;
+    const HighPrecType visibility = MAX_VALUE(
+        static_cast<HighPrecType>(dmg.defectVisibility), 0.0);
+
     // ----------------------------------------------------------------------
-    //  GATE DIRT - persistent, frame-fixed, DERIVED rather than accumulated.
+    //  GATE DIRT - persistent, DERIVED rather than accumulated.
     //
-    //  Each slot in the pool draws a birth frame and a lifetime from its own
-    //  stream, and is present exactly when birth <= intoReel < birth + lifetime.
-    //  No history, no accumulation, no dependence on which frames were rendered
-    //  before this one - which is what lets the host ask for any frame at any time
-    //  and get the same answer.
-    //
-    //  Slots below the initial count are born at the reel start; the rest are the
-    //  arrivals of a Poisson accretion process, whose k-th arrival time is the sum
-    //  of k exponential gaps.
+    //  2026-10-20b: in SECONDS. Each slot draws a birth time (jittered regular
+    //  arrivals at the accretion rate, which is the steady-state count divided
+    //  by the mean residence dustLifetime) and an exponential residence, and is
+    //  present exactly when birth <= tIntoReel < birth + residence. No history,
+    //  no accumulation: the host may ask for any frame at any time, at any frame
+    //  rate, and gets the same particles at the same TIME. Living particles
+    //  drift smoothly in time (gateDrift) instead of the former per-frame
+    //  jitter and blink. The population is scaled by the stock's own dirt rate.
     // ----------------------------------------------------------------------
     // ⚠ THE ERA TERM. profile.temporal.dirt_events_per_frame spans 0.05 to 3.0
     // across the database; ALGO_GATE_RATE_REFERENCE is the 3.0 the gate constants
@@ -498,33 +494,41 @@ void AlgoStage16_GateDefects
         const HighPrecType initial =
             ALGO_GATE_INITIAL_COUNT * dirtLevel * eraGate;
 
-        const HighPrecType accretion =
-            ALGO_GATE_ACCRETION_PER_FRAME * dirtLevel * eraGate;
+        // 2026-10-20b: steady-state COUNT and mean residence in SECONDS; the
+        // accretion gap follows from Little's law, so dustLifetime changes how
+        // often the population renews and not how many particles it holds.
+        const HighPrecType steady =
+            ALGO_GATE_STEADY_COUNT * dirtLevel * eraGate;
 
-        const HighPrecType gapFrames =
-            (accretion > 0.0) ? (1.0 / accretion) : reelFrames;
+        const HighPrecType lifeMean = MAX_VALUE(
+            static_cast<HighPrecType>(dmg.dustLifetime), 1.0e-3);
 
-        const HighPrecType lifeMean =
-            (ALGO_GATE_SHED_PER_FRAME > 0.0)
-                ? (1.0 / ALGO_GATE_SHED_PER_FRAME)
-                : reelFrames;
+        const HighPrecType gapS =
+            (steady > 0.0) ? (lifeMean / steady) : ALGO_GATE_REEL_SECONDS;
+
+        // Arrivals worth examining: about six mean residences back.
+        const int32_t window = static_cast<int32_t>(MIN_VALUE(
+            std::ceil(6.0 * lifeMean / gapS) + 8.0,
+            static_cast<HighPrecType>(ALGO_GATE_WINDOW_MAX)));
 
         const HighPrecType decayPx = ALGO_GATE_EDGE_DECAY_MM * scale;
 
         // ------------------------------------------------------------------
         //  A small lambda so the two populations below - what survived the reel
         //  change, and what has accreted since - share one body. They differ only
-        //  in their birth time and their stream key.
+        //  in their birth time and their stream key. Times in seconds.
         // ------------------------------------------------------------------
         const auto emit = [&](const uint64_t sc, const HighPrecType birth) noexcept
         {
-            if (birth > intoReel)
+            if (birth > intoReelS)
                 return;
 
+            // Shedding is memoryless (a particle is knocked out at any moment
+            // with equal chance): exponential residence, mean dustLifetime.
             const HighPrecType life = gateExponential(sc + 32u, lifeMean);
 
             // Shed already.
-            if ((birth + life) <= intoReel)
+            if ((birth + life) <= intoReelS)
                 return;
 
             GateMark m{};
@@ -544,11 +548,13 @@ void AlgoStage16_GateDefects
                     * AlgoRngUniform01(sc + 112u);
 
             // ⚠ EVERYTHING ABOVE IS THE PARTICLE'S IDENTITY AND IS THE SAME ON
-            // EVERY FRAME IT LIVES. Everything the eye reads as motion is added
-            // here, and the false return is the particle being absent from this
-            // frame altogether.
-            if (!gateFrameJitter(sc, frameIndex, scale, m))
-                return;
+            // EVERY FRAME IT LIVES. The smooth drift in time is added here.
+            gateDrift(sc, tSec, scale, varScale, m);
+
+            // defectVisibility: optical density scaled, a -> 1 - (1 - a)^v.
+            if (visibility != 1.0)
+                m.alpha = 1.0 - std::pow(1.0 - CLAMP_VALUE(m.alpha, 0.0, 0.999999),
+                                         visibility);
 
             gateRasterise(m, pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx);
         };
@@ -556,14 +562,14 @@ void AlgoStage16_GateDefects
         // ------------------------------------------------------------------
         //  What the reel change did not remove.
         //
-        //  Present from frame zero of the reel, and subject to the same shedding as
-        //  everything else, so this population decays away while the accreted one
-        //  builds up. Given negative ordinals so it cannot collide with the
+        //  Present from the start of the reel, and subject to the same shedding
+        //  as everything else, so this population decays away while the accreted
+        //  one builds up. Given negative ordinals so it cannot collide with the
         //  accretion stream.
         // ------------------------------------------------------------------
         const int32_t initialSlots = static_cast<int32_t>(initial);
 
-        for (int32_t j = 0; j < initialSlots && j < ALGO_GATE_WINDOW; j++)
+        for (int32_t j = 0; j < initialSlots && j < ALGO_GATE_WINDOW_MAX; j++)
         {
             emit(AlgoDefectHash(rollSeed, reelIndex, -1 - j,
                                 ALGO_GATE_TAG_SLOT), 0.0);
@@ -572,29 +578,16 @@ void AlgoStage16_GateDefects
         // ------------------------------------------------------------------
         //  Arrival ordinals worth examining for THIS frame.
         //
-        //  The k-th accreted particle arrives around k gaps into the reel, so the
-        //  most recent arrival has ordinal floor(intoReel / gap) and anything with
-        //  a much smaller ordinal has almost certainly shed. The window therefore
-        //  ends at the current frame and reaches back far enough to cover the
-        //  exponential lifetime tail.
-        //
-        //  Sliding rather than fixed-from-the-reel-head, because a pool numbered
-        //  from the head runs out: once its last ordinal has arrived the gate can
-        //  accrete nothing more, and the population collapses instead of growing.
-        //
-        //  Arrival times are a jittered regular sequence - ordinal k arrives at
-        //  (k + u) gaps - rather than a cumulative sum of exponential gaps. A
-        //  cumulative sum is the exact Poisson construction but requires walking
-        //  every ordinal from the reel head, which is precisely the state this
-        //  design exists to avoid. The jittered sequence has the same mean rate and
-        //  is slightly more regular than Poisson; since no measurement of gate
-        //  accretion exists at all, that regularity is far below the uncertainty in
-        //  the rate itself, whereas statelessness is a hard requirement.
+        //  The k-th accreted particle arrives at (k + u) gaps into the reel - a
+        //  jittered regular sequence with the Poisson process's mean rate, which
+        //  needs no walk from the reel head (the exact cumulative-sum
+        //  construction would). The window ends at the current time and reaches
+        //  back about six mean residences, so the exponential tail is covered.
         // ------------------------------------------------------------------
         const int32_t kNewest = static_cast<int32_t>(
-            std::floor(intoReel / gapFrames));
+            std::floor(intoReelS / gapS));
 
-        const int32_t kOldest = kNewest - (ALGO_GATE_WINDOW - 1);
+        const int32_t kOldest = kNewest - (window - 1);
 
         for (int32_t k = kOldest; k <= kNewest; k++)
         {
@@ -607,8 +600,7 @@ void AlgoStage16_GateDefects
             const uint64_t sc = AlgoDefectHash(rollSeed, reelIndex, k,
                                                ALGO_GATE_TAG_SLOT);
 
-            emit(sc, (static_cast<HighPrecType>(k) + AlgoRngUniform01(sc))
-                     * gapFrames);
+            emit(sc, (static_cast<HighPrecType>(k) + AlgoRngUniform01(sc)) * gapS);
         }
     }
 
@@ -668,6 +660,10 @@ void AlgoStage16_GateDefects
                 m.alpha = ALGO_SPARKLE_ALPHA_MIN
                         + (ALGO_SPARKLE_ALPHA_MAX - ALGO_SPARKLE_ALPHA_MIN)
                         * AlgoRngUniform01(pc + 40u);
+
+                // defectVisibility (2026-10-20b); exact at 1.
+                if (visibility != 1.0)
+                    m.alpha = 1.0 - std::pow(1.0 - m.alpha, visibility);
 
                 gateRasterise(m, pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx);
             }

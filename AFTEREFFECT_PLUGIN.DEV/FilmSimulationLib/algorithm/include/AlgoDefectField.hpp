@@ -75,6 +75,8 @@
 
 // The single source of the engine's numeric types and alignment policy.
 #include "AlgoTypes.hpp"
+// 2026-10-20c: this header's compile-time constants live in film_damage_constants.hpp.
+#include "film_damage_constants.hpp"
 
 // The film-fixed coordinate system every defect is generated in.
 #include "AlgoFilmCoord.hpp"
@@ -84,90 +86,6 @@
 
 #include <cmath>    // std::sqrt, std::cos, std::sin, std::atan2
 #include <cstdint>   // int32_t, uint32_t, uint64_t
-
-
-// ---------------------------------------------------------------------------
-//  Measured coefficient of variation of the intensity field.
-//
-//  0.88, the centre of the 0.83 - 0.92 range obtained by inverting the observed
-//  dispersion index at three cell areas. Grade E.
-// ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_DEFECT_FIELD_CV = 0.88;
-
-// ---------------------------------------------------------------------------
-//  Spectral slope of the modulating field, as the exponent beta in 1/f^beta.
-//
-//  1.0 - near-pink. This is what makes the coefficient of variation almost
-//  independent of measurement scale, which is what was observed: CV changed by
-//  less than a tenth across a sixteen-fold range of cell areas. A single-scale
-//  blob field cannot do that. Grade E for the observation, P for the inference.
-// ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_DEFECT_FIELD_BETA = 1.0;
-
-// ---------------------------------------------------------------------------
-//  Octave structure of the value-noise field.
-//
-//  Finest lattice spacing 1 mm, six octaves, so the field carries structure at
-//  1, 2, 4, 8, 16 and 32 mm. That spans the 1 - 20 mm range over which the
-//  scale-free behaviour was measured, with one octave of headroom at each end.
-//
-//  Six is chosen so the coarsest octave exceeds the largest frame dimension in
-//  the database that has a transport axis, and the finest is at the scale where
-//  the measurement's smallest cell was taken.
-// ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_DEFECT_FIELD_BASE_MM = 1.0;
-constexpr int32_t      ALGO_DEFECT_FIELD_OCTAVES = 6;
-
-// ---------------------------------------------------------------------------
-//  Cell size for stratified placement, millimetres square.
-//
-//  One millimetre, matching the finest lattice of the field and the smallest cell
-//  the dispersion index was measured at. Small enough that the intensity is
-//  effectively constant within a cell - which is what makes the stratified draw
-//  equivalent to sampling the continuous process - and large enough that the
-//  per-cell Poisson count stays in single figures at realistic densities.
-// ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_DEFECT_CELL_MM = 1.0;
-
-// ---------------------------------------------------------------------------
-//  Hard cap on particles generated from one cell.
-//
-//  A guard, not a model parameter. The Poisson draw below is unbounded in
-//  principle, and a pathological intensity - a control driven far past its
-//  documented range, say - could otherwise ask for millions of particles from one
-//  square millimetre. Thirty-two is roughly ten standard deviations above the
-//  highest per-cell mean any documented density produces.
-// ---------------------------------------------------------------------------
-constexpr int32_t ALGO_DEFECT_MAX_PER_CELL = 32;
-
-// ---------------------------------------------------------------------------
-//  Variance retained by one octave of Hermite-interpolated value noise.
-//
-//  A lattice of independent unit-variance values, smoothly interpolated, does NOT
-//  have unit variance away from the lattice points. A point inside a cell is a
-//  weighted mean of four corner values whose weights sum to one, so its variance
-//  is sum(w^2), which is 1 only exactly at a corner.
-//
-//  Averaged over the cell this is computable in closed form. With
-//  W = smoothstep(u) = 3u^2 - 2u^3 and u uniform on [0,1]:
-//
-//      E[W]   = 1/2
-//      E[W^2] = 9/5 - 12/6 + 4/7 = 13/35
-//      one axis : E[(1-W)^2 + W^2] = 1 - 2E[W] + 2E[W^2] = 26/35
-//      two axes : (26/35)^2 = 676/1225 = 0.551837
-//
-//  Measured empirically over 400 000 samples of the full six-octave field:
-//  0.5567. The small excess over 0.551837 is the sampling grid interacting with
-//  the octave spacings.
-//
-//  This factor MUST be divided out, and getting it wrong is not cosmetic: without
-//  it the field's sigma is 0.746 instead of 1.0, the delivered coefficient of
-//  variation is 0.63 instead of the measured 0.88, and the index of dispersion
-//  comes out roughly three times too low at every scale. Which is exactly the
-//  under-clustered look this whole Cox machinery exists to avoid.
-// ---------------------------------------------------------------------------
-constexpr HighPrecType ALGO_DEFECT_INTERP_VARIANCE = 676.0 / 1225.0;
-
 
 // ---------------------------------------------------------------------------
 //  AlgoDefectHash
@@ -203,7 +121,6 @@ FORCE_INLINE uint64_t AlgoDefectHash
     return AlgoRngMix64(h);
 }
 
-
 // ---------------------------------------------------------------------------
 //  AlgoDefectFieldValue
 //
@@ -226,7 +143,6 @@ HighPrecType AlgoDefectFieldValue
     const uint32_t     tag
 ) noexcept;
 
-
 // ---------------------------------------------------------------------------
 //  AlgoDefectCoxIntensity
 //
@@ -247,7 +163,6 @@ HighPrecType AlgoDefectCoxIntensity
     const HighPrecType clumping
 ) noexcept;
 
-
 // ---------------------------------------------------------------------------
 //  AlgoDefectPoisson
 //
@@ -262,7 +177,6 @@ int32_t AlgoDefectPoisson
     const uint64_t     counter,
     const HighPrecType mean
 ) noexcept;
-
 
 // ---------------------------------------------------------------------------
 //  AlgoDefectPowerLawSize
@@ -282,7 +196,6 @@ HighPrecType AlgoDefectPowerLawSize
     const HighPrecType gamma
 ) noexcept;
 
-
 // ---------------------------------------------------------------------------
 //  AlgoDefectBeta23
 //
@@ -297,20 +210,6 @@ HighPrecType AlgoDefectPowerLawSize
 //  ones are opaque.
 // ---------------------------------------------------------------------------
 HighPrecType AlgoDefectBeta23 (const uint64_t counter) noexcept;
-
-
-// ---------------------------------------------------------------------------
-//  ALGO_DEFECT_BLOB_HARMONICS
-//
-//  Angular harmonics modulating a particle's radius, shared by every class that
-//  draws a compact blob.
-//
-//  Three, starting at the second. The first would merely translate the shape,
-//  which the particle's centre already expresses, so including it would waste a
-//  term and make the centre ambiguous.
-// ---------------------------------------------------------------------------
-constexpr int32_t ALGO_DEFECT_BLOB_HARMONICS = 3;
-
 
 // ---------------------------------------------------------------------------
 //  AlgoDefectBlobCoverage

@@ -32,28 +32,13 @@
 #include "Common.hpp"
 #include "CompileTimeUtils.hpp"
 #include "AlgoTypes.hpp"
+// 2026-10-20c: this header's compile-time constants live in film_damage_constants.hpp.
+#include "film_damage_constants.hpp"
 #include "AlgoCounterRng.hpp"
 
 #include <cmath>     // std::sqrt, std::cos, std::exp
 #include <cstddef>   // std::ptrdiff_t
 #include <cstdint>   // int32_t, uint32_t, uint64_t
-
-
-// ---- definitions -----------------------------------------------------------
-// Transmittance loss in the corners at scannerArtifacts x strength = 1.
-constexpr HighPrecType ALGO_SCAN_SHADING_CORNER = 0.06;
-// Peak per-column gain error at level 1 (gains uniform in [1 - a, 1 + a]).
-constexpr HighPrecType ALGO_SCAN_BANDING_AMP    = 0.004;
-// Newton's rings: modulation depth at level 1, first-ring radius at the green
-// wavelength, and the Gaussian radius of the contact patch, film millimetres.
-constexpr HighPrecType ALGO_SCAN_RINGS_AMP      = 0.03;
-constexpr HighPrecType ALGO_SCAN_RINGS_R1_MM    = 1.0;
-constexpr HighPrecType ALGO_SCAN_RINGS_PATCH_MM = 6.0;
-// Nominal channel wavelengths, nm. Only their ratios are used.
-constexpr HighPrecType ALGO_SCAN_LAMBDA_R       = 610.0;
-constexpr HighPrecType ALGO_SCAN_LAMBDA_G       = 540.0;
-constexpr HighPrecType ALGO_SCAN_LAMBDA_B       = 465.0;
-
 
 inline void AlgoScannerArtifacts
 (

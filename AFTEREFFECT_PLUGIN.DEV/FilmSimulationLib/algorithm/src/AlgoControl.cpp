@@ -199,7 +199,7 @@ FilmDamage getFilmDamageDefault (void) noexcept
     // Transport scratches - the continuous longitudinal grooves a fixed burr
     // ploughs along moving film. Below 1.0 because a full measured rate implies a
     // damaged transport, not ordinary handling.
-    damage.scratchTransport  = 0.40;
+    damage.scratchTransport  = ScratchTransportDef;   // 2026-10-20: events per minute
 
     // Random handling scratches and abrasions, from film rubbing against itself
     // and against surfaces. Slightly rarer than transport damage on material that
@@ -256,6 +256,15 @@ FilmDamage getFilmDamageDefault (void) noexcept
     // these are artifacts of the digitisation and not of the film, so they should
     // be perceptible only when looked for.
     damage.scannerArtifacts  = 0.20;
+
+    // ---- Defect reader optics: 2026-10-20, OFF by default (bit-identical) --
+    damage.defectOptics      = DefectOpticsDef;
+
+    // ---- Temporal defect controls: 2026-10-20 ----------------------------
+    damage.scratchLifetime   = ScratchLifetimeDef;
+    damage.dustLifetime      = DustLifetimeDef;
+    damage.defectVariability = DefectVariabilityDef;
+    damage.defectVisibility  = DefectVisibilityDef;
 
     // ----------------------------------------------------------------------
     //  THE ONE EXCEPTION, AND WHY IT IS NOT A LEVEL
@@ -674,6 +683,11 @@ AlgoControls AlgoControlsClamped (const AlgoControls& in, const int32_t profileC
                         ? FlickerStopsStock
                         : algoClampCtl(d.flickerStops,      FlickerStopsMin,      FlickerStopsMax,      FlickerStopsDef);
     d.scannerArtifacts  = algoClampCtl(d.scannerArtifacts,  ScannerArtifactsMin,  ScannerArtifactsMax,  ScannerArtifactsDef);
+    // 2026-10-20: temporal defect controls.
+    d.scratchLifetime   = algoClampCtl(d.scratchLifetime,   ScratchLifetimeMin,   ScratchLifetimeMax,   ScratchLifetimeDef);
+    d.dustLifetime      = algoClampCtl(d.dustLifetime,      DustLifetimeMin,      DustLifetimeMax,      DustLifetimeDef);
+    d.defectVariability = algoClampCtl(d.defectVariability, DefectVariabilityMin, DefectVariabilityMax, DefectVariabilityDef);
+    d.defectVisibility  = algoClampCtl(d.defectVisibility,  DefectVisibilityMin,  DefectVisibilityMax,  DefectVisibilityDef);
 
     return c;
 }

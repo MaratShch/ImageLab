@@ -15,13 +15,23 @@
 //  ⚠ THE SCRATCH CLASS IS SCALAR TOO, AND ITS SOURCE IS CHARACTER-FOR-CHARACTER
 //  THE SCALAR TREE'S. A scratch is a stroked polyline a pixel or two wide, so it
 //  is a thin diagonal band of work with nothing to pack either - and the shared
-//  defectRasteriseFibre it draws through is HighPrecType in BOTH trees, so the
+//  defectRasteriseStroke (2026-10-20; was defectRasteriseFibre) it draws through
+//  is HighPrecType in BOTH trees, so the
 //  mark's geometry, coverage and density increment are computed in double on
 //  both sides and only the STORE into the AlgoType plane rounds. Measured on the
 //  test_scratch_guard probe: the two builds agree to 3e-08 on the scratch cases,
 //  which is float32 storage rounding and nothing else. The one place the two
 //  flavours genuinely differ inside 9b is defectRasterise, the compact-blob path
 //  that dust and debris use, whose inner loop is float32 here by rule D1.
+//
+//  2026-10-20 (stochastic defects, reader optics): the blob path's interior
+//  TEXTURE and every write that is not the plain additive one (removals, and all
+//  writes with defectOptics on) are HighPrecType through the shared
+//  AlgoDefectOptics.hpp, and the texture's lattice coordinates are formed in
+//  double here too - near the opacity cap a float coordinate moved the density
+//  by 2e-2 D. Measured on test_scratch_guard's dump mode, all classes on, OFF,
+//  ON, and ON on a Callier stock: scalar against AVX2 within 4.5e-05 D (the
+//  pre-change blob path: 4.1e-05).
 //
 //  ALIGNMENT: EVERY IMAGE ACCESS IS UNALIGNED, DELIBERATELY.
 //
@@ -53,6 +63,7 @@
 #include "FastAriphmeticsAVX.hpp"
 #include <immintrin.h>
 #include "AlgoNegativeDefects.hpp"
+#include "AlgoDefectOptics.hpp"        // 2026-10-20: reader law, Callier exclusion, noise
 #include "AlgoBromideDrag.hpp"
 #include "AlgoProcessingDefects.hpp"   // 2026-10-10: processingQuality, dryingMarks, colourVeil
 
@@ -98,17 +109,7 @@ namespace
 // ===========================================================================
 namespace
 {
-    // ----------------------------------------------------------------------
-    //  Two pi, for the angular harmonics and the orientation draws.
-    // ----------------------------------------------------------------------
-    constexpr HighPrecType ALGO_DEFECT_TWO_PI = 6.283185307179586476925286766559;
-
-    // ----------------------------------------------------------------------
-    //  Micrometres per millimetre. Sizes are measured in micrometres and the
-    //  film coordinate system is in millimetres, so the conversion appears often
-    //  enough to be worth naming.
-    // ----------------------------------------------------------------------
-    constexpr HighPrecType ALGO_DEFECT_UM_PER_MM = 1000.0;
+    // ALGO_DEFECT_TWO_PI, ALGO_DEFECT_UM_PER_MM: film_damage_constants.hpp (2026-10-20c).
 
 
     // ----------------------------------------------------------------------
@@ -129,7 +130,115 @@ namespace
         HighPrecType lobeDepth;    // harmonic modulation depth of the radius
         HighPrecType harmPhase[ALGO_DEFECT_HARMONICS];
         HighPrecType chroma[3];    // per-channel opacity weights, max = 1
+
+        // 2026-10-20: stochastic shape, polarity, texture and optics.
+        HighPrecType lobeScale[ALGO_DEFECT_HARMONICS]; // per-harmonic, mean 1
+        HighPrecType polarity;     // +1 material on/in the film, -1 removal
+        HighPrecType scatterShare; // scattering share for the reader law
+        HighPrecType texSigma;     // interior white texture, fraction of alpha
+        HighPrecType texStepPx;    // texture lattice step, pixels
+        uint32_t     texSeed;      // texture lattice key, from the particle
+
+        // 2026-10-20c: ragged outline and per-particle soft edge
+        // (AlgoNegativeDefects.hpp). Zero / n = 0 = the old shape and edge.
+        HighPrecType      edgeFrac;  // edge width as a fraction of radiusPx
+        AlgoDefectOutline outline;   // polygon x roughness radius table
     };
+
+
+    // ----------------------------------------------------------------------
+    //  One record of one pixel through the shared write (AlgoDefectOptics.hpp).
+    //  OFF with an additive mark is the old law; everything else goes here.
+    // ----------------------------------------------------------------------
+    inline AlgoType defectWrite
+    (
+        const AlgoType             d,
+        const HighPrecType         a,
+        const HighPrecType         polarity,
+        const HighPrecType         share,
+        const int32_t              channel,
+        const AlgoDefectOpticsCtx& ctx
+    ) noexcept
+    {
+        return static_cast<AlgoType>(AlgoDefectWrite(
+            static_cast<HighPrecType>(d), a, polarity, share,
+            ALGO_CUT_WALL_SHARE, ALGO_CUT_WALL_SCATTER_SHARE,
+            ALGO_DEFECT_SCATTER_REF_HEADROOM, channel, ctx));
+    }
+
+
+    // ----------------------------------------------------------------------
+    //  Median-preserving log-normal multiplier from a unit Gaussian and a
+    //  coefficient of variation: exp(sigma_ln * n), sigma_ln = sqrt(ln(1+CV^2)).
+    // ----------------------------------------------------------------------
+    inline HighPrecType defectCvFactor
+    (
+        const HighPrecType n,
+        const HighPrecType cv
+    ) noexcept
+    {
+        return std::exp(std::sqrt(std::log(1.0 + (cv * cv))) * n);
+    }
+
+
+    // ----------------------------------------------------------------------
+    //  White texture at the render resolution.
+    //
+    //  The textures are defined on a lattice of ALGO_DEFECT_TEXTURE_UM, the
+    //  scale at which the collage measured them. A pixel coarser than that
+    //  INTEGRATES several independent samples, which lowers the standard
+    //  deviation it shows: by the ratio of lattice step to pixel size on a plane,
+    //  by its square root along a line. So the lattice is never finer than a
+    //  pixel and the sigma is reduced to what the pixel would integrate. The
+    //  texture then looks the same at every resolution, and point-sampling a
+    //  lattice finer than the pixel (which would alias and exaggerate it) never
+    //  happens.
+    // ----------------------------------------------------------------------
+    inline void defectTexture2D
+    (
+        const HighPrecType sigma,
+        const HighPrecType pxPerMm,
+        HighPrecType&      sigmaOut,
+        HighPrecType&      stepPxOut
+    ) noexcept
+    {
+        const HighPrecType stepMm = ALGO_DEFECT_TEXTURE_UM / ALGO_DEFECT_UM_PER_MM;
+        const HighPrecType pixMm  = 1.0 / MAX_VALUE(pxPerMm, 1.0e-9);
+
+        if (stepMm >= pixMm)
+        {
+            sigmaOut  = sigma;
+            stepPxOut = stepMm * pxPerMm;
+        }
+        else
+        {
+            sigmaOut  = sigma * (stepMm / pixMm);
+            stepPxOut = 1.0;
+        }
+    }
+
+    inline void defectTexture1D
+    (
+        const HighPrecType sigma,
+        const HighPrecType pxPerMm,
+        HighPrecType&      sigmaOut,
+        HighPrecType&      stepMmOut
+    ) noexcept
+    {
+        const HighPrecType stepMm = ALGO_DEFECT_TEXTURE_UM / ALGO_DEFECT_UM_PER_MM;
+        const HighPrecType pixMm  = 1.0 / MAX_VALUE(pxPerMm, 1.0e-9);
+
+        if (stepMm >= pixMm)
+        {
+            sigmaOut  = sigma;
+            stepMmOut = stepMm;
+        }
+        else
+        {
+            sigmaOut  = sigma * std::sqrt(stepMm / pixMm);
+            stepMmOut = pixMm;
+        }
+    }
 
 
     // ----------------------------------------------------------------------
@@ -294,20 +403,59 @@ namespace
     // ----------------------------------------------------------------------
     void defectRasterise
     (
-        const DefectParticle& p,
+        const DefectParticle& pIn,
         AlgoType* RESTRICT    pDstR,
         AlgoType* RESTRICT    pDstG,
         AlgoType* RESTRICT    pDstB,
         const int32_t         sizeX,
         const int32_t         sizeY,
         const int32_t         pitch,
-        const HighPrecType    edgePx
+        const HighPrecType    edgePx,
+        const AlgoDefectOpticsCtx& ctx
     ) noexcept
     {
         // Outer reach of the particle: the long semi-axis at its greatest
         // harmonic excursion, plus the edge transition.
-        const HighPrecType reach = p.radiusPx * p.aspect * (1.0 + p.lobeDepth)
-                                 + edgePx;
+        // 2026-10-20b: a sub-pixel particle is widened to the minimum
+        // footprint with its opacity scaled by the area ratio, so it cannot
+        // fall between pixel centres and vanish (ALGO_DEFECT_MIN_FOOTPRINT_PX).
+        DefectParticle p = pIn;
+
+        if (p.radiusPx < ALGO_DEFECT_MIN_FOOTPRINT_PX)
+        {
+            const HighPrecType ratio = (p.radiusPx > 0.0)
+                ? (p.radiusPx / ALGO_DEFECT_MIN_FOOTPRINT_PX) : 0.0;
+
+            p.alpha    *= ratio * ratio;
+            p.radiusPx  = ALGO_DEFECT_MIN_FOOTPRINT_PX;
+        }
+
+        // 2026-10-20: the lobe amplitudes are scaled per harmonic, so the
+        // greatest excursion is their sum rather than lobeDepth alone.
+        HighPrecType lobeMax = 0.0;
+
+        for (int32_t k = 0; k < ALGO_DEFECT_HARMONICS; k++)
+            lobeMax += (p.lobeDepth * p.lobeScale[k])
+                     / static_cast<HighPrecType>(k + 2);
+
+        // 2026-10-20c: per-particle soft edge, never harder than the PSF edge.
+        const HighPrecType edgeP = MAX_VALUE(edgePx, p.edgeFrac * p.radiusPx);
+
+        const HighPrecType reach = p.radiusPx * p.aspect
+                                 * (1.0 + MAX_VALUE(lobeMax, p.lobeDepth))
+                                 * ((p.outline.n > 0) ? p.outline.rMax : 1.0)
+                                 + edgeP;
+
+        // Interior texture lattice, in pixels of the particle's own frame.
+        const HighPrecType invTex =
+            ((p.texSigma > 0.0) && (p.texStepPx > 0.0)) ? (1.0 / p.texStepPx) : 0.0;
+
+        // The pre-2026-10-20 additive store is kept verbatim for the case it
+        // covers: reader optics off and material added.
+        const bool plainAdd = (!ctx.on) && (p.polarity > 0.0);
+
+        // defectVisibility on the plain additive store (exact at 1.0).
+        const AlgoType visf = static_cast<AlgoType>(ctx.visibility);
 
         // Bounding box, clamped to the raster. A particle wholly outside
         // contributes nothing and costs one comparison.
@@ -329,7 +477,7 @@ namespace
         const HighPrecType sa = std::sin(p.angleRad);
 
         // Reciprocal of the edge width, so the inner loop multiplies.
-        const HighPrecType invEdge = 1.0 / edgePx;
+        const HighPrecType invEdge = 1.0 / edgeP;
 
         for (int32_t y = y0; y <= y1; y++)
         {
@@ -395,14 +543,23 @@ namespace
                 {
                     const AlgoType theta = std::atan2(v, uu);
 
+                    // 2026-10-20c: ragged outline (factor 1 when n == 0); the
+                    // table is HighPrecType, shared with the scalar tree.
+                    const AlgoType outF = static_cast<AlgoType>(AlgoDefectOutlineAt(
+                        p.outline, static_cast<HighPrecType>(theta)));
+                    AlgoType lobes = ALGO_ONE;
+
                     for (int32_t k = 0; k < ALGO_DEFECT_HARMONICS; k++)
                     {
                         const AlgoType order = static_cast<AlgoType>(k + 2);
 
-                        shape += (lobeDf / order)
+                        lobes += ((lobeDf * static_cast<AlgoType>(p.lobeScale[k]))
+                                  / order)
                                * std::cos(order * theta
                                           + static_cast<AlgoType>(p.harmPhase[k]));
                     }
+
+                    shape = outF * lobes;
                 }
 
                 const AlgoType boundary = radPxf * shape;
@@ -418,19 +575,65 @@ namespace
 
                 // Per-channel opacity, capped short of one so the density stays
                 // finite.
-                const AlgoType aR = MIN_VALUE(alphaf * cov
+                // Opacity at this pixel, with the interior texture: Gaussian
+                // white noise multiplying the opacity, keyed on the particle's
+                // own frame so it travels with the particle (2026-10-20). The
+                // texture is HighPrecType, shared with the scalar tree.
+                // 2026-10-20c: density ramps with coverage (thinning rim):
+                // a = 1 - (1 - alpha)^cov, identical inside.
+                AlgoType aPix = (cov >= ALGO_ONE) ? alphaf
+                              : (ALGO_ONE - std::pow(ALGO_ONE - alphaf, cov));
+
+                // ⚠ THE TEXTURE COORDINATES ARE FORMED IN HighPrecType, NOT
+                // FROM THE FLOAT u, v ABOVE: near the opacity cap a 1e-6 change
+                // in the lattice coordinate moves the density visibly, and the
+                // two twins must agree on it.
+                if (invTex > 0.0)
+                {
+                    const HighPrecType dxh = (static_cast<HighPrecType>(x) + 0.5) - p.pxX;
+                    const HighPrecType dyh = (static_cast<HighPrecType>(y) + 0.5) - p.pxY;
+
+                    const HighPrecType uh =  dxh * ca + dyh * sa;
+                    const HighPrecType vh = -dxh * sa + dyh * ca;
+
+                    // 2026-10-20c: texture fades as the local opacity nears 1.
+                    const HighPrecType aBase = (cov >= ALGO_ONE)
+                        ? static_cast<HighPrecType>(alphaf)
+                        : (1.0 - std::pow(1.0 - static_cast<HighPrecType>(alphaf),
+                                          static_cast<HighPrecType>(cov)));
+
+                    aPix = static_cast<AlgoType>(aBase
+                         * MAX_VALUE(1.0 + p.texSigma * AlgoDefectTextureFade(aBase)
+                                   * AlgoDefectWhiteNoise2D(
+                               p.texSeed, ALGO_DEFECT_TAG_TEXTURE,
+                               uh * invTex, vh * invTex), 0.0));
+                }
+
+                const AlgoType aR = MIN_VALUE(aPix
                                         * static_cast<AlgoType>(p.chroma[0]),
                                     static_cast<AlgoType>(ALGO_DEFECT_ALPHA_CAP));
-                const AlgoType aG = MIN_VALUE(alphaf * cov
+                const AlgoType aG = MIN_VALUE(aPix
                                         * static_cast<AlgoType>(p.chroma[1]),
                                     static_cast<AlgoType>(ALGO_DEFECT_ALPHA_CAP));
-                const AlgoType aB = MIN_VALUE(alphaf * cov
+                const AlgoType aB = MIN_VALUE(aPix
                                         * static_cast<AlgoType>(p.chroma[2]),
                                     static_cast<AlgoType>(ALGO_DEFECT_ALPHA_CAP));
 
-                rR[x] += -std::log10(ALGO_ONE - aR);
-                rG[x] += -std::log10(ALGO_ONE - aG);
-                rB[x] += -std::log10(ALGO_ONE - aB);
+                if (plainAdd)
+                {
+                    rR[x] += -visf * std::log10(ALGO_ONE - aR);
+                    rG[x] += -visf * std::log10(ALGO_ONE - aG);
+                    rB[x] += -visf * std::log10(ALGO_ONE - aB);
+                }
+                else
+                {
+                    rR[x] = defectWrite(rR[x], static_cast<HighPrecType>(aR),
+                                        p.polarity, p.scatterShare, 0, ctx);
+                    rG[x] = defectWrite(rG[x], static_cast<HighPrecType>(aG),
+                                        p.polarity, p.scatterShare, 1, ctx);
+                    rB[x] = defectWrite(rB[x], static_cast<HighPrecType>(aB),
+                                        p.polarity, p.scatterShare, 2, ctx);
+                }
             }
         }
 
@@ -439,72 +642,89 @@ namespace
 
 
     // ----------------------------------------------------------------------
-    //  Rasterise a stroked polyline at constant width: a fibre, or a scratch.
+    //  Rasterise a stroked polyline: a fibre, or a scratch.
     //
     //  Coverage comes from the distance to the NEAREST point on the whole
     //  centreline, not from stamping each segment in turn. Stamping would add
     //  density twice wherever two segments overlap, and since consecutive
     //  segments always overlap at their shared joint, a stamped fibre acquires a
     //  string of beads along its length. Taking the minimum distance over the
-    //  whole polyline costs one pass over the fibre's bounding box per segment
-    //  and produces a genuinely constant-width stroke - which is the mechanical
-    //  signature of a foreign object lying on the film, and the one thing that
-    //  must not be got wrong here.
+    //  whole polyline costs one pass over the stroke's bounding box per segment.
     //
-    //  ⚠ SHARED WITH THE SCRATCH CLASS, WHICH IS WHY `polarity` EXISTS. A fibre
-    //  can only ever ADD density: it is an object sitting on the film blocking
-    //  printing light. A scratch can do either - a burnish scatters light out of
-    //  the printing beam and adds density, while a cut removes emulsion and takes
-    //  density away - so the stroke has to be able to subtract. polarity is +1 or
-    //  -1 and multiplies the density increment; every other property of the mark
-    //  is unchanged, which is the point of sharing this function rather than
-    //  writing a near-duplicate of it.
+    //  2026-10-20: WIDTH AND OPACITY VARY ALONG THE STROKE. Each centreline
+    //  point carries its own half-width and peak opacity; at the nearest point
+    //  both are interpolated linearly from the segment's two ends, so a
+    //  varying mark stays continuous and keeps the no-beads property. An
+    //  optional white texture along the stroke multiplies the opacity, keyed on
+    //  the per-point arc coordinate in film millimetres (for a transport
+    //  scratch that coordinate is the ABSOLUTE along-film position, so the
+    //  texture is a property of the film and continues across frames).
     //
-    //  ⚠ AND THAT IS WHY THE WRITE IS FLOORED AT ZERO. A subtractive mark on a
-    //  low-density area could otherwise drive the negative below zero density,
-    //  which is a material that emits light, and stage 14 raises ten to its
-    //  negative and would produce a transmittance above one. This is a physical
-    //  floor exactly like stage 9's, not a display clamp. It changes nothing on
-    //  the additive path: this stage's input is stage 9's output, which stage 9
-    //  has already floored at zero, so no pixel a fibre touches can be negative
-    //  before a fibre adds to it.
+    //  POLARITY. A fibre can only add density. A scratch can do either - a
+    //  burnish scatters light out of the reader's beam and adds density, while a
+    //  cut removes emulsion and takes density away. Every store goes through
+    //  AlgoDefectWrite, whose OFF path is the old law, floored at zero:
+    //  D <- max(D + polarity * (-log10(1 - a)), 0). The floor is physical (no
+    //  negative density) and changes nothing on the additive path.
+    //
+    //  Shared, HighPrecType, character-for-character in both trees.
     // ----------------------------------------------------------------------
-    void defectRasteriseFibre
+    struct DefectStroke
+    {
+        const HighPrecType* x;      // centreline, pixels
+        const HighPrecType* y;
+        const HighPrecType* hw;     // half-width per point, pixels
+        const HighPrecType* am;     // peak opacity per point
+        const HighPrecType* arc;    // texture coordinate per point, mm (may be null)
+        int32_t             n;      // point count
+
+        HighPrecType chroma[3];
+        HighPrecType polarity;      // +1 added, -1 removed
+        HighPrecType share;         // scattering share (added marks)
+
+        HighPrecType texSigma;      // 0 = no texture
+        HighPrecType texStepMm;
+        uint32_t     texSeed;
+        int32_t      texStream;
+    };
+
+    void defectRasteriseStroke
     (
-        const HighPrecType* RESTRICT ptsX,
-        const HighPrecType* RESTRICT ptsY,
-        const int32_t                pointCount,
-        const HighPrecType           halfWidthPx,
-        const HighPrecType           alpha,
-        const HighPrecType           chroma[3],
-        const HighPrecType           polarity,
-        AlgoType* RESTRICT           pDstR,
-        AlgoType* RESTRICT           pDstG,
-        AlgoType* RESTRICT           pDstB,
-        const int32_t                sizeX,
-        const int32_t                sizeY,
-        const int32_t                pitch,
-        const HighPrecType           edgePx
+        const DefectStroke&        st,
+        AlgoType* RESTRICT         pDstR,
+        AlgoType* RESTRICT         pDstG,
+        AlgoType* RESTRICT         pDstB,
+        const int32_t              sizeX,
+        const int32_t              sizeY,
+        const int32_t              pitch,
+        const HighPrecType         edgePx,
+        const AlgoDefectOpticsCtx& ctx
     ) noexcept
     {
-        if (pointCount < 2)
+        if (st.n < 2)
             return;
 
-        const HighPrecType reach = halfWidthPx + edgePx;
+        const HighPrecType* RESTRICT ptsX = st.x;
+        const HighPrecType* RESTRICT ptsY = st.y;
 
-        // Bounding box of the whole centreline.
-        HighPrecType minX = ptsX[0];
-        HighPrecType maxX = ptsX[0];
-        HighPrecType minY = ptsY[0];
-        HighPrecType maxY = ptsY[0];
+        // Bounding box of the whole centreline, and the widest point.
+        HighPrecType minX  = ptsX[0];
+        HighPrecType maxX  = ptsX[0];
+        HighPrecType minY  = ptsY[0];
+        HighPrecType maxY  = ptsY[0];
+        HighPrecType maxHw = st.hw[0];
 
-        for (int32_t i = 1; i < pointCount; i++)
+        for (int32_t i = 1; i < st.n; i++)
         {
-            minX = MIN_VALUE(minX, ptsX[i]);
-            maxX = MAX_VALUE(maxX, ptsX[i]);
-            minY = MIN_VALUE(minY, ptsY[i]);
-            maxY = MAX_VALUE(maxY, ptsY[i]);
+            minX  = MIN_VALUE(minX, ptsX[i]);
+            maxX  = MAX_VALUE(maxX, ptsX[i]);
+            minY  = MIN_VALUE(minY, ptsY[i]);
+            maxY  = MAX_VALUE(maxY, ptsY[i]);
+            maxHw = MAX_VALUE(maxHw, st.hw[i]);
         }
+
+        const HighPrecType reach = MAX_VALUE(maxHw, ALGO_DEFECT_MIN_FOOTPRINT_PX)
+                                 + edgePx;
 
         int32_t x0 = static_cast<int32_t>(std::floor(minX - reach));
         int32_t x1 = static_cast<int32_t>(std::floor(maxX + reach)) + 1;
@@ -521,6 +741,9 @@ namespace
 
         const HighPrecType invEdge = 1.0 / edgePx;
 
+        const bool textured = (st.texSigma > 0.0) && (st.arc != nullptr)
+                            && (st.texStepMm > 0.0);
+
         for (int32_t y = y0; y <= y1; y++)
         {
             const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
@@ -535,21 +758,20 @@ namespace
             {
                 const HighPrecType px = static_cast<HighPrecType>(x) + 0.5;
 
-                // Squared distance to the nearest point of the polyline.
-                HighPrecType best = -1.0;
+                // Squared distance to the nearest point of the polyline, and
+                // where on the polyline that point is.
+                HighPrecType best  = -1.0;
+                int32_t      bestI = 0;
+                HighPrecType bestT = 0.0;
 
-                for (int32_t i = 0; i + 1 < pointCount; i++)
+                for (int32_t i = 0; i + 1 < st.n; i++)
                 {
                     const HighPrecType ax = ptsX[i];
                     const HighPrecType ay = ptsY[i];
                     const HighPrecType bx = ptsX[i + 1];
                     const HighPrecType by = ptsY[i + 1];
 
-                    // Cheap rejection on the segment's own bounding box. A fibre
-                    // is a long thin thing, so for almost every pixel almost every
-                    // segment is far away, and the exact projection below is worth
-                    // avoiding. Without this the cost is the fibre's whole
-                    // bounding box times its segment count.
+                    // Cheap rejection on the segment's own bounding box.
                     if (px < (MIN_VALUE(ax, bx) - reach) ||
                         px > (MAX_VALUE(ax, bx) + reach) ||
                         py < (MIN_VALUE(ay, by) - reach) ||
@@ -561,57 +783,75 @@ namespace
 
                     const HighPrecType len2 = ex * ex + ey * ey;
 
-                    // Projection parameter, clamped to the segment so the nearest
-                    // point is an endpoint when the foot of the perpendicular
-                    // falls outside. Without the clamp the stroke would extend
-                    // along the infinite line and the fibre would have no ends.
+                    // Projection clamped to the segment, so the stroke has ends.
                     HighPrecType t = 0.0;
 
                     if (len2 > 0.0)
                         t = CLAMP_VALUE(((px - ax) * ex + (py - ay) * ey) / len2,
                                         0.0, 1.0);
 
-                    const HighPrecType qx = ax + t * ex;
-                    const HighPrecType qy = ay + t * ey;
-
-                    const HighPrecType ddx = px - qx;
-                    const HighPrecType ddy = py - qy;
+                    const HighPrecType ddx = px - (ax + t * ex);
+                    const HighPrecType ddy = py - (ay + t * ey);
 
                     const HighPrecType d2 = ddx * ddx + ddy * ddy;
 
                     if (best < 0.0 || d2 < best)
-                        best = d2;
+                    {
+                        best  = d2;
+                        bestI = i;
+                        bestT = t;
+                    }
                 }
 
-                // Every segment rejected: this pixel is nowhere near the fibre.
+                // Every segment rejected: this pixel is nowhere near the stroke.
                 if (best < 0.0)
                     continue;
 
                 const HighPrecType dist = std::sqrt(best);
 
+                HighPrecType hwLoc = st.hw[bestI]
+                    + bestT * (st.hw[bestI + 1] - st.hw[bestI]);
+
+                // 2026-10-20b: a stroke thinner than the minimum footprint is
+                // widened to it with its opacity scaled by the width ratio, so
+                // a sub-pixel line never falls between pixel centres.
+                HighPrecType footScale = 1.0;
+
+                if (hwLoc < ALGO_DEFECT_MIN_FOOTPRINT_PX)
+                {
+                    footScale = MAX_VALUE(hwLoc, 0.0) / ALGO_DEFECT_MIN_FOOTPRINT_PX;
+                    hwLoc     = ALGO_DEFECT_MIN_FOOTPRINT_PX;
+                }
+
                 const HighPrecType cov = defectSmoothStep(
-                    ((halfWidthPx - dist) * invEdge) + 0.5);
+                    ((hwLoc - dist) * invEdge) + 0.5);
 
                 if (cov <= 0.0)
                     continue;
 
-                const HighPrecType aR = MIN_VALUE(alpha * cov * chroma[0],
+                HighPrecType amLoc = footScale * (st.am[bestI]
+                    + bestT * (st.am[bestI + 1] - st.am[bestI]));
+
+                if (textured)
+                {
+                    const HighPrecType arcLoc = st.arc[bestI]
+                        + bestT * (st.arc[bestI + 1] - st.arc[bestI]);
+
+                    amLoc *= MAX_VALUE(1.0 + st.texSigma * AlgoDefectWhiteNoise1D(
+                        st.texSeed, st.texStream, ALGO_DEFECT_TAG_TEXTURE,
+                        arcLoc, st.texStepMm), 0.0);
+                }
+
+                const HighPrecType aR = MIN_VALUE(amLoc * cov * st.chroma[0],
                                                   ALGO_DEFECT_ALPHA_CAP);
-                const HighPrecType aG = MIN_VALUE(alpha * cov * chroma[1],
+                const HighPrecType aG = MIN_VALUE(amLoc * cov * st.chroma[1],
                                                   ALGO_DEFECT_ALPHA_CAP);
-                const HighPrecType aB = MIN_VALUE(alpha * cov * chroma[2],
+                const HighPrecType aB = MIN_VALUE(amLoc * cov * st.chroma[2],
                                                   ALGO_DEFECT_ALPHA_CAP);
 
-                const AlgoType dR = static_cast<AlgoType>(
-                    polarity * -std::log10(1.0 - aR));
-                const AlgoType dG = static_cast<AlgoType>(
-                    polarity * -std::log10(1.0 - aG));
-                const AlgoType dB = static_cast<AlgoType>(
-                    polarity * -std::log10(1.0 - aB));
-
-                rR[x] = MAX_VALUE(rR[x] + dR, ALGO_ZERO);
-                rG[x] = MAX_VALUE(rG[x] + dG, ALGO_ZERO);
-                rB[x] = MAX_VALUE(rB[x] + dB, ALGO_ZERO);
+                rR[x] = defectWrite(rR[x], aR, st.polarity, st.share, 0, ctx);
+                rG[x] = defectWrite(rG[x], aG, st.polarity, st.share, 1, ctx);
+                rB[x] = defectWrite(rB[x], aB, st.polarity, st.share, 2, ctx);
             }
         }
 
@@ -737,6 +977,35 @@ namespace
 
 
     // ----------------------------------------------------------------------
+    //  Per-point arc length of a pixel polyline, in film millimetres.
+    // ----------------------------------------------------------------------
+    inline void defectArcMm
+    (
+        const HighPrecType* RESTRICT x,
+        const HighPrecType* RESTRICT y,
+        const int32_t                n,
+        const HighPrecType           pxPerMm,
+        HighPrecType* RESTRICT       arcOut
+    ) noexcept
+    {
+        const HighPrecType inv = 1.0 / MAX_VALUE(pxPerMm, 1.0e-9);
+
+        if (n <= 0)
+            return;
+
+        arcOut[0] = 0.0;
+
+        for (int32_t i = 1; i < n; i++)
+        {
+            const HighPrecType dx = x[i] - x[i - 1];
+            const HighPrecType dy = y[i] - y[i - 1];
+
+            arcOut[i] = arcOut[i - 1] + std::sqrt(dx * dx + dy * dy) * inv;
+        }
+    }
+
+
+    // ----------------------------------------------------------------------
     //  Walk the placement cells covering this frame's window plus a margin, and
     //  hand each drawn position to the caller's generator.
     //
@@ -850,7 +1119,8 @@ namespace
         const int32_t         sizeX,
         const int32_t         sizeY,
         const int32_t         pitch,
-        const HighPrecType    edgePx
+        const HighPrecType    edgePx,
+        const AlgoDefectOpticsCtx& ctx
     ) noexcept
     {
         // Requested density, clamped to the measured ceiling, and reduced to the
@@ -923,8 +1193,43 @@ namespace
 
             defectChroma(pc + 28u, monochrome, p.chroma);
 
+            // 2026-10-20: shape, polarity, texture, optics.
+            //
+            // Each harmonic's lobe amplitude scaled by U(1 - x, 1 + x): mean
+            // kept, outlines no longer share one irregularity.
+            for (int32_t k = 0; k < ALGO_DEFECT_HARMONICS; k++)
+                p.lobeScale[k] = 1.0 + ALGO_DEFECT_LOBE_VARIATION
+                    * (2.0 * AlgoRngUniform01(pc + 32u + static_cast<uint64_t>(k))
+                       - 1.0);
+
+            // A share of dust-class specks are REMOVALS - a pinhole or a pick-
+            // off, not material - and read with the opposite polarity. Removal
+            // takes all layers, so it is neutral like a scratch.
+            p.polarity = (AlgoRngUniform01(pc + 36u) < ALGO_DUST_REMOVAL_SHARE)
+                       ? -1.0 : 1.0;
+
+            if (p.polarity < 0.0)
+            {
+                p.chroma[0] = 1.0;
+                p.chroma[1] = 1.0;
+                p.chroma[2] = 1.0;
+            }
+
+            p.scatterShare = ALGO_DUST_SCATTER_SHARE;
+            defectTexture2D(ALGO_DUST_TEXTURE_SIGMA,
+                            static_cast<HighPrecType>(window.pxPerMm),
+                            p.texSigma, p.texStepPx);
+            p.texSeed      = AlgoDefectSubSeed(pc + 40u);
+
+            // 2026-10-20c: ragged outline and size-proportional soft edge.
+            p.edgeFrac = ALGO_DUST_EDGE_FRAC * std::exp(
+                ALGO_DEFECT_EDGE_FRAC_SIGMA_LN
+                * AlgoDefectNormalQuantile(AlgoRngUniform01(pc + 44u)));
+            AlgoDefectOutlineMake(AlgoDefectSubSeed(pc + 48u), p.radiusPx,
+                                  p.outline);
+
             defectRasterise(p, pDstR, pDstG, pDstB,
-                            sizeX, sizeY, pitch, edgePx);
+                            sizeX, sizeY, pitch, edgePx, ctx);
         });
 
         return;
@@ -947,7 +1252,8 @@ namespace
         const int32_t         sizeX,
         const int32_t         sizeY,
         const int32_t         pitch,
-        const HighPrecType    edgePx
+        const HighPrecType    edgePx,
+        const AlgoDefectOpticsCtx& ctx
     ) noexcept
     {
         const HighPrecType lambda = level * ALGO_DEBRIS_DENSITY_PER_MM2;
@@ -990,8 +1296,29 @@ namespace
 
             defectChroma(pc + 28u, monochrome, p.chroma);
 
+            // 2026-10-20: shape, texture, optics. Debris is material, so
+            // always additive.
+            for (int32_t k = 0; k < ALGO_DEFECT_HARMONICS; k++)
+                p.lobeScale[k] = 1.0 + ALGO_DEFECT_LOBE_VARIATION
+                    * (2.0 * AlgoRngUniform01(pc + 32u + static_cast<uint64_t>(k))
+                       - 1.0);
+
+            p.polarity     = 1.0;
+            p.scatterShare = ALGO_DEBRIS_SCATTER_SHARE;
+            defectTexture2D(ALGO_DEBRIS_TEXTURE_SIGMA,
+                            static_cast<HighPrecType>(window.pxPerMm),
+                            p.texSigma, p.texStepPx);
+            p.texSeed      = AlgoDefectSubSeed(pc + 40u);
+
+            // 2026-10-20c: ragged outline and size-proportional soft edge.
+            p.edgeFrac = ALGO_DEBRIS_EDGE_FRAC * std::exp(
+                ALGO_DEFECT_EDGE_FRAC_SIGMA_LN
+                * AlgoDefectNormalQuantile(AlgoRngUniform01(pc + 44u)));
+            AlgoDefectOutlineMake(AlgoDefectSubSeed(pc + 48u), p.radiusPx,
+                                  p.outline);
+
             defectRasterise(p, pDstR, pDstG, pDstB,
-                            sizeX, sizeY, pitch, edgePx);
+                            sizeX, sizeY, pitch, edgePx, ctx);
         });
 
         return;
@@ -1025,7 +1352,8 @@ namespace
         const int32_t         sizeX,
         const int32_t         sizeY,
         const int32_t         pitch,
-        const HighPrecType    edgePx
+        const HighPrecType    edgePx,
+        const AlgoDefectOpticsCtx& ctx
     ) noexcept
     {
         const HighPrecType lambda = level * ALGO_FIBRE_DENSITY_PER_MM2;
@@ -1125,13 +1453,54 @@ namespace
                 * (widthUm / ALGO_DEFECT_UM_PER_MM)
                 * static_cast<HighPrecType>(window.pxPerMm);
 
-            // A fibre lies ON the film and blocks printing light, so it can only
-            // ever ADD density. Polarity +1 always; the parameter exists for the
-            // scratch class, which is the only one here that can subtract.
-            defectRasteriseFibre(ptsX, ptsY, drawCount, halfWidthPx,
-                                 alpha, chroma, 1.0,
-                                 pDstR, pDstG, pDstB,
-                                 sizeX, sizeY, pitch, edgePx);
+            // 2026-10-20: width and opacity vary ALONG the fibre - smooth
+            // log-normal multipliers over ALGO_FIBRE_MOD_CORR_MM of arc, keyed
+            // on this fibre's own stream (collage: width CV 0.17 - 0.30,
+            // contrast CV 0.38 - 0.72).
+            HighPrecType ptsHw[ALGO_FIBRE_MAX_DRAW];
+            HighPrecType ptsAm[ALGO_FIBRE_MAX_DRAW];
+            HighPrecType ptsArc[ALGO_FIBRE_MAX_DRAW];
+
+            defectArcMm(ptsX, ptsY, drawCount,
+                        static_cast<HighPrecType>(window.pxPerMm), ptsArc);
+
+            const uint32_t sk = AlgoDefectSubSeed(pc + 200u);
+
+            for (int32_t i = 0; i < drawCount; i++)
+            {
+                ptsHw[i] = halfWidthPx * defectCvFactor(
+                    AlgoDefectSmoothNoise(sk, 0, ALGO_DEFECT_TAG_MODULATION,
+                        ptsArc[i], ALGO_FIBRE_MOD_CORR_MM),
+                    ALGO_FIBRE_WIDTH_CV);
+
+                ptsAm[i] = MIN_VALUE(alpha * defectCvFactor(
+                    AlgoDefectSmoothNoise(sk, 1, ALGO_DEFECT_TAG_MODULATION,
+                        ptsArc[i], ALGO_FIBRE_MOD_CORR_MM),
+                    ALGO_FIBRE_CONTRAST_CV), ALGO_DEFECT_ALPHA_CAP);
+            }
+
+            // A fibre lies ON the film and blocks light, so it can only ever
+            // ADD density: polarity +1 always.
+            DefectStroke st{};
+
+            st.x         = ptsX;
+            st.y         = ptsY;
+            st.hw        = ptsHw;
+            st.am        = ptsAm;
+            st.arc       = nullptr;
+            st.n         = drawCount;
+            st.chroma[0] = chroma[0];
+            st.chroma[1] = chroma[1];
+            st.chroma[2] = chroma[2];
+            st.polarity  = 1.0;
+            st.share     = ALGO_FIBRE_SCATTER_SHARE;
+            st.texSigma  = 0.0;
+            st.texStepMm = 0.0;
+            st.texSeed   = 0u;
+            st.texStream = 0;
+
+            defectRasteriseStroke(st, pDstR, pDstG, pDstB,
+                                  sizeX, sizeY, pitch, edgePx, ctx);
         });
 
         return;
@@ -1141,10 +1510,10 @@ namespace
     // ----------------------------------------------------------------------
     //  Scratches: abrasion IN the film.
     //
-    //  Two populations behind two existing controls, sharing one mark primitive.
-    //  Everything they have in common - the 26 micrometre width, the 3.5 per cent
-    //  contrast, the cut-or-burnish polarity, the neutral rendering - is drawn
-    //  once here; what differs is placement, orientation and time.
+    //  Two populations behind two existing controls, sharing one mark primitive
+    //  (defectRasteriseStroke). What differs is placement, orientation, time,
+    //  and since 2026-10-20 each population's own width, contrast and polarity
+    //  statistics (AlgoNegativeDefects.hpp).
     //
     //  ⚠ SCRATCHES ARE RENDERED NEUTRAL, UNLIKE EVERY OTHER CLASS IN THIS FILE,
     //  AND THAT IS DELIBERATE. defectChroma exists because a PARTICLE is coloured
@@ -1156,181 +1525,329 @@ namespace
     //  and CoatingSpec, and is listed there as something that does NOT belong in
     //  the damage controls. Those structures ship all-zero on every stock, so the
     //  depth-to-layer mapping is not available, and a neutral scratch is the
-    //  honest placeholder rather than the particulate colour model borrowed for a
-    //  mechanism it does not describe.
+    //  honest placeholder.
     // ----------------------------------------------------------------------
     void defectScratches
     (
-        const AlgoFilmWindow& window,
-        const HighPrecType    transportLevel,
-        const HighPrecType    handlingLevel,
-        const HighPrecType    clumping,
-        const uint32_t        fieldSeed,
-        const int32_t         frameIndex,
-        const HighPrecType    persistFrames,
-        const HighPrecType    framePitchMm,
-        AlgoType* RESTRICT    pDstR,
-        AlgoType* RESTRICT    pDstG,
-        AlgoType* RESTRICT    pDstB,
-        const int32_t         sizeX,
-        const int32_t         sizeY,
-        const int32_t         pitch,
-        const HighPrecType    edgePx
+        const AlgoFilmWindow&      window,
+        const HighPrecType         transportLevel,
+        const HighPrecType         handlingLevel,
+        const HighPrecType         clumping,
+        const uint32_t             fieldSeed,
+        const int32_t              frameIndex,
+        const HighPrecType         lifetimeS,
+        const HighPrecType         fps,
+        const HighPrecType         variability,
+        const HighPrecType         framePitchMm,
+        AlgoType* RESTRICT         pDstR,
+        AlgoType* RESTRICT         pDstG,
+        AlgoType* RESTRICT         pDstB,
+        const int32_t              sizeX,
+        const int32_t              sizeY,
+        const int32_t              pitch,
+        const HighPrecType         edgePx,
+        const AlgoDefectOpticsCtx& ctx
     ) noexcept
     {
-        // Both populations are the same physical mark, so the width and the
-        // amplitude are formed once, outside either loop.
-        const HighPrecType halfWidthPx = 0.5
-            * (ALGO_SCRATCH_WIDTH_UM / ALGO_DEFECT_UM_PER_MM)
-            * static_cast<HighPrecType>(window.pxPerMm);
+        const HighPrecType pxPerMm = static_cast<HighPrecType>(window.pxPerMm);
 
-        // Neutral, for the reason in the block comment above.
-        const HighPrecType chroma[3] = { 1.0, 1.0, 1.0 };
+        // Micrometres of WIDTH to pixels of HALF-width.
+        const HighPrecType umToHalfPx = 0.5 * pxPerMm / ALGO_DEFECT_UM_PER_MM;
+
+        // The along-mark white texture at this resolution: lattice step, mm,
+        // and the sigma a pixel shows.
+        HighPrecType texSigma  = 0.0;
+        HighPrecType texStepMm = 0.0;
+
+        defectTexture1D(ALGO_SCRATCH_TEXTURE_CV, pxPerMm, texSigma, texStepMm);
 
         // ------------------------------------------------------------------
         //  TRANSPORT SCRATCHES - the tramline, and the only thing in this stage
         //  with a start and an end.
         //
-        //  ⚠ THE POPULATION IS DERIVED, NEVER ACCUMULATED. The obvious
-        //  implementation keeps a list of running scratches and steps it once per
-        //  frame; this engine cannot, because Algorithm_Main is a pure function
-        //  and a host may render frame 900 without ever having rendered 899. So
-        //  each arrival ORDINAL along the web draws its own start frame, its own
-        //  run length and its own across-web position from its own counter
-        //  stream, and is present at frame f exactly when
+        //  ⚠ THE POPULATION IS DERIVED, NEVER ACCUMULATED. Algorithm_Main is a
+        //  pure function and a host may render frame 900 without ever having
+        //  rendered 899. So each event ORDINAL draws its own gap, lifetime,
+        //  across-web position, polarity, width and contrast from its own
+        //  counter stream, and is present at time t exactly when
+        //  start <= t < start + lifetime (2026-10-20b: in SECONDS of screen
+        //  time, start = running sum of bounded gaps). Scrubbing the timeline,
+        //  rendering backwards and rendering one frame alone all give the same
+        //  tramlines.
         //
-        //      start <= f < start + run
+        //  ⚠ THE ACROSS-WEB POSITION IS DRAWN ONCE PER ORDINAL, NOT PER FRAME:
+        //  the abrader does not move, so the tramline holds its place on screen
+        //  while the picture travels past it.
         //
-        //  which is two draws and a compare, with no history. Scrubbing the
-        //  timeline, rendering backwards and rendering one frame alone all give
-        //  the same tramlines. Stage 16 does the same thing for gate dirt; the
-        //  construction is deliberately recognisable as the same one.
-        //
-        //  ⚠ AND THE ACROSS-WEB POSITION IS DRAWN ONCE PER ORDINAL, NOT PER
-        //  FRAME. That single fact is the whole visible character of the class:
-        //  the abrader does not move, so the scratch holds the same position on
-        //  screen while the picture travels past it. Drawing the position from a
-        //  stream that included the frame index would produce a mark that jumps
-        //  about, which reads as noise rather than as a machine fault.
+        //  2026-10-20: WHAT VARIES ALONG THE TRAMLINE IS KEYED ON THE ABSOLUTE
+        //  ALONG-FILM POSITION. The lateral wander of the track (the film weaving
+        //  past the abrader), the width, and the contrast (a fast and a slow
+        //  process) are smooth Gaussian processes of that coordinate, and the
+        //  short-scale texture is white noise on it. The scratch is IN the film,
+        //  so these belong to the film: each frame shows the next stretch of the
+        //  same continuous mark - no flicker and no repeat - and a re-render of
+        //  a frame reproduces it exactly. Half the tramlines carry a faint
+        //  companion track beside them.
         // ------------------------------------------------------------------
         if (transportLevel > 0.0)
         {
             // ⚠ SHEET AND PACK FILM HAVE NO TRANSPORT AND THEREFORE NO
-            // TRAMLINES. AlgoFilmCoord reports anisotropy zero for them, which
-            // is the same flag the orientation bias uses; a frame pitch of zero
-            // would also make a run length in frames meaningless, since the web
-            // does not advance. The handling population below still applies -
-            // a sheet is handled like anything else.
+            // TRAMLINES (anisotropy zero; a zero pitch would also make a run
+            // along the web meaningless). The handling population still applies.
             const bool transported =
                 (static_cast<HighPrecType>(window.anisotropy) > 0.0)
                 && (framePitchMm > 0.0);
 
-            // No mean run length, no run. The field is populated on all 184
-            // stocks, so this is a guard against a hand-built profile rather
-            // than a path the database takes.
-            if (transported && persistFrames > 0.0)
+            if (transported && lifetimeS > 0.0 && fps > 0.0)
             {
-                const HighPrecType f = static_cast<HighPrecType>(frameIndex);
+                // ----------------------------------------------------------
+                //  2026-10-20b: EVENTS IN SECONDS OF SCREEN TIME.
+                //
+                //  transportLevel is NEW EVENTS PER MINUTE (already floored at
+                //  ScratchTransportFloor by the caller). The gap before event k
+                //  is uniform on [GAP_LO, GAP_HI] x m, drawn from event k's own
+                //  key; event times are the running sum of gaps from a random
+                //  phase, so the process is an exact renewal process with
+                //  bounded gaps, and at the floor rate every gap is 5 - 20 s.
+                //  t = frameIndex / fps, so the same seed gives the same
+                //  events in time at any frame rate.
+                // ----------------------------------------------------------
+                const HighPrecType t       = static_cast<HighPrecType>(frameIndex) / fps;
+                const HighPrecType meanGap = 60.0 / transportLevel;
+                const HighPrecType horizon = ALGO_SCRATCH_LIFE_HI * lifetimeS;
 
-                // Expected simultaneous count, and the arrival spacing that
-                // delivers it. A population of N with a mean run of L frames
-                // needs one arrival every L/N frames, because N = rate * L.
-                const HighPrecType count =
-                    transportLevel * ALGO_SCRATCH_TRANSPORT_COUNT;
+                // The schedule is the shared AlgoScratchGap / AlgoScratchLastEvent
+                // (AlgoNegativeDefects.hpp), so the tests measure what renders.
+                auto gapOf = [&](const int32_t k) noexcept -> HighPrecType
+                {
+                    return AlgoScratchGap(fieldSeed, meanGap, k);
+                };
 
-                const HighPrecType gapFrames = persistFrames / count;
+                const HighPrecType e0 = AlgoScratchEvent0(fieldSeed, meanGap);
+
+                HighPrecType eLast = e0;
+
+                const int32_t kLast = AlgoScratchLastEvent(fieldSeed, meanGap, t, eLast);
 
                 const HighPrecType acrossExtent = AlgoFilmAcrossExtentMm(window);
                 const HighPrecType alongExtent  = AlgoFilmAlongExtentMm(window);
 
-                // The newest arrival that can have happened by now, and the
-                // window back from it. Negative ordinals are examined: a roll of
-                // film has no head, unlike stage 16's reel.
-                const int32_t kNewest =
-                    static_cast<int32_t>(std::floor(f / gapFrames));
+                // Centreline sample step: ALGO_SCRATCH_SAMPLE_MM, widened by a
+                // whole factor only on a gauge whose window would overflow the
+                // store. A function of the gauge alone, so the samples stay on
+                // the same absolute film positions from frame to frame.
+                const HighPrecType spanMax = alongExtent
+                                           + 2.0 * ALGO_SCRATCH_CLIP_MARGIN_MM;
 
-                const int32_t kOldest = kNewest - (ALGO_SCRATCH_RUN_WINDOW - 1);
+                const HighPrecType stepFactor = MAX_VALUE(1.0, std::ceil(
+                    spanMax / (ALGO_SCRATCH_SAMPLE_MM
+                               * static_cast<HighPrecType>(
+                                   ALGO_SCRATCH_TRANSPORT_MAX_POINTS - 3))));
 
-                for (int32_t k = kOldest; k <= kNewest; k++)
+                const HighPrecType stepMm = ALGO_SCRATCH_SAMPLE_MM * stepFactor;
+
+                // defectVariability scales what changes from frame to frame
+                // along a running tramline: the wander and the contrast.
+                const HighPrecType varScale = MAX_VALUE(variability, 0.0)
+                                            / ALGO_DEFECT_VARIABILITY_REF;
+
+                const HighPrecType wanderRms  = ALGO_SCRATCH_WANDER_RMS_MM * varScale;
+                const HighPrecType contrastCv = ALGO_SCRATCH_TRANSPORT_CONTRAST_CV * varScale;
+                const HighPrecType trendSigma = ALGO_SCRATCH_TRANSPORT_TREND_SIGMA_LN * varScale;
+
+                HighPrecType ptX[ALGO_SCRATCH_TRANSPORT_MAX_POINTS];
+                HighPrecType ptY[ALGO_SCRATCH_TRANSPORT_MAX_POINTS];
+                HighPrecType ptHw[ALGO_SCRATCH_TRANSPORT_MAX_POINTS];
+                HighPrecType ptAm[ALGO_SCRATCH_TRANSPORT_MAX_POINTS];
+                HighPrecType ptArc[ALGO_SCRATCH_TRANSPORT_MAX_POINTS];
+
+                // Back from the newest event while an event could still be
+                // alive; newest first, at most ALGO_SCRATCH_LIVE_MAX of them.
+                int32_t      k     = kLast;
+                HighPrecType start = (t >= e0 || eLast <= t) ? eLast : t + 1.0;
+                int32_t      seen  = 0;
+
+                while (start <= t && start > (t - horizon)
+                       && seen < ALGO_SCRATCH_LIVE_MAX)
                 {
-                    // Keyed on the ordinal only, so the same scratch is the same
-                    // scratch on every frame it appears in. The first index is
-                    // zero because a transport scratch has no cell - it belongs
-                    // to the machine, and its only coordinate is when it started.
+                    const int32_t      kThis     = k;
+                    const HighPrecType startThis = start;
+
+                    // Step to the previous event before any `continue`. The
+                    // horizon bounds the loop; `seen` counts DRAWN scratches.
+                    start -= gapOf(k);
+                    k--;
+
+                    // Keyed on the ordinal only: the same scratch is the same
+                    // scratch on every frame it appears in.
                     const uint64_t sc = AlgoDefectHash(
-                        fieldSeed, 0, k, ALGO_DEFECT_TAG_SCRATCH_RUN);
+                        fieldSeed, 0, kThis, ALGO_DEFECT_TAG_SCRATCH_RUN);
 
-                    // Jittered regular arrivals, exactly as stage 16 places its
-                    // accretion ordinals and for the same reason: a cumulative
-                    // sum of exponential gaps is the exact Poisson construction
-                    // but needs a walk from the head of the roll, and there is no
-                    // head to walk from.
-                    const HighPrecType start =
-                        (static_cast<HighPrecType>(k) + AlgoRngUniform01(sc))
-                        * gapFrames;
-
-                    if (start > f)
-                        continue;
-
-                    const HighPrecType run =
-                        defectExponential(sc + 16u, persistFrames);
+                    const HighPrecType life = AlgoScratchLifetime(sc, lifetimeS);
 
                     // The abrader has already let go.
-                    if ((start + run) <= f)
+                    if ((startThis + life) <= t)
                         continue;
 
-                    // Fixed across the web, and centred coordinates mean this is
-                    // also a fixed position in the frame.
+                    seen++;
+
+                    // Fixed across the web: uniform over the film width.
                     const HighPrecType across = window.acrossMin
                         + AlgoRngUniform01(sc + 32u) * acrossExtent;
 
-                    // Cut or burnish. See ALGO_SCRATCH_CUT_SHARE: the share is a
-                    // modelling choice, not a measurement.
+                    // Cut or burnish (provisional share, see the constant).
                     const HighPrecType polarity =
-                        (AlgoRngUniform01(sc + 48u) < ALGO_SCRATCH_CUT_SHARE)
-                            ? -1.0 : 1.0;
+                        (AlgoRngUniform01(sc + 48u)
+                         < ALGO_SCRATCH_TRANSPORT_CUT_SHARE) ? -1.0 : 1.0;
 
-                    // ----------------------------------------------------------
-                    //  The stretch of WEB this abrader actually touched.
-                    //
-                    //  A run of `run` frames starting at frame `start` is a
-                    //  length of film run * framePitchMm long, and the scratch
-                    //  exists over exactly that stretch and nowhere else. Clipping
-                    //  the stroke to it costs two comparisons and buys the one
-                    //  thing an on/off presence test cannot give: on the frame
-                    //  where the abrader lets go, the tramline ENDS part way up
-                    //  the picture instead of vanishing between frames.
-                    //
-                    //  The clip is against the window plus one along-extent so
-                    //  that an end which is outside the frame is comfortably
-                    //  outside it; the rasteriser clamps to the raster anyway.
-                    // ----------------------------------------------------------
-                    const HighPrecType runFrom = start * framePitchMm;
-                    const HighPrecType runTo   = (start + run) * framePitchMm;
+                    // This tramline's own width and contrast, log-normal.
+                    const HighPrecType widthUm = defectLogNormal(
+                        sc + 64u, ALGO_SCRATCH_TRANSPORT_WIDTH_UM,
+                        ALGO_SCRATCH_WIDTH_SIGMA_LN);
 
-                    const HighPrecType a0 = MAX_VALUE(
-                        runFrom, window.alongMin - alongExtent);
-                    const HighPrecType a1 = MIN_VALUE(
-                        runTo,   window.alongMax + alongExtent);
+                    const HighPrecType contrast = defectLogNormal(
+                        sc + 80u, ALGO_SCRATCH_TRANSPORT_CONTRAST_MEDIAN,
+                        ALGO_SCRATCH_TRANSPORT_CONTRAST_SIGMA_LN);
 
-                    if (a1 <= a0)
-                        continue;
+                    // Key of every along-mark process of this tramline.
+                    const uint32_t sk = AlgoDefectSubSeed(sc);
 
-                    // Two points: locked to the transport axis means exactly
-                    // straight along the film, so there is nothing to walk. The
-                    // 90 degree rotation between stills and cine is entirely
-                    // AlgoFilmToPixel's business.
-                    HighPrecType ptsX[2];
-                    HighPrecType ptsY[2];
+                    // The stretch of WEB this abrader touched: from the frame
+                    // position at its start time to that at its end time.
+                    // Clipping to it makes the tramline END part way up the
+                    // picture on the frame where the abrader lets go.
+                    const HighPrecType runFrom = startThis * fps * framePitchMm;
+                    const HighPrecType runTo   = (startThis + life) * fps * framePitchMm;
 
-                    AlgoFilmToPixel(window, a0, across, ptsX[0], ptsY[0]);
-                    AlgoFilmToPixel(window, a1, across, ptsX[1], ptsY[1]);
+                    // One track - the main line or its companion - sampled on
+                    // absolute along-film multiples of stepMm.
+                    auto drawTrack = [&](const HighPrecType fromMm,
+                                         const HighPrecType toMm,
+                                         const HighPrecType offsetMm,
+                                         const HighPrecType trackWidthUm,
+                                         const HighPrecType trackContrast,
+                                         const int32_t      fastStream) noexcept
+                    {
+                        const HighPrecType a0 = MAX_VALUE(
+                            fromMm, window.alongMin - ALGO_SCRATCH_CLIP_MARGIN_MM);
+                        const HighPrecType a1 = MIN_VALUE(
+                            toMm,   window.alongMax + ALGO_SCRATCH_CLIP_MARGIN_MM);
 
-                    defectRasteriseFibre(ptsX, ptsY, 2, halfWidthPx,
-                                         ALGO_SCRATCH_CONTRAST_MEDIAN,
-                                         chroma, polarity,
-                                         pDstR, pDstG, pDstB,
-                                         sizeX, sizeY, pitch, edgePx);
+                        if (a1 <= a0)
+                            return;
+
+                        int32_t n = 0;
+
+                        auto addPoint = [&](const HighPrecType a) noexcept
+                        {
+                            const HighPrecType acr = across + offsetMm
+                                + wanderRms * AlgoDefectSmoothNoise(
+                                    sk, 0, ALGO_DEFECT_TAG_WANDER, a,
+                                    ALGO_SCRATCH_WANDER_CORR_MM);
+
+                            AlgoFilmToPixel(window, a, acr, ptX[n], ptY[n]);
+
+                            ptHw[n] = trackWidthUm * umToHalfPx * defectCvFactor(
+                                AlgoDefectSmoothNoise(sk, 1, ALGO_DEFECT_TAG_MODULATION,
+                                    a, ALGO_SCRATCH_TRANSPORT_WIDTH_CORR_MM),
+                                ALGO_SCRATCH_TRANSPORT_WIDTH_CV);
+
+                            const HighPrecType fast = defectCvFactor(
+                                AlgoDefectSmoothNoise(sk, fastStream,
+                                    ALGO_DEFECT_TAG_MODULATION, a,
+                                    ALGO_SCRATCH_TRANSPORT_CONTRAST_CORR_MM),
+                                contrastCv);
+
+                            const HighPrecType slow = std::exp(
+                                trendSigma
+                                * AlgoDefectSmoothNoise(sk, 3,
+                                    ALGO_DEFECT_TAG_MODULATION, a,
+                                    ALGO_SCRATCH_TRANSPORT_TREND_CORR_MM));
+
+                            ptAm[n] = MIN_VALUE(trackContrast * fast * slow,
+                                                ALGO_DEFECT_ALPHA_CAP);
+
+                            // Absolute along-film position: the texture key.
+                            ptArc[n] = a;
+
+                            n++;
+                        };
+
+                        addPoint(a0);
+
+                        const int32_t jFirst = static_cast<int32_t>(
+                            std::floor(a0 / stepMm)) + 1;
+                        const int32_t jLast  = static_cast<int32_t>(
+                            std::ceil(a1 / stepMm)) - 1;
+
+                        for (int32_t j = jFirst; j <= jLast; j++)
+                        {
+                            if (n >= ALGO_SCRATCH_TRANSPORT_MAX_POINTS - 1)
+                                break;
+
+                            addPoint(static_cast<HighPrecType>(j) * stepMm);
+                        }
+
+                        addPoint(a1);
+
+                        DefectStroke st{};
+
+                        st.x         = ptX;
+                        st.y         = ptY;
+                        st.hw        = ptHw;
+                        st.am        = ptAm;
+                        st.arc       = ptArc;
+                        st.n         = n;
+                        st.chroma[0] = 1.0;
+                        st.chroma[1] = 1.0;
+                        st.chroma[2] = 1.0;
+                        st.polarity  = polarity;
+                        st.share     = ALGO_BURNISH_SCATTER_SHARE;
+                        st.texSigma  = texSigma;
+                        st.texStepMm = texStepMm;
+                        st.texSeed   = sk;
+                        st.texStream = 10 + fastStream;
+
+                        defectRasteriseStroke(st, pDstR, pDstG, pDstB,
+                                              sizeX, sizeY, pitch, edgePx, ctx);
+                    };
+
+                    // The main track.
+                    drawTrack(runFrom, runTo, 0.0, widthUm, contrast, 2);
+
+                    // A companion track: the same abrader assembly (it shares
+                    // the wander), a log-normal offset to either side, a fifth
+                    // of the contrast, and on half of them only part of the run.
+                    if (AlgoRngUniform01(sc + 96u) < ALGO_SCRATCH_COMPANION_PROB)
+                    {
+                        const HighPrecType side =
+                            (AlgoRngUniform01(sc + 98u) < 0.5) ? -1.0 : 1.0;
+
+                        const HighPrecType offMm = side * defectLogNormal(
+                            sc + 97u, ALGO_SCRATCH_COMPANION_OFFSET_MM,
+                            ALGO_SCRATCH_COMPANION_SIGMA_LN);
+
+                        HighPrecType cFrom = runFrom;
+                        HighPrecType cTo   = runTo;
+
+                        if (AlgoRngUniform01(sc + 99u) < ALGO_SCRATCH_COMPANION_PARTIAL)
+                        {
+                            const HighPrecType frac =
+                                0.2 + 0.6 * AlgoRngUniform01(sc + 100u);
+                            const HighPrecType len = runTo - runFrom;
+
+                            cFrom = runFrom + AlgoRngUniform01(sc + 101u)
+                                            * len * (1.0 - frac);
+                            cTo   = cFrom + frac * len;
+                        }
+
+                        const HighPrecType cWidthUm = defectLogNormal(
+                            sc + 102u, ALGO_SCRATCH_TRANSPORT_WIDTH_UM,
+                            ALGO_SCRATCH_WIDTH_SIGMA_LN);
+
+                        drawTrack(cFrom, cTo, offMm, cWidthUm,
+                                  contrast * ALGO_SCRATCH_COMPANION_RATIO, 4);
+                    }
                 }
             }
         }
@@ -1340,24 +1857,23 @@ namespace
         //
         //  Placed by the same clumped Cox process as the particulate classes,
         //  because a wipe damages a patch of film rather than a frame, and the
-        //  patch travels with the web. That is not persistence in the sense
-        //  above: nothing starts and nothing stops. The mark is in the emulsion
-        //  for good, and it enters and leaves the picture only because the film
-        //  moves - which is precisely the behaviour every other class here has.
+        //  patch travels with the web.
         //
-        //  ⚠ NOT GENERATED IN BURSTS, AND THAT IS A KNOWN GAP. AlgoControl.hpp
-        //  describes the class as arriving in bursts, "because a single wipe
-        //  leaves several roughly parallel marks", and that is certainly right.
-        //  Implementing it needs a burst size and an inter-mark spacing, and
-        //  nothing in the tree measures either, so marks are placed
-        //  independently and the burst structure is left for whoever has the
-        //  numbers. The clumping field already gives some of the visual effect,
-        //  since it puts marks in patches; it does not give the parallelism.
+        //  2026-10-20: BURSTS. A single wipe leaves several near-parallel marks
+        //  (AlgoControl.hpp's description of the class, now with the collage's
+        //  numbers): a placement becomes a burst of 2 - 4 marks with probability
+        //  ALGO_SCRATCH_BURST_SEED_SHARE, the marks stepping sideways by
+        //  log-normal spacings, sharing the polarity and the seed's heading to
+        //  within 1 degree, each with its own length, width, contrast and walk.
+        //  The seed rate is divided so that the areal density of MARKS still
+        //  equals the control's. Length is log-normal; width and contrast vary
+        //  smoothly along each mark, with a white texture on top.
         // ------------------------------------------------------------------
         if (handlingLevel > 0.0)
         {
             const HighPrecType lambda =
-                handlingLevel * ALGO_SCRATCH_HANDLING_PER_MM2;
+                handlingLevel * ALGO_SCRATCH_HANDLING_PER_MM2
+                / (1.0 + ALGO_SCRATCH_BURST_MEAN_EXTRA * ALGO_SCRATCH_BURST_SEED_SHARE);
 
             defectWalkCells(window, ALGO_SCRATCH_MARGIN_MM, lambda, clumping,
                             fieldSeed, ALGO_DEFECT_TAG_SCRATCH_CELL,
@@ -1365,98 +1881,176 @@ namespace
                     const HighPrecType across,
                     const uint64_t     pc) noexcept
             {
-                // Uniform over the documented 0.3 - 4 mm range: the source gives
-                // a range and no shape.
-                const HighPrecType lenMm = ALGO_SCRATCH_HANDLING_LEN_MIN_MM
-                    + (ALGO_SCRATCH_HANDLING_LEN_MAX_MM
-                       - ALGO_SCRATCH_HANDLING_LEN_MIN_MM)
-                    * AlgoRngUniform01(pc + 2u);
+                // Seed length: log-normal, truncated by remapping.
+                const HighPrecType seedLenMm = AlgoDefectLogNormalTrunc(
+                    pc + 2u, ALGO_SCRATCH_HANDLING_LEN_MEDIAN_MM,
+                    ALGO_SCRATCH_HANDLING_LEN_SIGMA_LN,
+                    ALGO_SCRATCH_HANDLING_LEN_MIN_MM,
+                    ALGO_SCRATCH_HANDLING_LEN_MAX_MM);
 
                 const HighPrecType polarity =
-                    (AlgoRngUniform01(pc + 4u) < ALGO_SCRATCH_CUT_SHARE)
+                    (AlgoRngUniform01(pc + 4u) < ALGO_SCRATCH_HANDLING_CUT_SHARE)
                         ? -1.0 : 1.0;
 
-                // Step count from the length, bounded by the fixed point store.
-                const HighPrecType stepMm =
-                    1.0 / static_cast<HighPrecType>(ALGO_SCRATCH_STEPS_PER_MM);
-
-                int32_t steps = static_cast<int32_t>(
-                    lenMm * static_cast<HighPrecType>(
-                        ALGO_SCRATCH_STEPS_PER_MM));
-
-                steps = CLAMP_VALUE(steps, 1, ALGO_SCRATCH_MAX_POINTS - 1);
-
-                const int32_t pointCount = steps + 1;
-
-                // ------------------------------------------------------------
-                //  The straightness, turned into a walk.
-                //
-                //  Lp = L / (12 (1 - straightness)) - the worm-like chain
-                //  inversion derived at ALGO_SCRATCH_STRAIGHTNESS - and then the
-                //  same per-step angular diffusion the fibre walk uses, so the
-                //  two classes differ by this number and by nothing else.
-                //
-                //  The persistence length is taken from the mark's OWN length,
-                //  which is what makes 0.98 mean the same thing for a 0.3 mm mark
-                //  and a 4 mm one: straightness is a ratio, so the curvature has
-                //  to scale with the length that produced it.
-                // ------------------------------------------------------------
-                const HighPrecType persistMm =
-                    lenMm / (12.0 * (1.0 - ALGO_SCRATCH_STRAIGHTNESS));
-
-                const HighPrecType turnSigma = std::sqrt(stepMm / persistMm);
-
-                // No transport lock: a handling mark is made by hand, at whatever
-                // angle the hand was. The measured 3.5:1 preference still applies
-                // as a BIAS, because film is handled along its length far more
-                // often than across it.
-                //
-                // ⚠ defectOrientation ANSWERS IN THE IMAGE FRAME and this walk
-                // steps in FILM coordinates, so the transport rotation has to
-                // come back out. It is the same rotation AlgoFilmToPixel applies
-                // and it is subtracted rather than re-derived, so the two cannot
-                // disagree. Reusing the function this way keeps the measured bias
-                // in exactly one place; writing a second film-frame copy of it is
-                // how the two would drift apart.
-                HighPrecType heading = defectOrientation(
+                // No transport lock: a handling mark is made by hand. The
+                // measured 3.5:1 preference applies as a BIAS. defectOrientation
+                // answers in the IMAGE frame and the walk steps in FILM
+                // coordinates, so the transport rotation is subtracted.
+                const HighPrecType seedHeading = defectOrientation(
                     window, pc + 8u, ALGO_SCRATCH_ORIENT_ALONG_SHARE)
                     - (window.transportAlongWidth
                         ? 0.0 : (0.25 * ALGO_DEFECT_TWO_PI));
 
-                HighPrecType alongCur  = along;
-                HighPrecType acrossCur = across;
+                // Burst size: 1, or 2 / 3 / 4 marks.
+                int32_t burst = 1;
 
-                HighPrecType ctlX[ALGO_SCRATCH_MAX_POINTS];
-                HighPrecType ctlY[ALGO_SCRATCH_MAX_POINTS];
-
-                AlgoFilmToPixel(window, alongCur, acrossCur, ctlX[0], ctlY[0]);
-
-                for (int32_t i = 1; i < pointCount; i++)
+                if (AlgoRngUniform01(pc + 12u) < ALGO_SCRATCH_BURST_SEED_SHARE)
                 {
-                    heading += turnSigma * AlgoRngNormal(
-                        pc + 64u + static_cast<uint64_t>(i));
+                    const HighPrecType u = AlgoRngUniform01(pc + 13u);
 
-                    alongCur  += stepMm * std::cos(heading);
-                    acrossCur += stepMm * std::sin(heading);
-
-                    AlgoFilmToPixel(window, alongCur, acrossCur,
-                                    ctlX[i], ctlY[i]);
+                    burst = (u < ALGO_SCRATCH_BURST_P2) ? 2
+                          : ((u < ALGO_SCRATCH_BURST_P2 + ALGO_SCRATCH_BURST_P3)
+                             ? 3 : ALGO_SCRATCH_BURST_MAX);
                 }
 
-                // Same subdivision as the fibres: the walk is the physics and the
-                // subdivision is the drawing, and only the second may be changed
-                // to fix an appearance.
-                HighPrecType ptsX[ALGO_SCRATCH_MAX_DRAW];
-                HighPrecType ptsY[ALGO_SCRATCH_MAX_DRAW];
+                // All members step to the same side of the seed.
+                const HighPrecType side =
+                    (AlgoRngUniform01(pc + 14u) < 0.5) ? -1.0 : 1.0;
 
-                const int32_t drawCount = defectSubdivide(ctlX, ctlY, pointCount,
-                                                          ptsX, ptsY);
+                const uint32_t burstSeed = AlgoDefectSubSeed(pc);
 
-                defectRasteriseFibre(ptsX, ptsY, drawCount, halfWidthPx,
-                                     ALGO_SCRATCH_CONTRAST_MEDIAN,
-                                     chroma, polarity,
-                                     pDstR, pDstG, pDstB,
-                                     sizeX, sizeY, pitch, edgePx);
+                const HighPrecType stepMm =
+                    1.0 / static_cast<HighPrecType>(ALGO_SCRATCH_STEPS_PER_MM);
+
+                HighPrecType offsetMm = 0.0;
+
+                for (int32_t m = 0; m < burst; m++)
+                {
+                    // The seed keeps the placement's own stream; each further
+                    // member has its own.
+                    const uint64_t mc = (m == 0)
+                        ? pc
+                        : AlgoDefectHash(burstSeed, m, 0, ALGO_DEFECT_TAG_BURST);
+
+                    HighPrecType heading = seedHeading;
+                    HighPrecType lenMm   = seedLenMm;
+
+                    if (m > 0)
+                    {
+                        offsetMm += defectLogNormal(
+                            mc + 20u, ALGO_SCRATCH_BURST_SPACING_MM,
+                            ALGO_SCRATCH_BURST_SPACING_SIGMA_LN);
+
+                        heading += ALGO_SCRATCH_BURST_ANGLE_SIGMA_RAD
+                                 * AlgoRngNormal(mc + 22u);
+
+                        lenMm = CLAMP_VALUE(
+                            seedLenMm * std::exp(ALGO_SCRATCH_BURST_LEN_SIGMA_LN
+                                                 * AlgoRngNormal(mc + 24u)),
+                            ALGO_SCRATCH_HANDLING_LEN_MIN_MM,
+                            ALGO_SCRATCH_HANDLING_LEN_MAX_MM);
+                    }
+
+                    // Sideways from the seed, perpendicular to its heading.
+                    HighPrecType alongCur  = along
+                        - side * offsetMm * std::sin(seedHeading);
+                    HighPrecType acrossCur = across
+                        + side * offsetMm * std::cos(seedHeading);
+
+                    // This mark's own width and contrast, log-normal.
+                    const HighPrecType widthUm = defectLogNormal(
+                        mc + 16u, ALGO_SCRATCH_HANDLING_WIDTH_UM,
+                        ALGO_SCRATCH_WIDTH_SIGMA_LN);
+
+                    const HighPrecType contrast = defectLogNormal(
+                        mc + 18u, ALGO_SCRATCH_CONTRAST_MEDIAN,
+                        ALGO_SCRATCH_CONTRAST_SIGMA_LN);
+
+                    int32_t steps = static_cast<int32_t>(
+                        lenMm * static_cast<HighPrecType>(
+                            ALGO_SCRATCH_STEPS_PER_MM));
+
+                    steps = CLAMP_VALUE(steps, 1, ALGO_SCRATCH_MAX_POINTS - 1);
+
+                    const int32_t pointCount = steps + 1;
+
+                    // ------------------------------------------------------
+                    //  The straightness, turned into a walk: Lp = L / (12 (1 -
+                    //  straightness)), the worm-like chain inversion derived at
+                    //  ALGO_SCRATCH_STRAIGHTNESS, from the mark's OWN length so
+                    //  that 0.98 means the same for a short mark and a long one.
+                    // ------------------------------------------------------
+                    const HighPrecType persistMm =
+                        lenMm / (12.0 * (1.0 - ALGO_SCRATCH_STRAIGHTNESS));
+
+                    const HighPrecType turnSigma = std::sqrt(stepMm / persistMm);
+
+                    HighPrecType ctlX[ALGO_SCRATCH_MAX_POINTS];
+                    HighPrecType ctlY[ALGO_SCRATCH_MAX_POINTS];
+
+                    AlgoFilmToPixel(window, alongCur, acrossCur, ctlX[0], ctlY[0]);
+
+                    for (int32_t i = 1; i < pointCount; i++)
+                    {
+                        heading += turnSigma * AlgoRngNormal(
+                            mc + 64u + static_cast<uint64_t>(i));
+
+                        alongCur  += stepMm * std::cos(heading);
+                        acrossCur += stepMm * std::sin(heading);
+
+                        AlgoFilmToPixel(window, alongCur, acrossCur,
+                                        ctlX[i], ctlY[i]);
+                    }
+
+                    // The walk is the physics and the subdivision the drawing.
+                    HighPrecType ptsX[ALGO_SCRATCH_MAX_DRAW];
+                    HighPrecType ptsY[ALGO_SCRATCH_MAX_DRAW];
+                    HighPrecType ptsHw[ALGO_SCRATCH_MAX_DRAW];
+                    HighPrecType ptsAm[ALGO_SCRATCH_MAX_DRAW];
+                    HighPrecType ptsArc[ALGO_SCRATCH_MAX_DRAW];
+
+                    const int32_t drawCount = defectSubdivide(
+                        ctlX, ctlY, pointCount, ptsX, ptsY);
+
+                    defectArcMm(ptsX, ptsY, drawCount, pxPerMm, ptsArc);
+
+                    const uint32_t sk = AlgoDefectSubSeed(mc + 30u);
+
+                    for (int32_t i = 0; i < drawCount; i++)
+                    {
+                        ptsHw[i] = widthUm * umToHalfPx * defectCvFactor(
+                            AlgoDefectSmoothNoise(sk, 0, ALGO_DEFECT_TAG_MODULATION,
+                                ptsArc[i], ALGO_SCRATCH_HANDLING_CORR_MM),
+                            ALGO_SCRATCH_HANDLING_WIDTH_CV);
+
+                        ptsAm[i] = MIN_VALUE(contrast * defectCvFactor(
+                            AlgoDefectSmoothNoise(sk, 1, ALGO_DEFECT_TAG_MODULATION,
+                                ptsArc[i], ALGO_SCRATCH_HANDLING_CORR_MM),
+                            ALGO_SCRATCH_HANDLING_CONTRAST_CV),
+                            ALGO_DEFECT_ALPHA_CAP);
+                    }
+
+                    DefectStroke st{};
+
+                    st.x         = ptsX;
+                    st.y         = ptsY;
+                    st.hw        = ptsHw;
+                    st.am        = ptsAm;
+                    st.arc       = ptsArc;
+                    st.n         = drawCount;
+                    st.chroma[0] = 1.0;
+                    st.chroma[1] = 1.0;
+                    st.chroma[2] = 1.0;
+                    st.polarity  = polarity;
+                    st.share     = ALGO_BURNISH_SCATTER_SHARE;
+                    st.texSigma  = texSigma;
+                    st.texStepMm = texStepMm;
+                    st.texSeed   = sk;
+                    st.texStream = 2;
+
+                    defectRasteriseStroke(st, pDstR, pDstG, pDstB,
+                                          sizeX, sizeY, pitch, edgePx, ctx);
+                }
             });
         }
 
@@ -1746,10 +2340,32 @@ void AlgoStage09b_NegativeDefects
     const int32_t            frameIndex,
     const AlgoType           frameRate,
     const uint32_t           seed
+    ,
+    AlgoType*                pDefR,
+    AlgoType*                pDefG,
+    AlgoType*                pDefB
 ) noexcept
 {
     // The unconditional copy. Every path below accumulates on top of it.
     AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
+
+    // 2026-10-20b: the additive-defect plane starts empty, so every early
+    // return below leaves it correct (no defects).
+    const bool wantDef = (pDefR != nullptr) && (pDefG != nullptr) && (pDefB != nullptr);
+
+    if (wantDef)
+    {
+        AlgoType* q[3] = { pDefR, pDefG, pDefB };
+
+        for (int32_t c = 0; c < 3; c++)
+            for (int32_t y = 0; y < sizeY; y++)
+            {
+                AlgoType* RESTRICT rQ = q[c] + static_cast<std::ptrdiff_t>(y) * pitch;
+
+                for (int32_t x = 0; x < sizeX; x++)
+                    rQ[x] = ALGO_ZERO;
+            }
+    }
 
     // ----------------------------------------------------------------------
     //  Both gates, cheapest first.
@@ -1788,8 +2404,15 @@ void AlgoStage09b_NegativeDefects
     // The two scratch controls, which until now were in AlgoControl.hpp's
     // "Unconsumed" list and read by nothing. Same treatment as the three above:
     // floored, then scaled by the master strength.
-    const HighPrecType scratchTransportLevel =
+    // 2026-10-20b: scratchTransport is NEW EVENTS PER MINUTE. Scaled by the
+    // master strength like every level, then raised to the floor rate at which
+    // every inter-event gap lies in 5 - 20 s (ScratchTransportFloor).
+    HighPrecType scratchTransportLevel =
         MAX_VALUE(static_cast<HighPrecType>(dmg.scratchTransport), 0.0) * strength;
+
+    if (scratchTransportLevel > 0.0)
+        scratchTransportLevel = MAX_VALUE(scratchTransportLevel,
+                                          static_cast<HighPrecType>(ScratchTransportFloor));
     const HighPrecType scratchHandlingLevel =
         MAX_VALUE(static_cast<HighPrecType>(dmg.scratchHandling),  0.0) * strength;
 
@@ -1910,6 +2533,25 @@ void AlgoStage09b_NegativeDefects
     const bool monochrome = profile.is_monochrome;
 
     // ----------------------------------------------------------------------
+    //  2026-10-20: THE READER-OPTICS CONTEXT (FilmDamage::defectOptics).
+    //
+    //  OFF (the default) every particulate and scratch write is the additive
+    //  law it always was. ON, each defect is split into an absorbing and a
+    //  scattering part and read through the reader's specular fraction
+    //  (scannerSpecular), anchored at ALGO_DEFECT_OPTICS_S_REF, and on a stock
+    //  with Callier Q > 1 it is composed in the reader's density domain so that
+    //  stage 12b steepens the silver and not the dirt. AlgoDefectOptics.hpp.
+    //  The processing, veil and drying classes above are image density and are
+    //  NOT routed through it.
+    // ----------------------------------------------------------------------
+    const AlgoDefectOpticsCtx opticsCtx = AlgoDefectOpticsMake(
+        dmg.defectOptics, profile,
+        static_cast<HighPrecType>(params.scannerSpecular),
+        ALGO_DEFECT_OPTICS_S_REF,
+        static_cast<HighPrecType>(dmg.defectVisibility),
+        ALGO_CLEAR_BASE_DENSITY);
+
+    // ----------------------------------------------------------------------
     //  2026-10-10: PROCESSING, VEIL AND DRYING - AlgoProcessingDefects.hpp.
     //
     //  In the order the film met them, which is not cosmetic here because the
@@ -1943,17 +2585,25 @@ void AlgoStage09b_NegativeDefects
     //  addition commutes - but each class draws from its own stream, so adjusting
     //  one level leaves the others' particles exactly where they were.
     // ----------------------------------------------------------------------
+    // 2026-10-20b: snapshot BEFORE the particulate and abrasion classes, so the
+    // additive defect density can be handed to the grain stage (end of stage).
+    if (wantDef)
+        AlgoCopyImage(pDstR, pDstG, pDstB, pDefR, pDefG, pDefB, sizeX, sizeY, pitch);
+
     if (dustLevel > 0.0)
         defectDust(window, dustLevel, clumping, fieldSeed, monochrome,
-                   pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx);
+                   pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx,
+                   opticsCtx);
 
     if (debrisLevel > 0.0)
         defectDebris(window, debrisLevel, clumping, fieldSeed, monochrome,
-                     pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx);
+                     pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx,
+                   opticsCtx);
 
     if (fibreLevel > 0.0)
         defectFibres(window, fibreLevel, clumping, fieldSeed, monochrome,
-                     pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx);
+                     pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx,
+                   opticsCtx);
 
     // ----------------------------------------------------------------------
     //  The abrasion class.
@@ -1975,10 +2625,41 @@ void AlgoStage09b_NegativeDefects
     if (scratchTransportLevel > 0.0 || scratchHandlingLevel > 0.0)
         defectScratches(window, scratchTransportLevel, scratchHandlingLevel,
                         clumping, fieldSeed, frameIndex,
-                        static_cast<HighPrecType>(
-                            profile.temporal.scratch_persistence_frames),
+                        // 2026-10-20b: mean lifetime in SECONDS - the control,
+                        // or the stock's run length at the nominal 24 fps.
+                        (dmg.scratchLifetime > 0.0)
+                            ? static_cast<HighPrecType>(dmg.scratchLifetime)
+                            : static_cast<HighPrecType>(
+                                  profile.temporal.scratch_persistence_frames)
+                              / ALGO_SCRATCH_NOMINAL_FPS,
+                        MAX_VALUE(static_cast<HighPrecType>(frameRate), 1.0),
+                        static_cast<HighPrecType>(dmg.defectVariability),
                         static_cast<HighPrecType>(framePitchMm),
-                        pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx);
+                        pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx,
+                   opticsCtx);
+
+    // ----------------------------------------------------------------------
+    //  2026-10-20b: the additive defect density this stage added, for stage 11
+    //  - what the particulate and abrasion classes put ON the image. A removal
+    //  (cut, pinhole) is real loss of emulsion and stays out (floored at zero),
+    //  so grain follows the reduced density there.
+    // ----------------------------------------------------------------------
+    if (wantDef)
+    {
+        const AlgoType* d[3] = { pDstR, pDstG, pDstB };
+        AlgoType*       q[3] = { pDefR, pDefG, pDefB };
+
+        for (int32_t c = 0; c < 3; c++)
+            for (int32_t y = 0; y < sizeY; y++)
+            {
+                const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
+                const AlgoType* RESTRICT rD = d[c] + off;
+                AlgoType* RESTRICT       rQ = q[c] + off;
+
+                for (int32_t x = 0; x < sizeX; x++)
+                    rQ[x] = MAX_VALUE(rD[x] - rQ[x], ALGO_ZERO);
+            }
+    }
 
     // ----------------------------------------------------------------------
     //  Read by nothing in this stage, and that is the honest state of it.
@@ -2003,14 +2684,15 @@ void AlgoStage09b_NegativeDefects
     //  today, while the amount of dust does not yet. That asymmetry is real and
     //  is a property of which structure got populated, not a design.
     //
-    //  frameRate belongs to the classes with a per-second rate - the one-frame
-    //  sparkle population and the event classes - and none of those is here. The
-    //  scratch run length is in FRAMES OF FILM and reaches the web through the
-    //  frame pitch, so it needs the pitch and not the rate.
+    //  frameRate: since 2026-10-20b the transport-scratch EVENTS are scheduled
+    //  in seconds of screen time (t = frameIndex / frameRate), so this stage
+    //  reads it; the stock's run length (frames) is converted at the nominal
+    //  24 fps only when scratchLifetime is 0. The film-locked classes (dust,
+    //  debris, fibres, handling scratches) stay in film coordinates: every frame
+    //  is a new piece of film whatever the frame rate.
     //  negWidthMm and negHeightMm are consumed through the window; pxPerMm
     //  likewise, and directly for the edge width.
     // ----------------------------------------------------------------------
-    (void)frameRate;
 
     return;
 }

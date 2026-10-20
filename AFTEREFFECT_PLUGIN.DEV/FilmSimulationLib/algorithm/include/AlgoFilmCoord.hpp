@@ -69,9 +69,10 @@
 
 // The single source of the engine's numeric types and alignment policy.
 #include "AlgoTypes.hpp"
+// 2026-10-20c: this header's compile-time constants live in film_damage_constants.hpp.
+#include "film_damage_constants.hpp"
 
 #include <cstdint>   // int32_t
-
 
 // ---------------------------------------------------------------------------
 //  AlgoFilmWindow
@@ -113,27 +114,6 @@ struct AlgoFilmWindow
     int32_t sizeX;
     int32_t sizeY;
 };
-
-
-// ---------------------------------------------------------------------------
-//  Smallest frame pitch treated as a real transport, millimetres.
-//
-//  Sheet and pack formats report exactly zero. The threshold is well below any
-//  real pitch (Regular 8 is 3.81 mm, the smallest in the database) so it cannot
-//  misclassify a genuine gauge.
-// ---------------------------------------------------------------------------
-constexpr AlgoType ALGO_FILM_MIN_PITCH_MM = static_cast<AlgoType>(0.5);
-
-// ---------------------------------------------------------------------------
-//  Longitudinal anisotropy strength for transported film.
-//
-//  1.0 means "apply the measured bias in full". The measured bias itself - a
-//  3.5:1 preference for the transport axis among light-polarity curvilinear
-//  features - lives as a constant in the scratch generator, not here; this field
-//  only says whether the film HAS a transport direction at all.
-// ---------------------------------------------------------------------------
-constexpr AlgoType ALGO_FILM_ANISOTROPY_TRANSPORTED = static_cast<AlgoType>(1.0);
-
 
 // ---------------------------------------------------------------------------
 //  AlgoMakeFilmWindow
@@ -238,7 +218,6 @@ inline AlgoFilmWindow AlgoMakeFilmWindow
     return w;
 }
 
-
 // ---------------------------------------------------------------------------
 //  AlgoFilmToPixel
 //
@@ -282,7 +261,6 @@ inline void AlgoFilmToPixel
 
     return;
 }
-
 
 // ---------------------------------------------------------------------------
 //  AlgoFilmAlongExtentMm / AlgoFilmAcrossExtentMm

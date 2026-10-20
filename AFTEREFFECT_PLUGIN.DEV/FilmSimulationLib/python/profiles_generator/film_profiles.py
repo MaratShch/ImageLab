@@ -623,9 +623,27 @@ _GOST_SPEED_CRITERIA: dict[str, dict[str, tuple[float, float]]] = {
         # `_GOST_REVERSAL_CONSTRUCTION` below.
         "reversal":                (0.20, 10.0),
     },
-    # ⚠ EMPTY ON PURPOSE. See the note above: the 1982 text is unread.
+    # ⚠ FILLED 2026-10-19 BY OWNER DECISION, NOT BY READING: see
+    # `_GOST_EDITION_ASSUMED_EQUAL` below. The 1982 text is still unread.
     "9160-82": {},
 }
+
+#: ⚠⚠ OWNER DECISION 2026-10-19 (queue P38 closed): ГОСТ 9160-82's speed
+#: criteria are taken to be ГОСТ 9160-91's. The owner's reasoning, recorded as
+#: his: after 1991 the standards were re-issued or re-numbered, and the films
+#: themselves did not change. ⚠ IT IS AN ASSUMPTION, NOT A READING: the 1982
+#: text is still not in the corpus (`_GOST_EDITIONS_UNREAD` keeps it), every
+#: answer for that edition says so through `gost_speed_criterion_basis`, and
+#: if the 1982 tables are ever read and differ, G-P38-ASSUMED is the guard
+#: that must be revisited. No stored speed moves: the ten stocks keep their
+#: printed ГОСТ ratings; only their qualifying criterion is now answerable.
+_GOST_EDITION_ASSUMED_EQUAL: dict[str, tuple[str, str]] = {
+    "9160-82": ("9160-91",
+                "owner decision 2026-10-19: criteria assumed identical to "
+                "ГОСТ 9160-91 §5.2.4 (re-issued standard, unchanged films); "
+                "the 1982 text itself is unread"),
+}
+_GOST_SPEED_CRITERIA["9160-82"] = dict(_GOST_SPEED_CRITERIA["9160-91"])
 
 #: The reversal row's second point and the mean it is taken with, so that the
 #: two-point construction is not lost by being stored as a single pair above.
@@ -838,12 +856,22 @@ _GOST_EDITION_UNSTATED: frozenset[str] = frozenset({
 def gost_speed_criterion(edition: str, cls: str):
     """(D_kr above fog, K) for one class under one EDITION, or None.
 
-    ⚠ RETURNS None RATHER THAN FALLING BACK. An edition whose text has not
-    been read has no criteria, and answering with another edition's numbers
-    would qualify a rating with a standard that did not exist when it was
-    measured. See `_GOST_SPEED_CRITERIA`.
+    ⚠ NO SILENT FALLBACK. An edition answers only if it was read, or if the
+    owner has ruled it equal to one that was (`_GOST_EDITION_ASSUMED_EQUAL`;
+    since 2026-10-19 that is 9160-82 -> 9160-91). Ask
+    `gost_speed_criterion_basis` which of the two an answer rests on.
     """
     return _GOST_SPEED_CRITERIA.get(edition, {}).get(cls)
+
+
+def gost_speed_criterion_basis(edition: str) -> str:
+    """"read", "assumed equal to <edition>: <reason>", or "" (no criteria)."""
+    if edition in _GOST_EDITION_ASSUMED_EQUAL:
+        to, why = _GOST_EDITION_ASSUMED_EQUAL[edition]
+        return "assumed equal to %s: %s" % (to, why)
+    if _GOST_SPEED_CRITERIA.get(edition):
+        return "read"
+    return ""
 
 
 # -- schema v45 (2026-09-18f, queue K6 batch): ГОСТ 25120-82 IN FULL ---------
@@ -871,7 +899,9 @@ def gost_speed_criterion(edition: str, cls: str):
 #
 # Source: ГОСТ 25120—82, Издание официальное, Госкомитет СССР по стандартам,
 # ОКП 23 7254, УДК 771.531.3:006.354, Группа У81. Replaced ГОСТ 5554-70 in
-# respect of colour negative films; in force 01.01.83 to 01.01.88. THIS COPY
+# respect of colour negative films; in force 01.01.83 to 01.01.88.
+# ⚠ 2026-10-19: P38 is now closed by owner decision -- 9160-82 answers with
+# 9160-91's criteria, marked "assumed" (`gost_speed_criterion_basis`). THIS COPY
 # IS THE JULY 1986 REISSUE WITH AMENDMENT No. 1 (approved March 1985, МУС
 # 6-85), printed 1987 -- so table 6 as transcribed here is the AMENDED text,
 # which the standard marks «(Измененная редакция, Изм. № 1)». Conforms to
@@ -1289,6 +1319,44 @@ _GOST_CLASS_WITHHELD: dict[str, str] = {
 #
 # ⚠ NONE OF IT IS EMITTED INTO C++, on the v23 precedent. These are
 # generator-side reference data: they constrain and derive what IS emitted.
+
+# ---------------------------------------------------------------------------
+#  МЗ-3 positive, ТУ 6-17-647-80 handbook row -- 2026-10-19 (owner request)
+# ---------------------------------------------------------------------------
+#: The «Сенситометрические характеристики» row and Рис. 189 labels of the
+#: Soviet handbook entry No. 273 «Позитивная кинопленка МЗ-3 (ТУ 6-17-647-80)»,
+#: OCR re-read 2026-10-19 from the owner's page scan at 3x. Stock:
+#: TASMA_POSITIVE_28. The table prints the contrast symbols as λ_рек / λ_макс;
+#: the values are contrast coefficients (Рис. 189 labels the same curves γ,
+#: and λ_макс 3,1 is the 4 min curve's γ = 3,1).
+#: ⚠ READ BY verify (G-MZ3-TU): dmin == D_0 and the stored gamma inside
+#: [λ_рек, λ_макс], and (since the 2026-10-19 owner-approved refit to Рис.
+#: 189's 4-min curve) the curve's asymptote within 0.25 D of D_макс 3 -- it
+#: was 4.60 D before the refit.
+_MZ3_TU_647_80: dict[str, object] = {
+    "source": "Soviet cine-film handbook, entry No. 273 «Позитивная кинопленка "
+              "МЗ-3 (ТУ 6-17-647-80)», «Сенситометрические характеристики» "
+              "and Рис. 189 «Характеристические кривые профессиональных "
+              "кинопленок МЗ-3 и МЗ-3М» (owner's page scan)",
+    "s_gost": (2.8, 5.5),           # S, ед. ГОСТ
+    "gamma_rec": 3.0,               # λ_рек
+    "latitude_dlogh": 0.9,          # Δ lg H
+    "resolving_power": 108.0,       # R, лин/мм
+    "fog_d0": 0.04,                 # D_0
+    "gamma_max": 3.1,               # λ_макс
+    "dmax": 3.0,                    # D_макс
+    "deformation_celsius": 50.0,    # t_пл, °C* «Температура деформации эмульсионного слоя»
+    # Рис. 189 curve labels: (development minutes, gamma)
+    "fig189_mz3": ((2.0, 2.6), (3.0, 2.7), (4.0, 3.1)),
+    "fig189_mz3m": ((2.0, 2.6), (3.0, 2.9), (4.0, 3.2)),
+    "widths_mm": ("16", "16 (2x8)", "32 (4x8)", "35", "35 (4x8 Супер)"),
+    "roll_m": 300.0,
+    "roll_m_70mm": 375.0,
+    # sibling, not held: 16 mm with combined magnetic soundtrack
+    "mz3m_tu": "ТУ 6-17-891-77",
+    "mz3m_roll_m": (120.0, 240.0),
+    "mz3m_developers": ("СТ-4", "СТ-6"),
+}
 
 # ---------------------------------------------------------------------------
 #  «Eastman Professional Films», 1938 -- queue P65
@@ -85275,7 +85343,9 @@ FILM_PROFILES = tuple(_apply_sovremennye_grid(_p) for _p in FILM_PROFILES)
 #          F-PF-D4 drawing already harvested into AGFA_SCALA_200X.push;
 #   3.364  Kodak High-Speed Infrared -- no profile;
 #   3.311 (7 of 9), 3.318 (6 of 8), 3.321/3.322 (4 of 7) curves overlap
-#          within one line width and are not separable at this raster.
+#          within one line width and are not separable at this raster --
+#          ⚠ 2026-10-19: read from Kodak F-4017's vector original instead,
+#          see _KINETICS_F4017_2005 below.
 # ---------------------------------------------------------------------------
 SOVREMENNYE_2004_KINETICS = (
     ('AGFA_APX_100', '2.115', 'REFINAL', 'stock', 20.0, 'small tank, tray', '', 'agfa_gamma', 0, 'Современные 2004, рис. 2.115',
@@ -85620,6 +85690,76 @@ SOVREMENNYE_2004_COMMERCIAL_TABLES = (
     ('HC-110', 'Dil C', 3.0, 20.0, 'tray', 'Табл. 3.152', 'гравюры'),
     ('D-11', '', 3.0, 20.0, 'tray', 'Табл. 3.152', 'гравюры, высокий контраст'),
 )
+
+
+# ---------------------------------------------------------------------------
+# ⚠ 2026-10-19 (owner request, queue P96p): THE CURVES рис. 3.311 / 3.318 /
+# 3.321 / 3.322 COULD NOT GIVE, READ FROM THE ORIGINAL THE BOOK REPRINTS.
+#
+# The four panels are Kodak's own «Contrast Index Curves» from KODAK
+# Publication F-4017 «KODAK PROFESSIONAL TRI-X 320 and 400 Films» (2005
+# edition, pp. 12-15), redrawn in the book; there 7 / 6 / 4 / 4 of the curves
+# overlap within one line width of a ~550 px bitmap. In F-4017 the same charts
+# are VECTOR art: every curve is its own path with its own dash pattern and
+# stroke width, matched to the legend sample with the same pattern and width,
+# and placed on the frame (drawn from the first to the last tick).
+#   * THE DRAWING IS THE SAME: the 20 curves already stored from the book's
+#     ink (3.311 / 3.318-3.322) agree with the vector paths to max |dCI|
+#     0.025, typically < 0.01; the vector curves land on the book's ink at
+#     72-100 % of samples (dashed strokes leave gaps).
+#   * ONE ATTRIBUTION IS BY ELIMINATION: on the F-4017 p15 chart (= рис.
+#     3.322) one curve is drawn in the short-dash pattern while the legend
+#     shows long dash for D-76 (1:1); it is the only unmatched curve and D-76
+#     (1:1) the only unmatched legend entry.
+# Points: every whole minute along each curve plus its two drawn ends, CI to
+# 3 decimals (frame calibration; the label centres sit within 0.26 min /
+# 0.006 CI of it). The 20 curves read earlier are left as stored.
+# ---------------------------------------------------------------------------
+_KINETICS_F4017_2005 = (
+    ('KODAK_TRI_X_400TX', '3.311', 'T-MAX RS', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.311',
+     ((0.51, 3.25), (0.547, 4), (0.592, 5), (0.632, 6), (0.676, 7), (0.738, 8), (0.798, 9), (0.851, 10), (0.9, 11), (0.946, 12), (0.99, 13))),
+    ('KODAK_TRI_X_400TX', '3.311', 'T-MAX', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.311',
+     ((0.52, 5.42), (0.554, 6), (0.614, 7), (0.673, 8), (0.737, 9), (0.802, 10), (0.856, 10.83))),
+    ('KODAK_TRI_X_400TX', '3.311', 'D-76', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.311',
+     ((0.476, 5.42), (0.513, 6), (0.573, 7), (0.63, 8), (0.687, 9), (0.749, 10), (0.816, 10.83))),
+    ('KODAK_TRI_X_400TX', '3.311', 'XTOL', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.311',
+     ((0.34, 3.25), (0.385, 4), (0.445, 5), (0.505, 6), (0.564, 7), (0.622, 8), (0.677, 9), (0.73, 10), (0.782, 11), (0.84, 12), (0.904, 13), (0.974, 14), (0.98, 14.08))),
+    ('KODAK_TRI_X_400TX', '3.311', 'XTOL', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.311',
+     ((0.37, 4.33), (0.398, 5), (0.439, 6), (0.481, 7), (0.522, 8), (0.562, 9), (0.599, 10), (0.636, 11), (0.673, 12), (0.71, 13), (0.754, 14), (0.798, 15), (0.842, 16), (0.886, 17), (0.9, 17.33))),
+    ('KODAK_TRI_X_400TX', '3.311', 'MICRODOL-X', '', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.311',
+     ((0.31, 4.33), (0.347, 5), (0.4, 6), (0.45, 7), (0.498, 8), (0.543, 9), (0.588, 10), (0.631, 11), (0.674, 12), (0.716, 13), (0.757, 14), (0.797, 15), (0.837, 16), (0.877, 17), (0.89, 17.33))),
+    ('KODAK_TRI_X_400TX', '3.311', 'D-76', '1:1', 20.0, 'small tank', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.311',
+     ((0.37, 5.42), (0.397, 6), (0.442, 7), (0.486, 8), (0.529, 9), (0.57, 10), (0.613, 11), (0.658, 12), (0.704, 13), (0.746, 14), (0.784, 15), (0.819, 16), (0.853, 17), (0.886, 18), (0.9, 18.42))),
+    ('KODAK_TRI_X_320TXP', '3.318', 'T-MAX', '', 20.0, 'small tank, drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.318',
+     ((0.466, 5.42), (0.5, 6), (0.543, 7), (0.59, 8), (0.629, 9), (0.664, 10), (0.691, 11), (0.701, 11.37))),
+    ('KODAK_TRI_X_320TXP', '3.318', 'XTOL', '', 20.0, 'small tank, drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.318',
+     ((0.434, 5.42), (0.464, 6), (0.514, 7), (0.562, 8), (0.608, 9), (0.655, 10), (0.696, 11), (0.722, 12), (0.74, 13), (0.754, 14), (0.765, 15), (0.775, 16), (0.777, 16.25))),
+    ('KODAK_TRI_X_320TXP', '3.318', 'XTOL', '1:1', 20.0, 'small tank, drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.318',
+     ((0.383, 6.5), (0.405, 7), (0.448, 8), (0.487, 9), (0.525, 10), (0.56, 11), (0.594, 12), (0.626, 13), (0.658, 14), (0.691, 15), (0.729, 16), (0.77, 17), (0.785, 17.33))),
+    ('KODAK_TRI_X_320TXP', '3.318', 'D-76', '', 20.0, 'small tank, drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.318',
+     ((0.436, 6.5), (0.461, 7), (0.512, 8), (0.561, 9), (0.603, 10), (0.647, 11), (0.681, 11.92))),
+    ('KODAK_TRI_X_320TXP', '3.318', 'MICRODOL-X', '', 20.0, 'small tank, drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.318',
+     ((0.421, 6.5), (0.448, 7), (0.494, 8), (0.531, 9), (0.562, 10), (0.588, 11), (0.611, 12), (0.632, 13), (0.653, 14), (0.672, 15), (0.691, 16), (0.709, 17), (0.727, 18), (0.744, 19), (0.753, 19.5))),
+    ('KODAK_TRI_X_320TXP', '3.318', 'D-76', '1:1', 20.0, 'small tank, drum', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.318',
+     ((0.383, 7.58), (0.399, 8), (0.437, 9), (0.473, 10), (0.507, 11), (0.54, 12), (0.572, 13), (0.603, 14), (0.635, 15), (0.665, 16), (0.692, 17), (0.717, 18), (0.739, 19), (0.758, 20), (0.775, 21), (0.786, 21.67))),
+    ('KODAK_TRI_X_320TXP', '3.321', 'D-76', '', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.321',
+     ((0.436, 5), (0.491, 6), (0.545, 7), (0.593, 8), (0.64, 9), (0.681, 10))),
+    ('KODAK_TRI_X_320TXP', '3.321', 'MICRODOL-X', '', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.321',
+     ((0.342, 4), (0.424, 5), (0.488, 6), (0.534, 7), (0.571, 8), (0.607, 9), (0.643, 10), (0.677, 11), (0.709, 12), (0.737, 13), (0.764, 14), (0.79, 15), (0.816, 16), (0.842, 17), (0.869, 18))),
+    ('KODAK_TRI_X_320TXP', '3.321', 'XTOL', '1:1', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.321',
+     ((0.349, 4), (0.395, 5), (0.443, 6), (0.492, 7), (0.541, 8), (0.588, 9), (0.634, 10), (0.679, 11), (0.722, 12), (0.762, 13), (0.796, 14), (0.826, 15), (0.854, 16), (0.88, 17), (0.906, 18))),
+    ('KODAK_TRI_X_320TXP', '3.321', 'D-76', '1:1', 20.0, 'tray', '', 'kodak_ci', 0, 'Современные 2004, рис. 3.321',
+     ((0.355, 5), (0.41, 6), (0.463, 7), (0.511, 8), (0.557, 9), (0.603, 10), (0.647, 11), (0.689, 12), (0.727, 13), (0.761, 14), (0.792, 15), (0.82, 16), (0.844, 17), (0.867, 18), (0.887, 19), (0.905, 20))),
+    ('KODAK_TRI_X_320TXP', '3.322', 'D-76', '', 20.0, 'drum', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.322',
+     ((0.436, 4.35), (0.477, 5), (0.54, 6), (0.595, 7), (0.648, 8), (0.681, 8.7))),
+    ('KODAK_TRI_X_320TXP', '3.322', 'XTOL', '1:1', 20.0, 'drum', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.322',
+     ((0.349, 3.48), (0.377, 4), (0.432, 5), (0.487, 6), (0.541, 7), (0.595, 8), (0.647, 9), (0.699, 10), (0.748, 11), (0.789, 12), (0.823, 13), (0.856, 14), (0.886, 15), (0.906, 15.66))),
+    ('KODAK_TRI_X_320TXP', '3.322', 'MICRODOL-X', '', 20.0, 'drum', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.322',
+     ((0.342, 3.48), (0.394, 4), (0.475, 5), (0.531, 6), (0.573, 7), (0.613, 8), (0.653, 9), (0.691, 10), (0.725, 11), (0.756, 12), (0.786, 13), (0.817, 14), (0.848, 15), (0.869, 15.66))),
+    ('KODAK_TRI_X_320TXP', '3.322', 'D-76', '1:1', 20.0, 'drum', 'sheet', 'kodak_ci', 0, 'Современные 2004, рис. 3.322',
+     ((0.355, 4.35), (0.396, 5), (0.457, 6), (0.513, 7), (0.566, 8), (0.618, 9), (0.667, 10), (0.712, 11), (0.753, 12), (0.789, 13), (0.821, 14), (0.849, 15), (0.874, 16), (0.896, 17), (0.905, 17.4))),
+)
+SOVREMENNYE_2004_KINETICS = SOVREMENNYE_2004_KINETICS + _KINETICS_F4017_2005
 
 
 SOVREMENNYE_2004_KINETICS_ADDED: dict[str, int] = {}
@@ -88568,13 +88708,15 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
             "the blue end of the printer lamp only. "
             "DOCUMENTED, two independent Soviet sources on a Soviet film that "
             "AGREE (the strong case under method rule 14): "
-            "  * ТУ 6-17-647-80 handbook entry item 278 (owner-supplied page "
+            "  * ТУ 6-17-647-80 handbook entry item 273 (owner-supplied page "
             "scan, PDF/PROFILES/SOVIET/«TASMA POSITIVE МЗ-3Л.jpg»): "
             "«несенсибилизированная, предназначена для массовой и текущей "
             "печати кинокопий с черно-белых негативов и контратипов. "
             "Обеспечивает нейтрально-серый тон с глубокими тенями и обладает "
             "хорошей резкостью и мелкозернистостью». S 2,8-5,5 ед. ГОСТ, "
-            "гамма_рек 3, R 108 lin/mm, D_0 0,04, widths 16 / 16(2x8) / 32(4x8) "
+            "гамма_рек 3, ΔlgH 0,9, R 108 lin/mm, D_0 0,04, гамма_макс 3,1, "
+            "D_макс 3, t_пл 50 °C (the table's footnote: deformation "
+            "temperature of the emulsion layer), widths 16 / 16(2x8) / 32(4x8) "
             "/ 35 / 35(4x8 Супер) mm in 300 m rolls, 70 mm in 375 m rolls. "
             "Fig. 189 prints a CURVE FAMILY with gammas 2,6 at 2 min, 2,7 at "
             "3 min and 3,1 at 4 min development. "
@@ -88609,8 +88751,9 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
             "independently CROSS-CONFIRMS «несенсибилизированная»: a panchromatic stock "
             "could not be handled under a yellow-green lamp at all. "
             "Minor disagreement, both recorded rather than averaged: resolving "
-            "power 108 (ТУ handbook) vs 110 (Журба); _RESOLVING_POWER carries "
-            "108 as the ТУ-derived figure. "
+            "power 108 (ТУ handbook) vs 110 (Журба); the ТУ handbook row is "
+            "transcribed in _MZ3_TU_647_80 (2026-10-19 OCR re-read of the "
+            "owner's scan; the item number is 273, not 278 as first noted). "
             "SIBLINGS documented, not held: **МЗ-3М** (16 mm, ТУ 6-17-891-77, "
             "for prints with a combined magnetic soundtrack, developer СТ-4 / "
             "СТ-6, curve family 3,2 / 2,9 / 2,6 at 4 / 3 / 2 min), and from "
@@ -88661,10 +88804,9 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
             "The stock identifier still begins TASMA_ for backward "
             "compatibility; that prefix therefore overstates what is proven, "
             "and a rename to SOVIET_POSITIVE_MZ_3 is queued for a decision. "
-            "(2) THE FIGURE 2.8. Table 11 has NO sensitivity column at all -- "
-            "Soviet positive stocks were catalogued by gamma, developer and "
-            "gauge only. So «GOST 2.8» has no source in this corpus; it came "
-            "in with the original [T3] entry and remains unverified. "
+            "(2) THE FIGURE 2.8 -- RESOLVED 2026-10-19. Иофис table 11 has "
+            "no sensitivity column, but S 2,8-5,5 ед. ГОСТ is printed by the "
+            "ТУ handbook row and by Журба 1984 table 2, so it is documented. "
             "Note this is deliberately a PrintStock and not a FilmProfile: a "
             "positive film is not something you expose in a camera, it is what "
             "a negative is printed onto, which is exactly the role PrintStock "
@@ -88687,12 +88829,19 @@ PRINT_STOCKS: tuple[PrintStock, ...] = (
         # ТУ 6-17-647-80 / ГОСТ 10691.4-73 and is a full 0.5 harder. Same
         # designation, different generation -- the ДС-4 1974-vs-1984 pattern
         # again, and the reason both readings are kept in the description.
-        # toe/shoulder remain [T3]: the handbook prints a curve FAMILY (fig 189)
-        # which is traceable and queued, but has not been traced.
+        # ⚠ REFITTED 2026-10-19 (owner approval). toe/shoulder were [T3] and
+        # the curve's asymptote was 4.60 D against the ТУ row's D_макс 3
+        # (_MZ3_TU_647_80). Рис. 189's 4-min curve (γ 3,1) was traced from
+        # the owner's page scan (623 samples, D 0.22-3.20) and fitted with
+        # dmin 0.04 and gamma 3.00 held; the whole curve was then shifted
+        # along log H so D = 1.5 sits where it sat before (x = -0.271), so
+        # the printer-light calibration does not move. Fit rms 0.023 D;
+        # asymptote 3.16 D (trace 3.20, ТУ 3); steepest slope 2.98.
+        # Old: ToneCurve(0.04, 3.00, -0.74, 0.23, 0.78, 0.31).
         curves=RGBCurves(
-            r=ToneCurve(0.04, 3.00, -0.74, 0.23, 0.78, 0.31),
-            g=ToneCurve(0.04, 3.00, -0.74, 0.23, 0.78, 0.31),
-            b=ToneCurve(0.04, 3.00, -0.74, 0.23, 0.78, 0.31),
+            r=ToneCurve(0.04, 3.00, -0.756, 0.113, 0.285, 0.065),
+            g=ToneCurve(0.04, 3.00, -0.756, 0.113, 0.285, 0.065),
+            b=ToneCurve(0.04, 3.00, -0.756, 0.113, 0.285, 0.065),
         ),
         mtf_f50=62.0,
         grain_rms=4.2,
@@ -91306,6 +91455,60 @@ def schmidt_halo_um(px: float) -> float:
     return round((px - SCHMIDT_HALO_AXIS[0]) / SCHMIDT_HALO_AXIS[1], 2)
 
 
+#: ⚠ ADDED 2026-10-19 (owner-approved, queue P96h): «Resolution» Fig. 2, the
+#: DEFINITION PARAMETER (Schmidt's edge sharpness SP = 3 H3 at 8 lp/mm, 0..1,
+#: 1 = the ideal edge), owner-supplied as the page's own WEBP (1600 x 944 px,
+#: the same layout as Fig. 4). Bar ends read in pixels -- the last ink column
+#: of each bar's outline -- against the 0.0 / 0.2 / ... / 1.0 ticks at
+#: x = 181 / 447 / 715 / 983 / 1251 / 1519 (1338 px per unit, +/-0.002).
+#: Labels as the figure prints them. SPUR Ultra R800 / Nanotec UR reads
+#: 0.923 (x 1416) and has no profile, so it is recorded here only.
+SCHMIDT_SHARP_PX = {
+    "PanF":     (("FX39", 1279), ("SD2525", 1265), ("Wehner/Alpha", 1165),
+                 ("XTOL", 1154), ("D76", 1085), ("Rodinal", 1067)),
+    "TMX":      (("SD2525", 1079), ("Rodinal", 1030), ("XTOL", 986),
+                 ("Wehner/Alpha", 952), ("FX39", 887), ("D76", 839)),
+    "Delta100": (("SD2525", 1135), ("FX39", 1070), ("Rodinal", 1067),
+                 ("Wehner/Alpha", 957), ("XTOL", 932), ("D76", 889)),
+    "TMY":      (("Wehner/Alpha", 1164), ("XTOL", 1032), ("D76", 1029),
+                 ("SD2525", 987), ("Rodinal", 901), ("FX39", 609)),
+    "Delta400": (("Rodinal", 954), ("XTOL", 875), ("Wehner/Alpha", 833),
+                 ("SD2525", 827), ("D76", 702), ("FX39", 684)),
+    "TriX":     (("Wehner/Alpha", 815), ("Rodinal", 793), ("XTOL", 753),
+                 ("D76", 710), ("SD2525", 602), ("FX39", 431)),
+}
+SCHMIDT_SHARP_SPUR_PX = 1416
+SCHMIDT_SHARP_AXIS = (181.0, 1519.0 - 181.0)   # (x of 0.0, px per unit)
+
+
+def schmidt_sharpness(px: float) -> float:
+    """Fig. 2 bar end (pixels) -> definition parameter SP, 0..1, 3 decimals."""
+    return round((px - SCHMIDT_SHARP_AXIS[0]) / SCHMIDT_SHARP_AXIS[1], 3)
+
+
+#: ⚠ ADDED 2026-10-19 (owner-supplied print of «Methodik-Kornstruktur»,
+#: de/methodgrain, 8 pp, read in full): WHAT THE RMS TABLE MEANS.
+#:   * density: uniform patches of optical density D = 1 taken from the
+#:     densitometer grey wedges (stated as D = 1, not "net", so read as GROSS
+#:     density -- base and fog included; this database's level is net 1.0);
+#:   * aperture: Kodak's definition, 1000 x rms at a 48 um circular aperture,
+#:     obtained from a cell-size series on the 250x microscope RAW image:
+#:     RMS * sqrt(a) = const * sqrt(a) / sqrt(a + a_k), RMS_D = 1000 * const *
+#:     2 / (48 sqrt(pi)). Checked on his Abb. 4: plateaus 0.31 / 0.74 um give
+#:     RMS_D 7.3 / 17.4 against the table's 7.4 (T-MAX 100 Wehner/Alpha) and
+#:     17.4 (Tri-X FX39);
+#:   * a_k: the VISIBLE structure size of the grain image, micrometres, a
+#:     fitted parameter that includes the microscope's ~1.5 um resolution --
+#:     NOT the silver grain diameter. It stays inert.
+SCHMIDT_METHOD = (
+    "Bernhard W. Schmidt, «Methodik-Kornstruktur» (www.bernhard-w-schmidt.de, "
+    "de/methodgrain): rms at D = 1 on uniform wedge patches, Kodak's 1000 x "
+    "rms at a 48 um circular aperture computed from a microscope cell-size "
+    "series (RMS_D = 1000 const 2/(48 sqrt(pi))); a_k = visible structure "
+    "size of the grain image, including the ~1.5 um microscope resolution; "
+    "«Resolution» Fig. 2 definition parameter SP = 3 H3 at 8 lp/mm")
+
+
 #: Which database stock each tested film is, and the label each table uses.
 #: ⚠ Delta 100, Delta 400 and SPUR Ultra R800 HAVE NO PROFILE: their 14 RMS
 #: rows and 12 halo bars stay in the two tables above and reach no render.
@@ -91328,13 +91531,15 @@ def schmidt_grain_points(name: str):
     """The DeveloperGrainPoint rows for one database stock, sorted by name."""
     rms_label, halo_label = SCHMIDT_STOCKS[name]
     halo = {d: schmidt_halo_um(px) for d, px in SCHMIDT_HALO_PX[halo_label]}
+    sharp = {d: schmidt_sharpness(px) for d, px in SCHMIDT_SHARP_PX[halo_label]}
     rows = []
     for film, dev, iso, a_k, rms in SCHMIDT_RMS_TABLE:
         if film != rms_label:
             continue
         rows.append(DeveloperGrainPoint(
             developer=dev, exposure_index=iso, rms_d=rms, grain_a_k_um=a_k,
-            development_halo_width_um=halo.get(dev, 0.0)))
+            development_halo_width_um=halo.get(dev, 0.0),
+            edge_sharpness=sharp.get(dev, 0.0)))
     return tuple(sorted(rows, key=lambda q: q.developer.lower()))
 
 
@@ -91355,12 +91560,15 @@ def _apply_schmidt_2026_10_01(p: "FilmProfile") -> "FilmProfile":
             status="measured", unit=("rms_d: rms granularity, SOURCE SCALE; "
                                      "development_halo_width_um: um; "
                                      "exposure_index: ISO as printed; "
-                                     "grain_a_k_um: um as printed"),
+                                     "grain_a_k_um: um as printed; "
+                                     "edge_sharpness: SP 0..1"),
             conditions=("%d developers, each at its own normal development. "
                         "Halo: 8 lp/mm, contact-exposed Siemens star, D "
-                        "1.0-1.3. rms aperture and density level are on the "
-                        "method page, not retrieved (HTTP 429)" % len(rows)),
-            source=SCHMIDT_SOURCE, confidence="medium",
+                        "1.0-1.3. rms: Kodak-equivalent 48 um circular "
+                        "aperture at D = 1 (gross; method page read "
+                        "2026-10-19). Edge sharpness: Fig. 2 SP = 3 H3 at 8 "
+                        "lp/mm" % len(rows)),
+            source=SCHMIDT_SOURCE + "; " + SCHMIDT_METHOD, confidence="medium",
             note=("rms cells read one by one; halo bar ends read in pixels, "
                   "+/-0.02 um. Used ONLY as ratios to the D76 row by the "
                   "Developer control: Schmidt's D76 rows against Kodak's 48 "
@@ -91368,8 +91576,13 @@ def _apply_schmidt_2026_10_01(p: "FilmProfile") -> "FilmProfile":
                   "400 / Tri-X, so the scales do not map. The halo is a "
                   "DEVELOPMENT halo (chemical spreading), never written into "
                   "HalationSpec; it scales MTFSpec.adjacency_um. EI stored, "
-                  "not rendered (the Exposure control owns speed). a_k INERT "
-                  "until its definition is read. Identity: " + ident)),
+                  "not rendered (the Exposure control owns speed). a_k INERT: "
+                  "it is the visible structure size and includes the "
+                  "microscope's ~1.5 um resolution, so it is not a grain "
+                  "size. edge_sharpness (Fig. 2, read 2026-10-19) INERT: no "
+                  "law reads it yet. Part of the scale gap is the density "
+                  "level -- Schmidt measures at gross D = 1, Kodak at net D "
+                  "1.0. Identity: " + ident)),
         ParamSource(
             param="processing_family.grain_reference_developer", tier=2,
             status="stated", unit="", conditions="",
@@ -91539,7 +91752,8 @@ FILM_PROFILES = tuple(_apply_combined_mtf(_p) for _p in FILM_PROFILES)
 # location in its note. Rows that would change a VALUE (Kodak 1956 developer /
 # time, E-6 on Velvia / Provia / 64T II, TASMA_FN_64 resolving power and f50,
 # SVEMA_DS_5M f50, 5207 red f50 33.9, Neopan SS development series, VISION3
-# rms levels) are NOT here: they wait for a separate owner decision.
+# rms levels) are NOT here: they waited for a separate owner decision, which
+# came on 2026-10-18 -- see `_VALUES_2026_10_18`.
 # ---------------------------------------------------------------------------
 _AUDIT_2026_10_16D = ({'stock': 'EKTACHROME_64',
   'kind': 'paramsource',
@@ -116062,6 +116276,854 @@ def _apply_records_2026_10_16e(p: "FilmProfile") -> "FilmProfile":
 
 
 FILM_PROFILES = tuple(_apply_records_2026_10_16e(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+#  2026-10-18 -- VALUES FOUND IN THE SOURCES BUT NOT YET STORED (owner request)
+# ---------------------------------------------------------------------------
+# The 2026-10-16d audit listed seven groups of values that its sources print
+# but the database did not carry, and deferred them to an owner decision
+# (comment above `_AUDIT_2026_10_16D`). The owner ordered them stored on
+# 2026-10-18. Each was re-read from its document before it was written:
+#
+#   1. Kodak 1956 sheet films (5): developer / dilution / time / temperature of
+#      the drawn curve each profile is fitted to, from the «Processing» table and
+#      the curve family of «Kodak Films», 7th ed., 1956 (page images re-read).
+#   2. Process E-6 on FUJI_VELVIA_50, FUJI_PROVIA_400F, FUJICHROME_64T_II and
+#      EKTACHROME_64 (each sheet's own processing statement re-read).
+#   3. TASMA_FN_64 (= ФН-64, owner decision 2026-10-14d): ГОСТ 24876-81 Изм. № 3
+#      floors -- R >= 145 lin/mm and MTF >= 0,80 at 30 mm^-1 -> f50 52.9, the
+#      same spec_limit conversion SVEMA_FOTO_65 carries.
+#   4. SVEMA_DS_5M f50: the literal's own formula f50 = 30/sqrt(log2(1/T)) was
+#      mis-evaluated (24.9 / 15.9); T 0,30 / 0,15 give 22.8 / 18.1.
+#   5. KODAK_VISION3_250D_5207 red f50 33.9, re-read from H-1-5207 p3 by the
+#      bitmap MTF reader (it reproduces 33.9 c/mm).
+#   6. FUJI_NEOPAN_SS: the five printed average gradients of §9 (Microfine,
+#      20 C, small tank) as a development family, and Gbar 0.53 at the stored
+#      10 min.
+#   7. VISION3 rms LEVELS at net D 1.0 re-read with the granularity raster
+#      reader: green 4.55 / 6.32 / 5.60 / 7.16 (5203 / 5207 / 5213 / 5219), blue
+#      8.25 / 13.43 / - / 19.37, red 5219 6.43. ⚠ THIS REPLACES THE 2026-08-18
+#      "preserve appearance" freeze of the green level, BY OWNER ORDER, and moves
+#      those renders (grain about 1.1-1.75x). The 2026-08-18g §5 list
+#      (4.36 / 7.14 / 6.38 / 8.98) is NOT used: re-measured, it is not the net-1.0
+#      reading (2026-08-17f §5 and 2026-08-23 C1e both print 7.16 for 5219).
+#
+# Every row asserts the value it replaces, so an edit that already moved it
+# fails loudly instead of being overwritten.
+_K1956 = ("Eastman Kodak Company, «Kodak Films», Seventh Edition, Rochester "
+          "N.Y., 1956, data sheet «%s», «Processing» table («Develop at 68 F "
+          "for approximate times given below», printed p%d) and the sheet's "
+          "characteristic-curve family drawn for %s")
+_K1956_ROWS = (
+    # stock, sheet title, printed page, developer, dilution, curve minutes,
+    # table text (tray / tank), curve gamma letter
+    ("KODAK_SUPER_PANCHRO_PRESS_B_1956",
+     "KODAK SUPER PANCHRO-PRESS, TYPE B, SHEET FILM", 52, "KODAK DK-50",
+     "stock", 5.0,
+     "For Normal Use: DK-50 4 min tray / 5 min tank (DK-60a 3 1/2 / 4 1/4)",
+     "the 5 min curve, gamma .70 -- the table's own tank time"),
+    ("KODAK_PORTRAIT_PANCHROMATIC_1956",
+     "KODAK PORTRAIT PANCHROMATIC SHEET FILM", 56, "KODAK DK-50", "1:1", 8.0,
+     "For Normal Use: DK-50 (diluted 1:1) 7 min tray / 9 min tank",
+     "the 8 min curve, gamma .70 -- the nearest drawn curve to the 9 min tank "
+     "time; the profile's curve is the 8 min one, so 8 is stored"),
+    ("KODAK_ROYAL_ORTHO_1956", "KODAK ROYAL ORTHO SHEET FILM", 60,
+     "KODAK DK-60a", "stock", 4.0,
+     "For Normal Use: DK-60a 2 3/4 min tray / 4 min tank (DK-50 3 / 5)",
+     "the 4 min curve, gamma .73 -- the table's own tank time"),
+    ("KODAK_SUPER_SPEED_ORTHO_1956",
+     "KODAK SUPER SPEED ORTHO PORTRAIT SHEET FILM", 62, "KODAK DK-50", "1:1",
+     9.0, "For Normal Use: DK-50 (diluted 1:1) 8 min tray / 10 min tank",
+     "the 9 min curve, gamma .70 -- the nearest drawn curve to the 10 min "
+     "tank time; the profile's curve is the 9 min one, so 9 is stored"),
+    ("KODAK_COMMERCIAL_1956",
+     "KODAK COMMERCIAL, COMMERCIAL MATTE, AND COMMERCIAL ORTHO SHEET FILMS",
+     64, "KODAK DK-50", "1:1", 5.5,
+     "Commercial: DK-50 (1:1) 4 min tray / 5 min tank",
+     "the 5 1/2 min curve, gamma .85 -- the nearest drawn curve to the 5 min "
+     "tank time; the profile's curve is the 5 1/2 min one, so 5.5 is stored"),
+)
+
+_E6_ROWS = (
+    ("FUJI_VELVIA_50",
+     "Fujifilm, «FUJICHROME Velvia 50 Professional [RVP50]», data sheet Ref. "
+     "No. AF3-0221E2, §8 PROCESSING: «This film is designed for processing by "
+     "Process E-6, Fujifilm Process CR-56, or Fuji Hunt's PR06, etc.»"),
+    ("FUJI_PROVIA_400F",
+     "Fuji Photo Film U.S.A., «FUJIFILM PROFESSIONAL DATA GUIDE», Ref. No. "
+     "AF3-207U (2005), PDF p26 (right), FUJICHROME PROVIA 400F Professional "
+     "[RHPIII] panel captions «Process : E-6/CR-56»"),
+    ("FUJICHROME_64T_II",
+     "FUJIFILM DATA SHEET, FUJICHROME 64T TYPE II Professional [RTP II], Ref. "
+     "No. AF3-024E, Features table «E-6/CR-56 Processing -- Can be processed "
+     "in standard E-6/CR-56», footnote «CR-56 is Fujifilm's equivalent to the "
+     "E-6 process»; also AF3-207U PDF p5 «FUJICHROME 64T ... Process "
+     "E-6/CR-56»"),
+    ("EKTACHROME_64",
+     "Eastman Kodak Company, «KODAK EKTACHROME 64 Professional Film», "
+     "Technical Data E-8, September 2005, PROCESSING: «Process KODAK "
+     "EKTACHROME 64 Professional Film in Process E-6 chemicals»; curve panels "
+     "«Process: E-6»"),
+)
+
+_GOST24876_IZM3 = (
+    "ГОСТ 24876-81 «Пленки фотографические черно-белые негативные. "
+    "Технические условия», Изм. № 3 (01.09.91), табл. 6, ФН-64")
+_DS5M_TU = ("ТУ 6-17-691-88 (ПО «Свема», Шостка), кинопленка цветная "
+            "негативная маскированная ДС-5М, табл. 2 п. 9 «Коэффициент "
+            "передачи модуляции при пространственной частоте 30 мм^-1 ... "
+            "не менее»")
+_H1_5207 = ("Eastman Kodak Company, KODAK Publication No. H-1-5207 (KODAK "
+            "VISION3 250D 5207 / 7207, Technical Information), p3 "
+            "«Modulation-Transfer Function Curves», embedded bitmap read by "
+            "vision3_mtf_raster.py; re-read 2026-10-18")
+_V3GRAN = ("Eastman Kodak Company, KODAK VISION3 %s Technical Information "
+           "(publication H-1-%s), p3 «Diffuse RMS Granularity» panel "
+           "(sigma(D) x 1000, 48 um aperture), embedded bitmap read by "
+           "vision3_granularity.py; evaluated at each record's own net "
+           "density 1.0 (dmin + 1.0) on 2026-10-18")
+_NEOPAN_SS = ("FUJIFILM DATA SHEET «NEOPAN SS (135)», Ref. No. AF3-411E(N), "
+              "§9 CHARACTERISTIC CURVES «Processing: Microfine, 20 °C (68 °F) "
+              "(Small tank development)», each curve labelled with its own "
+              "average gradient: 4 min G=0.28, 6 min 0.37, 8 min 0.45, 10 min "
+              "0.53, 12 min 0.61")
+
+#: (stock, dotted path, expected old value, new value). Floats compare to 1e-9.
+_VALUES_2026_10_18: tuple = (
+    *[(s, "processing.developer", "", d) for s, _t, _pg, d, *_r in _K1956_ROWS],
+    *[(s, "processing.dilution", "", dil)
+      for s, _t, _pg, _d, dil, *_r in _K1956_ROWS],
+    *[(s, "processing.minutes", 0.0, m)
+      for s, _t, _pg, _d, _dl, m, *_r in _K1956_ROWS],
+    *[(s, "processing.celsius", 0.0, 20.0) for s, *_r in _K1956_ROWS],
+    *[(s, "processing.agitation", "",
+       "intermittent (tank), agitation at one-minute intervals")
+      for s, *_r in _K1956_ROWS],
+    *[(s, "processing.developer", "", "Process E-6") for s, _src in _E6_ROWS],
+    ("TASMA_FN_64", "mtf.f50_r", 32.0, 52.9),
+    ("TASMA_FN_64", "mtf.f50_g", 32.0, 52.9),
+    ("TASMA_FN_64", "mtf.f50_b", 32.0, 52.9),
+    ("TASMA_FN_64", "mtf.resolving_power_lp_mm_highc", 0.0, 145.0),
+    ("SVEMA_DS_5M", "mtf.f50_r", 15.9, 18.1),
+    ("SVEMA_DS_5M", "mtf.f50_g", 24.9, 22.8),
+    ("SVEMA_DS_5M", "mtf.f50_b", 24.9, 22.8),
+    ("KODAK_VISION3_250D_5207", "mtf.f50_r", 36.0, 33.9),
+    ("FUJI_NEOPAN_SS", "processing.contrast_index", 0.0, 0.53),
+    ("KODAK_VISION3_50D_5203", "grain.rms_granularity", 2.6, 4.55),
+    ("KODAK_VISION3_50D_5203", "grain.rms_b", 4.71, 8.25),
+    ("KODAK_VISION3_250D_5207", "grain.rms_granularity", 4.2, 6.32),
+    ("KODAK_VISION3_250D_5207", "grain.rms_b", 8.92, 13.43),
+    ("KODAK_VISION3_200T_5213", "grain.rms_granularity", 4.6, 5.60),
+    ("KODAK_VISION3_200T_5213", "grain.rms_g", 4.6, 5.60),
+    ("KODAK_VISION3_200T_5213", "grain.rms_r", 5.06, 6.16),
+    ("KODAK_VISION3_200T_5213", "grain.rms_b", 5.98, 7.28),
+    *[(s, p, o, n)
+      for s in ("KODAK_VISION3_500T_5219", "KODAK_VISION3_500T_5219_AHU")
+      for p, o, n in (("grain.rms_granularity", 6.6, 7.16),
+                      ("grain.rms_g", 6.6, 7.16),
+                      ("grain.rms_r", 5.92, 6.43),
+                      ("grain.rms_b", 17.84, 19.37))],
+)
+
+
+def _rec(path, status, tier, unit, conditions, source, confidence, note,
+         expect=None):
+    return {"path": path, "status": status, "tier": tier, "unit": unit,
+            "conditions": conditions, "source": source,
+            "confidence": confidence, "note": note, "expect": expect}
+
+
+def _records_2026_10_18() -> dict:
+    """{stock: [record dict, ...]}. `expect` = the status of the record it
+    replaces (None = the record is new and must not exist yet)."""
+    out: dict = {}
+
+    def add(stock, *recs):
+        out.setdefault(stock, []).extend(recs)
+
+    for s, title, pg, dev, dil, mins, table, curve in _K1956_ROWS:
+        src = _K1956 % (title, pg, dev + ("" if dil == "stock" else
+                                          " diluted " + dil))
+        add(s,
+            _rec("processing.developer", "stated", 1, "", "68 F, tank", src,
+                 "high", "Kodak names the developer in the Processing table "
+                 "and draws the curve family for it. " + table + ". Stored "
+                 "2026-10-18 (owner request); replaces the empty placeholder.",
+                 expect="assumed"),
+            _rec("processing.minutes", "stated", 1, "min",
+                 dev + " " + dil + ", 68 F, intermittent agitation (tank)",
+                 src, "high", "The development time of the drawn curve the "
+                 "profile is fitted to: " + curve + ". Table: " + table +
+                 ". Stored 2026-10-18."),
+            _rec("processing.celsius", "stated", 1, "degC", "printed 68 F",
+                 src, "high", "«Develop at 68 F»; 68 F = 20.0 degC exactly. "
+                 "Stored 2026-10-18."))
+    for s, src in _E6_ROWS:
+        add(s, _rec("processing.developer", "stated", 1, "", "", src, "high",
+                    "The sheet names the process; E-6 is a standardised "
+                    "two-developer reversal process, so no time or "
+                    "temperature is stored (as on FUJI_PROVIA_100F). Stored "
+                    "2026-10-18; replaces the empty placeholder.",
+                    expect="assumed"))
+    f50_tasma = ("f50 = 30/sqrt(log2(1/0.80)) = 52.87 -> 52.9 under the "
+                 "engine's Gaussian core, the conversion SVEMA_FOTO_65 "
+                 "carries. A floor: the film just meets the ГОСТ norm at this "
+                 "f50, real stock was no softer. ГОСТ prints one figure for "
+                 "the whole (monochrome) film. Stored 2026-10-18 (owner "
+                 "request); replaces the era heuristic 32.0.")
+    for ch, exp in (("r", "assumed"), ("g", "assumed"), ("b", None)):
+        add("TASMA_FN_64", _rec(
+            "mtf.f50_" + ch, "spec_limit", 1, "cycles/mm",
+            "Изм. № 3 default column (owner decision 2026-10-14d); MTF "
+            "не менее 0,80 at 30 mm^-1",
+            _GOST24876_IZM3 + ": MTF at 30 mm^-1 не менее 0,80", "medium",
+            f50_tasma, expect=exp))
+    add("TASMA_FN_64", _rec(
+        "mtf.resolving_power_lp_mm_highc", "spec_limit", 1, "лин/мм",
+        "Изм. № 3 default column (owner decision 2026-10-14d)",
+        _GOST24876_IZM3 + ": «Разрешающая способность R, лин/мм, не менее» "
+        "145", "medium", "A floor, not a typical: the ГОСТ «не менее» norm of "
+        "the profile's default column. Stored 2026-10-18 (owner request)."))
+    for ch, t, v, exp in (("r", "0,15", "18.13", "estimated"),
+                          ("g", "0,30", "22.76", "estimated")):
+        add("SVEMA_DS_5M", _rec(
+            "mtf.f50_" + ch, "spec_limit", 1, "cycles/mm",
+            "MTF не менее %s at 30 mm^-1 (%s record)" % (
+                t, "red" if ch == "r" else "green"),
+            _DS5M_TU + ": %s %s" % ("красным" if ch == "r" else "зеленым", t),
+            "medium",
+            "f50 = 30/sqrt(log2(1/T)) = %s under the engine's Gaussian core. "
+            "The literal carried 24.9 / 15.9 from a mis-evaluation of the "
+            "same formula; corrected 2026-10-18 (owner request). A floor, "
+            "not a typical." % v, expect=exp))
+    add("SVEMA_DS_5M", _rec(
+        "mtf.f50_b", "estimated", 2, "cycles/mm",
+        "no blue figure in the ТУ; blue takes the green floor-derived value",
+        "", "low", "ТУ 6-17-691-88 sets MTF floors for green (0,30) and red "
+        "(0,15) only; 22.8 is the green floor's f50 reused by assumption, "
+        "not a blue specification. Recorded 2026-10-18."))
+    add("KODAK_VISION3_250D_5207", _rec(
+        "mtf.f50_r", "traced", 1, "cycles/mm", "red record", _H1_5207,
+        "high", "33.9 cycles/mm, red record (bottom curve, B / G / R top to "
+        "bottom as printed). Replaces the C24 family anchor 36.0, which the "
+        "2026-10-16d audit downgraded to an estimate. Stored 2026-10-18 "
+        "(owner request).", expect="estimated"))
+    add("FUJI_NEOPAN_SS", _rec(
+        "processing.contrast_index", "stated", 1, "average gradient (Fuji G)",
+        "Microfine, 20 C, small tank, 10 min", _NEOPAN_SS, "high",
+        "The printed G of the 10 min curve the profile is traced from. Fuji's "
+        "average gradient, stored in the contrast_index slot as on "
+        "FUJI_NEOPAN_1600. Stored 2026-10-18 (owner request)."))
+    v3 = {"KODAK_VISION3_50D_5203": ("50D", "5203", 4.55, None, 8.25),
+          "KODAK_VISION3_250D_5207": ("250D", "5207", 6.32, None, 13.43),
+          "KODAK_VISION3_200T_5213": ("200T", "5213", 5.60, None, None),
+          "KODAK_VISION3_500T_5219": ("500T", "5219", 7.16, 6.43, 19.37),
+          "KODAK_VISION3_500T_5219_AHU": ("500T", "5219", 7.16, 6.43, 19.37)}
+    for s, (nm, cat, g, r, b) in v3.items():
+        src = _V3GRAN % (nm, cat)
+        pooled = cat == "5213"
+        add(s, _rec(
+            "grain.rms_granularity", "traced", 1, "sigma(D) x 1000",
+            "48 um aperture, diffuse, net density 1.0" +
+            (" -- the sheet draws ONE band for all three records" if pooled
+             else ", green record"), src, "medium",
+            "%.2f at net D 1.0%s. Replaces the pooled anchor frozen on "
+            "2026-08-18 under the 'preserve appearance' policy, by owner "
+            "order 2026-10-18; this MOVES THE RENDER. The 2026-08-18g §5 list "
+            "(4.36 / 7.14 / 6.38 / 8.98) was not the net-1.0 reading and is "
+            "not used.%s" % (
+                g, " (pooled band)" if pooled else "",
+                " AHU variant: same emulsion and sheet as 5219." if
+                s.endswith("_AHU") else ""),
+            expect="estimated"))
+        if b is not None:
+            add(s, _rec(
+                "grain.rms_b", "traced", 1, "sigma(D) x 1000",
+                "48 um aperture, diffuse, blue record at its own net D 1.0",
+                src, "medium", "%.2f; the b/g ratio is the one adopted "
+                "2026-08-23 (C1e), now on the sheet's own level. Stored "
+                "2026-10-18." % b))
+        if r is not None:
+            add(s, _rec(
+                "grain.rms_r", "traced", 1, "sigma(D) x 1000",
+                "48 um aperture, diffuse, red record at its own net D 1.0",
+                src, "medium", "%.2f; stored 2026-10-18." % r))
+        if pooled:
+            for ch, k in (("r", 1.10), ("b", 1.30)):
+                add(s, _rec(
+                    "grain.rms_" + ch, "estimated", 2, "sigma(D) x 1000",
+                    "tier-2 ladder %.2f x green" % k, "", "low",
+                    "The sheet's single band gives no %s track; the ladder "
+                    "ratio %.2f is kept and carried onto the new green "
+                    "level. Recorded 2026-10-18." % (
+                        "red" if ch == "r" else "blue", k)))
+    return out
+
+
+_RECORDS_2026_10_18 = _records_2026_10_18()
+
+#: FUJI_NEOPAN_SS §9: the five printed (time, G) pairs. EI 100, 135 film.
+_NEOPAN_SS_POINTS = tuple(
+    DevelopmentPoint(developer="Fuji Microfine", dilution="stock",
+                     minutes=_m, celsius=20.0, contrast_index=_g,
+                     exposure_index=100, vessel="small tank",
+                     film_format="135")
+    for _m, _g in ((4.0, 0.28), (6.0, 0.37), (8.0, 0.45), (10.0, 0.53),
+                   (12.0, 0.61)))
+
+
+def _get_path(obj, path):
+    for a in path.split("."):
+        obj = getattr(obj, a)
+    return obj
+
+
+def _set_path(obj, path, value):
+    head, _, rest = path.partition(".")
+    if not rest:
+        return replace(obj, **{head: value})
+    return replace(obj, **{head: _set_path(getattr(obj, head), rest, value)})
+
+
+def _apply_values_2026_10_18(p: "FilmProfile") -> "FilmProfile":
+    rows = [r for r in _VALUES_2026_10_18 if r[0] == p.name]
+    recs = _RECORDS_2026_10_18.get(p.name, [])
+    if not rows and not recs and p.name != "FUJI_NEOPAN_SS":
+        return p
+    for _s, path, old, new in rows:
+        cur = _get_path(p, path)
+        same = (abs(cur - old) < 1e-9 if isinstance(old, float)
+                else cur == old)
+        if not same:
+            raise ValueError("%s.%s: 2026-10-18 expected %r, found %r"
+                             % (p.name, path, old, cur))
+        p = _set_path(p, path, new)
+    if p.name == "FUJI_NEOPAN_SS":
+        pf = p.processing_family
+        if pf.points:
+            raise ValueError("FUJI_NEOPAN_SS: 2026-10-18 expected an empty "
+                             "development family")
+        pf = replace(pf, points=_NEOPAN_SS_POINTS, source=_NEOPAN_SS + (
+            ". Only the five points whose contrast is printed are entered; "
+            "stored 2026-10-18 (owner request)."))
+        pf.validate("FUJI_NEOPAN_SS processing_family")
+        p = replace(p, processing_family=pf)
+    by = {r["path"]: r for r in recs}
+    ps = []
+    seen = set()
+    for x in p.param_sources:
+        r = by.get(x.param)
+        if r is None:
+            ps.append(x)
+            continue
+        if r["expect"] is None or x.status != r["expect"]:
+            raise ValueError("%s.%s: 2026-10-18 record expected %r, found %r"
+                             % (p.name, x.param, r["expect"], x.status))
+        seen.add(x.param)
+        ps.append(ParamSource(param=r["path"], tier=r["tier"],
+                              status=r["status"], unit=r["unit"],
+                              conditions=r["conditions"], source=r["source"],
+                              confidence=r["confidence"], note=r["note"]))
+    for r in recs:
+        if r["path"] in seen:
+            continue
+        if r["expect"] is not None:
+            raise ValueError("%s.%s: 2026-10-18 expected an existing %r record"
+                             % (p.name, r["path"], r["expect"]))
+        ps.append(ParamSource(param=r["path"], tier=r["tier"],
+                              status=r["status"], unit=r["unit"],
+                              conditions=r["conditions"], source=r["source"],
+                              confidence=r["confidence"], note=r["note"]))
+    return replace(p, param_sources=tuple(ps))
+
+
+FILM_PROFILES = tuple(_apply_values_2026_10_18(_p) for _p in FILM_PROFILES)
+_missing_1018 = ({r[0] for r in _VALUES_2026_10_18} | set(_RECORDS_2026_10_18)
+                 ) - {p.name for p in FILM_PROFILES}
+if _missing_1018:
+    raise ValueError("2026-10-18 names absent stocks %s" % sorted(_missing_1018))
+
+
+# =====================================================================
+# 2026-10-19 -- OWNER-APPROVED VALUE PASS (items 1 and 4 of the 2026-10-19
+# report): P96q (Kodak F-13 HIE reciprocity, Kodak E-29 PRO 100T spectral
+# sensitivity) and the easy text tables of «Современные фотоматериалы и их
+# обработка» (2004): reciprocity, push, tungsten EI pairs, development tables.
+# Every row asserts the value it replaces; every new number carries its own
+# ParamSource record. Vendor documents win: where the maker's own sheet prints
+# the same table (P-255, E-116, F-2350, AF3-095E) it is cited first and the
+# book is the corroboration. RESULT_2026-10-19b_approved_values.md.
+# =====================================================================
+
+_S04 = ("В. Л. Лихачев, «Современные фотоматериалы и их обработка» "
+        "(Москва: СЛОН-ПРЕСС, 2003/2004)")
+
+
+def _recip(times, stops, source):
+    return ReciprocityTable(times_s=tuple(times),
+                            stops_correction=tuple(stops), source=source)
+
+
+#: (stock, ReciprocityTable, record note). Metered-time axis, as printed.
+_RECIP_2026_10_19 = (
+    ("KODAK_HIE", _recip(
+        (0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
+        (0.3219, 0.0, 0.0, 0.0, 0.0, 0.6781),
+        "Eastman Kodak Company, «KODAK High Speed Infrared Film», KODAK "
+        "Publication No. F-13, June 2000, p4 reciprocity table «Indicated "
+        "Exposure Time (sec) / Multiply Exposure Time by This Filter Factor»: "
+        "1/1000 x1.25; 1/100, 1/10, 1, 10 x1.0; 100 x1.6. Stored as log2 of "
+        "the factor (0.3219 and 0.6781 stops), metered-time axis. The same "
+        "numbers are the book's Табл. 3.282, printed inside the HIE section "
+        "under a «Plus-X 125» caption (queue P96q): the maker's sheet settles "
+        "the attribution."),
+     "F-13 p4, the maker's own table; resolves P96q(2). Stored 2026-10-19 "
+     "(owner approval)."),
+    ("KODAK_PLUS_X_125", _recip(
+        (1e-5, 1e-4, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
+        (1.0, 0.5, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
+        _S04 + ", Табл. 3.191 p348 (Plus-X Pan PX/PXP/PXE/PXT) and Табл. 3.223 "
+        "p379 (Professional Plus-X 125/125PX), identical cell for cell: "
+        "1/100000 s +1 stop; 1/10000 s +1/2; 1/1000-1/10 s none; 1 s +1 "
+        "(adjusted 2 s); 10 s +2 (50 s); 100 s +3 (1200 s). Metered-time axis. "
+        "The book prints no development-change column (Kodak's own sheets "
+        "do); none is stored."),
+     "Kodak's long/short-exposure table as the book reprints it, twice. "
+     "Replaces the class Schwarzschild default for a stated exposure time. "
+     "Stored 2026-10-19 (owner approval)."),
+    ("KODAK_EKTAPAN_100", _recip(
+        (0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
+        (0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
+        _S04 + ", Табл. 3.142 p289 (Kodak Ektapan): 1/1000-1/10 s none; 1 s "
+        "+1 stop (adjusted 2 s); 10 s +2 (50 s); 100 s +3 (1200 s). Metered-"
+        "time axis; no development column printed."),
+     "Book reprint of Kodak's table. Stored 2026-10-19 (owner approval)."),
+    ("KODAK_VERICHROME_PAN", _recip(
+        (1e-5, 1e-4, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
+        (1.0, 0.5, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
+        _S04 + ", Табл. 3.232 p387 (Kodak Verichrome Pan): 1/100000 s +1 stop; "
+        "1/10000 s +1/2; 1/1000-1/10 s none; 1 s +1 (2 s); 10 s +2 (50 s); "
+        "100 s +3 (1200 s). Metered-time axis; no development column printed."),
+     "Book reprint of Kodak's table. Stored 2026-10-19 (owner approval)."),
+    ("FUJI_NEOPAN_ACROS_100", _recip(
+        (119.0, 120.0, 1000.0), (0.0, 0.5, 0.5),
+        "Fuji Photo Film Co., Ltd., «NEOPAN 100 ACROS» data sheet, Ref. "
+        "AF3-095E, p1 «Reciprocity Characteristics»: «No exposure compensation "
+        "is required for exposures at shutter speeds of less than 120 seconds. "
+        "However, for exposures of 120 seconds or longer, provide the "
+        "compensation indicated below» -- 120-1000 s: +1/2 stop. Identical in "
+        + _S04 + ", Табл. 3.260 p411. ⚠ The zero at 119 s is the sheet's «less "
+        "than 120 seconds» entered one second short of the step, so the "
+        "interpolation does not smear the half stop over a decade; nothing "
+        "past 1000 s is printed and the table holds flat there."),
+     "The maker's own table; replaces the p = 1.0 stand-in for any stated "
+     "exposure time (owner decision 'Acros reciprocity', approved "
+     "2026-10-19)."),
+)
+
+#: KODAK_PRO_100T_PRT layer sensitivity, E-29 p4 vector panel, 380-700 nm.
+_E29_SPECTRAL = SpectralSensitivity(
+    lambda_start_nm=380.0, lambda_step_nm=10.0,
+    log_s_b=(-1.446, -1.2193, -0.7806, -0.3408, -0.1588, -0.0672, -0.023,
+             -0.0182, 0.0, -0.2398, -1.0193) + (-4.0,) * 22,
+    log_s_g=(-4.0,) * 7 + (-1.7952, -1.676, -1.4856, -1.1932, -0.8685,
+                           -0.5641, -0.436, -0.3365, -0.1907, -0.0261, 0.0,
+                           -0.1809, -0.4209) + (-4.0,) * 13,
+    log_s_r=(-4.0,) * 17 + (-1.5988, -1.2674, -0.9475, -0.6478, -0.4802,
+                            -0.3677, -0.2804, -0.1999, -0.1071, -0.0103, 0.0,
+                            -0.3337) + (-4.0,) * 4,
+    criterion="log_reciprocal_erg_cm2_D0.2_above_dmin",
+    source="Eastman Kodak Company, «KODAK Pro 100T Film / PRT», KODAK "
+           "Publication No. E-29, April 1999 (Minor Revision 4-99), p4 panel "
+           "«Spectral-Sensitivity Curves» (F002_0504AC): Effective Exposure "
+           "1/100 second, Process C-41, Densitometry Status M, Density 0.2 "
+           "above D-min. Vector-path extraction 2026-10-19; each layer "
+           "normalised to its own peak (b 460 nm abs 2.32, g 550 nm 2.21, "
+           "r 650 nm 1.80); -4.0 outside each drawn curve. ⚠ The book's рис. "
+           "3.18 (captioned PRO 100T) is PJ800's artwork (queue P96q); this is "
+           "the maker's own panel and supersedes it.")
+
+#: (stock, tungsten EI, filter, table, page)
+_EI_TUNGSTEN_2026_10_19 = (
+    ("KONICA_CENTURIA_SUPER_400", 100, "80A", "2.16", 92),
+    ("KONICA_CENTURIA_SUPER_1600", 400, "80A", "2.28", 101),
+    ("KONICA_VX_100", 25, "80A", "2.31", 104),
+    ("KODAK_PORTRA_160NC", 40, "80A", "3.14", 156),
+    ("KODAK_PORTRA_160VC", 40, "80A", "3.14", 156),
+    ("KODAK_PORTRA_400NC", 100, "80A", "3.14", 156),
+    ("KODAK_PORTRA_400VC", 100, "80A", "3.14", 156),
+    ("KODAK_ULTRA_COLOR_400UC", 100, "80A", "3.14", 156),
+    ("KODAK_PORTRA_800", 200, "80A", "3.14", 156),
+    ("KONICA_IMPRESA_50", 12, "80A", "3.57", 214),
+    ("KODAK_EKTACHROME_100_EPN", 25, "80A", "3.61", 219),
+    ("EKTACHROME_64", 16, "80A", "3.79", 235),
+    ("KODACHROME_64", 16, "80A", "3.111", 259),
+    ("KONICA_CHROME_R100", 25, "80A", "3.136", 283),
+)
+#: Tungsten-balanced: (stock, daylight EI, filter, table, page)
+_EI_DAYLIGHT_2026_10_19 = (
+    ("FUJICOLOR_NPL_160", 100, "85B", "3.39", 200),
+)
+
+#: Push: (stock, max push stops, {variant-name prefix: (minutes, source)},
+#:        PushSpec.source)
+_E116 = ("Eastman Kodak Company, «KODAK PROFESSIONAL EKTAPRESS Films», KODAK "
+         "Publication No. E-116, April 2003, p3 push table «Exposure Index / "
+         "Development Time (minutes:seconds)»")
+_PUSH_2026_10_19 = (
+    ("KODAK_EKTAPRESS_PJ400", 2.0,
+     {"EI 400": 3.25, "EI 800": 3.75, "EI 1600": 4.25},
+     _E116 + ": PJ400 EI 400 3:15, 800 (Push 1) 3:45, 1600 (Push 2) 4:15, "
+     "Process C-41; «good push-process performance to EI 1600» (p1). Same in "
+     + _S04 + ", Табл. 3.3 p138."),
+    ("KODAK_EKTAPRESS_PJ800", 2.0,
+     {"EI 800": 3.25, "EI 1600": 3.75, "EI 3200": 4.25},
+     _E116 + ": PJ800 EI 800 3:15, 1600 (Push 1) 3:45, 3200 (Push 2) 4:15, "
+     "Process C-41; «good push-processing performance to EI 3200» (p1). Same "
+     "in " + _S04 + ", Табл. 3.3 p138."),
+    ("KODAK_ULTRA_COLOR_400UC", 1.0,
+     # the E-190 (2003) variants: the book's table names the stock by its
+     # E-190-era name «Professional Portra 400UC»
+     {"EI 400, as E-190": 3.25, "EI 800 (Push 1), as E-190": 3.75},
+     _S04 + ", Табл. 5.13 p596 «Проявление фотопленок по Push-процессу» "
+     "(printed 'Professional Portra 400UC', the earlier name of this stock): "
+     "EI 400 3:15, EI 800 (Push 1) 3:45, Process C-41. Kodak's E-4035 draws "
+     "Push 1 curves only, so +1 is the stated limit."),
+    ("KODAK_PORTRA_800", 2.0,
+     {"EI 800": 3.25, "EI 1600": 3.75, "EI 3200": 4.25},
+     _S04 + ", Табл. 5.13 p596: Portra 800 EI 800 3:15, 1600 (Push 1) 3:45, "
+     "3200 (Push 2) 4:15, Process C-41; Kodak E-190 / E-4040 draw the 1- and "
+     "2-stop push curves."),
+    ("KODAK_T400CN", 3.0, {},
+     "Eastman Kodak Company, «KODAK PROFESSIONAL T400 CN Film», KODAK "
+     "Publication No. F-2350 (1999), «PUSH PROCESSING»: «acceptable negatives "
+     "from exposure indexes as high as 3200» -- EI 400 to 800 3:15, 1600 3:45, "
+     "3200 4:15 in Process C-41. Same in " + _S04 + ", Табл. 3.256 p405. "
+     "+3 stops = EI 3200 against the box 400."),
+)
+
+
+# ⚠ PRINTED TABLE POINTS ARE UNTAGGED (`edition` ""), the convention of the
+# earlier «Современные» table harvest: a tag names an emulsion generation or a
+# kinetics figure, and every tagged point must state its own EI.
+def _dp(dev, dil, mins, c, vessel, ci=0.0, ei=0, crit="", ed="", fmt=""):
+    return DevelopmentPoint(developer=dev, dilution=dil, minutes=mins,
+                            celsius=c, contrast_index=ci, exposure_index=ei,
+                            contrast_criterion=crit, vessel=vessel,
+                            edition=ed, film_format=fmt)
+
+
+_TEMPS5 = (18.0, 20.0, 21.0, 22.0, 24.0)
+#: P-255 p2 «Exposure- and Contrast-Index Values for Various Development
+#: Conditions» (68 F). Ranges printed; the two ends of each row are stored,
+#: shortest time with the lowest contrast index and EI, longest with the
+#: highest (contrast and speed rise with development -- the table orders its
+#: rows that way and prints no pairing inside a range).
+_P255_ROWS = (
+    ("DEKTOL", "stock", 3.0, 3.0, 2.50, 2.50, 200, 200),
+    ("D-19", "1:2", 4.0, 7.0, 2.40, 2.70, 100, 160),
+    ("D-19", "stock", 2.0, 8.0, 2.25, 2.55, 100, 200),
+    ("HC-110", "Dil B", 4.0, 12.0, 1.20, 2.10, 100, 250),
+    ("HC-110", "Dil D", 4.0, 8.0, 1.25, 1.75, 80, 125),
+    ("D-76", "stock", 6.0, 12.0, 1.10, 2.10, 64, 125),
+    ("MICRODOL-X", "stock", 8.0, 12.0, 1.00, 1.50, 32, 50),
+    ("HC-110", "Dil F", 6.0, 12.0, 0.80, 0.95, 32, 64),
+    ("TECHNIDOL Liquid", "stock", 5.0, 11.0, 0.50, 0.70, 16, 25),
+)
+
+
+def _techpan_points():
+    pts = []
+    for dev, dil, t0, t1, c0, c1, e0, e1 in _P255_ROWS:
+        pts.append(_dp(dev, dil, t0, 20.0, "", c0, e0, "kodak_ci"))
+        if t1 != t0:
+            pts.append(_dp(dev, dil, t1, 20.0, "", c1, e1, "kodak_ci"))
+    # Современные Табл. 5.145 p675 (small tank): Technidol 9 min 135 / 8 min
+    # sheet at EI 25; XTOL at 21 C, contrast 0.60 (printed EI 6/8/10 not
+    # stored -- see the record).
+    pts += [_dp("TECHNIDOL Liquid", "stock", 9.0, 20.0, "small tank", 0.0,
+                25, "", "", "135"),
+            _dp("TECHNIDOL Liquid", "stock", 8.0, 20.0, "small tank", 0.0,
+                25, "", "", "sheet"),
+            _dp("XTOL", "1:3", 9.0, 21.0, "small tank", 0.60, 0,
+                "kodak_ci", "", "135"),
+            _dp("XTOL", "1:4", 12.0, 21.0, "small tank", 0.60, 0,
+                "kodak_ci", "", "135"),
+            _dp("XTOL", "1:5", 15.0, 21.0, "small tank", 0.60, 0,
+                "kodak_ci", "", "135")]
+    return tuple(pts)
+
+
+_REC2475_POINTS = tuple(
+    _dp("HC-110", dil, m, c, "small tank")
+    for dil, ms in (("Dil A", (5.5, 4.5, 4.0, 3.5, 3.0)),
+                    ("Dil B", (11.0, 9.0, 8.0, 7.0, 6.0)))
+    for c, m in zip(_TEMPS5, ms))
+
+_KIR750_POINTS = tuple(
+    _dp(dev, "stock", m, c, "small tank")
+    for dev, ms in (("Konicadol DP", (6.0, 4.0)),
+                    ("Konicadol Fine", (7.0, 5.0)),
+                    ("Konicadol Super", (6.0, 4.5)))
+    for c, m in zip((20.0, 25.0), ms))
+
+#: Табл. 3.144 (tray) -- the five rows whose labels are unambiguous (the
+#: «T-MAX» / «RS XTOL» rows are a mis-split of T-MAX RS and XTOL and are not
+#: stored); Табл. 3.146 (reels in a small tank). Табл. 3.145 is NOT stored:
+#: two of its row labels are swapped against the book's own chapter-5 tables.
+_EKTAPAN_POINTS = tuple(
+    _dp(dev, dil, m, c, "tray")
+    for dev, dil, ms in (
+        ("HC-110", "Dil B", (5.0, 4.5, 4.25, 4.0, 3.5)),
+        ("D-76", "", (9.0, 8.0, 7.0, 6.5, 5.5)),
+        ("DK-50", "1:1", (5.0, 4.5, 4.25, 4.0, 3.5)),
+        ("MICRODOL-X", "", (12.0, 10.0, 9.5, 8.0, 7.0)),
+        ("HC-110", "Dil A", (3.25, 3.0, 2.75, 2.5, 2.25)))
+    for c, m in zip(_TEMPS5, ms)) + tuple(
+    _dp("HC-110", "Dil B", m, c, "small tank")
+    for c, m in zip(_TEMPS5, (8.0, 7.0, 6.5, 6.0, 5.25)))
+
+_P255 = ("Eastman Kodak Company, «KODAK PROFESSIONAL Technical Pan Film», "
+         "KODAK Publication No. P-255, June 2003, p2 «Exposure- and Contrast-"
+         "Index Values for Various Development Conditions» (68 F / 20 C)")
+
+#: stock -> (points, family source sentence)
+_DEV_2026_10_19 = {
+    "KODAK_TECHNICAL_PAN": (
+        _techpan_points(),
+        _P255 + ": nine developer rows, contrast index / time / EI printed as "
+        "RANGES; the two ends of each range are stored, shortest time with "
+        "the lowest contrast index and EI (the pairing is the table's "
+        "monotone reading, not printed). Corroborated cell for cell by "
+        + _S04 + ", Табл. 3.216 p368. Plus Табл. 5.145 p675 (small tank): "
+        "TECHNIDOL Liquid 9 min (135) / 8 min (sheet) at EI 25, and XTOL at "
+        "21 C 1:3 9, 1:4 12, 1:5 15 min (16 oz per film; 16 min with 8 oz) "
+        "for contrast 0.60 -- the XTOL EIs are printed 6 / 8 / 10, which "
+        "contradicts EI 25 for Technidol, so they are NOT stored."),
+    "KODAK_RECORDING_2475": (
+        _REC2475_POINTS,
+        _S04 + ", Табл. 5.182 p703 «Обработка рулонных фотопленок в "
+        "проявителе HC-110», Recording 2475 rows: small tank (reel), Dil A "
+        "5 1/2 / 4 1/2 / 4 / 3 1/2 / 3 and Dil B 11 / 9 / 8 / 7 / 6 min at "
+        "18 / 20 / 21 / 22 / 24 C; large tank «Не рекомендуется». The times "
+        "are for diffusion enlarging; the book says to shorten them 30 % for "
+        "a condenser enlarger. TIME ONLY: no contrast or EI printed."),
+    "KONICA_INFRARED_750": (
+        _KIR750_POINTS,
+        _S04 + ", Табл. 3.288 p444 (small tank): Konicadol DP (D-76 "
+        "equivalent) 6 / 4, Konicadol Fine (DK-20 equivalent) 7 / 5, "
+        "Konicadol Super (ID-68 equivalent) 6 / 4 1/2 min at 20 / 25 C. "
+        "TIME ONLY. Agrees with the profile's stored Konicadol DP 6 min 20 C "
+        "from Konica's sheet."),
+    "KODAK_EKTAPAN_100": (
+        _EKTAPAN_POINTS,
+        _S04 + ", Табл. 3.144 p291 (tray; also valid for a large tank "
+        "agitated 1 s each minute): HC-110 Dil B, D-76, DK-50 1:1, "
+        "MICRODOL-X, HC-110 Dil A at 18-24 C; and Табл. 3.146 p291 (reels): "
+        "HC-110 Dil B 8 / 7 / 6 1/2 / 6 / 5 1/4. TIME ONLY. Not stored: the "
+        "«T-MAX» / «RS XTOL» rows of 3.144 (a mis-split of T-MAX RS and "
+        "XTOL), and all of Табл. 3.145 (its HC-110 Dil B and D-76 row labels "
+        "are swapped against Табл. 5.165 / 5.183). Added 2026-10-19."),
+}
+
+
+def _records_2026_10_19() -> dict:
+    out: dict = {}
+
+    def add(stock, *recs):
+        out.setdefault(stock, []).extend(recs)
+
+    for s, tab, note in _RECIP_2026_10_19:
+        add(s, _rec("reciprocity_table", "stated", 1 if s in (
+            "KODAK_HIE", "FUJI_NEOPAN_ACROS_100") else 2, "stops",
+            "metered exposure time, s", tab.source,
+            "high" if s in ("KODAK_HIE", "FUJI_NEOPAN_ACROS_100") else "medium",
+            note))
+    add("KODAK_PRO_100T_PRT", _rec(
+        "spectral", "traced", 1, "log relative sensitivity",
+        "Effective Exposure 1/100 s, C-41, Status M, D 0.2 above D-min, "
+        "380-700 nm, peak-normalised per layer", _E29_SPECTRAL.source, "high",
+        "Read from the vector paths of the maker's own panel. Resolves "
+        "P96q(1). Stored 2026-10-19 (owner approval). Inert at the default "
+        "render (spectral_taking off)."))
+    for s, ei, flt, tb, pg in _EI_TUNGSTEN_2026_10_19:
+        src = (_S04 + ", Табл. %s p%d (conversion filters / ISO): daylight "
+               "or flash ISO %d unfiltered; photoflood 3400 K through No. "
+               "80B; tungsten 3200 K ISO %d through No. %s" % (
+                   tb, pg, _BY_NAME_1019[s].exposure_index, ei, flt))
+        add(s,
+            _rec("exposure_index_tungsten", "stated", 2, "EI",
+                 "3200 K through a Wratten %s" % flt, src, "medium",
+                 "A FILTERED rating: the ratio to the box speed is the "
+                 "filter's factor (80A two stops), not an emulsion property. "
+                 "The photoflood (80B) figure has no field. Stored "
+                 "2026-10-19 (owner approval)."),
+            _rec("conversion_filter_tungsten", "stated", 2, "",
+                 "Wratten number as printed", src, "high",
+                 "The filter the tungsten rating is taken with. Stored "
+                 "2026-10-19."))
+    for s, ei, flt, tb, pg in _EI_DAYLIGHT_2026_10_19:
+        src = (_S04 + ", Табл. %s p%d: tungsten 3200 K ISO 160 unfiltered; "
+               "daylight or flash ISO %d through LBA-12 or No. %s" % (
+                   tb, pg, ei, flt))
+        add(s,
+            _rec("exposure_index_daylight", "stated", 2, "EI",
+                 "daylight through a Wratten %s (or Fuji LBA-12)" % flt, src,
+                 "medium", "A FILTERED rating (85B, two thirds of a stop). "
+                 "Stored 2026-10-19 (owner approval)."),
+            _rec("conversion_filter_daylight", "stated", 2, "",
+                 "Wratten number as printed", src, "high",
+                 "Stored 2026-10-19."))
+    for s, mx, _var, src in _PUSH_2026_10_19:
+        add(s, _rec("push.max_push_stops", "stated", 1 if s in (
+            "KODAK_EKTAPRESS_PJ400", "KODAK_EKTAPRESS_PJ800",
+            "KODAK_T400CN") else 2, "stops", "Process C-41", src, "high",
+            "The furthest push the source prints a development time for. "
+            "Host query only (push_range), not a render input. Stored "
+            "2026-10-19 (owner approval).",
+            expect=None if s == "KODAK_T400CN" else "assumed"))
+    for s, (_pts, src) in _DEV_2026_10_19.items():
+        add(s, _rec("processing_family", "stated",
+                    1 if s == "KODAK_TECHNICAL_PAN" else 2, "min",
+                    "developer x dilution x temperature x vessel", src,
+                    "medium", "Printed development table(s). Stored "
+                    "2026-10-19 (owner approval)."))
+    # P38 closed by owner decision: the edition each ТУ sheet prints is a
+    # statement; the criteria behind it are the owner's equivalence.
+    for _s in sorted(q.name for q in FILM_PROFILES
+                     if q.gost_speed_edition == "9160-82"):
+        add(_s, _rec(
+            "gost_speed_edition", "stated", 1, "",
+            "class %s" % _BY_NAME_1019[_s].gost_speed_class,
+            "the stock's own ТУ sheet: speed «по ГОСТ 9160-82» (see the "
+            "profile description); criteria ГОСТ 9160-91 §5.2.4",
+            "medium",
+            "Edition as printed. Its criteria (D_kr above fog, K) are taken "
+            "as ГОСТ 9160-91's by owner decision 2026-10-19 (queue P38 "
+            "closed): re-issued standard, unchanged films. The 1982 text is "
+            "unread. The stored speed is the printed rating and does not "
+            "move."))
+    add("KODAK_TECHNICAL_PAN",
+        _rec("processing.minutes", "stated", 1, "min",
+             "TECHNIDOL Liquid, 68 F, EI 25 pictorial", _P255 + "; footnote "
+             "and «PROCESSING»: TECHNIDOL Liquid Developer for 9 minutes at "
+             "68 F (20 C). Same in " + _S04 + ", Табл. 5.145.", "high",
+             "The pictorial condition the stored curve represents. Stored "
+             "2026-10-19."),
+        _rec("processing.celsius", "stated", 1, "degC", "printed 68 F",
+             _P255, "high", "68 F = 20.0 C. Stored 2026-10-19."))
+    return out
+
+
+_BY_NAME_1019 = {p.name: p for p in FILM_PROFILES}
+_RECORDS_2026_10_19 = _records_2026_10_19()
+
+
+def _apply_values_2026_10_19(p: "FilmProfile") -> "FilmProfile":
+    recs = _RECORDS_2026_10_19.get(p.name, [])
+    if not recs:
+        return p
+    for s, tab, _n in _RECIP_2026_10_19:
+        if s == p.name:
+            if p.reciprocity_table.times_s:
+                raise ValueError("%s: 2026-10-19 expected an empty reciprocity "
+                                 "table" % s)
+            tab.validate(s + " reciprocity_table")
+            # G-533-ONSET: onset_s is the table's own flat window. Old values
+            # asserted: the class 1 s on the four Kodak stocks, Fuji's 120 s.
+            _old = {"FUJI_NEOPAN_ACROS_100": 120.0}.get(s, 1.0)
+            if abs(p.reciprocity.onset_s - _old) > 1e-12:
+                raise ValueError("%s: 2026-10-19 expected onset_s %g, found %g"
+                                 % (s, _old, p.reciprocity.onset_s))
+            _flat = max(t for t, c in zip(tab.times_s, tab.stops_correction)
+                        if c == 0.0)
+            p = replace(p, reciprocity_table=tab, reciprocity=replace(
+                p.reciprocity, onset_s=_flat))
+    if p.name == "KODAK_PRO_100T_PRT":
+        if p.spectral.has_data:
+            raise ValueError("KODAK_PRO_100T_PRT: 2026-10-19 expected no "
+                             "spectral record")
+        _E29_SPECTRAL.validate("KODAK_PRO_100T_PRT spectral")
+        p = replace(p, spectral=_E29_SPECTRAL)
+    for s, ei, flt, _t, _pg in _EI_TUNGSTEN_2026_10_19:
+        if s == p.name:
+            if p.exposure_index_tungsten or p.conversion_filter_tungsten:
+                raise ValueError("%s: 2026-10-19 expected no tungsten EI" % s)
+            p = replace(p, exposure_index_tungsten=ei,
+                        conversion_filter_tungsten=flt)
+    for s, ei, flt, _t, _pg in _EI_DAYLIGHT_2026_10_19:
+        if s == p.name:
+            if p.exposure_index_daylight or p.conversion_filter_daylight:
+                raise ValueError("%s: 2026-10-19 expected no daylight EI" % s)
+            p = replace(p, exposure_index_daylight=ei,
+                        conversion_filter_daylight=flt)
+    for s, mx, var, src in _PUSH_2026_10_19:
+        if s != p.name:
+            continue
+        if p.push.max_push_stops != 0.0:
+            raise ValueError("%s: 2026-10-19 expected max_push_stops 0" % s)
+        p = replace(p, push=replace(p.push, max_push_stops=mx, source=(
+            (p.push.source + " ") if p.push.source else "") + src))
+        vs = []
+        hit = set()
+        for v in p.process_variants:
+            key = next((k for k in var if v.name.startswith(k + " ")
+                        or v.name.startswith(k + ",")), None)
+            if key is not None:
+                if v.processing.minutes:
+                    raise ValueError("%s/%s: 2026-10-19 expected no variant "
+                                     "time" % (s, v.name))
+                v = replace(v, processing=replace(
+                    v.processing, developer="Process C-41", minutes=var[key],
+                    celsius=37.8))
+                hit.add(key)
+            vs.append(v)
+        if hit != set(var):
+            raise ValueError("%s: 2026-10-19 push keys %s matched only %s"
+                             % (s, sorted(var), sorted(hit)))
+        p = replace(p, process_variants=tuple(vs))
+    if p.name in _DEV_2026_10_19:
+        pts, src = _DEV_2026_10_19[p.name]
+        pf = p.processing_family
+        if p.name != "KODAK_EKTAPAN_100" and pf.points:
+            raise ValueError("%s: 2026-10-19 expected an empty family" % p.name)
+        pf = replace(pf, points=tuple(pf.points) + pts,
+                     source=((pf.source + "  ") if pf.source else "") + src)
+        pf.validate(p.name + " processing_family")
+        p = replace(p, processing_family=pf)
+    if p.name == "KODAK_TECHNICAL_PAN":
+        if p.processing.minutes or p.processing.celsius:
+            raise ValueError("KODAK_TECHNICAL_PAN: 2026-10-19 expected no "
+                             "processing time")
+        p = replace(p, processing=replace(p.processing, minutes=9.0,
+                                          celsius=20.0))
+    have = {x.param: x for x in p.param_sources}
+    ps = list(p.param_sources)
+    for r in recs:
+        old = have.get(r["path"])
+        new = ParamSource(param=r["path"], tier=r["tier"], status=r["status"],
+                          unit=r["unit"], conditions=r["conditions"],
+                          source=r["source"], confidence=r["confidence"],
+                          note=r["note"])
+        if old is None:
+            if r["expect"] is not None:
+                raise ValueError("%s.%s: 2026-10-19 expected an existing %r "
+                                 "record" % (p.name, r["path"], r["expect"]))
+            ps.append(new)
+        else:
+            if old.status != r["expect"]:
+                raise ValueError("%s.%s: 2026-10-19 record expected %r, found "
+                                 "%r" % (p.name, r["path"], r["expect"],
+                                         old.status))
+            ps[ps.index(old)] = new
+    return replace(p, param_sources=tuple(ps))
+
+
+FILM_PROFILES = tuple(_apply_values_2026_10_19(_p) for _p in FILM_PROFILES)
+_missing_1019 = set(_RECORDS_2026_10_19) - {p.name for p in FILM_PROFILES}
+if _missing_1019:
+    raise ValueError("2026-10-19 names absent stocks %s" % sorted(_missing_1019))
 
 
 _BY_NAME: dict[str, FilmProfile] = {p.name: p for p in FILM_PROFILES}

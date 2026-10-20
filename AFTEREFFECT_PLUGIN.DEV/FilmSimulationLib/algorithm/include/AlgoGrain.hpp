@@ -2016,4 +2016,13 @@ void AlgoStage11_Grain
     const bool               hasMosaic,
     const int32_t            frameIndex,
     const uint32_t           seed
+    // 2026-10-20b: the stage-9b ADDITIVE defect density (material on or in the
+    // film, burnished base), scan-MTF filtered like the image; nullptr = none.
+    // Grain is computed on the film UNDER the defect and the defect is added
+    // back after it, so dust and burnish no longer carry grain of their own
+    // density. Emulsion removals are not in it - less emulsion, less grain.
+    ,
+    const AlgoType*          pDefR = nullptr,
+    const AlgoType*          pDefG = nullptr,
+    const AlgoType*          pDefB = nullptr
 ) noexcept;

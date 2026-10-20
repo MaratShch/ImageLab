@@ -109,6 +109,32 @@ class GrainTemporalModeCtrl(IntEnum):
         return GRAIN_TEMPORAL_MODE_LABEL.get(int(self), "")
 
 
+class DeveloperCtrl(IntEnum):
+    """The Developer list box (2026-10-16f): one developer, the same on every
+    stock. eAS_SHIPPED = the stored profile; TOTAL_DEVELOPERS is a count."""
+
+    eAS_SHIPPED = 0
+    eATOMAL = 1
+    eD76 = 2
+    eFX39 = 3
+    eMICROPHEN = 4
+    eRODINAL = 5
+    eSD2525 = 6
+    eSHADOWMAX_19Z = 7
+    eWEHNER_ALPHA = 8
+    eXTOL = 9
+    TOTAL_DEVELOPERS = 10
+
+    @property
+    def key(self) -> str:
+        """The film DeveloperGrainPoint.developer name, or "" for eAS_SHIPPED."""
+        return DEVELOPER_KEY.get(int(self), "")
+
+    @property
+    def label(self) -> str:
+        return DEVELOPER_LABEL.get(int(self), "As shipped")
+
+
 #: dupeStock draws on the same catalogue as printStock.
 DupeStockCtrl = PrintStockCtrl
 
@@ -204,6 +230,32 @@ PROCESS_VARIANT_MIGRATE: tuple[int, ...] = (
     0,
 )
 
+DEVELOPER_KEY: dict[int, str] = {
+    0: '',
+    1: 'Atomal',
+    2: 'D76',
+    3: 'FX39',
+    4: 'Microphen',
+    5: 'Rodinal',
+    6: 'SD2525',
+    7: 'Shadowmax 19/z',
+    8: 'Wehner/Alpha',
+    9: 'XTOL',
+}
+
+DEVELOPER_LABEL: dict[int, str] = {
+    0: 'As shipped',
+    1: 'Atomal',
+    2: 'D-76',
+    3: 'FX-39',
+    4: 'Microphen',
+    5: 'Rodinal',
+    6: 'SD 25/25',
+    7: 'Shadowmax 19/z',
+    8: 'Wehner/Alpha',
+    9: 'XTOL',
+}
+
 GRAIN_TEMPORAL_MODE_KEY: dict[int, str] = {
     0: 'still',
     1: 'motion',
@@ -249,11 +301,7 @@ DevelopmentCelsiusMin = 18.0
 DevelopmentCelsiusMax = 24.0
 DevelopmentCelsiusDef = DevelopmentCelsiusSentinel
 DevelopmentCelsiusStep = 0.5
-DeveloperIndexSentinel = -1
-DeveloperIndexMin = -1
-DeveloperIndexMax = 11
-DeveloperIndexDef = DeveloperIndexSentinel
-DeveloperIndexStep = 1
+DeveloperCtrlCount = 10
 StorageYearsOff = 0.0
 StorageYearsMin = 0.0
 StorageYearsMax = 100.0
@@ -268,6 +316,10 @@ FilmAgeMonthsMin = 0.0
 FilmAgeMonthsMax = 600.0
 FilmAgeMonthsDef = FilmAgeMonthsOff
 FilmAgeMonthsStep = 1.0
+FilmAgeMin = 0.0
+FilmAgeMax = 600.0
+FilmAgeDef = FilmAgeMin
+FilmAgeStep = 4.0
 GenerationsMin = 0
 GenerationsMax = 4
 GenerationsDef = 0
@@ -363,9 +415,10 @@ DirtClumpingMax = 2.0
 DirtClumpingDef = 1.0
 DirtClumpingStep = 0.01
 ScratchTransportMin = 0.0
-ScratchTransportMax = 4.0
-ScratchTransportDef = 0.4
-ScratchTransportStep = 0.01
+ScratchTransportMax = 120.0
+ScratchTransportDef = 4.8
+ScratchTransportStep = 0.1
+ScratchTransportFloor = 4.8
 ScratchHandlingMin = 0.0
 ScratchHandlingMax = 4.0
 ScratchHandlingDef = 0.3
@@ -407,6 +460,23 @@ ScannerArtifactsMin = 0.0
 ScannerArtifactsMax = 2.0
 ScannerArtifactsDef = 0.2
 ScannerArtifactsStep = 0.01
+DefectOpticsDef = False
+ScratchLifetimeMin = 0.0
+ScratchLifetimeMax = 60.0
+ScratchLifetimeDef = 0.0
+ScratchLifetimeStep = 0.1
+DustLifetimeMin = 0.5
+DustLifetimeMax = 600.0
+DustLifetimeDef = 42.0
+DustLifetimeStep = 0.5
+DefectVariabilityMin = 0.0
+DefectVariabilityMax = 1.0
+DefectVariabilityDef = 0.5
+DefectVariabilityStep = 0.01
+DefectVisibilityMin = 0.0
+DefectVisibilityMax = 3.0
+DefectVisibilityDef = 1.0
+DefectVisibilityStep = 0.01
 SpliceAndTearsEventstMin = 0.0
 SpliceAndTearsEventstMax = 2.0
 SpliceAndTearsEventstDef = 0.2

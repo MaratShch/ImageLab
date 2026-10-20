@@ -99,6 +99,8 @@
 
 // ImgType, AlgoType, HighPrecType. The single place numeric types are chosen.
 #include "AlgoTypes.hpp"
+// 2026-10-20c: this header's compile-time constants live in film_damage_constants.hpp.
+#include "film_damage_constants.hpp"
 
 // film::FilmProfile, film::DyeStabilitySpec, film::ToneCurve.
 #include "film_profiles.hpp"
@@ -107,7 +109,6 @@
 #include "AlgoControl.hpp"
 
 #include <cmath>
-
 
 // ---------------------------------------------------------------------------
 //  Storage temperature: Wilhelm 1993, Table 5.3 (schema v57)
@@ -125,7 +126,6 @@ constexpr double ALGO_STORAGE_TEMP_C[ALGO_STORAGE_TEMP_NODES] =
 
 constexpr double ALGO_STORAGE_TIME_REL[ALGO_STORAGE_TEMP_NODES] =
 { 0.5, 1.0, 2.0, 4.0, 10.0, 16.0, 28.0, 100.0, 340.0, 1000.0 };
-
 
 // ---------------------------------------------------------------------------
 //  AlgoStorageTimeFactor
@@ -172,7 +172,6 @@ inline HighPrecType AlgoStorageTimeFactor
     return static_cast<HighPrecType>(1);   // unreachable: contiguous table
 }
 
-
 // ---------------------------------------------------------------------------
 //  AlgoStorageEquivalentYears
 //
@@ -193,7 +192,6 @@ inline HighPrecType AlgoStorageEquivalentYears
     return years * AlgoStorageTimeFactor(referenceC)
                  / AlgoStorageTimeFactor(celsius);
 }
-
 
 // ---------------------------------------------------------------------------
 //  AlgoDarkFadeFraction
@@ -222,7 +220,6 @@ inline HighPrecType AlgoDarkFadeFraction
     return static_cast<HighPrecType>(1)
          - std::pow(base, years / lossYears);
 }
-
 
 // ---------------------------------------------------------------------------
 //  AlgoResolveStorageAge
@@ -285,7 +282,6 @@ inline const film::FilmProfile& AlgoResolveStorageAge
     store.curves.b.gamma = static_cast<float>(
         static_cast<HighPrecType>(base.curves.b.gamma) * (one - fy));
 
-
     // ⚠⚠ AND THE MEASURED TABLE IS DROPPED (schema v55). A `MeasuredCurve` is
     // 21 densities read at ONE development; scaling the gamma beside it does
     // not scale the table, and because the table WINS inside its own range it
@@ -307,38 +303,6 @@ inline const film::FilmProfile& AlgoResolveStorageAge
 
     return store;
 }
-
-
-// ---------------------------------------------------------------------------
-//  storageSeverity (2026-10-10)
-//
-//  damage.storageSeverity had no reader. AlgoControl.hpp item 9 defines the
-//  axis: 0 a cold vault, 1 a warm attic for forty years. This turns that
-//  definition into elapsed years for the resolver above:
-//
-//      40 x severity x damageStrength years at 30 degC,
-//
-//  restated to the caller's storageCelsius through AlgoStorageTimeFactor, so
-//  that adding the result to storageYears and passing storageCelsius ages the
-//  film by both stretches exactly - the resolver restates the sum to the
-//  record's reference temperature and the two terms come out as
-//  storageYears at storageCelsius plus 40 s k years at 30 degC.
-//
-//  ⚠ 40 YEARS AND 30 degC ARE THE CONTROL'S OWN DEFINITION ("a warm attic for
-//  forty years"), not a measurement; 30 degC is the warmest node of Wilhelm's
-//  Table 5.3 and is taken because the table is never extrapolated.
-//
-//  ⚠ WHAT IT DOES NOT DO. Item 9 also lists colour crossover, age fog, fungus
-//  and base deterioration. None has a rate in the corpus and AgingSpec is all
-//  zero, so only dye fade - through DyeStabilitySpec, on the stocks that
-//  publish a rate - responds. On every other stock the control is consumed and
-//  has no visible effect, which is the same honest state storageYears is in.
-//
-//  Returns exactly 0 when film damage is off, the strength is zero or the
-//  severity is zero, so every earlier render is reproduced bit for bit.
-// ---------------------------------------------------------------------------
-constexpr double ALGO_SEVERITY_FULL_YEARS = 40.0;
-constexpr double ALGO_SEVERITY_CELSIUS    = 30.0;
 
 inline double AlgoSeverityStorageYears
 (

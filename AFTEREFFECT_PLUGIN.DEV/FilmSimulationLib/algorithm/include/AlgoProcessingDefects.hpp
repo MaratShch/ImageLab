@@ -46,6 +46,8 @@
 
 // ImgType, AlgoType, HighPrecType.
 #include "AlgoTypes.hpp"
+// 2026-10-20c: this header's compile-time constants live in film_damage_constants.hpp.
+#include "film_damage_constants.hpp"
 
 // Counter-based generator: every draw is a pure function of its key.
 #include "AlgoCounterRng.hpp"
@@ -57,58 +59,6 @@
 #include <cstddef>   // std::ptrdiff_t
 #include <cstdint>   // int32_t, int64_t, uint32_t, uint64_t
 
-
-// ===========================================================================
-//  Definitions (NOT measurements - see the header block)
-// ===========================================================================
-
-// ---- processingQuality: development mottle --------------------------------
-// Peak modulation of the net density at processingQuality x strength = 1: the
-// lattice values of the field are uniform in [-1, 1], so the net density is
-// multiplied by a factor inside [1 - 0.04, 1 + 0.04].
-constexpr HighPrecType ALGO_MOTTLE_AMPLITUDE   = 0.04;
-// Two lattice octaves, film millimetres per cell, and their weights (sum 1).
-constexpr HighPrecType ALGO_MOTTLE_CELL_MM_LO  = 3.0;
-constexpr HighPrecType ALGO_MOTTLE_CELL_MM_HI  = 0.75;
-constexpr HighPrecType ALGO_MOTTLE_WEIGHT_LO   = 0.7;
-constexpr HighPrecType ALGO_MOTTLE_WEIGHT_HI   = 0.3;
-
-// ---- processingQuality: air bells -----------------------------------------
-// Mean count per square centimetre of film at level 1, the radius range, and
-// the range of the undeveloped fraction at the bell's centre.
-constexpr HighPrecType ALGO_AIRBELL_PER_CM2    = 0.5;
-constexpr HighPrecType ALGO_AIRBELL_R_MIN_MM   = 0.08;
-constexpr HighPrecType ALGO_AIRBELL_R_MAX_MM   = 0.40;
-constexpr HighPrecType ALGO_AIRBELL_DEPTH_MIN  = 0.2;
-constexpr HighPrecType ALGO_AIRBELL_DEPTH_MAX  = 0.6;
-// Soft edge as a fraction of the radius.
-constexpr HighPrecType ALGO_AIRBELL_EDGE_FRAC  = 0.25;
-
-// ---- dryingMarks: water spots ----------------------------------------------
-// Mean count per square centimetre at level 1. Sized in FILM millimetres, so
-// the gauge dependence AlgoControl.hpp describes - one 5 mm mark is a far
-// larger share of a 16 mm frame than of a 35 mm still - is derived, not
-// authored. 2.5 mm is the largest radius, i.e. the 5 mm mark of that example.
-constexpr HighPrecType ALGO_DRYING_PER_CM2     = 0.15;
-constexpr HighPrecType ALGO_DRYING_R_MIN_MM    = 0.5;
-constexpr HighPrecType ALGO_DRYING_R_MAX_MM    = 2.5;
-// Tide-line half-width, and the additive density of the line at its crest.
-constexpr HighPrecType ALGO_DRYING_RIM_MM      = 0.06;
-constexpr HighPrecType ALGO_DRYING_RIM_D_MIN   = 0.02;
-constexpr HighPrecType ALGO_DRYING_RIM_D_MAX   = 0.08;
-// Residue inside the ring, as a fraction of the crest density.
-constexpr HighPrecType ALGO_DRYING_INSIDE_FRAC = 0.2;
-
-// ---- shared ----------------------------------------------------------------
-// Placement cell for the two discrete classes: 10 mm x 10 mm = 1 cm^2, so a
-// per-cm^2 rate is the Poisson mean of one cell directly.
-constexpr HighPrecType ALGO_PROCDEF_CELL_MM    = 10.0;
-// Upper bound on the Poisson draw per cell; far above any mean used here.
-constexpr int32_t      ALGO_PROCDEF_MAX_PER_CELL = 64;
-// Smallest soft edge in pixels, so a sub-pixel mark is antialiased.
-constexpr HighPrecType ALGO_PROCDEF_EDGE_MIN_PX  = 0.5;
-
-
 // ===========================================================================
 //  Small helpers
 // ===========================================================================
@@ -119,7 +69,6 @@ inline HighPrecType AlgoProcSmooth (const HighPrecType t) noexcept
     const HighPrecType u = CLAMP_VALUE(t, 0.0, 1.0);
     return u * u * (3.0 - 2.0 * u);
 }
-
 
 // One 64-bit key for a 2-D integer cell of one stream.
 inline uint64_t AlgoProcCellKey
@@ -137,7 +86,6 @@ inline uint64_t AlgoProcCellKey
     return AlgoRngMix64(base ^ ka) ^ kc;
 }
 
-
 // Uniform in [-1, 1) at one lattice node.
 inline HighPrecType AlgoProcLattice
 (
@@ -150,7 +98,6 @@ inline HighPrecType AlgoProcLattice
 {
     return 2.0 * AlgoRngUniform01(AlgoProcCellKey(seed, stage, sub, ia, ic)) - 1.0;
 }
-
 
 // Poisson draw by inversion. A pure function of its key; the mean is small.
 inline int32_t AlgoProcPoisson (const uint64_t key, const HighPrecType mean) noexcept
@@ -172,7 +119,6 @@ inline int32_t AlgoProcPoisson (const uint64_t key, const HighPrecType mean) noe
 
     return k;
 }
-
 
 // Pixel centre to film coordinates in the current window (the inverse of
 // AlgoFilmToPixel).
@@ -202,7 +148,6 @@ inline void AlgoProcPixelToFilm
 
     return;
 }
-
 
 // ---------------------------------------------------------------------------
 //  One octave of value noise, with a four-node cache.
@@ -249,7 +194,6 @@ struct AlgoProcNoiseOctave
         return a0 + (a1 - a0) * tc;
     }
 };
-
 
 // ---------------------------------------------------------------------------
 //  Visit every placement cell overlapping the window plus a margin, and every
@@ -299,7 +243,6 @@ inline void AlgoProcForEachMark
 
     return;
 }
-
 
 // ---------------------------------------------------------------------------
 //  Rasterise a radial profile around a film position. `fn(rPx, wR, wG, wB)`
@@ -353,7 +296,6 @@ inline void AlgoProcRadial
 
     return;
 }
-
 
 // ===========================================================================
 //  processingQuality: development mottle + air bells
@@ -442,7 +384,6 @@ inline void AlgoProcessingDefects
     return;
 }
 
-
 // ===========================================================================
 //  dryingMarks: water spots with a tide line
 //
@@ -497,7 +438,6 @@ inline void AlgoDryingMarks
 
     return;
 }
-
 
 // ===========================================================================
 //  colourVeil: a flat additive density offset in ONE dye record

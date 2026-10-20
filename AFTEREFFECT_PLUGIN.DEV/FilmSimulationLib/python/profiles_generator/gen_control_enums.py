@@ -140,6 +140,10 @@ def render(header: Path) -> str:
     gtm = parse_enum(src, "GrainTemporalModeCtrl")
     gtm_keys = parse_key_table(src, "GrainTemporalModeCtrlKey")
     gtm_lbls = parse_label_table(src, "GrainTemporalModeCtrlStr")
+    # 2026-10-16f (owner request): the Developer list box.
+    dev = parse_enum(src, "DeveloperCtrl")
+    dev_keys = parse_key_table(src, "DeveloperCtrlKey")
+    dev_lbls = parse_label_table(src, "DeveloperCtrlStr")
 
     # The TOTAL sentinels are a C++ counting idiom and are not selectable.
     fmt_sel = [(n, v) for n, v in fmt if not n.endswith("TOTAL_FORMATS")]
@@ -153,6 +157,7 @@ def render(header: Path) -> str:
     # still has neither a key nor a label.
     pvr_sel = [(n, v) for n, v in pvr if n != "TOTAL_PROCESSES"]
     gtm_sel = [(n, v) for n, v in gtm if not n.endswith("_TOTAL")]
+    dev_sel = [(n, v) for n, v in dev if n != "TOTAL_DEVELOPERS"]
     if len(pvr_migr) != 49 or any(not (0 <= v < len(pvr_sel)) for v in pvr_migr):
         raise SystemExit("ProcessVariantCtrlMigrate: %d entries, values must "
                          "index the %d steps" % (len(pvr_migr), len(pvr_sel)))
@@ -161,6 +166,7 @@ def render(header: Path) -> str:
         ("print stock", prn_sel, prn_keys, prn_lbls),
         ("process variant", pvr_sel, pvr_keys, pvr_lbls),
         ("grain temporal mode", gtm_sel, gtm_keys, gtm_lbls),
+        ("developer", dev_sel, dev_keys, dev_lbls),
     ):
         if not (len(sel) == len(keys) == len(lbls)):
             raise SystemExit(
@@ -171,7 +177,8 @@ def render(header: Path) -> str:
     consts = parse_constants(src)
     known = {i: t for i, t, _ in consts}
     enums = {"FilmFormatCtrl": dict(fmt), "PrintStockCtrl": dict(prn),
-             "ProcessVariantCtrl": dict(pvr), "GrainTemporalModeCtrl": dict(gtm)}
+             "ProcessVariantCtrl": dict(pvr), "GrainTemporalModeCtrl": dict(gtm),
+             "DeveloperCtrl": dict(dev)}
 
     L: list[str] = []
     w = L.append
@@ -255,6 +262,23 @@ def render(header: Path) -> str:
     w("        return GRAIN_TEMPORAL_MODE_LABEL.get(int(self), \"\")")
     w("")
     w("")
+    w("class DeveloperCtrl(IntEnum):")
+    w('    """The Developer list box (2026-10-16f): one developer, the same on every')
+    w('    stock. eAS_SHIPPED = the stored profile; TOTAL_DEVELOPERS is a count."""')
+    w("")
+    for n, v in dev:
+        w(f"    {n} = {v}")
+    w("")
+    w("    @property")
+    w("    def key(self) -> str:")
+    w('        """The film DeveloperGrainPoint.developer name, or "" for eAS_SHIPPED."""')
+    w("        return DEVELOPER_KEY.get(int(self), \"\")")
+    w("")
+    w("    @property")
+    w("    def label(self) -> str:")
+    w("        return DEVELOPER_LABEL.get(int(self), \"As shipped\")")
+    w("")
+    w("")
     w("#: dupeStock draws on the same catalogue as printStock.")
     w("DupeStockCtrl = PrintStockCtrl")
     w("")
@@ -294,6 +318,16 @@ def render(header: Path) -> str:
     for i in range(0, len(pvr_migr), 12):
         w("    " + ", ".join(str(v) for v in pvr_migr[i:i + 12]) + ",")
     w(")")
+    w("")
+    w("DEVELOPER_KEY: dict[int, str] = {")
+    for (n, v), k in zip(dev_sel, dev_keys):
+        w(f"    {v}: {k!r},")
+    w("}")
+    w("")
+    w("DEVELOPER_LABEL: dict[int, str] = {")
+    for (n, v), k in zip(dev_sel, dev_lbls):
+        w(f"    {v}: {k!r},")
+    w("}")
     w("")
     w("GRAIN_TEMPORAL_MODE_KEY: dict[int, str] = {")
     for (n, v), k in zip(gtm_sel, gtm_keys):

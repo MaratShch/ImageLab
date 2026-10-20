@@ -273,8 +273,10 @@
     <ClInclude Include="algorithm\include\AlgoCounterRng.hpp" />
     <ClInclude Include="algorithm\include\AlgoCurveLut.hpp" />
     <ClInclude Include="algorithm\include\AlgoDefectField.hpp" />
+    <ClInclude Include="algorithm\include\AlgoDefectOptics.hpp" />
     <ClInclude Include="algorithm\include\AlgoDevelopmentTime.hpp" />
     <ClInclude Include="algorithm\include\AlgoDirCoupler.hpp" />
+    <ClInclude Include="algorithm\include\AlgoDisplayWhite.hpp" />
     <ClInclude Include="algorithm\include\AlgoDuplication.hpp" />
     <ClInclude Include="algorithm\include\AlgoDyeImpurity.hpp" />
     <ClInclude Include="algorithm\include\AlgoEdgeFog.hpp" />
@@ -312,6 +314,7 @@
     <ClInclude Include="algorithm\include\AlgoTransmittance.hpp" />
     <ClInclude Include="algorithm\include\AlgoTypes.hpp" />
     <ClInclude Include="algorithm\include\AlgoVeilingFlare.hpp" />
+    <ClInclude Include="algorithm\include\film_damage_constants.hpp" />
     <ClInclude Include="algorithm\include\film_params_mask.hpp" />
     <ClInclude Include="database\include\film_enum.hpp" />
     <ClInclude Include="database\include\film_params_mask.hpp" />

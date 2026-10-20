@@ -30,6 +30,7 @@
 // DIRECTLY rather than relied on transitively: this file declares an
 // aligned buffer, so the macro must not depend on another header's
 // include order to be in scope.
+#include "AlgoDisplayWhite.hpp"   // 2026-10-20b: highlight shoulder
 #include "Common.hpp"
 #include "AlgoFinalClamp.hpp"
 
@@ -124,6 +125,20 @@ void AlgoStage17_FinalClamp
                 const __m256 vLo = _mm256_setzero_ps();
                 const __m256 vHi = _mm256_set1_ps(ALGO_ONE);
 
+                // 2026-10-20b: the highlight shoulder above clear white
+                // (AlgoDisplayWhite.hpp), applied AFTER the max with zero so a
+                // NaN, already mapped to 0 by that max, stays 0.
+                const __m256 vH = _mm256_set1_ps(static_cast<AlgoType>(ALGO_DISPLAY_CLEAR_WHITE));
+                const __m256 vR = _mm256_set1_ps(static_cast<AlgoType>(
+                    1.0 - ALGO_DISPLAY_CLEAR_WHITE));
+
+                const auto shoulder = [&](const __m256 v0) noexcept -> __m256
+                {
+                    const __m256 d = _mm256_max_ps(_mm256_sub_ps(v0, vH), vLo);
+                    return _mm256_add_ps(_mm256_min_ps(v0, vH),
+                        _mm256_div_ps(_mm256_mul_ps(vR, d), _mm256_add_ps(vR, d)));
+                };
+
                 const int32_t nv = sizeX / ALGO_AVX2_LANES_LOCAL;
                 const int32_t nt = sizeX - nv * ALGO_AVX2_LANES_LOCAL;
                 const __m256i mt = algoTailMaskLocal(nt);
@@ -133,7 +148,7 @@ void AlgoStage17_FinalClamp
                 for (int32_t v = 0; v < nv; v++, xv += ALGO_AVX2_LANES_LOCAL)
                 {
                     const __m256 cv = _mm256_min_ps(
-                        _mm256_max_ps(_mm256_loadu_ps(rIn + xv), vLo), vHi);
+                        shoulder(_mm256_max_ps(_mm256_loadu_ps(rIn + xv), vLo)), vHi);
 
                     // Retained in AlgoType as well, so the clamped result can be
                     // inspected without re-reading the narrowed storage planes.
@@ -149,7 +164,7 @@ void AlgoStage17_FinalClamp
                     // Same max-then-min ordering as the main loop above, for the
                     // same NaN reason. The two must not drift apart.
                     const __m256 cv = _mm256_min_ps(
-                        _mm256_max_ps(_mm256_maskload_ps(rIn + xv, mt), vLo), vHi);
+                        shoulder(_mm256_max_ps(_mm256_maskload_ps(rIn + xv, mt), vLo)), vHi);
 
                     _mm256_maskstore_ps(rStage + xv, mt, cv);
                     _mm256_maskstore_ps(rOut   + xv, mt, cv);
@@ -164,7 +179,8 @@ void AlgoStage17_FinalClamp
                 //
                 // CLAMP_VALUE rather than two nested calls, so the ordering of the
                 // bounds is stated once and cannot be written backwards.
-                const AlgoType v = CLAMP_VALUE(rIn[x], ALGO_ZERO, ALGO_ONE);
+                const AlgoType v = MIN_VALUE(AlgoHighlightShoulder(
+                    MAX_VALUE(rIn[x], ALGO_ZERO)), ALGO_ONE);
 
                 // Retained in AlgoType as well, so the clamped result can be
                 // inspected without re-reading the narrowed storage planes - the same

@@ -86,6 +86,7 @@
 // DIRECTLY rather than relied on transitively: this file declares an
 // aligned buffer, so the macro must not depend on another header's
 // include order to be in scope.
+#include "AlgoDisplayWhite.hpp"   // 2026-10-20b: shared white point
 #include "Common.hpp"
 #include "AlgoCharacteristicCurve.hpp"
 #include "AlgoInterimage.hpp"
@@ -304,12 +305,15 @@ namespace
     (
         const HighPrecType     d,
         const film::ToneCurve& c,
-        const HighPrecType     blackPointStretch
+        const HighPrecType     blackPointStretch,
+        const HighPrecType     whiteDmin
     ) noexcept
     {
         // Transmittance is ten to the minus density, by the definition of
-        // optical density.
-        const HighPrecType tMax = std::pow(10.0, -static_cast<HighPrecType>(c.dmin));
+        // optical density. 2026-10-20b: white is the LIGHTEST channel's clear
+        // film (whiteDmin) and lands at ALGO_DISPLAY_CLEAR_WHITE, exactly as in
+        // stage 14 - see AlgoDisplayWhite.hpp.
+        const HighPrecType tMax = std::pow(10.0, -whiteDmin);
         const HighPrecType tMin = blackPointStretch
                                 * std::pow(10.0, -static_cast<HighPrecType>(c.dmax()));
 
@@ -322,7 +326,7 @@ namespace
         if (span <= 0.0)
             return 0.0;
 
-        return (std::pow(10.0, -d) - tMin) / span;
+        return ALGO_DISPLAY_CLEAR_WHITE * (std::pow(10.0, -d) - tMin) / span;
     }
 
 
@@ -610,7 +614,8 @@ void AlgoSolveAnchors
                         scannerSpecular);
 
                     return normalisedTransmittance(read, curveOf(curves, c),
-                                                   blackPointStretch);
+                                                   blackPointStretch,
+                                                   AlgoWhiteDmin(curves));
                 };
 
                 // More exposure on a slide means less density means a brighter
@@ -789,7 +794,8 @@ void AlgoSolveStageOffsets
                   + static_cast<HighPrecType>(dstMatrix[c][2]) * dp[2];
 
                 return normalisedTransmittance(mixed, curveOf(dstCurves, c),
-                                               blackPointStretch);
+                                               blackPointStretch,
+                                               AlgoWhiteDmin(dstCurves));
             };
 
             // More offset means more print exposure, which means more density on

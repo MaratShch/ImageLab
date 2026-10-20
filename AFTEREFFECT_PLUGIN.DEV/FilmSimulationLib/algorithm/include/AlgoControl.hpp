@@ -202,6 +202,15 @@
  *   ALGO_SCRATCH_ORIENT_RATIO and ALGO_SCRATCH_CONTRAST_MEDIAN in
  *   AlgoNegativeDefects.hpp, each with its value and where it came from.
  *
+ *   ⚠ 2026-10-20 (owner-approved stochastic defect model): the single 26 um
+ *   width, which no document in the tree traces to a measurement, is replaced
+ *   by per-population log-normal widths (transport 45 um, handling 38 um,
+ *   sigma_ln 0.22) read from the owner's reference collage, provisional; the
+ *   contrast keeps its 3.5 per cent median for handling marks and gains a
+ *   dispersion and a transport median. A defectOptics switch (bit 51) was
+ *   added at the end of FilmDamage, which now has EIGHTEEN fields; "seventeen"
+ *   above is the count of the original surface.
+ *
  * ZERO DISABLES, AND IT COSTS NOTHING
  *   Every scale below follows the engine's existing convention: 0 switches the
  *   class off completely, and the corresponding generator is not run and its
@@ -463,34 +472,37 @@ struct FilmDamage
     /**
      *  1  NAME           scratchTransport
      *  2  TYPE           double
-     *  3  AE CONTROL     slider
-     *  4  UNIT           dimensionless multiplier on the EXPECTED NUMBER OF
-     *                    TRAMLINES RUNNING ON THE WEB AT ONCE. It multiplies
-     *                    ALGO_SCRATCH_TRANSPORT_COUNT = 1.0, so 1.0 means "one
-     *                    running scratch on the web, on average, at any
-     *                    instant".
-     *                    ⚠ THAT ANCHOR IS A DEFINITION, NOT A MEASUREMENT. A
-     *                    per-metre rate is what this would properly multiply,
-     *                    and AgingSpec.scratch_rate_base_per_m is where such a
-     *                    rate belongs - but it ships zero on all 191 stocks, so
-     *                    there is nothing to derive an anchor from and the
-     *                    control is defined instead of pretended. See the
-     *                    constant's own comment in AlgoNegativeDefects.hpp.
-     *  5  MIN            0.0, ENFORCED (MAX_VALUE floor at stage 09b)
-     *  6  MAX            4.0 advisory - NOT ENFORCED. The arrival window
-     *                    (ALGO_SCRATCH_RUN_WINDOW = 32 ordinals) covers 8 mean
-     *                    runs at 4.0 and fewer above it, so far past the
-     *                    advisory maximum the oldest survivors start to be
-     *                    missed rather than the render breaking.
-     *  7  DEFAULT        0.40   (AlgoControl.cpp, getFilmDamageDefault)
-     *  8  STEP           0.01 [proposed], consistent with the other levels
+     *  3  AE CONTROL     slider ("Transport Scratch Rate")
+     *  4  UNIT           NEW TRAMLINE EVENTS PER MINUTE OF SCREEN TIME
+     *                    (2026-10-20, owner-approved; was "expected number
+     *                    running at once"). Time is frameIndex / frameRate,
+     *                    so the event rate is the same at 24, 25, 30 or 60 fps.
+     *                    Events are a RENEWAL process: the gap to the next
+     *                    event is drawn independently, uniform on
+     *                    [0.4 m, 1.6 m] with m = 60 / rate seconds. At the
+     *                    minimum non-zero setting (ScratchTransportFloor =
+     *                    4.8 / min, m = 12.5 s) every gap lies in 5 - 20 s
+     *                    (owner's specification 2026-10-20). A running
+     *                    scratch is ONE event for its whole lifetime
+     *                    (scratchLifetime); the number visible at once is
+     *                    derived, about rate x lifetime / 60.
+     *  5  MIN            0.0 = no transport scratches. Any value in
+     *                    (0, 4.8) is raised to 4.8 at stage 09b.
+     *  6  MAX            120.0 (gap 0.2 - 0.8 s; with the default lifetime one
+     *                    or more tramlines are on every frame)
+     *  7  DEFAULT        4.8   (ScratchTransportDef)
+     *  8  STEP           0.1
      *  9  PURPOSE        Longitudinal transport scratches - long, straight,
      *                    parallel to film travel, continuing across frame
      *                    boundaries. The defining motion-picture defect
      *                    ("rain", "tramlines"), and machine-fixed: it holds a
      *                    fixed position on screen while the image moves past
      *                    it.
-     * 10  OUTPUT EFFECT  Draws straight 26 um strokes locked to the transport
+     * 10  OUTPUT EFFECT  (2026-10-20: log-normal width, median 45 um, with
+     *                    wander, along-run width / contrast variation and a
+     *                    faint companion track on half of them; see
+     *                    AlgoNegativeDefects.hpp.)
+     *                    Draws straight 26 um strokes locked to the transport
      *                    axis at a fixed position across the web, each present
      *                    for a run of frames whose mean is the stock's own
      *                    TemporalSpec::scratch_persistence_frames. Orientation
@@ -506,12 +518,14 @@ struct FilmDamage
      *                    web for an abrader to run against; the handling class
      *                    still applies to them.
      * 11  STAGES         09b
-     * 12  INTERACTIONS   Multiplied by damageStrength. NOT distributed by
-     *                    dirtClumping - the clumping field is a property of the
-     *                    FILM and a transport scratch belongs to the MACHINE.
-     *                    Shares the class early-out with the other four levels.
-     *                    Reads TemporalSpec::scratch_persistence_frames, which
-     *                    is the only per-stock input to the class.
+     * 12  INTERACTIONS   Multiplied by damageStrength (then floored at 4.8 if
+     *                    non-zero). Lifetime: scratchLifetime (0 = the stock's
+     *                    TemporalSpec::scratch_persistence_frames at 24 fps).
+     *                    Contrast: defectVisibility. Along-run temporal change:
+     *                    defectVariability. Needs the host frameRate. NOT
+     *                    distributed by dirtClumping - the clumping field is a
+     *                    property of the FILM and a transport scratch belongs to
+     *                    the MACHINE.
      * 13  SCALAR/AVX2    Same semantics, and stronger than that: the whole
      *                    class is HighPrecType in both trees and its source is
      *                    character-for-character identical between them, so the
@@ -543,7 +557,11 @@ struct FilmDamage
      *                    exactly as the particulate classes do and have no
      *                    persistence: a handling scratch is a single event and
      *                    then a permanent part of the emulsion.
-     * 10  OUTPUT EFFECT  Places stroked 26 um marks of 0.3-4 mm, curved to the
+     * 10  OUTPUT EFFECT  (2026-10-20: log-normal width median 38 um and length
+     *                    median 0.5 mm on 0.1-4 mm, and BURSTS of 2-4 parallel
+     *                    marks - the gap noted below is closed with the
+     *                    reference collage's figures, provisional.)
+     *                    Places stroked 26 um marks of 0.3-4 mm, curved to the
      *                    measured 0.98 chord-over-arc straightness that
      *                    separates a scratch from a fibre, oriented with the
      *                    measured 3.5:1 preference for the transport axis, and
@@ -711,16 +729,17 @@ struct FilmDamage
      *  1  NAME           gateDirt
      *  2  TYPE           double
      *  3  AE CONTROL     slider
-     *  4  UNIT           dimensionless multiplier, applied to two different
-     *                    quantities: a particle COUNT
-     *                    (ALGO_GATE_INITIAL_COUNT = 4.0 particles) and a
-     *                    per-frame accretion RATE
-     *                    (ALGO_GATE_ACCRETION_PER_FRAME = 4.0e-3 /frame). It
-     *                    carries no length or area unit itself
+     *  4  UNIT           dimensionless multiplier on the persistent gate
+     *                    population: initial count ALGO_GATE_INITIAL_COUNT
+     *                    = 4.0 and STEADY-STATE COUNT ALGO_GATE_STEADY_COUNT
+     *                    = 10 particles at level 1 (era-scaled), and on the
+     *                    one-frame sparkle rate. 2026-10-20b: the accretion
+     *                    rate is count / dustLifetime per SECOND (was
+     *                    ALGO_GATE_ACCRETION_PER_FRAME per frame), so this is
+     *                    a pure COUNT control
      *  5  MIN            0.0, ENFORCED (MAX_VALUE floor at stage 16)
-     *  6  MAX            2.0 advisory - NOT ENFORCED on the control. Two
-     *                    indirect caps exist downstream: the persistent-mark
-     *                    window ALGO_GATE_WINDOW = 96 frames and the sparkle
+     *  6  MAX            2.0. Indirect caps downstream: the arrival window
+     *                    ALGO_GATE_WINDOW_MAX = 1024 ordinals and the sparkle
      *                    cap ALGO_SPARKLE_MAX_PER_FRAME = 64
      *  7  DEFAULT        0.60   (AlgoControl.cpp, getFilmDamageDefault)
      *  8  STEP           0.01 [proposed]. Note the quantity is small: at
@@ -934,6 +953,170 @@ struct FilmDamage
      * 14  FULL/LITE      PENDING. Expected Full only (stage 16).
      */
     double scannerArtifacts;
+
+    // =======================================================================
+    //  2026-10-20 (owner-approved): APPENDED AT THE END OF THE STRUCT, so no
+    //  existing field moves. Panel bit 51 (eCTRL_BIT_DEFECT_OPTICS).
+    // =======================================================================
+
+    /**
+     *  1  NAME           defectOptics
+     *  2  TYPE           bool
+     *  3  AE CONTROL     checkbox ("Defect Reader Optics"), greyed / ignored
+     *                    while filmDamageEnabled is false
+     *  4  UNIT           none (switch)
+     *  5  MIN            false
+     *  6  MAX            true
+     *  7  DEFAULT        false  (DefectOpticsDef; AlgoControl.cpp,
+     *                    getFilmDamageDefault) -- OFF is bit-identical to the
+     *                    defect model without this switch
+     *  8  STEP           -
+     *  9  PURPOSE        Makes the particulate and scratch defects of stage 9b
+     *                    respond to the READER'S light geometry
+     *                    (scannerSpecular) the way real dirt does: the
+     *                    light-SCATTERING part of a defect (translucent dust,
+     *                    fibres, a burnished base, the walls of a cut) is strong
+     *                    under a directed / condenser reader and fades under a
+     *                    diffuse one, while the ABSORBING part (opaque material,
+     *                    emulsion removed) is the same under any reader. Also
+     *                    removes the defects from the film's own Callier
+     *                    steepening (stage 12b), which belongs to developed
+     *                    silver and not to dirt (Trumpy & Gschwind, ACM JOCCH
+     *                    8(2) 2015; doc/DESIGN_2026-10-19_defect_reader_geometry.md).
+     * 10  OUTPUT EFFECT  Off: unchanged. On: each defect's density increment is
+     *                    split by its class's provisional scattering share
+     *                    (AlgoNegativeDefects.hpp, ALGO_*_SCATTER_SHARE) and the
+     *                    scattering part is read through
+     *                    T = (1 - s) + s * 10^-Ds, anchored so that at
+     *                    s = ALGO_DEFECT_OPTICS_S_REF (0.25, provisional: the
+     *                    reference scans' reader is undocumented) every defect
+     *                    keeps its calibrated density. On a stock with Callier
+     *                    Q > 1 the defect is composed in the reader's density
+     *                    domain, so stage 12b steepens only the silver.
+     * 11  STAGES         09b (AlgoDefectOptics.hpp)
+     * 12  INTERACTIONS   Requires filmDamageEnabled and a non-zero dust / debris
+     *                    / fibre / scratch level; reads scannerSpecular. Does
+     *                    not touch processingQuality, dryingMarks, colourVeil
+     *                    (density in the image itself, which Callier rightly
+     *                    steepens).
+     * 13  SCALAR/AVX2    One shared header, HighPrecType in both builds.
+     * 14  FULL/LITE      Full only (stage 9b).
+     */
+    bool defectOptics;
+
+    // =======================================================================
+    //  TEMPORAL DEFECT CONTROLS -- 2026-10-20 (owner-approved spec «Improve
+    //  the film-damage simulation ... temporally coherent»). APPENDED at the
+    //  end of FilmDamage, panel bits 52 - 55, so no existing field or bit
+    //  moves. Ignored while filmDamageEnabled is false.
+    //  Semantics, units and the distribution behind each: AlgoNegativeDefects.hpp
+    //  (scratches), AlgoGateDefects.hpp (persistent dust),
+    //  doc/RESULT_2026-10-20b_temporal_defects.md.
+    // =======================================================================
+
+    /**
+     *  1  NAME           scratchLifetime
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider ("Transport Scratch Lifetime")
+     *  4  UNIT           seconds of screen time, MEAN lifetime of one
+     *                    transport scratch from its appearance to its end
+     *  5  MIN            0.0 = the stock's own run length,
+     *                    TemporalSpec::scratch_persistence_frames / 24 s
+     *  6  MAX            60.0
+     *  7  DEFAULT        0.0 (ScratchLifetimeDef, the stock value)
+     *  8  STEP           0.1
+     *  9  PURPOSE        How long a tramline persists once it has appeared -
+     *                    distinct from how often new ones appear
+     *                    (scratchTransport).
+     * 10  OUTPUT EFFECT  Each event's lifetime is log-normal (sigma_ln 0.5)
+     *                    with this mean, truncated to [0.25, 3] x mean, so a
+     *                    scratch neither flashes for one frame nor lasts for
+     *                    ever. The stretch of web it marks is its lifetime x
+     *                    frameRate x frame pitch.
+     * 11  STAGES         09b
+     * 12  INTERACTIONS   Visible count = rate x lifetime / 60 (derived).
+     * 13  SCALAR/AVX2    Shared source; identical.
+     * 14  FULL/LITE      Full only.
+     */
+    double scratchLifetime;
+
+    /**
+     *  1  NAME           dustLifetime
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider ("Persistent Dust Lifetime")
+     *  4  UNIT           seconds of screen time, MEAN residence of one
+     *                    persistent (gate / scanner) dust particle
+     *  5  MIN            0.5
+     *  6  MAX            600.0
+     *  7  DEFAULT        42.0 (DustLifetimeDef; the previous 1000 frames at
+     *                    24 fps)
+     *  8  STEP           0.5
+     *  9  PURPOSE        How long a persistent dust particle stays before it
+     *                    is shed - distinct from how many there are (gateDirt)
+     *                    and from film-borne dust (dustLevel, which moves with
+     *                    the film and is new on every frame because every frame
+     *                    is a new piece of film).
+     * 10  OUTPUT EFFECT  Shed is a Poisson process with this mean residence;
+     *                    the arrival rate is gateDirt's population divided by
+     *                    it, so changing the lifetime changes how often the
+     *                    pattern renews, NOT how many particles are present.
+     * 11  STAGES         16
+     * 12  INTERACTIONS   gateDirt (count), defectVariability (drift),
+     *                    defectVisibility (opacity), host frameRate.
+     * 13  SCALAR/AVX2    Shared header code; identical.
+     * 14  FULL/LITE      Full only.
+     */
+    double dustLifetime;
+
+    /**
+     *  1  NAME           defectVariability
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider ("Defect Temporal Variability")
+     *  4  UNIT           dimensionless, 0 - 1; 0.5 = the reference amplitudes
+     *  5  MIN            0.0 (persistent defects frozen in place and opacity)
+     *  6  MAX            1.0 (twice the reference)
+     *  7  DEFAULT        0.5 (DefectVariabilityDef)
+     *  8  STEP           0.01
+     *  9  PURPOSE        How much persistent defects change over time, without
+     *                    changing how many there are or how strong they are.
+     * 10  OUTPUT EFFECT  Persistent dust: smooth, time-correlated drift of
+     *                    position (60 um), rocking (0.35 rad) and opacity
+     *                    (down to 0.55 x) at the reference, correlated over
+     *                    ALGO_GATE_DRIFT_CORR_S - replaces the former
+     *                    independent per-frame jitter and the 10 % random blink.
+     *                    Transport scratches: lateral wander and along-run
+     *                    contrast change scaled by 2 x this.
+     * 11  STAGES         09b, 16
+     * 12  INTERACTIONS   Independent of the counts, rates and visibility.
+     * 13  SCALAR/AVX2    Shared code; identical.
+     * 14  FULL/LITE      Full only.
+     */
+    double defectVariability;
+
+    /**
+     *  1  NAME           defectVisibility
+     *  2  TYPE           double
+     *  3  AE CONTROL     slider ("Defect Visibility")
+     *  4  UNIT           multiplier on each defect's density change (or, for
+     *                    machine-side dirt, on its optical density -log10(1-a))
+     *  5  MIN            0.0 (defects invisible)
+     *  6  MAX            3.0
+     *  7  DEFAULT        1.0 (DefectVisibilityDef; the calibrated contrast)
+     *  8  STEP           0.01
+     *  9  PURPOSE        How prominent defects are, separately from how many
+     *                    there are (the level controls) and how often they
+     *                    change (the rate / lifetime controls).
+     * 10  OUTPUT EFFECT  Opacity a becomes 1 - (1 - a)^v: density scales by v,
+     *                    opaque stays opaque, faint scales linearly. At 1.0
+     *                    exactly the previous renders are reproduced.
+     * 11  STAGES         09b (dust, debris, fibres, scratches), 16 (gate dirt,
+     *                    sparkle)
+     * 12  INTERACTIONS   damageStrength scales the AMOUNT (counts, rates);
+     *                    this scales the CONTRAST.
+     * 13  SCALAR/AVX2    Shared code; identical.
+     * 14  FULL/LITE      Full only.
+     */
+    double defectVisibility;
 };
 
 

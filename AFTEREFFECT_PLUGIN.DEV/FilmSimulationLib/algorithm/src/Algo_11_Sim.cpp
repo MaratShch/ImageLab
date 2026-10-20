@@ -1209,6 +1209,10 @@ void AlgoStage11_Grain
     const bool               hasMosaic,
     const int32_t            frameIndex,
     const uint32_t           seed
+    ,
+    const AlgoType*          pDefR,
+    const AlgoType*          pDefG,
+    const AlgoType*          pDefB
 ) noexcept
 {
     const film::GrainSpec& gs = profile.grain;
@@ -1228,6 +1232,33 @@ void AlgoStage11_Grain
 
     if (gain <= ALGO_ZERO)
         return;
+
+    // ----------------------------------------------------------------------
+    //  2026-10-20b: GRAIN BELONGS TO THE FILM UNDER A DEFECT, NOT TO THE DEFECT.
+    //  The amplitude law reads local density, so a dust speck or a burnished
+    //  scratch added at stage 9b used to carry grain as if it were developed
+    //  silver of the higher density. The additive defect density (filtered by
+    //  the same scan MTF as the image) is taken out here, grain is added to
+    //  the film alone, and the defect goes back on top before the floor.
+    // ----------------------------------------------------------------------
+    const bool hasDef = (pDefR != nullptr) && (pDefG != nullptr) && (pDefB != nullptr);
+
+    if (hasDef)
+    {
+        AlgoType*       dP[3] = { pDstR, pDstG, pDstB };
+        const AlgoType* qP[3] = { pDefR, pDefG, pDefB };
+
+        for (int32_t c = 0; c < 3; c++)
+            for (int32_t y = 0; y < sizeY; y++)
+            {
+                const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
+                AlgoType* RESTRICT       rD = dP[c] + off;
+                const AlgoType* RESTRICT rQ = qP[c] + off;
+
+                for (int32_t x = 0; x < sizeX; x++)
+                    rD[x] -= rQ[x];
+            }
+    }
 
     // Seed for this stage. Named distinctly from the parameter: a local that
     // shadowed it and was XORed with itself would be undefined behaviour, which
@@ -1405,6 +1436,24 @@ void AlgoStage11_Grain
         AlgoAddGrain(pDstR, pDstG, pDstB,
                      pScrFieldR, pScrFieldG, pScrFieldB,
                      sizeX, sizeY, pitch, dmin, dmax, gs, gain);
+    }
+
+    // The additive defect density goes back on top of the grained film.
+    if (hasDef)
+    {
+        AlgoType*       dP[3] = { pDstR, pDstG, pDstB };
+        const AlgoType* qP[3] = { pDefR, pDefG, pDefB };
+
+        for (int32_t c = 0; c < 3; c++)
+            for (int32_t y = 0; y < sizeY; y++)
+            {
+                const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
+                AlgoType* RESTRICT       rD = dP[c] + off;
+                const AlgoType* RESTRICT rQ = qP[c] + off;
+
+                for (int32_t x = 0; x < sizeX; x++)
+                    rD[x] += rQ[x];
+            }
     }
 
     // ----------------------------------------------------------------------

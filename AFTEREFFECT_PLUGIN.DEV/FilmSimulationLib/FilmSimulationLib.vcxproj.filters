@@ -596,6 +596,15 @@
     <ClInclude Include="..\Common\Param_Utils.h">
       <Filter>include_common</Filter>
     </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoDefectOptics.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\AlgoDisplayWhite.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\film_damage_constants.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="database\include\film_names.txt">

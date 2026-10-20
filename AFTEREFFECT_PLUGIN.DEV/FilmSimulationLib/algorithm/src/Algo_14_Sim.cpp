@@ -35,6 +35,7 @@
 // DIRECTLY rather than relied on transitively: this file declares an
 // aligned buffer, so the macro must not depend on another header's
 // include order to be in scope.
+#include "AlgoDisplayWhite.hpp"   // 2026-10-20b: shared white point
 #include "Common.hpp"
 #include "AlgoTransmittance.hpp"
 
@@ -248,8 +249,15 @@ void AlgoStage14_Transmittance
         // Transmittance is ten to the minus density, by the definition of optical
         // density. Clear film at Dmin is the brightest the stock can be; Dmax is the
         // darkest.
-        const HighPrecType tMax = std::pow(10.0,
-            -static_cast<HighPrecType>(curve[c]->dmin));
+        // 2026-10-20b: ONE white for all three channels, the lightest channel's
+        // clear film, landing at ALGO_DISPLAY_CLEAR_WHITE (AlgoDisplayWhite.hpp):
+        // the base keeps its colour and clear film is no longer code 255.
+        const HighPrecType whiteDmin = MIN_VALUE(
+            static_cast<HighPrecType>(curve[0]->dmin), MIN_VALUE(
+            static_cast<HighPrecType>(curve[1]->dmin),
+            static_cast<HighPrecType>(curve[2]->dmin)));
+
+        const HighPrecType tMax = std::pow(10.0, -whiteDmin);
 
         // \warning THE BLACK POINT IS A CONTROL AS OF 2026-09-09c (queue item
         // #303). tMin used to be 10^-Dmax unconditionally, which stretched every
@@ -271,7 +279,7 @@ void AlgoStage14_Transmittance
         // the black point, which is the only defined answer and cannot produce a
         // division by zero or a not-a-number.
         const AlgoType invSpan = (span > 0.0)
-                               ? static_cast<AlgoType>(1.0 / span)
+                               ? static_cast<AlgoType>(ALGO_DISPLAY_CLEAR_WHITE / span)
                                : ALGO_ZERO;
 
         const AlgoType tMinA = static_cast<AlgoType>(tMin);
@@ -368,6 +376,8 @@ void AlgoStage14_Transmittance
 
                 const AlgoType trans = static_cast<AlgoType>(std::pow(10.0, -d));
 
+                // (2026-10-20b: white = the lightest channel's clear film at
+                // ALGO_DISPLAY_CLEAR_WHITE, black = this channel's Dmax.)
                 // Normalised against the stock's OWN range, which is what makes the
                 // output display referred without a separate grade, and what the
                 // anchor solves at stages 8 and 13 aimed at. The two must use the

@@ -912,10 +912,14 @@ constexpr double DirtClumpingDef  = 1.0;
 constexpr double DirtClumpingStep = 0.01;
 
 // Abrasion populations. Floors enforced at stage 09b.
-constexpr double ScratchTransportMin  = 0.0;
-constexpr double ScratchTransportMax  = 4.0;
-constexpr double ScratchTransportDef  = 0.40;
-constexpr double ScratchTransportStep = 0.01;
+// 2026-10-20: scratchTransport is NEW TRAMLINE EVENTS PER MINUTE of screen time
+// (was the expected number running at once). 0 = off; any value in (0, Floor)
+// is raised to the Floor, where every inter-event gap lies in 5 - 20 s.
+constexpr double ScratchTransportMin   = 0.0;
+constexpr double ScratchTransportMax   = 120.0;
+constexpr double ScratchTransportDef   = 4.8;
+constexpr double ScratchTransportStep  = 0.1;
+constexpr double ScratchTransportFloor = 4.8;
 
 constexpr double ScratchHandlingMin  = 0.0;
 constexpr double ScratchHandlingMax  = 4.0;
@@ -983,6 +987,42 @@ constexpr double ScannerArtifactsMin  = 0.0;
 constexpr double ScannerArtifactsMax  = 2.0;
 constexpr double ScannerArtifactsDef  = 0.20;
 constexpr double ScannerArtifactsStep = 0.01;
+
+// ---------------------------------------------------------------------------
+//  FilmDamage::defectOptics -- 2026-10-20 (owner-approved), panel bit 51.
+//  Checkbox. OFF by default and bit-identical when off; ignored while
+//  filmDamageEnabled is false. See AlgoControl.hpp and AlgoDefectOptics.hpp.
+// ---------------------------------------------------------------------------
+constexpr bool DefectOpticsDef = false;
+
+// ---------------------------------------------------------------------------
+//  Temporal defect controls -- 2026-10-20 (owner-approved), panel bits 52-55.
+//  Ignored while filmDamageEnabled is false.
+// ---------------------------------------------------------------------------
+// scratchLifetime: mean transport-scratch lifetime, seconds; 0 = the stock's
+// TemporalSpec::scratch_persistence_frames at 24 fps.
+constexpr double ScratchLifetimeMin  = 0.0;
+constexpr double ScratchLifetimeMax  = 60.0;
+constexpr double ScratchLifetimeDef  = 0.0;
+constexpr double ScratchLifetimeStep = 0.1;
+// dustLifetime: mean residence of a persistent (gate / scanner) dust particle,
+// seconds. 42 s = the previous 1000 frames at 24 fps.
+constexpr double DustLifetimeMin  = 0.5;
+constexpr double DustLifetimeMax  = 600.0;
+constexpr double DustLifetimeDef  = 42.0;
+constexpr double DustLifetimeStep = 0.5;
+// defectVariability: amplitude of smooth temporal change of persistent
+// defects; 0.5 = the reference amplitudes, 0 = frozen, 1 = twice.
+constexpr double DefectVariabilityMin  = 0.0;
+constexpr double DefectVariabilityMax  = 1.0;
+constexpr double DefectVariabilityDef  = 0.5;
+constexpr double DefectVariabilityStep = 0.01;
+// defectVisibility: multiplier on each defect's density change; 1.0 = the
+// calibrated contrast.
+constexpr double DefectVisibilityMin  = 0.0;
+constexpr double DefectVisibilityMax  = 3.0;
+constexpr double DefectVisibilityDef  = 1.0;
+constexpr double DefectVisibilityStep = 0.01;
 
 
 // Gate weave amplitude. Floor enforced at stage 15.
