@@ -325,8 +325,6 @@
     <ClInclude Include="database\include\LoadFilmDataBase.h" />
   </ItemGroup>
   <ItemGroup>
-    <Text Include="algorithm\include\film_display_order.txt" />
-    <Text Include="algorithm\include\film_id_migration.txt" />
     <Text Include="algorithm\include\film_names.txt" />
     <Text Include="database\include\film_names.txt" />
   </ItemGroup>

@@ -610,12 +610,6 @@
     <Text Include="database\include\film_names.txt">
       <Filter>database\include</Filter>
     </Text>
-    <Text Include="algorithm\include\film_display_order.txt">
-      <Filter>algorithm\include</Filter>
-    </Text>
-    <Text Include="algorithm\include\film_id_migration.txt">
-      <Filter>algorithm\include</Filter>
-    </Text>
     <Text Include="algorithm\include\film_names.txt">
       <Filter>algorithm\include</Filter>
     </Text>
