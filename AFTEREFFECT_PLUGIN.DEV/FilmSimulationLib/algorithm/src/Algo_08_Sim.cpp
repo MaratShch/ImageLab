@@ -1083,16 +1083,27 @@ void AlgoStage08b_Interimage
     const int32_t            sizeY,
     const int32_t            pitch,
     const film::FilmProfile& profile,
-    const HighPrecType       anchor[3]
+    const HighPrecType       anchor[3],
+    const AlgoType           clRow[3],
+    const AlgoType           clStrength,
+    const AlgoType           clOffset
 ) noexcept
 {
     const film::InterimageSpec& iie = profile.interimage;
+
+    // 2026-10-21 (queue P96s): the Fuji fourth (CL) layer. clStrength > 0 only
+    // when the fourthLayer control is on and the stock carries log_s_c and a
+    // calibrated cl_red_inhibition (AlgorithmMain.cpp); never on reversal.
+    // Twin: film_sim.fourth_layer_adjust / apply_interimage(cl_adj).
+    const bool clOn  = (clStrength > ALGO_ZERO) && (false == profile.is_monochrome)
+                    && (false == profile.isReversal());
+    const bool iieOn = iie.active();
 
     // A monochrome stock has one emulsion layer, so there is nothing for an
     // inhibitor to diffuse INTO. The copy is required rather than a skip: the
     // retained-buffer policy gives this stage its own destination, and leaving it
     // unwritten would put stale contents in the chain for everything downstream.
-    if ((false == iie.active()) || profile.is_monochrome)
+    if (((false == iieOn) && (false == clOn)) || profile.is_monochrome)
     {
         AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
         return;
@@ -1112,20 +1123,26 @@ void AlgoStage08b_Interimage
     //  adjacent pairs, because the inhibitor has to cross the intervening layer.
     //  The spec carries them separately for that reason.
     // ----------------------------------------------------------------------
+    // 2026-10-21: an inactive interimage spec with the fourth layer on runs
+    // ONE pass with a zero matrix, red only (the CL term alone).
+    const AlgoType iieGate = iieOn ? ALGO_ONE : ALGO_ZERO;
+
     const AlgoType m[3][3] =
     {
         { ALGO_ZERO,
-          static_cast<AlgoType>(iie.a_rg),    // green inhibits red
-          static_cast<AlgoType>(iie.a_rb) },  // blue  inhibits red (far pair)
+          iieGate * static_cast<AlgoType>(iie.a_rg),    // green inhibits red
+          iieGate * static_cast<AlgoType>(iie.a_rb) },  // blue  inhibits red (far pair)
 
-        { static_cast<AlgoType>(iie.a_gr),    // red   inhibits green
+        { iieGate * static_cast<AlgoType>(iie.a_gr),    // red   inhibits green
           ALGO_ZERO,
-          static_cast<AlgoType>(iie.a_gb) },  // blue  inhibits green
+          iieGate * static_cast<AlgoType>(iie.a_gb) },  // blue  inhibits green
 
-        { static_cast<AlgoType>(iie.a_br),    // red   inhibits blue (far pair)
-          static_cast<AlgoType>(iie.a_bg),    // green inhibits blue
+        { iieGate * static_cast<AlgoType>(iie.a_br),    // red   inhibits blue (far pair)
+          iieGate * static_cast<AlgoType>(iie.a_bg),    // green inhibits blue
           ALGO_ZERO }
     };
+
+    const int32_t iters = iieOn ? iie.iterations : 1;
 
     // ----------------------------------------------------------------------
     //  Mid-grey reference densities.
@@ -1241,6 +1258,17 @@ void AlgoStage08b_Interimage
     AlgoType* dstPlane [3] = { pDstR,  pDstG,  pDstB  };
     AlgoType* diffPlane[3] = { pScrDR, pScrDG, pScrDB };
 
+    // 2026-10-21 (queue P96s): the fourth layer's offset for the RED record,
+    // -k * (D_G(logE_CL) - D_G(logE_R)), logE_CL = log10(sum w_p 10^logE_p).
+    // Depends on exposure only. Evaluated per lane in scalar (pow/log10 have no
+    // AVX2 intrinsic here), red receiver only, and only when the control is on.
+    // Twin: film_sim.fourth_layer_adjust; scalar unit AlgoFourthLayerAdj.
+    const AlgoType clW0 = clOn ? clRow[0] : ALGO_ZERO;
+    const AlgoType clW1 = clOn ? clRow[1] : ALGO_ZERO;
+    const AlgoType clW2 = clOn ? clRow[2] : ALGO_ZERO;
+    const AlgoType clK  = clOn ? clStrength : ALGO_ZERO;
+    const AlgoType clO  = clOn ? clOffset   : ALGO_ZERO;   // 2026-10-22: CL speed vs green
+
     // ----------------------------------------------------------------------
     //  The three curves, tabulated once for the WHOLE STAGE.
     //
@@ -1292,7 +1320,9 @@ void AlgoStage08b_Interimage
     // Saves two full image copies per frame; the output is bit-identical.
     const AlgoType* srcPlane[3] = { pSrcR, pSrcG, pSrcB };
 
-    if (false == neutralRef)
+    // 2026-10-21: with the interimage spec inactive (fourth layer only) the
+    // receiver loop writes RED alone, so green and blue are seeded here.
+    if ((false == neutralRef) || (false == iieOn))
         AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
 
     // ----------------------------------------------------------------------
@@ -1305,7 +1335,7 @@ void AlgoStage08b_Interimage
     //  stock whose coefficients are small converges in one pass and should not pay
     //  for four.
     // ----------------------------------------------------------------------
-    for (int32_t iter = 0; iter < iie.iterations; iter++)
+    for (int32_t iter = 0; iter < iters; iter++)
     {
         // ------------------------------------------------------------------
         //  Difference planes, built from the CURRENT densities.
@@ -1412,6 +1442,9 @@ void AlgoStage08b_Interimage
         // ------------------------------------------------------------------
         for (int32_t c = 0; c < 3; c++)
         {
+            if ((false == iieOn) && (0 != c))
+                continue;   // 2026-10-21: CL term only (red)
+
             // Which neighbours actually couple into this channel. Skipping a zero
             // coefficient removes a whole plane read per pixel, and zeros are
             // common: several profiles carry the adjacent pairs only.
@@ -1463,6 +1496,30 @@ void AlgoStage08b_Interimage
                 return a;
             };
 
+            // 2026-10-21: fourth-layer offset for n (<= 8) lanes; lanes past
+            // n are zero. Red receiver of a negative only.
+            const bool clHere = clOn && neutralRef && (0 == c);
+
+            auto clAdjV = [&](const AlgoType* RESTRICT leR, const AlgoType* RESTRICT leG,
+                              const AlgoType* RESTRICT leB, const int32_t n) noexcept -> __m256
+            {
+                alignas(32) AlgoType out[ALGO_AVX2_LANES] = {};
+
+                for (int32_t k = 0; k < n; k++)
+                {
+                    const AlgoType e = clW0 * std::pow(ALGO_FOURTH_LAYER_TEN, leR[k])
+                                     + clW1 * std::pow(ALGO_FOURTH_LAYER_TEN, leG[k])
+                                     + clW2 * std::pow(ALGO_FOURTH_LAYER_TEN, leB[k]);
+                    const AlgoType leCl =
+                        std::log10(MAX_VALUE(e, ALGO_FOURTH_LAYER_E_FLOOR));
+
+                    out[k] = -clK * (AlgoCurveLutEval(leCl   + clO, lut[1])
+                                   - AlgoCurveLutEval(leR[k] + clO, lut[1]));
+                }
+
+                return _mm256_load_ps(out);
+            };
+
             for (int32_t y = 0; y < sizeY; y++)
             {
                 const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
@@ -1471,6 +1528,8 @@ void AlgoStage08b_Interimage
                 const AlgoType* RESTRICT r0  = pE0 + off;
                 const AlgoType* RESTRICT r1  = pE1 + off;
                 const AlgoType* RESTRICT r2  = pE2 + off;
+                const AlgoType* RESTRICT rLG = logEPlane[1] + off;
+                const AlgoType* RESTRICT rLB = logEPlane[2] + off;
 
                 AlgoType* RESTRICT rO = pO + off;
 
@@ -1493,6 +1552,10 @@ void AlgoStage08b_Interimage
                         adj = negAdj(le, _mm256_loadu_ps(r0 + x),
                                          _mm256_loadu_ps(r1 + x),
                                          _mm256_loadu_ps(r2 + x));
+
+                        if (clHere)
+                            adj = _mm256_add_ps(adj,
+                                    clAdjV(rL + x, rLG + x, rLB + x, ALGO_AVX2_LANES));
                     }
                     else
                     {
@@ -1552,6 +1615,10 @@ void AlgoStage08b_Interimage
                         adj = negAdj(le, _mm256_maskload_ps(r0 + x, vTail),
                                          _mm256_maskload_ps(r1 + x, vTail),
                                          _mm256_maskload_ps(r2 + x, vTail));
+
+                        if (clHere)
+                            adj = _mm256_add_ps(adj,
+                                    clAdjV(rL + x, rLG + x, rLB + x, tailN));
                     }
                     else
                     {

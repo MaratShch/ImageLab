@@ -863,6 +863,25 @@ constexpr HighPrecType ALGO_DEFECT_ORIENT_SPREAD_RAD = 0.35;
 constexpr HighPrecType ALGO_DEFECT_CHROMA_MIN = 0.45;
 
 // ---------------------------------------------------------------------------
+//  The same floor on a REVERSAL colour stock (2026-10-22, owner-approved).
+//
+//  ALGO_DEFECT_CHROMA_MIN above was solved by rendering ORWOCOLOR_NC21, a
+//  NEGATIVE, while the ratio it targets was measured on the owner's ORWO colour
+//  frames -- ORWOCHROME UT-18 slides (ORWO_CHROM_UT18). On a slide a film-borne
+//  particle prints DARK (it adds density to the positive), and the owner's
+//  requirements document measures that polarity separately: median min/max
+//  channel deviation ratio 0.63 for dark defects (31 frames), 0.55 for light.
+//  Solved like the negative constant: rendered on ORWO_CHROM_UT18 (dust,
+//  debris, fibres; grain off) and swept until the detected output median ratio
+//  of dark particles lands on 0.63: 0.45 -> 0.551, 0.55 -> 0.619, 0.57 -> 0.628,
+//  0.62 -> 0.653 (mid-grey field); 0.57 gives 0.60-0.67 from a light to a dark
+//  field -- see RESULT_2026-10-22. PROVISIONAL: the
+//  three 1:1 colour tiles of the reference collage (R8C7-C9) give a lower
+//  median, 0.38 over 28 specks, recorded as an unresolved disagreement.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_DEFECT_CHROMA_MIN_REVERSAL = 0.57;
+
+// ---------------------------------------------------------------------------
 //  Edge transition width of a rendered particle, micrometres on the film.
 //
 //  8, of the order of the system point-spread function. A particle must never be

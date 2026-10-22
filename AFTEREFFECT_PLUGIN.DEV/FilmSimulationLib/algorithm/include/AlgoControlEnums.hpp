@@ -659,11 +659,14 @@ constexpr double FilmAgeMonthsOff  =   0.0;
 constexpr double FilmAgeMonthsMin  =   0.0;
 constexpr double FilmAgeMonthsMax  = 600.0;
 constexpr double FilmAgeMonthsDef  = FilmAgeMonthsOff;
-constexpr double FilmAgeMonthsStep =   1.0;
+// 2026-10-22 (owner-approved): 1.0 -> 4.0, equal to the owner's panel step
+// FilmAgeStep below, so the two definitions of the same control agree. The
+// engine never quantises by the step (it clamps only), so renders are unchanged.
+constexpr double FilmAgeMonthsStep =   4.0;
 
 // ⚠ OWNER'S PANEL CONSTANTS FOR THE SAME CONTROL (2026-10-16f, owner request),
-// kept VERBATIM -- do not rename or "merge" them. Same range and default as
-// FilmAgeMonths* above; the panel steps by 4 months, the engine clamps with
+// kept VERBATIM -- do not rename or "merge" them. Same range, default and step
+// as FilmAgeMonths* above (step aligned 2026-10-22); the engine clamps with
 // FilmAgeMonthsMin/Max (identical limits).
 // Film age months
 constexpr double FilmAgeMin = 0.0;
@@ -822,6 +825,20 @@ constexpr bool SpectralTakingDef    = false;
 //  (spectralTaking && spectralUpsampling). Twin:
 //  film_sim.RenderSettings.spectral_upsampling.
 constexpr bool SpectralUpsamplingDef = false;
+
+// -- Fuji fourth (CL) layer (2026-10-21, owner-approved, queue P96s) ----------
+//  Stage 8b red-record inhibition by the cyan-minus-sensitive layer. OFF by
+//  default; effective only on stocks with log_s_c and cl_red_inhibition > 0.
+//  Twin: film_sim.RenderSettings.fourth_layer.
+constexpr bool FourthLayerDef = false;
+
+// -- aim exposure (2026-10-22, owner-approved batch, G-209-AIM) ---------------
+//  Places metered 18 % grey on the maker's grey-card aim density by translating
+//  the stock's final curves by aim_exposure_shift_stops along log E (frame
+//  setup, AlgoResolveAimExposure); the print is re-timed to it. OFF by default;
+//  effective only on the 17 stocks with a grey-card aim at their own EI.
+//  Twin: film_sim.RenderSettings.aim_exposure.
+constexpr bool AimExposureDef = false;
 
 // -- grain temporal mode (2026-10-06, owner decision G6) --------------------
 //  How the camera negative's grain field (stage 11, and stage 11 only) moves

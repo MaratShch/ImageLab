@@ -92,6 +92,12 @@
 // ---------------------------------------------------------------------------
 constexpr AlgoType ALGO_IIE_REF_FLOOR = static_cast<AlgoType>(1.0e-4);
 
+// 2026-10-21 (queue P96s): floor on the fourth layer's mixed exposure (relative
+// to mid grey) inside log10 -- a guard against log10(0) only. Twin:
+// film_sim.FOURTH_LAYER_E_FLOOR.
+constexpr AlgoType ALGO_FOURTH_LAYER_E_FLOOR = static_cast<AlgoType>(1.0e-12);
+constexpr AlgoType ALGO_FOURTH_LAYER_TEN     = static_cast<AlgoType>(10.0);
+
 
 // ---------------------------------------------------------------------------
 //  Sub-stage 8b: interimage effects.
@@ -107,6 +113,12 @@ constexpr AlgoType ALGO_IIE_REF_FLOOR = static_cast<AlgoType>(1.0e-4);
 //  profile       stock being simulated
 //  anchor        anchors from AlgoSolveAnchors; the reversal trim enters the
 //                curve argument exactly as it did at stage 8
+//  clRow         2026-10-21 (queue P96s): the fourth (CL) layer's mixing row
+//                (AlgoSpectralFourthLayerRow), read only when clStrength > 0
+//  clStrength    the stock's cl_red_inhibition when the fourthLayer control is
+//                on and the stock carries the layer; 0 = no CL term
+//  clOffset      2026-10-22: the CL layer's speed relative to green, log10
+//                (AlgoSpectralFourthLayerRow offsetOut); 0 = not traced
 //
 //  The three scratch planes must be distinct from each other, from the source,
 //  from the destination and from the log-exposure planes.
@@ -129,5 +141,8 @@ void AlgoStage08b_Interimage
     const int32_t            sizeY,
     const int32_t            pitch,
     const film::FilmProfile& profile,
-    const HighPrecType       anchor[3]
+    const HighPrecType       anchor[3],
+    const AlgoType           clRow[3],
+    const AlgoType           clStrength,
+    const AlgoType           clOffset
 ) noexcept;

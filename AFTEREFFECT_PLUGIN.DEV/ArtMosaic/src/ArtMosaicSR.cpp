@@ -85,7 +85,7 @@ ArtMosaic_SmartRender
 
     if (nullptr != pFilterStrParams)
     {
-        const A_long sliderValue = pFilterStrParams->cellsNumber;;
+        const A_long sliderValue = pFilterStrParams->cellsNumber;
         const A_long cellsNumber = (sliderValue < cellMin ? cellMin : sliderValue > cellMax ? cellMax : sliderValue);
 
         ERR((extraP->cb->checkout_layer_pixels(in_data->effect_ref, UnderlyingType(eART_MOSAIC_ITEMS::eIMAGE_ART_MOSAIC_INPUT), &input_worldP)));

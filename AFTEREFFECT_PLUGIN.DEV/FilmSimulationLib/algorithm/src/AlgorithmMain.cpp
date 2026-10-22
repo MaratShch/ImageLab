@@ -428,6 +428,41 @@ namespace
 #endif
 
 
+// ---------------------------------------------------------------------------
+//  2026-10-22 (G-209-AIM): the aim-exposure resolver. Translates the three
+//  characteristic curves by shiftStops along log E (D'(x) = D(x + s),
+//  s = shiftStops * log10 2), so log E = log10(row sum) reads the density the
+//  maker's grey-card aim prescribes. Inert when the control is off, when the
+//  stock has no aim (shift 0) and on a curve set carrying a measured table (a
+//  table is a measurement at its own abscissae; none of the 17 aim stocks
+//  carries one). `store` is written only when the curves move.
+// ---------------------------------------------------------------------------
+static inline const film::FilmProfile& AlgoResolveAimExposure
+(
+    const film::FilmProfile& base,
+    const bool               on,
+    const double             shiftStops,
+    film::FilmProfile&       store
+) noexcept
+{
+    if ((false == on) || (0.0 == shiftStops))
+        return base;
+    if (base.curves.r.hasMeasured() || base.curves.g.hasMeasured()
+        || base.curves.b.hasMeasured())
+        return base;
+
+    const double s = shiftStops * 0.30102999566398119521;   // log10(2)
+    store = base;
+    film::ToneCurve* const c[3] = { &store.curves.r, &store.curves.g, &store.curves.b };
+    for (int32_t i = 0; i < 3; i++)
+    {
+        c[i]->toe_x      = static_cast<float>(static_cast<double>(c[i]->toe_x) - s);
+        c[i]->shoulder_x = static_cast<float>(static_cast<double>(c[i]->shoulder_x) - s);
+    }
+    return store;
+}
+
+
 void Algorithm_Main
 (
     const MemHandler&    memHandler,
@@ -642,10 +677,30 @@ void Algorithm_Main
     // -----------------------------------------------------------------------
     film::FilmProfile batchStore;
 
-    const film::FilmProfile& profile =
+    const film::FilmProfile& profileBatch =
         AlgoResolveBatchPosition(profileAged,
                                  algoCtrl.batchPosition,
                                  batchStore);
+
+    // -----------------------------------------------------------------------
+    //  2026-10-22 (G-209-AIM): AIM EXPOSURE, after every resolver.
+    //
+    //  Control aimExposure, default off. On a stock with a grey-card aim
+    //  (aim_exposure_shift_stops != 0, read off the stock AS SHIPPED) the
+    //  final curves are translated along log E by that shift, so metered grey
+    //  (log10 of the taking row sum) reads the maker's aim density. The anchor
+    //  solve, stage 8 and every neutral reference read the translated curves,
+    //  so the print is re-timed exactly as a lab times an aim-exposed negative:
+    //  overall brightness holds, the scene sits lower on the curve. Inert on a
+    //  curve set that carries a measured table. Twin: film_sim.resolve_aim_exposure.
+    // -----------------------------------------------------------------------
+    film::FilmProfile aimStore;
+
+    const film::FilmProfile& profile =
+        AlgoResolveAimExposure(profileBatch,
+                               algoCtrl.aimExposure,
+                               profileAsShipped.aim_exposure_shift_stops,
+                               aimStore);
 
     // -----------------------------------------------------------------------
     //  Resolve the gauge, and from it every physical frame dimension.
@@ -1349,8 +1404,30 @@ void Algorithm_Main
     //     and density cannot be inverted back through the shoulder. An implicit
     //     equation, solved by fixed-point iteration.
     // -----------------------------------------------------------------------
+    //
+    //     2026-10-21 (queue P96s): the Fuji fourth (CL) layer joins here as a
+    //     red-record offset, -k (D_G(logE_CL) - D_G(logE_R)), with logE_CL mixed
+    //     from the three exposures by the CL row (AlgoSpectralFourthLayerRow).
+    //     Control fourthLayer, default off; negatives only. Twin:
+    //     film_sim.simulate stage 8b (fourth_layer_*).
+    // -----------------------------------------------------------------------
+    AlgoType clRow[3]   = { ALGO_ZERO, ALGO_ZERO, ALGO_ZERO };
+    AlgoType clStrength = ALGO_ZERO;
+    AlgoType clOffset   = ALGO_ZERO;   // 2026-10-22: CL speed vs green
+
+    if (algoCtrl.fourthLayer
+        && profile.spectral.hasFourthLayerEffect()
+        && (false == profile.is_monochrome)
+        && (false == profile.isReversal()))
+    {
+        if (AlgoSpectralFourthLayerRow(profile,
+                                       static_cast<HighPrecType>(algoCtrl.sceneKelvin),
+                                       clRow, &clOffset))
+            clStrength = static_cast<AlgoType>(profile.spectral.cl_red_inhibition);
+    }
+
     ALGO_PROF_MARK("08b  interimage");
-    if (false == AlgoPass08b(profile))
+    if (false == AlgoPass08b(profile, clStrength > ALGO_ZERO))
     {
         dst = AlgoStageDst(t08b, t08, cur);
         AlgoStage08b_Interimage(cur.r, cur.g, cur.b,
@@ -1358,7 +1435,7 @@ void Algorithm_Main
                                 logER, logEG, logEB,
                                 scrLuma, scrField, scrFieldLo,
                                 sizeX, sizeY, pitch,
-                                profile, anchor);
+                                profile, anchor, clRow, clStrength, clOffset);
         cur = dst;
     }
 

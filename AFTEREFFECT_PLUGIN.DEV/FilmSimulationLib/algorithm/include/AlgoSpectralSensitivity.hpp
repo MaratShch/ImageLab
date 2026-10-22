@@ -256,6 +256,17 @@ bool AlgoSpectralHasCurves (const film::FilmProfile& profile) noexcept;
 // ---------------------------------------------------------------------------
 bool AlgoSpectralHasFourthLayer (const film::FilmProfile& profile) noexcept;
 
+// 2026-10-21 (queue P96s): mixing weights of the three record exposures into
+// the fourth (CL) layer's exposure, sum 1; false (nothing written) without
+// log_s_c or with a non-positive sceneKelvin. Twin: film_sim.fourth_layer_row.
+// 2026-10-22: offsetOut (may be null) receives the CL layer's speed relative to
+// green, log10 (0 when cl_peak_rel_green_log is not traced). Twin:
+// film_sim.fourth_layer_offset.
+bool AlgoSpectralFourthLayerRow (const film::FilmProfile& profile,
+                                 const HighPrecType       sceneKelvin,
+                                 AlgoType                 rowOut[3],
+                                 AlgoType*                offsetOut) noexcept;
+
 double AlgoSpectralFourthLayerPeakNm
     (const film::FilmProfile& profile) noexcept;
 

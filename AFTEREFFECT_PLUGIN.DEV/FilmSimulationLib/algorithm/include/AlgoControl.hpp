@@ -3170,6 +3170,98 @@ struct AlgoControls
      */
     bool spectralUpsampling;
 
+    // -- Fuji fourth (CL) layer (2026-10-21, owner-approved, queue P96s) ------
+
+    /**
+     *  1  NAME           fourthLayer
+     *  2  TYPE           bool
+     *  3  AE CONTROL     checkbox (greyed on stocks without the layer's data)
+     *  4  UNIT           none - boolean switch
+     *  5  MIN            false, by type
+     *  6  MAX            true, by type
+     *  7  DEFAULT        false  (FourthLayerDef; AlgoControl.cpp,
+     *                    getAlgoControlsDefault)
+     *  8  STEP           n/a
+     *  9  PURPOSE        Fuji's fourth colour layer (CL, cyan-minus-sensitive,
+     *                    peak ~516 nm): its exposure inhibits development of
+     *                    the RED record, imitating the negative lobe of the
+     *                    eye's red colour-matching function (Sasaki et al.
+     *                    1989). Stage 8b adds to red's corrected exposure
+     *                        -k * (D_G(logE_CL + o) - D_G(logE_R + o)),
+     *                    logE_CL = log10(sum_p w_p * 10^logE_p), w from the
+     *                    stock's log_s_c curve (AlgoSpectralFourthLayerRow),
+     *                    D_G the stock's green curve standing in for the CL
+     *                    layer's own, k = spectral.cl_red_inhibition, o the
+     *                    CL layer's speed offset from the stored peak level
+     *                    spectral.cl_peak_rel_green_log (2026-10-22):
+     *                    o = log10(10^L * int(S_CL I) / int(S_G I)).
+     * 10  OUTPUT EFFECT  Neutrals unchanged (logE_CL = logE_R on every grey).
+     *                    Blue-greens and cyans lose red density on the
+     *                    negative (cleaner cyan on the print); reds and
+     *                    oranges, which expose the CL layer less than a grey
+     *                    of the same red exposure, gain it (more saturated
+     *                    reds). Off: bit-identical.
+     * 11  STAGES         08b (row built once per frame in Algorithm_Main).
+     * 12  INTERACTIONS   Reads sceneKelvin (the row's blackbody). Inert on any
+     *                    stock without log_s_c AND cl_red_inhibition > 0, on
+     *                    monochrome and on reversal stocks. Strength measured
+     *                    on REALA only (provisional); see the database's
+     *                    ParamSource records for every other stock.
+     * 13  SCALAR/AVX2    Same law in both twins; row in the shared
+     *                    AlgoSpectralSensitivity.cpp (double, rounded once).
+     * 14  FULL/LITE      PENDING. Both.
+     *
+     *  Twin: film_sim.RenderSettings.fourth_layer.
+     */
+    bool fourthLayer;
+
+    // -- aim exposure (2026-10-22, owner-approved batch, G-209-AIM) -----------
+
+    /**
+     *  1  NAME           aimExposure
+     *  2  TYPE           bool
+     *  3  AE CONTROL     checkbox (greyed on stocks without a grey-card aim)
+     *  4  UNIT           none - boolean switch
+     *  5  MIN            false, by type
+     *  6  MAX            true, by type
+     *  7  DEFAULT        false  (AimExposureDef; AlgoControl.cpp,
+     *                    getAlgoControlsDefault)
+     *  8  STEP           n/a
+     *  9  PURPOSE        Expose the frame the way the maker's data sheet
+     *                    defines correct exposure. Without it, metered 18 %
+     *                    grey sits at log E = log10(taking row sum) on the
+     *                    stored curve, which on every stock with a published
+     *                    grey-card aim lands 0.35-1.35 D ABOVE the aim (verify
+     *                    G-209-AIM). With it, the stock's final curves (after
+     *                    every profile resolver) are translated along log E by
+     *                    its aim_exposure_shift_stops (generator-computed: the
+     *                    red curve's log E at the midpoint of the grey-card
+     *                    aim for the stock's own EI, minus the metered log E,
+     *                    in stops; -3.15 to -6.37 on the 17 stocks), so
+     *                    metered grey reads the aim density.
+     * 10  OUTPUT EFFECT  The anchor solve sees the translated curves and
+     *                    re-times the print, as a lab times an aim-exposed
+     *                    negative: overall level holds, the scene sits lower
+     *                    on the curve (more highlight latitude, less shadow
+     *                    separation, small colour-balance shifts from the
+     *                    stock's own crossover).
+     * 11  STAGES         frame setup (AlgoResolveAimExposure in
+     *                    AlgorithmMain.cpp); read by the anchor solve, 08
+     *                    and everything that evaluates the curves.
+     * 12  INTERACTIONS   Independent of exposureStops (which still moves the
+     *                    scene against a fixed print timing). Shift read from
+     *                    the stock as shipped, applied to the curves after
+     *                    process variant, development, age, storage and batch.
+     *                    Inert on stocks without an aim (shift 0) and on a
+     *                    curve set with a measured table.
+     * 13  SCALAR/AVX2    Shared frame-setup code; the translated toe_x /
+     *                    shoulder_x are computed in double, stored as float.
+     * 14  FULL/LITE      PENDING. Both.
+     *
+     *  Twin: film_sim.RenderSettings.aim_exposure.
+     */
+    bool aimExposure;
+
     // -- physical film damage -----------------------------------------------
 
     /**

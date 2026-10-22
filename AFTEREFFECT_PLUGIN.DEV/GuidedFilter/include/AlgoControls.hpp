@@ -75,6 +75,8 @@ struct AlgoControls
     float skinSoftness;
 };
 
+constexpr size_t gAlgoControlsStrSize = sizeof(AlgoControls);
+
 inline AlgoControls getAlgoControlsDefault(void) noexcept
 {
     AlgoControls ctrl;

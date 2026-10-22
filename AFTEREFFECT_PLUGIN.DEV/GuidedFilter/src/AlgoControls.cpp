@@ -34,10 +34,10 @@ const AlgoControls getAlgoControls (PF_ParamDef* params[])
 
     algoCtrl.filterMode = get_list_box_value<FilterMode>(params, CtrlItems::gFILTER_MODE);
     algoCtrl.radius     = get_slider_value(params, CtrlItems::gFILTER_RADIUS);
-    algoCtrl.epsilon    = get_float_slider_value(params, CtrlItems::gFILTER_EPSILON);
+    algoCtrl.epsilon    = static_cast<float>(get_float_slider_value(params, CtrlItems::gFILTER_EPSILON));
     algoCtrl.showConfidenceMap = get_check_box_value(params, CtrlItems::gFILTER_SHOW_MAP);
-    algoCtrl.skinTolerance = get_float_slider_value(params, CtrlItems::gFILTER_SKIN_TOLERANCE);
-    algoCtrl.skinSoftness  = get_float_slider_value(params, CtrlItems::gFILTER_SKIN_SOFTNESS);
+    algoCtrl.skinTolerance = static_cast<float>(get_float_slider_value(params, CtrlItems::gFILTER_SKIN_TOLERANCE));
+    algoCtrl.skinSoftness  = static_cast<float>(get_float_slider_value(params, CtrlItems::gFILTER_SKIN_SOFTNESS));
 
     return algoCtrl;
 }

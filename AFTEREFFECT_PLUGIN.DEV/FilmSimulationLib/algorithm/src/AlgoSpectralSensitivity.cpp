@@ -442,6 +442,98 @@ double AlgoSpectralFourthLayerPeakNm
 
 
 // ---------------------------------------------------------------------------
+//  2026-10-21 (queue P96s): the fourth (CL) layer's mixing row.
+//  Twin of film_sim.fourth_layer_row: w[p] = INTEGRAL S_CL * P_p * I(T), the
+//  same primaries and blackbody AlgoSpectralTakingMatrix uses, behind the
+//  taking filter, normalised to sum 1 so a neutral gives E_CL = E_record.
+bool AlgoSpectralFourthLayerRow
+(
+    const film::FilmProfile& profile,
+    const HighPrecType       sceneKelvin,
+    AlgoType                 rowOut[3],
+    AlgoType*                offsetOut
+) noexcept
+{
+    const film::SpectralSensitivity& sp = profile.spectral;
+
+    if (nullptr != offsetOut)
+        *offsetOut = static_cast<AlgoType>(0);
+
+    if (sp.log_s_c.empty() || !(sceneKelvin > 0.0))
+        return false;
+
+    HighPrecType cl[ALGO_SPECTRAL_N];
+    resampleLinear(sp.log_s_c, sp.lambda_start_nm, sp.lambda_step_nm, cl);
+
+    for (int32_t i = 0; i < ALGO_SPECTRAL_N; i++)
+        cl[i] *= takingFilterT(profile, gridLambda(i));
+
+    HighPrecType illum[ALGO_SPECTRAL_N];
+    blackbodySpd(sceneKelvin, illum);
+
+    const HighPrecType centres[3] =
+    {
+        ALGO_SPECTRAL_PRIMARY_R_NM,
+        ALGO_SPECTRAL_PRIMARY_G_NM,
+        ALGO_SPECTRAL_PRIMARY_B_NM
+    };
+
+    HighPrecType w[3];
+    HighPrecType sum = 0.0;
+
+    for (int32_t p = 0; p < 3; p++)
+    {
+        HighPrecType prim[ALGO_SPECTRAL_N];
+        primarySpd(centres[p], prim);
+
+        HighPrecType prod[ALGO_SPECTRAL_N];
+
+        for (int32_t i = 0; i < ALGO_SPECTRAL_N; i++)
+            prod[i] = cl[i] * prim[i] * illum[i];
+
+        w[p] = integrate(prod);
+        sum += w[p];
+    }
+
+    if (!(sum > 0.0))
+        return false;
+
+    for (int32_t p = 0; p < 3; p++)
+        rowOut[p] = static_cast<AlgoType>(static_cast<float>(w[p] / sum));
+
+    // 2026-10-22: the CL layer's integrated speed relative to GREEN under the
+    // scene illuminant, log10( 10^L * INT S_CL I / INT S_G I ), L =
+    // cl_peak_rel_green_log (0 = not traced -> no offset). Rounded to float
+    // like the Python twin film_sim.fourth_layer_offset.
+    if ((nullptr != offsetOut) && (0.0 != sp.cl_peak_rel_green_log))
+    {
+        HighPrecType sens[3][ALGO_SPECTRAL_N];
+
+        if (fetchLayers(profile, sens) == 3)
+        {
+            HighPrecType pc[ALGO_SPECTRAL_N];
+            HighPrecType pg[ALGO_SPECTRAL_N];
+
+            for (int32_t i = 0; i < ALGO_SPECTRAL_N; i++)
+            {
+                pc[i] = cl[i] * illum[i];
+                pg[i] = sens[1][i] * illum[i];
+            }
+
+            const HighPrecType ncl = integrate(pc);
+            const HighPrecType ng  = integrate(pg);
+
+            if ((ncl > 0.0) && (ng > 0.0))
+                *offsetOut = static_cast<AlgoType>(static_cast<float>(
+                    sp.cl_peak_rel_green_log + std::log10(ncl / ng)));
+        }
+    }
+
+    return true;
+}
+
+
+// ---------------------------------------------------------------------------
 bool AlgoSpectralBalanceGains
 (
     const film::FilmProfile& profile,

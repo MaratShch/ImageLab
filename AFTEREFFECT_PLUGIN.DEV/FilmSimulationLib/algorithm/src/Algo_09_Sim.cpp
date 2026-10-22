@@ -270,9 +270,10 @@ namespace
     // ----------------------------------------------------------------------
     inline void defectChroma
     (
-        const uint64_t counter,
-        const bool     monochrome,
-        HighPrecType   chromaOut[3]
+        const uint64_t     counter,
+        const bool         monochrome,
+        const HighPrecType chromaMin,
+        HighPrecType       chromaOut[3]
     ) noexcept
     {
         // ------------------------------------------------------------------
@@ -305,7 +306,10 @@ namespace
             return;
         }
 
-        const HighPrecType span = 1.0 - ALGO_DEFECT_CHROMA_MIN;
+        // 2026-10-22: the floor is per polarity of the stock (chromaMin =
+        // ALGO_DEFECT_CHROMA_MIN on a negative, ALGO_DEFECT_CHROMA_MIN_REVERSAL
+        // on a reversal stock); see film_damage_constants.hpp.
+        const HighPrecType span = 1.0 - chromaMin;
 
         HighPrecType peak = 0.0;
 
@@ -313,12 +317,12 @@ namespace
         {
             const HighPrecType u = AlgoRngUniform01(counter + static_cast<uint64_t>(c));
 
-            chromaOut[c] = ALGO_DEFECT_CHROMA_MIN + span * u;
+            chromaOut[c] = chromaMin + span * u;
 
             peak = MAX_VALUE(peak, chromaOut[c]);
         }
 
-        // peak is at least ALGO_DEFECT_CHROMA_MIN, which is strictly positive, so
+        // peak is at least chromaMin, which is strictly positive, so
         // this cannot divide by zero.
         for (int32_t c = 0; c < 3; c++)
             chromaOut[c] /= peak;
@@ -1113,6 +1117,7 @@ namespace
         const HighPrecType    clumping,
         const uint32_t        fieldSeed,
         const bool            monochrome,
+        const HighPrecType    chromaMin,
         AlgoType* RESTRICT    pDstR,
         AlgoType* RESTRICT    pDstG,
         AlgoType* RESTRICT    pDstB,
@@ -1191,7 +1196,7 @@ namespace
                 p.harmPhase[k] = AlgoRngUniform01(
                     pc + 20u + static_cast<uint64_t>(k)) * ALGO_DEFECT_TWO_PI;
 
-            defectChroma(pc + 28u, monochrome, p.chroma);
+            defectChroma(pc + 28u, monochrome, chromaMin, p.chroma);
 
             // 2026-10-20: shape, polarity, texture, optics.
             //
@@ -1246,6 +1251,7 @@ namespace
         const HighPrecType    clumping,
         const uint32_t        fieldSeed,
         const bool            monochrome,
+        const HighPrecType    chromaMin,
         AlgoType* RESTRICT    pDstR,
         AlgoType* RESTRICT    pDstG,
         AlgoType* RESTRICT    pDstB,
@@ -1294,7 +1300,7 @@ namespace
                 p.harmPhase[k] = AlgoRngUniform01(
                     pc + 20u + static_cast<uint64_t>(k)) * ALGO_DEFECT_TWO_PI;
 
-            defectChroma(pc + 28u, monochrome, p.chroma);
+            defectChroma(pc + 28u, monochrome, chromaMin, p.chroma);
 
             // 2026-10-20: shape, texture, optics. Debris is material, so
             // always additive.
@@ -1346,6 +1352,7 @@ namespace
         const HighPrecType    clumping,
         const uint32_t        fieldSeed,
         const bool            monochrome,
+        const HighPrecType    chromaMin,
         AlgoType* RESTRICT    pDstR,
         AlgoType* RESTRICT    pDstG,
         AlgoType* RESTRICT    pDstB,
@@ -1447,7 +1454,7 @@ namespace
                                                       ptsX, ptsY);
 
             HighPrecType chroma[3];
-            defectChroma(pc + 28u, monochrome, chroma);
+            defectChroma(pc + 28u, monochrome, chromaMin, chroma);
 
             const HighPrecType halfWidthPx = 0.5
                 * (widthUm / ALGO_DEFECT_UM_PER_MM)
@@ -2532,6 +2539,13 @@ void AlgoStage09b_NegativeDefects
     // ----------------------------------------------------------------------
     const bool monochrome = profile.is_monochrome;
 
+    // 2026-10-22 (owner-approved): particle colour floor by stock polarity --
+    // calibrated on ORWOCOLOR_NC21 for negatives, on ORWO_CHROM_UT18 for
+    // reversal stocks (film_damage_constants.hpp).
+    const HighPrecType chromaMin = profile.isReversal()
+                                 ? ALGO_DEFECT_CHROMA_MIN_REVERSAL
+                                 : ALGO_DEFECT_CHROMA_MIN;
+
     // ----------------------------------------------------------------------
     //  2026-10-20: THE READER-OPTICS CONTEXT (FilmDamage::defectOptics).
     //
@@ -2591,17 +2605,17 @@ void AlgoStage09b_NegativeDefects
         AlgoCopyImage(pDstR, pDstG, pDstB, pDefR, pDefG, pDefB, sizeX, sizeY, pitch);
 
     if (dustLevel > 0.0)
-        defectDust(window, dustLevel, clumping, fieldSeed, monochrome,
+        defectDust(window, dustLevel, clumping, fieldSeed, monochrome, chromaMin,
                    pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx,
                    opticsCtx);
 
     if (debrisLevel > 0.0)
-        defectDebris(window, debrisLevel, clumping, fieldSeed, monochrome,
+        defectDebris(window, debrisLevel, clumping, fieldSeed, monochrome, chromaMin,
                      pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx,
                    opticsCtx);
 
     if (fibreLevel > 0.0)
-        defectFibres(window, fibreLevel, clumping, fieldSeed, monochrome,
+        defectFibres(window, fibreLevel, clumping, fieldSeed, monochrome, chromaMin,
                      pDstR, pDstG, pDstB, sizeX, sizeY, pitch, edgePx,
                    opticsCtx);
 

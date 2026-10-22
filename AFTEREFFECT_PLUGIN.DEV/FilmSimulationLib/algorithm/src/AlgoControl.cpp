@@ -517,6 +517,8 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     // 2026-10-13 (owner-approved): off, so a default render is unchanged to
     // the bit; effective only together with spectralTaking.
     controls.spectralUpsampling = SpectralUpsamplingDef;     // film_sim: spectral_upsampling = False
+    controls.fourthLayer        = FourthLayerDef;            // film_sim: fourth_layer = False
+    controls.aimExposure        = AimExposureDef;            // film_sim: aim_exposure = False
 
     // ----------------------------------------------------------------------
     //  Damage: OFF, with the working set still populated by getFilmDamageDefault().

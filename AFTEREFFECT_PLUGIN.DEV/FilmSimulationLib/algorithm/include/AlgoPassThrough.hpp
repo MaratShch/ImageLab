@@ -173,10 +173,15 @@ FORCE_INLINE bool AlgoPass07 (const film::FilmProfile& profile,
 }
 
 // ---- stage 08b: Algo_08_Sim.cpp inactive interimage or monochrome ---------
-FORCE_INLINE bool AlgoPass08b (const film::FilmProfile& profile) noexcept
+// 2026-10-21 (queue P96s): fourthLayerOn = the fourth-layer (CL) term will run
+// (control on, stock carries the layer and a strength, not reversal/mono); the
+// stage then runs even with an inactive interimage spec.
+FORCE_INLINE bool AlgoPass08b (const film::FilmProfile& profile,
+                               const bool               fourthLayerOn) noexcept
 {
     return (ALGO_FORWARD_PASS_THROUGH != 0)
-        && ((false == profile.interimage.active()) || profile.is_monochrome);
+        && (((false == profile.interimage.active()) && (false == fourthLayerOn))
+            || profile.is_monochrome);
 }
 
 // ---- stage 09: Algo_09_Sim.cpp neither long-range nor edge term -----------
