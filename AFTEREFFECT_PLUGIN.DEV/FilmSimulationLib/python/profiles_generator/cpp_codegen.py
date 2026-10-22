@@ -1636,6 +1636,19 @@ struct SpectralSensitivity {
     /// blue and green records, which is why no positional rule could find it
     /// and why it is separated by dash pattern instead.
     std::vector<double> log_s_c;
+    // -- schema v63 (2026-10-21, queue P96s) ---------------------------------
+    /// Calibrated strength of the fourth (CL) layer's inhibition of the RED
+    /// record, log E per density unit of the CL response (stage 8b, control
+    /// fourthLayer). 0 = no effect. The layer's presence status and evidence
+    /// are Python-only provenance (film_profiles.SpectralSensitivity).
+    double cl_red_inhibition;
+    // -- 2026-10-22 ----------------------------------------------------------
+    /// The CL peak's log sensitivity relative to the GREEN record's peak on the
+    /// same panel (negative = below green; 0 = not traced). Stage 8b offsets
+    /// the CL response by the layer's integrated speed relative to green
+    /// (AlgoSpectralFourthLayerRow), so a slower CL layer inhibits only where
+    /// it is exposed enough to develop.
+    double cl_peak_rel_green_log;
     std::string criterion;
     // [source: informational, not stored in C++ since 2026-10-08 -- emitted as a comment beside each profile]
 
@@ -1646,6 +1659,10 @@ struct SpectralSensitivity {
 
     /// True where the stock publishes the fourth colour record.
     bool hasFourthLayer() const { return !log_s_c.empty(); }
+
+    /// True where stage 8b can apply the fourth layer (curve + strength).
+    bool hasFourthLayerEffect() const
+    { return !log_s_c.empty() && cl_red_inhibition > 0.0; }
 };
 
 /// Where a profile's numbers come from (schema v2, DM-19). Machine-readable
@@ -2206,6 +2223,15 @@ struct FilmProfile {
     /// Per print stock, how that print emulsion sees THIS negative's dyes.
     /// Empty unless both spectra are measured. See PrintingMatrixEntry.
     std::vector<PrintingMatrixEntry> printing_matrices;
+    // -- schema v64 (2026-10-22, G-209-AIM), READ WITH aimExposure ON ------
+    /// With the aimExposure control on, the final curves are translated by
+    /// this many stops along log E (AlgoResolveAimExposure) so that metered
+    /// grey reads the maker's grey-card aim: the red curve's log E at the
+    /// midpoint of the aim for the stock's own EI, minus the metered log E
+    /// (log10 of the taking row sum), over log10(2). Generator-computed
+    /// (film_profiles.py, _AIM_EXPOSURE_SHIFT). 0 = no aim at the stock's own
+    /// EI (213 of 230 stocks).
+    double aim_exposure_shift_stops;
 
     bool isReversal() const { return kind == StockKind::Reversal; }
 };
@@ -2547,6 +2573,8 @@ def _spectral(sp) -> str:
         + f"{_dvec(sp.log_s_r)}, {_dvec(sp.log_s_g)}, "
         + f"{_dvec(sp.log_s_b)}, {_dvec(sp.log_s_pan)}, "
         + f"{_dvec(sp.log_s_c)}, "
+        + f"{_d(sp.cl_red_inhibition)}, "
+        + f"{_d(sp.cl_peak_rel_green_log)}, "
         + f'"{_escape(sp.criterion)}"'
         + " }"
     )
@@ -3582,7 +3610,8 @@ def _profile_block(p: FilmProfile) -> str:
             {_aim_density(p.aim_density)},
             {_base(p.base)},
             {_tolerance(p.tolerance)},
-            {_printing_matrices(p.printing_matrices)}
+            {_printing_matrices(p.printing_matrices)},
+            {_d(p.aim_exposure_shift_stops)}
         }},
 """
 

@@ -1289,6 +1289,128 @@ def spectral_taking_matrix(profile, scene_kelvin: float = 5500.0) -> np.ndarray 
     return (m / rows).astype(np.float32)
 
 
+def fourth_layer_sensitivity(profile) -> np.ndarray | None:
+    """The fourth (CL) layer's LINEAR sensitivity on ``spectral_grid()``, or None.
+
+    Same conversion as `layer_sensitivities` (log interpolation, zero outside
+    the measured range, behind the stock's taking filter when it has one),
+    applied to `spectral.log_s_c`. Twin: AlgoSpectralFourthLayerRow's fetch.
+    """
+    sp = profile.spectral
+    if not sp.log_s_c:
+        return None
+    grid = spectral_grid()
+    src_lam = (sp.lambda_start_nm
+               + sp.lambda_step_nm * np.arange(len(sp.log_s_c), dtype=np.float64))
+    interp = np.interp(grid, src_lam, np.asarray(sp.log_s_c, dtype=np.float64),
+                       left=-np.inf, right=-np.inf)
+    out = np.where(np.isfinite(interp), np.power(10.0, interp), 0.0)
+    tf = getattr(profile, "taking_filter", None)
+    if tf is not None and tf.renders:
+        out = out * taking_filter_transmission(
+            tf, grid, sp.lambda_start_nm, sp.lambda_step_nm)
+    return out
+
+
+def fourth_layer_active(profile, settings) -> bool:
+    """True when stage 8b applies the fourth layer (control on, data present)."""
+    return bool(settings.fourth_layer
+                and profile.spectral.log_s_c
+                and profile.spectral.cl_red_inhibition > 0.0
+                and not profile.is_monochrome
+                and not profile.is_reversal)
+
+
+def fourth_layer_row(profile, scene_kelvin: float = 5500.0) -> np.ndarray | None:
+    """Weights mixing the three record exposures into the CL layer's exposure.
+
+    w[p] = INTEGRAL S_CL(lambda) * P_p(lambda) * I(lambda, T) d lambda over the
+    same three primaries and blackbody illuminant `spectral_taking_matrix`
+    uses, normalised to sum 1 -- so a neutral gives E_CL equal to the record
+    exposures and the fourth layer's correction vanishes on every grey. Stage
+    8b forms E_CL = sum_p w[p] * 10**logE_p from the log exposures it is handed,
+    so everything upstream (balance, flare, halation, MTF) reaches the CL
+    exposure exactly as it reaches the records. Twin:
+    AlgoSpectralFourthLayerRow. None without the curve.
+    """
+    cl = fourth_layer_sensitivity(profile)
+    if cl is None:
+        return None
+    grid = spectral_grid()
+    illum = planck_spd(scene_kelvin)
+    prim = _srgb_primary_spd()
+    trap = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    w = np.array([trap(cl * prim[p] * illum, grid) for p in range(3)],
+                 dtype=np.float64)
+    tot = float(w.sum())
+    if not tot > 0.0:
+        return None
+    return (w / tot).astype(np.float32)
+
+
+def fourth_layer_offset(profile, scene_kelvin: float = 5500.0) -> float:
+    """The CL layer's integrated speed relative to the GREEN record, log10.
+
+    2026-10-22 (owner-approved, task 3): the stored `log_s_c` is peak-normalised,
+    and `spectral.cl_peak_rel_green_log` (traced, `fuji_cl_level.py`) puts its
+    peak back below green's. The offset is
+
+        log10( 10**L * INTEGRAL S_CL I  /  INTEGRAL S_G I )
+
+    under the scene illuminant (blackbody), so a CL layer that is ~0.9 log
+    slower than green responds ~0.9 log lower on the stand-in (green) curve.
+    0.0 when the level is not traced. float32 like the engines' AlgoType.
+    Twin: AlgoSpectralFourthLayerRow (offsetOut).
+    """
+    lvl = float(profile.spectral.cl_peak_rel_green_log)
+    if lvl == 0.0:
+        return 0.0
+    cl = fourth_layer_sensitivity(profile)
+    sens = layer_sensitivities(profile)
+    if cl is None or sens is None or sens.shape[0] != 3 or not scene_kelvin > 0.0:
+        return 0.0
+    grid = spectral_grid()
+    illum = planck_spd(scene_kelvin)
+    trap = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    ncl = float(trap(cl * illum, grid))
+    ng = float(trap(sens[1] * illum, grid))
+    if not (ncl > 0.0 and ng > 0.0):
+        return 0.0
+    return float(np.float32(lvl + np.log10(ncl / ng)))
+
+
+def fourth_layer_adjust(log_e, curves, row, strength, offset: float = 0.0):
+    """Stage 8b's CL term for the RED record: an (h, w) log-exposure offset.
+
+        logE_CL = log10(sum_p row[p] * 10**logE_p)
+        adj_R   = -strength * (D_G(logE_CL + o) - D_G(logE_R + o))
+
+    o = `fourth_layer_offset` (2026-10-22): the CL layer's speed relative to
+    green, so the stand-in curve is read where the slower layer actually sits.
+
+    D_G is the GREEN characteristic curve standing in for the CL layer's own
+    (none is published; the CL layer is green-cyan sensitive and forms no
+    image). Receiver-relative like the 2026-10-01f interimage reference: on any
+    neutral logE_CL = logE_R and the term is exactly zero. It depends on
+    exposure only, so it is formed once per frame and held fixed through the
+    interimage iterations. Twin: AlgoStage08b_Interimage (scalar, AVX2).
+    """
+    le = log_e.astype(np.float32)
+    e = (np.float32(row[0]) * np.power(np.float32(10.0), le[:, :, 0])
+         + np.float32(row[1]) * np.power(np.float32(10.0), le[:, :, 1])
+         + np.float32(row[2]) * np.power(np.float32(10.0), le[:, :, 2]))
+    le_cl = np.log10(np.maximum(e, np.float32(FOURTH_LAYER_E_FLOOR))).astype(np.float32)
+    off = np.float32(offset)
+    return (np.float32(-strength)
+            * (density(le_cl + off, curves[1]) - density(le[:, :, 0] + off, curves[1]))
+            ).astype(np.float32)
+
+
+#: Exposure floor inside the CL mixture (relative to mid grey) -- only a guard
+#: against log10(0); every real exposure is far above it.
+FOURTH_LAYER_E_FLOOR = 1.0e-12
+
+
 def spectral_upsampling_lut(profile, scene_kelvin: float = 5500.0):
     """The per-stock Jakob-Hanika response table for stage 2b, or None.
 
@@ -2876,6 +2998,30 @@ def resolve_film_age(profile, months: float):
     return profile
 
 
+def resolve_aim_exposure(profile, shift_stops: float):
+    """The stock's final curves translated so metered grey reads its aim.
+
+    2026-10-22 (owner-approved batch, G-209-AIM; control `aim_exposure`).
+    D'(x) = D(x + s), s = shift_stops * log10(2): toe_x and shoulder_x move by
+    -s, so log E = log10(taking row sum) -- where metered 18 % grey sits --
+    returns the maker's grey-card aim density. Everything that reads the
+    curves (the anchor solve, stage 8, the neutral references) sees one
+    consistent negative, so the print is re-timed as a lab would time an
+    aim-exposed negative. `profile` unchanged when shift_stops is 0 or when
+    any curve carries a measured table (a table is a measurement at its own
+    abscissae; none of the 17 aim stocks carries one).
+    Twin: AlgoResolveAimExposure (AlgorithmMain.cpp).
+    """
+    if shift_stops == 0.0:
+        return profile
+    cs = profile.curves.as_tuple()
+    if any(c.measured.log_h for c in cs):
+        return profile
+    s = float(shift_stops) * 0.30102999566398119521
+    return replace(profile, curves=RGBCurves(
+        *[replace(c, toe_x=c.toe_x - s, shoulder_x=c.shoulder_x - s) for c in cs]))
+
+
 def callier_density(dens, curves, callier_q, specular, is_monochrome):
     """Stage 12b: the density a SPECULAR reader sees. In place on `dens`.
 
@@ -2950,7 +3096,8 @@ def callier_density(dens, curves, callier_q, specular, is_monochrome):
     return dens
 
 
-def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal):
+def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal,
+                     cl_adj=None):
     """Stage 8b, the VERTICAL half of the DIR chemistry. In place on `dens`.
 
     ⚠ FACTORED OUT OF `simulate()` ON 2026-08-20 SO THERE IS ONE DEFINITION.
@@ -2968,6 +3115,11 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal):
 
     `curves_or_log_e` is the log-exposure array (named for the positional
     signature the C++ side mirrors: source density, source log exposure).
+
+    `cl_adj` (2026-10-21, queue P96s): the fourth layer's fixed log-exposure
+    offset for the RED record from `fourth_layer_adjust`, or None. Added to
+    red's correction on every iteration of the NEGATIVE branch (the fourth
+    layer is never applied to reversal stocks).
     """
     log_e = curves_or_log_e
     h, w = dens.shape[0], dens.shape[1]
@@ -3051,6 +3203,8 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal):
                     if j == c or m[c][j] == 0.0:
                         continue
                     adj += np.float32(m[c][j]) * (snap[j] - d_ref_px[c][j])
+                if c == 0 and cl_adj is not None:
+                    adj += cl_adj
                 dens[:, :, c] = density(log_e[:, :, c] + adj, curves[c])
             del snap
             continue
@@ -4554,6 +4708,19 @@ class RenderSettings:
     #   without spectral_taking, every render is bit-identical to before.
     #   Twin: AlgoControls::spectralUpsampling.
     spectral_upsampling: bool = False
+    # fourth_layer: OFF by default (owner-approved 2026-10-21, queue P96s).
+    #   Fuji's fourth (CL, cyan-minus-sensitive) layer: its exposure, from the
+    #   stock's own `log_s_c` curve, inhibits the RED record in stage 8b by the
+    #   stock's calibrated `spectral.cl_red_inhibition`. Inert on every stock
+    #   without both (only Fuji colour negatives carry them) and on reversal.
+    #   Twin: AlgoControls::fourthLayer.
+    fourth_layer: bool = False
+    # aim_exposure: OFF by default (owner-approved 2026-10-22, G-209-AIM).
+    #   Translates the stock's final curves by its `aim_exposure_shift_stops`
+    #   (as shipped) along log E (resolve_aim_exposure), so metered grey reads
+    #   the maker's grey-card aim density and the print is re-timed to it.
+    #   Inert on stocks without an aim (shift 0). Twin: AlgoControls::aimExposure.
+    aim_exposure: bool = False
     misreg_scale: float = 1.0       # multiplies the stock's own registration error
     print_grain: bool = True
     flare: float = -1.0             # <0 = use the stock's default_flare
@@ -4924,6 +5091,11 @@ def simulate(
     # solve, stage 8, the interimage re-evaluation, the grain amplitude, the
     # dupe chain -- sees one consistent curve set. A switch consulted inside
     # `density()` would let the solve and the render disagree.
+    # 2026-10-22 (G-209-AIM): the aim shift is read off the stock AS SHIPPED,
+    # before any resolver -- the twin of AlgorithmMain's profileAsShipped --
+    # and applied by resolve_aim_exposure after the last resolver.
+    _aim_stops = (float(profile.aim_exposure_shift_stops)
+                  if settings.aim_exposure else 0.0)
     if not settings.curve_measured:
         profile = replace(profile, curves=RGBCurves(
             *[_retune(c) for c in profile.curves.as_tuple()]))
@@ -4974,6 +5146,10 @@ def simulate(
         profile, getattr(settings, 'storage_years', 0.0),
         getattr(settings, 'storage_celsius', STORAGE_CELSIUS_DEF))
     profile = resolve_batch_position(profile, _batch_after)
+    # 2026-10-22 (G-209-AIM): aim exposure, AFTER every resolver -- the final
+    # curves translated so metered grey reads the maker's grey-card aim; the
+    # anchor solve and stage 8 then see one consistent, re-timed negative.
+    profile = resolve_aim_exposure(profile, _aim_stops)
 
     h, w = linear_rgb.shape[:2]
     negative_width_mm = FORMATS[film_format_key(settings.film_format)]
@@ -5373,10 +5549,23 @@ def simulate(
     # costs one full curve evaluation per channel, and this is the most
     # expensive stage in the chain, so the count is a profile field the
     # renderer honours rather than a hardcoded loop.
+    # 2026-10-21 (queue P96s): the FOURTH (CL) layer, opt-in (fourth_layer).
+    # Its exposure inhibits the red record by the stock's calibrated strength;
+    # the offset is formed once from the exposures and joins the red
+    # correction inside the interimage iteration.
+    cl_adj = None
+    if fourth_layer_active(profile, settings):
+        cl_row = fourth_layer_row(profile, settings.scene_kelvin)
+        if cl_row is not None:
+            cl_adj = fourth_layer_adjust(
+                log_e, curves, cl_row, profile.spectral.cl_red_inhibition,
+                fourth_layer_offset(profile, settings.scene_kelvin))
     if profile.interimage.active and not profile.is_monochrome:
         apply_interimage(dens, log_e, curves, profile.interimage,
-                         anchors, reversal)
-    del log_e
+                         anchors, reversal, cl_adj)
+    elif cl_adj is not None:
+        dens[:, :, 0] = density(log_e[:, :, 0] + cl_adj, curves[0])
+    del log_e, cl_adj
 
     # -- 9. DIR coupler inter-image effects ---------------------------------
     apply_dir_couplers(dens, profile.couplers, grid,
