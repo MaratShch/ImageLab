@@ -651,5 +651,14 @@
     <None Include="python\profiles_generator\scanner_reader_data.py">
       <Filter>python\profiles_generator</Filter>
     </None>
+    <None Include="python\profiles_generator\film_sim2.py">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\render.cmd">
+      <Filter>python\profiles_generator</Filter>
+    </None>
+    <None Include="python\profiles_generator\render2.cmd">
+      <Filter>python\profiles_generator</Filter>
+    </None>
   </ItemGroup>
 </Project>

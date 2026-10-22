@@ -338,8 +338,11 @@
     <None Include="python\profiles_generator\film_ids.lock" />
     <None Include="python\profiles_generator\film_profiles.py" />
     <None Include="python\profiles_generator\film_sim.py" />
+    <None Include="python\profiles_generator\film_sim2.py" />
     <None Include="python\profiles_generator\gen_control_enums.py" />
     <None Include="python\profiles_generator\README" />
+    <None Include="python\profiles_generator\render.cmd" />
+    <None Include="python\profiles_generator\render2.cmd" />
     <None Include="python\profiles_generator\scanner_reader_data.py" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
