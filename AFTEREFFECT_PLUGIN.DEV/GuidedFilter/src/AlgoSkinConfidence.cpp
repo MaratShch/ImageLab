@@ -4,8 +4,9 @@
 
 // =============================================================================
 // Skin confidence, region blend and confidence-map output (AVX2 + FMA3 path).
-// Same model, constants and processing order as the Scalar path
-// (Scalar/src/AlgoSkinConfidence.cpp); see the model description there and in
+// Same model, constants, skin / non-skin classification (skin <=> c >= 0.5)
+// and processing order as the Scalar path (Scalar/src/AlgoSkinConfidence.cpp);
+// see the model and classification description there and in
 // AlgoControls.hpp. Unaligned loads/stores only; every SIMD loop is followed by
 // a scalar loop for the remaining pixels. No AVX-512 instructions.
 // =============================================================================
@@ -24,6 +25,9 @@ namespace
 
     constexpr float kHalfAxisCb = 25.0f;          // (127 - 77) / 2
     constexpr float kHalfAxisCr = 20.0f;          // (173 - 133) / 2
+
+    // skin <=> c >= kSkinClassBoundary (c = 0.5 exactly at d = 1 for every softness)
+    constexpr float kSkinClassBoundary = 0.5f;
 }
 
 void math_Skin_Confidence
@@ -109,7 +113,7 @@ void math_Blend_Region
 ) noexcept
 {
     const int32_t totalPixels = width * height;
-    const __m256 vOne = _mm256_set1_ps(1.0f);
+    const __m256 vOne = _mm256_set1_ps(1.0f), vTwo = _mm256_set1_ps(2.0f), vZero = _mm256_setzero_ps();
     int32_t i = 0;
 
     if (FilterMode::Skin == filterMode)
@@ -119,13 +123,14 @@ void math_Blend_Region
             const __m256 c = _mm256_loadu_ps(conf + i);
             const __m256 q = _mm256_loadu_ps(dst + i);
             const __m256 I = _mm256_loadu_ps(src_I + i);
-            // c * q + (1 - c) * I
-            _mm256_storeu_ps(dst + i, _mm256_fmadd_ps(c, q, _mm256_mul_ps(_mm256_sub_ps(vOne, c), I)));
+            // w = max(2c - 1, 0): 0 for every non-skin pixel; w * q + (1 - w) * I
+            const __m256 w = _mm256_max_ps(_mm256_fmsub_ps(vTwo, c, vOne), vZero);
+            _mm256_storeu_ps(dst + i, _mm256_fmadd_ps(w, q, _mm256_mul_ps(_mm256_sub_ps(vOne, w), I)));
         }
         for (; i < totalPixels; ++i)
         {
-            const float c = conf[i];
-            dst[i] = (c * dst[i]) + ((1.0f - c) * src_I[i]);
+            const float w = std::max(0.0f, 2.0f * conf[i] - 1.0f);    // 0 for every non-skin pixel
+            dst[i] = (w * dst[i]) + ((1.0f - w) * src_I[i]);
         }
     }
     else if (FilterMode::Background == filterMode)
@@ -135,13 +140,14 @@ void math_Blend_Region
             const __m256 c = _mm256_loadu_ps(conf + i);
             const __m256 q = _mm256_loadu_ps(dst + i);
             const __m256 I = _mm256_loadu_ps(src_I + i);
-            // (1 - c) * q + c * I
-            _mm256_storeu_ps(dst + i, _mm256_fmadd_ps(_mm256_sub_ps(vOne, c), q, _mm256_mul_ps(c, I)));
+            // w = max(1 - 2c, 0): 0 for every skin pixel; w * q + (1 - w) * I
+            const __m256 w = _mm256_max_ps(_mm256_fnmadd_ps(vTwo, c, vOne), vZero);
+            _mm256_storeu_ps(dst + i, _mm256_fmadd_ps(w, q, _mm256_mul_ps(_mm256_sub_ps(vOne, w), I)));
         }
         for (; i < totalPixels; ++i)
         {
-            const float c = conf[i];
-            dst[i] = ((1.0f - c) * dst[i]) + (c * src_I[i]);
+            const float w = std::max(0.0f, 1.0f - 2.0f * conf[i]);    // 0 for every skin pixel
+            dst[i] = (w * dst[i]) + ((1.0f - w) * src_I[i]);
         }
     }
     // Entire_Image: dst already holds the filtered plane.
@@ -163,23 +169,23 @@ void math_Write_Confidence_Map
 {
     const int32_t totalPixels = width * height;
     const bool background = (FilterMode::Background == filterMode);
-    const __m256 vOne = _mm256_set1_ps(1.0f), vZero = _mm256_setzero_ps();
+    const __m256 vBoundary = _mm256_set1_ps(kSkinClassBoundary);
     int32_t i = 0;
 
     for (; i + 8 <= totalPixels; i += 8)
     {
-        // same weight as math_Blend_Region: the pixel is filtered when its weight is > 0
+        // same classification as math_Blend_Region: Skin shows c >= 0.5, Background the complement
         const __m256 c = _mm256_loadu_ps(conf + i);
-        const __m256 m = background ? _mm256_sub_ps(vOne, c) : c;
-        const __m256 included = _mm256_cmp_ps(m, vZero, _CMP_GT_OQ);   // all-ones where m > 0
+        const __m256 included = background ? _mm256_cmp_ps(c, vBoundary, _CMP_NGE_UQ)    // all-ones where !(c >= 0.5)
+                                           : _mm256_cmp_ps(c, vBoundary, _CMP_GE_OQ);     // all-ones where c >= 0.5
         _mm256_storeu_ps(out_Y + i, _mm256_and_ps(_mm256_loadu_ps(src_Y + i), included));
         _mm256_storeu_ps(out_U + i, _mm256_and_ps(_mm256_loadu_ps(src_U + i), included));
         _mm256_storeu_ps(out_V + i, _mm256_and_ps(_mm256_loadu_ps(src_V + i), included));
     }
     for (; i < totalPixels; ++i)
     {
-        const float m = background ? (1.0f - conf[i]) : conf[i];
-        const bool included = (m > 0.0f);
+        const bool skin = (conf[i] >= kSkinClassBoundary);
+        const bool included = (background ? !skin : skin);
         out_Y[i] = included ? src_Y[i] : 0.0f;
         out_U[i] = included ? src_U[i] : 0.0f;
         out_V[i] = included ? src_V[i] : 0.0f;

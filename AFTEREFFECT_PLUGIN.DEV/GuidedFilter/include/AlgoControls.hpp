@@ -6,7 +6,6 @@
 #include "GuidedFilterEnum.hpp"
 #include "AE_Effect.h"
 
-
 struct AlgoControls
 {
     // ------------------------------------------------------------------------
@@ -34,8 +33,9 @@ struct AlgoControls
     // Parameter: Filter Mode  (Render control: ListBox)
     // Description: Selects WHAT is processed.
     //              Entire_Image: the filtered image everywhere.
-    //              Skin:         filtered image blended in by the skin confidence c.
-    //              Background:   filtered image blended in by (1 - c).
+    //              Skin:         filtered image on skin pixels (c >= 0.5) only.
+    //              Background:   filtered image on non-skin pixels (c < 0.5) only;
+    //                            exact complement of Skin (same classification).
     // Range:       0 (Entire_Image), 1 (Skin), 2 (Background)
     // Default:     0 (Entire_Image)
     // ------------------------------------------------------------------------
@@ -44,8 +44,9 @@ struct AlgoControls
     // ------------------------------------------------------------------------
     // Parameter: Show Confidence Map  (Render control: Checkbox)
     // Description: Selects WHAT is shown. false: filtered image.
-    //              true: confidence map of the selected region (Skin: c,
-    //              Background: 1 - c) written as grey into the output image.
+    //              true: selection view of the selected region: original input
+    //              pixels where the mode filters (Skin: c >= 0.5, Background:
+    //              c < 0.5), black elsewhere.
     //              Ignored for Entire_Image (filtered image is always output).
     // Default:     false
     // ------------------------------------------------------------------------
@@ -69,6 +70,8 @@ struct AlgoControls
     //              border. With normalised distance d (d = 1 on the border):
     //              c = 1 for d <= 1 - S/2, c = 0 for d >= 1 + S/2, smoothstep
     //              in between (c = 0.5 at d = 1). S = 0 gives a binary mask.
+    //              The skin / non-skin boundary stays at d = 1 for every S;
+    //              S only feathers the filter strength inside each class.
     // Range:       0.0 to 1.0, step 0.05
     // Default:     0.25
     // ------------------------------------------------------------------------

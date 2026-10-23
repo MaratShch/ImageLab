@@ -67,9 +67,10 @@ void math_Skin_Confidence
 ) noexcept;
 
 // In-place region blend. On entry dst holds the filtered plane q.
-// Skin:       dst = c * q + (1 - c) * I
-// Background: dst = (1 - c) * q + c * I
-// Entire_Image: dst unchanged.
+// Classification (shared with math_Write_Confidence_Map): skin <=> c >= 0.5 (d <= 1).
+// Skin:       w = max(0, 2c - 1)   (0 for every non-skin pixel)
+// Background: w = max(0, 1 - 2c)   (0 for every skin pixel: exact complement of Skin)
+// dst = w * q + (1 - w) * I.  Entire_Image: dst unchanged.
 void math_Blend_Region
 (
     const float* src_I,
@@ -81,10 +82,11 @@ void math_Blend_Region
 ) noexcept;
 
 // Selection view ("Show Output" / confidence-map display) into the output planes.
-// Uses the same per-pixel filter weight as math_Blend_Region:
-//   w = c (Skin) or 1 - c (Background)
-//   w > 0  (pixel is filtered, fully or partly) -> out = src (original input pixel, unchanged)
-//   w == 0 (pixel is excluded from filtering)    -> out = 0   (black: Y = U = V = 0 -> RGB = 0)
+// Uses the same classification as math_Blend_Region (skin <=> c >= 0.5):
+//   Skin:       skin pixels     -> out = src (original input pixel, unchanged), others -> black
+//   Background: non-skin pixels -> out = src (original input pixel, unchanged), others -> black
+//   (black: Y = U = V = 0 -> RGB = 0). The two views are exact complements; a black pixel is
+//   one the selected mode leaves unfiltered (blend weight 0).
 // The source planes, the confidence plane and the filter itself are not modified.
 void math_Write_Confidence_Map
 (

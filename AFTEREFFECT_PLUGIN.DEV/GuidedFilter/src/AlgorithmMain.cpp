@@ -78,8 +78,8 @@ void Algorithm_Main
 
     if (algoCtrl.showConfidenceMap)
     {
-        // 3a. Output = selection view: original input pixels where the filter acts (blend weight > 0),
-        //     black where the pixel is excluded from filtering (the region blend is not needed).
+        // 3a. Output = selection view: original input pixels of the selected class (Skin: c >= 0.5,
+        //     Background: c < 0.5, same rule as the region blend), black elsewhere (no blend needed).
         math_Write_Confidence_Map(conf, memHandler.in_Y, memHandler.in_U, memHandler.in_V,
                                   memHandler.out_Y, memHandler.out_U, memHandler.out_V,
                                   sizeX, sizeY, algoCtrl.filterMode);
