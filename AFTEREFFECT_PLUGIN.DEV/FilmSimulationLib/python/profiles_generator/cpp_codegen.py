@@ -1793,6 +1793,13 @@ struct DevelopmentPoint {
     /// print contrast wants a lower negative gamma under a condenser, by the
     /// Callier factor `callier_q` already carries per stock.
     std::string print_geometry;
+    // -- schema v65 (2026-10-22c, owner decision), INERT ---------------------
+    /// Why this point is NOT the maker's recommendation for this film ("" =
+    /// it is): another generation, a community submission, a conflicting
+    /// label, a doubtful unit. AlgoDevelopmentGroup skips labelled points.
+    std::string evidence;
+    /// The procedure printed with the time (agitation, machine), as printed.
+    std::string procedure;
 };
 
 /// The whole published processing axis, not the single condition recorded in
@@ -2022,6 +2029,75 @@ struct DyeImpurity {
 };
 
 /// Complete film stock.
+// ---------------------------------------------------------------------------
+//  schema v65 (2026-10-22c, owner decision "add all requested fields into
+//  database and store these values"): carriers for what had no field, or was
+//  refused for what it IS. Every record names WHY it is beside the profile's
+//  own data in `evidence`. INERT: no stage of either engine reads them.
+// ---------------------------------------------------------------------------
+/// A traced curve that is not the profile's primary datum.
+struct ExtraCurve {
+    std::string label;
+    std::string kind;          ///< characteristic_curve, mtf, filter_density, ...
+    std::string x_unit;
+    std::string y_unit;
+    std::string conditions;
+    std::string evidence;      ///< vendor_trace_other_processing, superseded, ...
+    std::string edition;
+    std::vector<double> xs;    ///< as read
+    std::vector<double> ys;
+    // [source: informational, not stored in C++ -- emitted as a comment beside each profile]
+};
+
+/// A fitted characteristic curve that is not the stored one (six ToneCurve
+/// parameters on the axis `conditions` names).
+struct ExtraToneCurve {
+    std::string label;
+    std::string channel;       ///< "" (single curve), "r", "g", "b"
+    std::string conditions;
+    std::string evidence;
+    double dmin;
+    double gamma;
+    double toe_x;
+    double toe_k;
+    double shoulder_x;
+    double shoulder_k;
+    double fit_rms;
+    double gbar;
+    // [source: informational, not stored in C++ -- emitted as a comment beside each profile]
+};
+
+/// A printed filter factor, or an exposure index printed for exposure
+/// through a filter.
+struct FilterFactor {
+    std::string filter;
+    std::string equivalent;
+    std::string role;          ///< contrast, infrared, conversion, colour_compensating
+    std::string illuminant;
+    double factor;             ///< multiplier; 0 = printed as an EI
+    double factor_hi;          ///< top of a printed range; 0 = single value
+    int    exposure_index_through;   ///< 0 = printed as a factor
+    std::string as_printed;
+    std::string evidence;
+    std::string edition;
+    // [source: informational, not stored in C++ -- emitted as a comment beside each profile]
+};
+
+/// One printed datum with no dedicated field.
+struct ExtraFact {
+    std::string key;
+    std::string kind;
+    double value;              ///< 0 = absent
+    double lo;
+    double hi;
+    std::string unit;
+    std::string text;
+    std::string conditions;
+    std::string evidence;
+    std::string edition;
+    // [source: informational, not stored in C++ -- emitted as a comment beside each profile]
+};
+
 struct FilmProfile {
     std::string name;
     std::vector<std::string> aliases;  ///< catalogue numbers and common names
@@ -2232,6 +2308,11 @@ struct FilmProfile {
     /// (film_profiles.py, _AIM_EXPOSURE_SHIFT). 0 = no aim at the stock's own
     /// EI (213 of 230 stocks).
     double aim_exposure_shift_stops;
+    // -- schema v65 (2026-10-22c, owner decision), INERT ---------------------
+    std::vector<ExtraCurve>     extra_curves;
+    std::vector<ExtraToneCurve> extra_tone_curves;
+    std::vector<FilterFactor>   filter_factors;
+    std::vector<ExtraFact>      extra_facts;
 
     bool isReversal() const { return kind == StockKind::Reversal; }
 };
@@ -2688,7 +2769,8 @@ def engine_development_points(p) -> tuple:
     kind = key[0]
     out = tuple(
         q for q in pf.points
-        if ((q.gamma > 0.0) if kind == 0
+        if getattr(q, "evidence", "") in ("", "vendor")      # schema v65
+        and ((q.gamma > 0.0) if kind == 0
             else (not q.gamma > 0.0 and q.contrast_index > 0.0))
         and (q.developer, q.dilution, q.vessel, getattr(q, "edition", ""),
              float(q.celsius), getattr(q, "film_format", "")) == key[1:])
@@ -2728,6 +2810,31 @@ def engine_profile(p):
         pf, points=engine_development_points(p)))
 
 
+def _v65_vectors(p) -> str:
+    """schema v65: extra_curves, extra_tone_curves, filter_factors, extra_facts
+    (positional, in FilmProfile member order)."""
+    def vec(items):
+        return ("{ " + ", ".join(items) + " }") if items else "{}"
+    cur = [("{ " + f'"{_escape(c.label)}", "{_escape(c.kind)}", "{_escape(c.x_unit)}", '
+            + f'"{_escape(c.y_unit)}", "{_escape(c.conditions)}", "{_escape(c.evidence)}", '
+            + f'"{_escape(c.edition)}", {_dvec(c.xs)}, {_dvec(c.ys)}' + " }")
+           for c in p.extra_curves]
+    fit = [("{ " + f'"{_escape(t.label)}", "{_escape(t.channel)}", "{_escape(t.conditions)}", '
+            + f'"{_escape(t.evidence)}", {_d(t.dmin)}, {_d(t.gamma)}, {_d(t.toe_x)}, {_d(t.toe_k)}, '
+            + f'{_d(t.shoulder_x)}, {_d(t.shoulder_k)}, {_d(t.fit_rms)}, {_d(t.gbar)}' + " }")
+           for t in p.extra_tone_curves]
+    ffs = [("{ " + f'"{_escape(f.filter)}", "{_escape(f.equivalent)}", "{_escape(f.role)}", '
+            + f'"{_escape(f.illuminant)}", {_d(f.factor)}, {_d(f.factor_hi)}, '
+            + f'{int(f.exposure_index_through)}, "{_escape(f.as_printed)}", '
+            + f'"{_escape(f.evidence)}", "{_escape(f.edition)}"' + " }")
+           for f in p.filter_factors]
+    fac = [("{ " + f'"{_escape(x.key)}", "{_escape(x.kind)}", {_d(x.value)}, {_d(x.lo)}, '
+            + f'{_d(x.hi)}, "{_escape(x.unit)}", "{_escape(x.text)}", "{_escape(x.conditions)}", '
+            + f'"{_escape(x.evidence)}", "{_escape(x.edition)}"' + " }")
+           for x in p.extra_facts]
+    return ", ".join((vec(cur), vec(fit), vec(ffs), vec(fac)))
+
+
 def _processing_family(pf, points=None) -> str:
     """`points`: the development points to emit (default: all of them)."""
     gps = ", ".join(
@@ -2756,7 +2863,8 @@ def _processing_family(pf, points=None) -> str:
         + f"{_d(q.contrast_index)}, {_d(q.gamma)}, {q.exposure_index}, "
         + f'{_d(q.base_fog)}, "{_escape(q.vessel)}", '
         + f'"{_escape(q.edition)}", "{_escape(q.film_format)}", '
-        + f'"{_escape(q.print_geometry)}"'
+        + f'"{_escape(q.print_geometry)}", '
+        + f'"{_escape(getattr(q, "evidence", ""))}", "{_escape(getattr(q, "procedure", ""))}"'
         + " }"
         for q in src_points]
     pts = ", ".join(pt_list)
@@ -3611,7 +3719,8 @@ def _profile_block(p: FilmProfile) -> str:
             {_base(p.base)},
             {_tolerance(p.tolerance)},
             {_printing_matrices(p.printing_matrices)},
-            {_d(p.aim_exposure_shift_stops)}
+            {_d(p.aim_exposure_shift_stops)},
+            {_v65_vectors(p)}
         }},
 """
 

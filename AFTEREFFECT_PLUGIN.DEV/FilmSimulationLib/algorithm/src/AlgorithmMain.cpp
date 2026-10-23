@@ -1408,15 +1408,14 @@ void Algorithm_Main
     //     2026-10-21 (queue P96s): the Fuji fourth (CL) layer joins here as a
     //     red-record offset, -k (D_G(logE_CL) - D_G(logE_R)), with logE_CL mixed
     //     from the three exposures by the CL row (AlgoSpectralFourthLayerRow).
-    //     Control fourthLayer, default off; negatives only. Twin:
-    //     film_sim.simulate stage 8b (fourth_layer_*).
+    //     2026-10-22e (owner decision): ALWAYS ON, no control; negatives
+    //     only. Twin: film_sim.simulate stage 8b (fourth_layer_*).
     // -----------------------------------------------------------------------
     AlgoType clRow[3]   = { ALGO_ZERO, ALGO_ZERO, ALGO_ZERO };
     AlgoType clStrength = ALGO_ZERO;
     AlgoType clOffset   = ALGO_ZERO;   // 2026-10-22: CL speed vs green
 
-    if (algoCtrl.fourthLayer
-        && profile.spectral.hasFourthLayerEffect()
+    if (profile.spectral.hasFourthLayerEffect()
         && (false == profile.is_monochrome)
         && (false == profile.isReversal()))
     {

@@ -1312,10 +1312,13 @@ def fourth_layer_sensitivity(profile) -> np.ndarray | None:
     return out
 
 
-def fourth_layer_active(profile, settings) -> bool:
-    """True when stage 8b applies the fourth layer (control on, data present)."""
-    return bool(settings.fourth_layer
-                and profile.spectral.log_s_c
+def fourth_layer_active(profile, settings=None) -> bool:
+    """True when stage 8b applies the fourth layer (data present).
+
+    2026-10-22e (owner decision): ALWAYS ON, no control -- the layer is part of
+    the film. `settings` is accepted and ignored. Twin: AlgorithmMain.cpp.
+    """
+    return bool(profile.spectral.log_s_c
                 and profile.spectral.cl_red_inhibition > 0.0
                 and not profile.is_monochrome
                 and not profile.is_reversal)
@@ -2084,6 +2087,11 @@ def development_family_group(profile):
 
     groups: dict[tuple, list] = {}
     for q in fam.points:
+        # schema v65: a point LABELLED as not the maker's recommendation for
+        # this film (another generation, a community submission, a conflicting
+        # label, ...) is never part of a development axis.
+        if getattr(q, "evidence", "") not in ("", "vendor"):
+            continue
         if q.gamma > 0.0:
             kind, v = 0, float(q.gamma)
         elif q.contrast_index > 0.0:
@@ -2134,8 +2142,19 @@ def development_family_group(profile):
             groups = ed
     best_key = max(groups, key=lambda k: len(groups[k]))
     best = groups[best_key]
-    if sum(1 for v in groups.values() if len(v) == len(best)) > 1:
-        return None
+    ties = [k for k, v in groups.items() if len(v) == len(best)]
+    if len(ties) > 1:
+        # ⚠ 2026-10-22b (owner decision): A TIE IS BROKEN BY THE STORED
+        # PROCESSING TEMPERATURE, and only by it. The stored curve was made at
+        # `processing.celsius`, so the one tied group at that temperature is
+        # the axis it sits on (AVIPHOT PAN 200: 30 C machine vs 20 C rewind).
+        # No unique match -- still a refusal.
+        pc = float(getattr(profile.processing, "celsius", 0.0) or 0.0)
+        at = [k for k in ties if pc > 0.0 and k[5] == pc]
+        if len(at) != 1:
+            return None
+        best_key = at[0]
+        best = groups[best_key]
     return best_key, tuple(sorted(best))
 
 
@@ -2258,6 +2277,7 @@ def development_axis(profile):
     fog = sorted(
         (float(q.minutes), float(q.base_fog)) for q in fam.points
         if q.base_fog > 0.0
+        and getattr(q, "evidence", "") in ("", "vendor")      # schema v65
         and ((q.gamma > 0.0) if kind == 0
              else (not q.gamma > 0.0 and q.contrast_index > 0.0))
         and (q.developer, q.dilution, q.vessel, getattr(q, "edition", ""),
@@ -2353,6 +2373,8 @@ def development_ref_celsius(profile) -> float:
         return 0.0
     counts: dict[float, int] = {}
     for q in fam.points:
+        if getattr(q, "evidence", "") not in ("", "vendor"):   # schema v65
+            continue
         if q.celsius > 0.0:
             counts[q.celsius] = counts.get(q.celsius, 0) + 1
     if not counts:
@@ -4708,13 +4730,10 @@ class RenderSettings:
     #   without spectral_taking, every render is bit-identical to before.
     #   Twin: AlgoControls::spectralUpsampling.
     spectral_upsampling: bool = False
-    # fourth_layer: OFF by default (owner-approved 2026-10-21, queue P96s).
-    #   Fuji's fourth (CL, cyan-minus-sensitive) layer: its exposure, from the
-    #   stock's own `log_s_c` curve, inhibits the RED record in stage 8b by the
-    #   stock's calibrated `spectral.cl_red_inhibition`. Inert on every stock
-    #   without both (only Fuji colour negatives carry them) and on reversal.
-    #   Twin: AlgoControls::fourthLayer.
-    fourth_layer: bool = False
+    # fourth_layer: REMOVED 2026-10-22e (owner decision: always on, no
+    #   control). Fuji's fourth (CL) layer is applied in stage 8b on every stock
+    #   carrying `log_s_c` and `spectral.cl_red_inhibition` > 0 (colour
+    #   negatives only); see fourth_layer_active().
     # aim_exposure: OFF by default (owner-approved 2026-10-22, G-209-AIM).
     #   Translates the stock's final curves by its `aim_exposure_shift_stops`
     #   (as shipped) along log E (resolve_aim_exposure), so metered grey reads
@@ -5549,7 +5568,8 @@ def simulate(
     # costs one full curve evaluation per channel, and this is the most
     # expensive stage in the chain, so the count is a profile field the
     # renderer honours rather than a hardcoded loop.
-    # 2026-10-21 (queue P96s): the FOURTH (CL) layer, opt-in (fourth_layer).
+    # 2026-10-21 (queue P96s): the FOURTH (CL) layer; always on since
+    # 2026-10-22e (owner decision), where the stock carries it.
     # Its exposure inhibits the red record by the stock's calibrated strength;
     # the offset is formed once from the exposures and joins the red
     # correction inside the interimage iteration.

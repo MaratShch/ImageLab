@@ -75,9 +75,12 @@ couplers, halation, grain, scan and display are film_sim's own code.
 Each render prints which spectral parts ran and their numerical accuracy; the
 end of the run prints a summary.
 
-Dependencies: the 2026-10-22 generator folder (film_sim.py, film_profiles.py,
+Dependencies: the generator folder it ships in (film_sim.py, film_profiles.py,
 spectral_upsampling.py, spectral_upsampling_coeffs.py, iso_5_3_status.py,
-scanner_reader_data.py) and numpy -- nothing new.
+scanner_reader_data.py) and numpy -- nothing new. Part of the Python generator
+package since 2026-10-22b (owner request) as a RESEARCH renderer: it is not
+used by the build, the C++ engines or any gate, and film_sim.py's results do
+not depend on it.
 """
 from __future__ import annotations
 

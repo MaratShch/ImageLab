@@ -390,7 +390,6 @@ ReseauDef = True
 FilmDamageEnabledDef = False
 SpectralTakingDef = False
 SpectralUpsamplingDef = False
-FourthLayerDef = False
 AimExposureDef = False
 GrainTemporalIntegrationS = 0.2
 GrainTemporalMaxFrames = 8.0

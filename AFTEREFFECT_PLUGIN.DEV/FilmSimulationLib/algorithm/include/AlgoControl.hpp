@@ -1735,9 +1735,11 @@ struct AlgoControls
      *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
      *                    that carries no `tolerance` record -- the same rule
      *                    processVariant follows for an empty variant list.
-     *                    \warning THAT IS 211 OF 221 STOCKS -- the ten that
-     *                    DO carry a band are the nine Soviet TU films and the
-     *                    one GOST film. The host reads it per film from bit
+     *                    \warning THAT IS 219 OF 231 STOCKS -- the twelve it
+     *                    moves are the Soviet TU / GOST films whose documents
+     *                    print two-sided gamma or D-min bands (the GOST 24876
+     *                    Foto films and FN-64 print one-sided limits it does
+     *                    not move). The host reads it per film from bit
      *                    eCTRL_BIT_BATCH_POSITION of kFilmControlAvailability
      *                    (film_params_mask.hpp; the bit was missing until
      *                    2026-09-30), and batch_position_headers.py asserts
@@ -1813,7 +1815,7 @@ struct AlgoControls
      *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
      *                    that carries no time-gamma family -- same rule
      *                    processVariant already follows for an empty variant
-     *                    list. ⚠ THAT IS 175 OF 191 STOCKS TODAY. Showing a
+     *                    list. ⚠ THAT IS 187 OF 231 STOCKS TODAY. Showing a
      *                    live slider that cannot move a pixel is worse than
      *                    showing none, because the user then reads the absence
      *                    of change as a broken effect rather than as absent
@@ -2201,7 +2203,7 @@ struct AlgoControls
      *  2  TYPE           double
      *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
      *                    whose standard prints no ageing bound -- the rule
-     *                    storageYears follows. ⚠ THAT IS 209 OF 226 STOCKS:
+     *                    storageYears follows. ⚠ THAT IS 214 OF 231 STOCKS:
      *                    only the 17 Soviet ТУ / ГОСТ stocks carry one
      *                    (film_params_mask.hpp bit eCTRL_BIT_FILM_AGE_MONTHS).
      *  4  UNIT           months between manufacture and exposure (the age of
@@ -3170,50 +3172,13 @@ struct AlgoControls
      */
     bool spectralUpsampling;
 
-    // -- Fuji fourth (CL) layer (2026-10-21, owner-approved, queue P96s) ------
-
-    /**
-     *  1  NAME           fourthLayer
-     *  2  TYPE           bool
-     *  3  AE CONTROL     checkbox (greyed on stocks without the layer's data)
-     *  4  UNIT           none - boolean switch
-     *  5  MIN            false, by type
-     *  6  MAX            true, by type
-     *  7  DEFAULT        false  (FourthLayerDef; AlgoControl.cpp,
-     *                    getAlgoControlsDefault)
-     *  8  STEP           n/a
-     *  9  PURPOSE        Fuji's fourth colour layer (CL, cyan-minus-sensitive,
-     *                    peak ~516 nm): its exposure inhibits development of
-     *                    the RED record, imitating the negative lobe of the
-     *                    eye's red colour-matching function (Sasaki et al.
-     *                    1989). Stage 8b adds to red's corrected exposure
-     *                        -k * (D_G(logE_CL + o) - D_G(logE_R + o)),
-     *                    logE_CL = log10(sum_p w_p * 10^logE_p), w from the
-     *                    stock's log_s_c curve (AlgoSpectralFourthLayerRow),
-     *                    D_G the stock's green curve standing in for the CL
-     *                    layer's own, k = spectral.cl_red_inhibition, o the
-     *                    CL layer's speed offset from the stored peak level
-     *                    spectral.cl_peak_rel_green_log (2026-10-22):
-     *                    o = log10(10^L * int(S_CL I) / int(S_G I)).
-     * 10  OUTPUT EFFECT  Neutrals unchanged (logE_CL = logE_R on every grey).
-     *                    Blue-greens and cyans lose red density on the
-     *                    negative (cleaner cyan on the print); reds and
-     *                    oranges, which expose the CL layer less than a grey
-     *                    of the same red exposure, gain it (more saturated
-     *                    reds). Off: bit-identical.
-     * 11  STAGES         08b (row built once per frame in Algorithm_Main).
-     * 12  INTERACTIONS   Reads sceneKelvin (the row's blackbody). Inert on any
-     *                    stock without log_s_c AND cl_red_inhibition > 0, on
-     *                    monochrome and on reversal stocks. Strength measured
-     *                    on REALA only (provisional); see the database's
-     *                    ParamSource records for every other stock.
-     * 13  SCALAR/AVX2    Same law in both twins; row in the shared
-     *                    AlgoSpectralSensitivity.cpp (double, rounded once).
-     * 14  FULL/LITE      PENDING. Both.
-     *
-     *  Twin: film_sim.RenderSettings.fourth_layer.
-     */
-    bool fourthLayer;
+    // -- Fuji fourth (CL) layer: NO CONTROL (2026-10-22e, owner decision) ----
+    //  The member `bool fourthLayer` (2026-10-21) is REMOVED: the owner's
+    //  decision is that the fourth layer is part of the film, always on.
+    //  Stage 8b applies it on every stock that carries log_s_c and
+    //  cl_red_inhibition > 0 (Fuji colour negatives; not on monochrome or
+    //  reversal). Availability bit 56 stays RESERVED and is never set.
+    //  Twin: film_sim.fourth_layer_active(profile).
 
     // -- aim exposure (2026-10-22, owner-approved batch, G-209-AIM) -----------
 

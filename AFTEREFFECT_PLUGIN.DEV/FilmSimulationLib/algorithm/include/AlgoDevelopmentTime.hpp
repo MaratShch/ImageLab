@@ -126,8 +126,9 @@
 //    4. failing THAT (ProcessingSpec::developer empty, or a CI family with no
 //       match), ProcessingFamily::reference_developer, filtered by
 //       reference_dilution when that is set ("stock" == undiluted == "");
-//    5. then reference_edition, then the largest group, and a TIE IS A
-//       REFUSAL - two equally large groups are two different processes.
+//    5. then reference_edition, then the largest group; a TIE is broken by
+//       ProcessingSpec::celsius (2026-10-22b, owner decision) and is
+//       otherwise a REFUSAL - two equally large groups are two processes.
 //  film_sim.development_family is the reference; cpp_parity probes it.
 // ---------------------------------------------------------------------------
 inline void AlgoDevelopmentGroup
@@ -165,6 +166,11 @@ inline void AlgoDevelopmentGroup
     for (std::size_t i = 0u; i < pts.size(); ++i)
     {
         const film::DevelopmentPoint& q = pts[i];
+
+        // schema v65: a labelled point (evidence other than the maker's own
+        // recommendation) is never part of a development axis.
+        if (!q.evidence.empty() && (q.evidence != "vendor"))
+            continue;
 
         int    kind;
         double v;
@@ -364,7 +370,24 @@ inline void AlgoDevelopmentGroup
         }
     }
     if (1u != nBest)
-        return;                     // a tie is a refusal, see the note above
+    {
+        // 2026-10-22b (owner decision): a tie is broken by the stored
+        // processing temperature - the one tied group at processing.celsius
+        // is the axis the stored curve sits on. No unique match: refusal.
+        const double pc = p.processing.celsius;
+        std::size_t nAt = 0u;
+        for (std::size_t i = 0u; i < live.size(); ++i)
+        {
+            if ((groups[live[i]].size() == bestN) && (pc > 0.0)
+                && (cels[live[i]] == pc))
+            {
+                ++nAt;
+                pick = live[i];
+            }
+        }
+        if (1u != nAt)
+            return;                 // a tie is a refusal, see the note above
+    }
 
     out = groups[pick];
     sortByTime(out);

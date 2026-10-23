@@ -23,12 +23,12 @@
 #ifndef FILM_PROFILE_SERIAL_HPP
 #define FILM_PROFILE_SERIAL_HPP
 
-#define FILM_SERIAL_SCHEMA_VERSION 64
+#define FILM_SERIAL_SCHEMA_VERSION 65
 #define FILM_SERIAL_FORMAT_VERSION 1
 #define FILM_SERIAL_FIXED_SIZE 1368
-#define FILM_SERIAL_SECTION_COUNT 40
+#define FILM_SERIAL_SECTION_COUNT 46
 #define FILM_SERIAL_NAMED_STRING_COUNT 29
-#define FILM_SERIAL_MAX_SIZE 8168
+#define FILM_SERIAL_MAX_SIZE 17072
 
 // Sections, directory order: S(name, kind, element bytes)
 #define FILM_SERIAL_SECTIONS(S) \
@@ -58,7 +58,7 @@
     S(LayerStackOrder, IDX, 4) \
     S(ReciprocityTableCcFilters, IDX, 4) \
     S(NamedStrings, IDX, 4) \
-    S(ProcessingFamilyPoints, RECORDS, 72) \
+    S(ProcessingFamilyPoints, RECORDS, 80) \
     S(ProcessingFamilyLaws, RECORDS, 48) \
     S(ProcessingFamilyCapacity, RECORDS, 56) \
     S(ProcessingFamilyCapacity_Minutes, POOL, 8) \
@@ -71,6 +71,12 @@
     S(AimDensity, RECORDS, 48) \
     S(Tolerance, RECORDS, 200) \
     S(PrintingMatrices, RECORDS, 48) \
+    S(ExtraCurves, RECORDS, 48) \
+    S(ExtraCurves_Xs, POOL, 8) \
+    S(ExtraCurves_Ys, POOL, 8) \
+    S(ExtraToneCurves, RECORDS, 80) \
+    S(FilterFactors, RECORDS, 56) \
+    S(ExtraFacts, RECORDS, 56) \
     S(StringTable, STRINGS, 0) \
 
 // Fixed block: X(member path, kind, byte offset in the fixed block, element count)
@@ -378,9 +384,13 @@
     R(aim_density, film::AimDensity, AimDensity, FILM_SERIAL_REC_AimDensity) \
     R(tolerance, film::ToleranceSpec, Tolerance, FILM_SERIAL_REC_ToleranceSpec) \
     R(printing_matrices, film::PrintingMatrixEntry, PrintingMatrices, FILM_SERIAL_REC_PrintingMatrixEntry) \
+    R(extra_curves, film::ExtraCurve, ExtraCurves, FILM_SERIAL_REC_ExtraCurve) \
+    R(extra_tone_curves, film::ExtraToneCurve, ExtraToneCurves, FILM_SERIAL_REC_ExtraToneCurve) \
+    R(filter_factors, film::FilterFactor, FilterFactors, FILM_SERIAL_REC_FilterFactor) \
+    R(extra_facts, film::ExtraFact, ExtraFacts, FILM_SERIAL_REC_ExtraFact) \
 
 // Record film::DevelopmentPoint (processing_family.points)
-#define FILM_SERIAL_REC_DevelopmentPoint_SIZE 72
+#define FILM_SERIAL_REC_DevelopmentPoint_SIZE 80
 #define FILM_SERIAL_REC_DevelopmentPoint_FIXED(X) \
     X(minutes, F64, 0, 1) \
     X(celsius, F64, 8, 1) \
@@ -398,6 +408,8 @@
     X(edition, 60, STRING) \
     X(film_format, 64, STRING) \
     X(print_geometry, 68, STRING) \
+    X(evidence, 72, STRING) \
+    X(procedure, 76, STRING) \
 
 #define FILM_SERIAL_REC_DevelopmentPoint_VECTORS(X) \
 
@@ -651,6 +663,95 @@
 #define FILM_SERIAL_REC_PrintingMatrixEntry_VECTORS(X) \
 
 #define FILM_SERIAL_REC_PrintingMatrixEntry_MEAS(X) \
+
+// Record film::ExtraCurve (extra_curves)
+#define FILM_SERIAL_REC_ExtraCurve_SIZE 48
+#define FILM_SERIAL_REC_ExtraCurve_FIXED(X) \
+
+#define FILM_SERIAL_REC_ExtraCurve_ENUMS(X) \
+
+#define FILM_SERIAL_REC_ExtraCurve_STRINGS(X) \
+    X(label, 0, STRING) \
+    X(kind, 4, STRING) \
+    X(x_unit, 8, STRING) \
+    X(y_unit, 12, STRING) \
+    X(conditions, 16, STRING) \
+    X(evidence, 20, STRING) \
+    X(edition, 24, STRING) \
+
+#define FILM_SERIAL_REC_ExtraCurve_VECTORS(X) \
+    X(xs, F64, ExtraCurves_Xs, 28, 32) \
+    X(ys, F64, ExtraCurves_Ys, 36, 40) \
+
+#define FILM_SERIAL_REC_ExtraCurve_MEAS(X) \
+
+// Record film::ExtraToneCurve (extra_tone_curves)
+#define FILM_SERIAL_REC_ExtraToneCurve_SIZE 80
+#define FILM_SERIAL_REC_ExtraToneCurve_FIXED(X) \
+    X(dmin, F64, 0, 1) \
+    X(gamma, F64, 8, 1) \
+    X(toe_x, F64, 16, 1) \
+    X(toe_k, F64, 24, 1) \
+    X(shoulder_x, F64, 32, 1) \
+    X(shoulder_k, F64, 40, 1) \
+    X(fit_rms, F64, 48, 1) \
+    X(gbar, F64, 56, 1) \
+
+#define FILM_SERIAL_REC_ExtraToneCurve_ENUMS(X) \
+
+#define FILM_SERIAL_REC_ExtraToneCurve_STRINGS(X) \
+    X(label, 64, STRING) \
+    X(channel, 68, STRING) \
+    X(conditions, 72, STRING) \
+    X(evidence, 76, STRING) \
+
+#define FILM_SERIAL_REC_ExtraToneCurve_VECTORS(X) \
+
+#define FILM_SERIAL_REC_ExtraToneCurve_MEAS(X) \
+
+// Record film::FilterFactor (filter_factors)
+#define FILM_SERIAL_REC_FilterFactor_SIZE 56
+#define FILM_SERIAL_REC_FilterFactor_FIXED(X) \
+    X(factor, F64, 0, 1) \
+    X(factor_hi, F64, 8, 1) \
+    X(exposure_index_through, I32, 16, 1) \
+
+#define FILM_SERIAL_REC_FilterFactor_ENUMS(X) \
+
+#define FILM_SERIAL_REC_FilterFactor_STRINGS(X) \
+    X(filter, 24, STRING) \
+    X(equivalent, 28, STRING) \
+    X(role, 32, STRING) \
+    X(illuminant, 36, STRING) \
+    X(as_printed, 40, STRING) \
+    X(evidence, 44, STRING) \
+    X(edition, 48, STRING) \
+
+#define FILM_SERIAL_REC_FilterFactor_VECTORS(X) \
+
+#define FILM_SERIAL_REC_FilterFactor_MEAS(X) \
+
+// Record film::ExtraFact (extra_facts)
+#define FILM_SERIAL_REC_ExtraFact_SIZE 56
+#define FILM_SERIAL_REC_ExtraFact_FIXED(X) \
+    X(value, F64, 0, 1) \
+    X(lo, F64, 8, 1) \
+    X(hi, F64, 16, 1) \
+
+#define FILM_SERIAL_REC_ExtraFact_ENUMS(X) \
+
+#define FILM_SERIAL_REC_ExtraFact_STRINGS(X) \
+    X(key, 24, STRING) \
+    X(kind, 28, STRING) \
+    X(unit, 32, STRING) \
+    X(text, 36, STRING) \
+    X(conditions, 40, STRING) \
+    X(evidence, 44, STRING) \
+    X(edition, 48, STRING) \
+
+#define FILM_SERIAL_REC_ExtraFact_VECTORS(X) \
+
+#define FILM_SERIAL_REC_ExtraFact_MEAS(X) \
 
 namespace film { namespace serial { namespace off {
 constexpr unsigned kind = 0;

@@ -1092,8 +1092,9 @@ void AlgoStage08b_Interimage
     const film::InterimageSpec& iie = profile.interimage;
 
     // 2026-10-21 (queue P96s): the Fuji fourth (CL) layer. clStrength > 0 only
-    // when the fourthLayer control is on and the stock carries log_s_c and a
-    // calibrated cl_red_inhibition (AlgorithmMain.cpp); never on reversal.
+    // when the stock carries log_s_c and a calibrated cl_red_inhibition
+    // (AlgorithmMain.cpp; always on, no control since 2026-10-22e); never on
+    // reversal.
     // Twin: film_sim.fourth_layer_adjust / apply_interimage(cl_adj).
     const bool clOn  = (clStrength > ALGO_ZERO) && (false == profile.is_monochrome)
                     && (false == profile.isReversal());

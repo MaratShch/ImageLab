@@ -115,8 +115,8 @@ constexpr AlgoType ALGO_FOURTH_LAYER_TEN     = static_cast<AlgoType>(10.0);
 //                curve argument exactly as it did at stage 8
 //  clRow         2026-10-21 (queue P96s): the fourth (CL) layer's mixing row
 //                (AlgoSpectralFourthLayerRow), read only when clStrength > 0
-//  clStrength    the stock's cl_red_inhibition when the fourthLayer control is
-//                on and the stock carries the layer; 0 = no CL term
+//  clStrength    the stock's cl_red_inhibition when the stock carries the
+//                layer (always on since 2026-10-22e); 0 = no CL term
 //  clOffset      2026-10-22: the CL layer's speed relative to green, log10
 //                (AlgoSpectralFourthLayerRow offsetOut); 0 = not traced
 //

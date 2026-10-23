@@ -1879,7 +1879,9 @@ REALA_1989_FIG17: dict[str, tuple[float, ...]] = {
 #: stored coefficients are a class analogy, and scaling them is a render
 #: change that needs the owner (same shape as queue P85). Gate
 #: G-REALA-1989 re-measures it and fails if it drifts.
-REALA_1989_FIG17_MODEL_DG = -0.208
+#: ⚠ 2026-10-22c (owner decision): CORRECTED. a_gr scaled -0.3026 -> -0.5608
+#: (`_apply_owner_decisions_2026_10_22c`), and the replay now gives -0.365.
+REALA_1989_FIG17_MODEL_DG = -0.365
 
 #: Fig. 18 -- «H-D curve of REALA of gray exposure», log H (lux s) -3.4 to
 #: +0.4 in 0.2 steps, read on the de-skewed scan (0.7 deg). Mid-scale
@@ -3585,7 +3587,16 @@ _FUJI_CRYSTAL_ARCHIVE_VIEWING: dict[str, float | str] = {
 #     frame setup; G-209-AIM).
 #     The C++ struct and serialized layout change; every default render is
 #     bit-identical.
-SCHEMA_VERSION = 64
+#   v65 (2026-10-22c, owner decision "add all requested fields into database
+#     and store these values"): FilmProfile gains extra_curves (ExtraCurve),
+#     extra_tone_curves (ExtraToneCurve), filter_factors (FilterFactor) and
+#     extra_facts (ExtraFact); DevelopmentPoint gains evidence and procedure;
+#     the vessel vocabulary gains "dip and dunk", "automatic processor" and
+#     "rotary tank". All INERT and EMITTED into the C++ database and the
+#     serialized profile; every record is labelled by `evidence`
+#     (_V65_EVIDENCE). The development selector and the C++ emission skip
+#     labelled points, so every default render is bit-identical.
+SCHEMA_VERSION = 65
 
 
 # -- v43 (2026-09-18c, queues P12 / P39 / P13 / P40 / P41 / M1a): SIX ROWS
@@ -10070,6 +10081,15 @@ class DevelopmentPoint:
     #:
     #: ⚠ INERT. Nothing on the render path reads a DevelopmentPoint at all.
     edition: str = ""
+    # -- schema v65 (2026-10-22c, owner decision), INERT ---------------------
+    #: Why this point is NOT the maker's recommendation for this film, from
+    #: `_V65_EVIDENCE`; "" = it is (the maker's own table). Points with any
+    #: other value are never selected as a development axis
+    #: (`film_sim.development_family_group`) and never emitted as one.
+    evidence: str = ""
+    #: The procedure the source states with the time (agitation, machine), as
+    #: printed; "" = not stated.
+    procedure: str = ""
 
     def validate(self, label: str = "") -> None:
         if not self.developer:
@@ -10090,7 +10110,12 @@ class DevelopmentPoint:
                                "small tank, drum",
                                # 2026-10-22 (v64): a machine -- KODAK
                                # VERSAMAT, development time = path / speed
-                               "roller transport"):
+                               "roller transport",
+                               # 2026-10-22c (v65, owner decision): the
+                               # hanger machine, a generic processor, and the
+                               # rotary tank a community submission names
+                               "dip and dunk", "automatic processor",
+                               "rotary tank"):
             raise ValueError(
                 f"{label}: vessel {self.vessel!r} is not one of '', 'drum', "
                 f"'small tank, tray', 'tank', 'small tank', 'large tank', "
@@ -10098,6 +10123,8 @@ class DevelopmentPoint:
                 f"a sheet tabulates under its own caption, not free prose")
         if self.minutes <= 0.0:
             raise ValueError(f"{label}: development time must be > 0")
+        if self.evidence and self.evidence not in _V65_EVIDENCE:      # v65
+            raise ValueError(f"{label}: development point evidence {self.evidence!r}")
         # ⚠ RELAXED 2026-09-15b, AND THE OLD RULE'S REASONING WAS INCOMPLETE
         # RATHER THAN WRONG. It said "a time with no measured contrast says
         # nothing", which is true of a point that states ONE condition -- the
@@ -12884,6 +12911,189 @@ class MeasuredEndpoints:
                    "sovremennye_2004.py")
 
 
+# ---------------------------------------------------------------------------
+# schema v65 (2026-10-22c, OWNER DECISION): CARRIERS FOR WHAT HAD NO FIELD.
+#
+# Owner rule (2026-10-22): "data should be stored into database not into side
+# file". Everything the corpus had captured but kept only in a module registry
+# or a comment -- because no field existed, or because it was refused for what
+# it IS (another generation, another edition, a superseded source, a tertiary
+# summary, a community submission, a filter factor rather than a speed) -- now
+# has a carrier, and every record says what it is in `evidence`. All four are
+# INERT: no stage of any engine reads them, so no render changes; they are
+# emitted into the C++ database and the serialized profile (owner: "DB + C++
+# generated DB").
+# ---------------------------------------------------------------------------
+#: What a v65 record is, relative to the profile it sits on. Free of judgment
+#: words on purpose: each says WHY it is not the profile's primary datum.
+_V65_EVIDENCE = (
+    "vendor",                              # the maker's own document, this film
+    "vendor_trace", "vendor_vector",       # ... read as a raster / vector trace
+    "vendor_trace_of_stored_condition",    # the trace the stored curve was fitted to
+    "vendor_trace_other_processing",       # the maker's curve at ANOTHER processing
+    "vendor_vector_other_processing",
+    "vendor_vector_second_criterion",
+    "vendor_trace_uncaptioned",            # printed by the maker, no caption
+    "vendor_other_publication",            # the maker, another publication
+    "vendor_translated",                   # the maker's text through a translation
+    "vendor_overview",                     # the maker's range overview
+    "vendor_fit_other_processing",         # a fit to the maker's curve at another processing
+    "record_fit",                          # a per-record fit not adopted for the profile
+    "other_generation", "other_generation_or_condition", "other_generation_derived",
+    "other_edition", "other_edition_design", "edition_2002_only",
+    "superseded",                          # replaced by a later document of the maker
+    "tertiary",                            # a summary table citing others
+    "secondary",                           # a third party compiling the maker
+    "owner_t3",                            # supplied by the owner, tier 3
+    "class_band_contrast_unstated",        # a class band, test contrast not stated
+    "qualitative", "qualitative_class_statement",
+    "axis_inconsistent",                   # the printed axes disagree with each other
+    "conflicting_label",                   # printed, but contradicted by the same maker
+    "community_curated", "community_forum",  # user submissions the maker relays
+    "unit_doubt",                          # printed, unit cannot be right as printed
+)
+_V65_CURVE_KINDS = (
+    "characteristic_curve", "mtf", "filter_density", "spectral_sensitivity",
+    "spectral_density_profile", "interimage_receiver", "unknown_vs_time",
+    "resolving_power_vs_density", "selwyn_vs_aperture", "speed_vs_time",
+)
+_V65_FILTER_ROLES = ("contrast", "infrared", "conversion", "colour_compensating")
+
+
+@dataclass(frozen=True, slots=True)
+class ExtraCurve:
+    """A traced curve that is not the profile's primary datum (schema v65, INERT).
+
+    xs / ys as read; `kind` from `_V65_CURVE_KINDS`; `evidence` from
+    `_V65_EVIDENCE` says why it is beside, not inside, the profile's own
+    fields (another processing, another edition, superseded, ...).
+    """
+    label: str = ""
+    kind: str = ""
+    x_unit: str = ""
+    y_unit: str = ""
+    conditions: str = ""
+    evidence: str = ""
+    edition: str = ""
+    xs: tuple[float, ...] = ()
+    ys: tuple[float, ...] = ()
+    source: str = ""
+
+    def validate(self, label: str = "") -> None:
+        if not self.label:
+            raise ValueError(f"{label}: ExtraCurve needs a label")
+        if self.kind not in _V65_CURVE_KINDS:
+            raise ValueError(f"{label}: ExtraCurve {self.label!r}: kind {self.kind!r}")
+        if self.evidence not in _V65_EVIDENCE:
+            raise ValueError(f"{label}: ExtraCurve {self.label!r}: evidence {self.evidence!r}")
+        if len(self.xs) != len(self.ys) or len(self.xs) < 2:
+            raise ValueError(f"{label}: ExtraCurve {self.label!r}: xs / ys")
+        if not all(math.isfinite(v) for v in self.xs + self.ys):
+            raise ValueError(f"{label}: ExtraCurve {self.label!r}: non-finite value")
+        if not self.source:
+            raise ValueError(f"{label}: ExtraCurve {self.label!r} needs a source")
+
+
+@dataclass(frozen=True, slots=True)
+class ExtraToneCurve:
+    """A fitted characteristic curve that is not the stored one (schema v65, INERT).
+
+    The six ToneCurve parameters of a fit the corpus made to the maker's curve
+    at another processing, or to one record before the adopted one -- kept in
+    the registries until v65. `channel` "" = monochrome / the single curve.
+    """
+    label: str = ""
+    channel: str = ""
+    conditions: str = ""
+    evidence: str = ""
+    dmin: float = 0.0
+    gamma: float = 0.0
+    toe_x: float = 0.0
+    toe_k: float = 0.0
+    shoulder_x: float = 0.0
+    shoulder_k: float = 0.0
+    fit_rms: float = 0.0
+    gbar: float = 0.0
+    source: str = ""
+
+    def validate(self, label: str = "") -> None:
+        if not self.label or self.evidence not in _V65_EVIDENCE:
+            raise ValueError(f"{label}: ExtraToneCurve {self.label!r}: label / evidence")
+        if self.channel not in ("", "r", "g", "b"):
+            raise ValueError(f"{label}: ExtraToneCurve {self.label!r}: channel")
+        if not self.gamma > 0.0 or self.fit_rms < 0.0 or not self.source:
+            raise ValueError(f"{label}: ExtraToneCurve {self.label!r}: gamma / rms / source")
+
+
+@dataclass(frozen=True, slots=True)
+class FilterFactor:
+    """A printed filter factor or filtered exposure index (schema v65, INERT).
+
+    `factor` is the multiplier (0 when the source prints an EI instead),
+    `factor_hi` the top of a printed range (0 = single value),
+    `exposure_index_through` the EI printed for exposure through the filter
+    (0 = printed as a factor). `as_printed` keeps the wording.
+    """
+    filter: str = ""
+    equivalent: str = ""
+    role: str = ""
+    illuminant: str = ""
+    factor: float = 0.0
+    factor_hi: float = 0.0
+    exposure_index_through: int = 0
+    as_printed: str = ""
+    evidence: str = ""
+    edition: str = ""
+    source: str = ""
+
+    def validate(self, label: str = "") -> None:
+        if not self.filter or self.role not in _V65_FILTER_ROLES:
+            raise ValueError(f"{label}: FilterFactor {self.filter!r}: filter / role {self.role!r}")
+        if self.evidence not in _V65_EVIDENCE:
+            raise ValueError(f"{label}: FilterFactor {self.filter!r}: evidence {self.evidence!r}")
+        if self.factor < 0.0 or self.factor_hi < 0.0 or self.exposure_index_through < 0:
+            raise ValueError(f"{label}: FilterFactor {self.filter!r}: negative value")
+        if not (self.factor > 0.0 or self.exposure_index_through > 0 or self.as_printed):
+            raise ValueError(f"{label}: FilterFactor {self.filter!r}: carries nothing")
+        if self.factor_hi and self.factor_hi < self.factor:
+            raise ValueError(f"{label}: FilterFactor {self.filter!r}: factor_hi < factor")
+        if not self.source:
+            raise ValueError(f"{label}: FilterFactor {self.filter!r} needs a source")
+
+
+@dataclass(frozen=True, slots=True)
+class ExtraFact:
+    """One printed datum with no dedicated field (schema v65, INERT).
+
+    `key` names it (dotted, e.g. "chibisov_1988.resolving_power_R"), `kind`
+    groups it, `value` / `lo` / `hi` carry the number or range (0 = absent),
+    `text` the wording where the datum is words.
+    """
+    key: str = ""
+    kind: str = ""
+    value: float = 0.0
+    lo: float = 0.0
+    hi: float = 0.0
+    unit: str = ""
+    text: str = ""
+    conditions: str = ""
+    evidence: str = ""
+    edition: str = ""
+    source: str = ""
+
+    def validate(self, label: str = "") -> None:
+        if not self.key or not self.kind:
+            raise ValueError(f"{label}: ExtraFact needs key and kind")
+        if self.evidence not in _V65_EVIDENCE:
+            raise ValueError(f"{label}: ExtraFact {self.key!r}: evidence {self.evidence!r}")
+        if not (self.value or self.lo or self.hi or self.text):
+            raise ValueError(f"{label}: ExtraFact {self.key!r}: carries nothing")
+        if not all(math.isfinite(v) for v in (self.value, self.lo, self.hi)):
+            raise ValueError(f"{label}: ExtraFact {self.key!r}: non-finite value")
+        if not self.source:
+            raise ValueError(f"{label}: ExtraFact {self.key!r} needs a source")
+
+
 @dataclass(frozen=True, slots=True)
 class FilmProfile:
     """Complete description of one film stock.
@@ -13367,6 +13577,14 @@ class FilmProfile:
     #: (`_AIM_EXPOSURE_SHIFT`, re-derived by verify G-209-AIM-b). 0.0 = no
     #: grey-card aim at the stock's own EI -- the control is inert there.
     aim_exposure_shift_stops: float = 0.0
+    # -- schema v65 (2026-10-22c, owner decision), INERT, EMITTED -------------
+    #: What had no field, or was refused for what it is, each record labelled
+    #: by `evidence`. See `ExtraCurve` / `ExtraToneCurve` / `FilterFactor` /
+    #: `ExtraFact` and `_apply_schema_v65_records`.
+    extra_curves: tuple[ExtraCurve, ...] = ()
+    extra_tone_curves: tuple[ExtraToneCurve, ...] = ()
+    filter_factors: tuple[FilterFactor, ...] = ()
+    extra_facts: tuple[ExtraFact, ...] = ()
 
     def source_for(self, param: str) -> ParamSource | None:
         """Per-parameter provenance, or None if only the profile tier applies.
@@ -13389,6 +13607,9 @@ class FilmProfile:
 
     def validate(self) -> None:
         self.curves.validate(self.name)
+        for _x in (self.extra_curves + self.extra_tone_curves
+                   + self.filter_factors + self.extra_facts):      # schema v65
+            _x.validate(self.name)
         self.anti_halation.validate(self.name)
         self.spectral.validate(self.name)
         self.base.validate(self.name)          # schema v50
@@ -41284,9 +41505,19 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         features=Feature.NONE,
         base=BaseSpec(base_type="polyester",
                       source="Agfa-Gevaert N.V., «AVIPHOT PAN 20 PE0» technical data sheet, January 2009 (the PDF's metadata title reads «AVIPHOT PAN 80»; its text is the PAN 20 PE0 sheet throughout), p1: «transparent polyester base» (thin; no thickness printed)"),
+        # ✅ [T2] 2026-10-22b (Q7): 60 um from Agfa's own PE0 designation -- the PAN 80 (01/2009),
+        # PAN 200 (02/2004) and PAN 400S (01/2006) sheets all define PE0 as 0.06 mm polyester, and
+        # PAN 20 is sold only as PE0 («thinner base»). Replaces the 127 um acetate cine class default.
+        emulsion=EmulsionSpec(
+            base_um=60.0, base_material="polyester",
+            source="[T2] Agfa-Gevaert PE0 designation = 0.06 mm polyester (AVIPHOT PAN 80 sheet 01/2009 p1; PAN 200 02/2004 p1; PAN 400S 01/2006 p1); PAN 20 PE0 sheet 01/2009 p1: «thinner» polyester base"),
         # ✅ [T1] TRACED 2026-09-29 from p1 «Absolute spectral sensitivity», raster 681x420 px: reciprocal of
         # the exposure (mJ/m2) for diffuse D 1.0 above fog, Gevatone 66 / G 74 c / 30 C / 42 s. Trace 335-776
         # nm; absolute peak log S 1.69 at 730 nm; stored peak-normalised. Panchromatic to 750 nm as stated.
+        # ⚠ 2026-10-22b: THIS RASTER IS PIXEL-IDENTICAL to the spectral chart on the AVIPHOT PAN 80 sheet
+        # of the same month (mean |difference| 0.0 grey levels; the PAN 20 PDF's metadata title is
+        # «AVIPHOT PAN 80»). Either both films carry one sensitisation or Agfa reused the PAN 80 chart;
+        # the sheet does not say which. Kept as printed on PAN 20's own sheet (NotFound Q7).
         spectral=SpectralSensitivity(
             lambda_start_nm=340.0, lambda_step_nm=10.0,
             log_s_pan=(-1.49, -1.05, -0.80, -0.72, -0.62, -0.50, -0.44, -0.38, -0.37, -0.36, -0.36, -0.36, -0.37, -0.39, -0.43, -0.46, -0.45, -0.35, -0.29, -0.26, -0.25, -0.25, -0.23, -0.17, -0.11, -0.07, -0.07, -0.17, -0.28, -0.33, -0.33, -0.29, -0.24, -0.16, -0.13, -0.11, -0.07, -0.02, -0.01, 0.00, -0.14, -0.47, -0.88, -1.28),
@@ -41301,6 +41532,116 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
             ),
             reference_developer="G 74 c", reference_dilution="stock",
             source="Agfa-Gevaert N.V., «AVIPHOT PAN 20 PE0» technical data sheet, January 2009 (the PDF's metadata title reads «AVIPHOT PAN 80»; its text is the PAN 20 PE0 sheet throughout), p2 legend (fog / Gev / Gr at 20, 42, 70 s) and p1 speed line (16 / 22 / 27 EAFS). All three points are machine-processed in a Gevatone 66 continuous-tone processor, which is not a vessel in the DevelopmentPoint vocabulary (drum / tank / tray), so `vessel` stays empty and the machine is named here. ⚠ NO RATE LAW: contrast falls with time on this sheet, which no Mees-Sheppard law can fit",
+        ),
+    ),
+    # ---- 2026-10-22b, OWNER-APPROVED EXCEPTION TO THE NEW-FILM FREEZE (Q7 batch):
+    # Agfa-Gevaert's AVIPHOT PAN 80 aerial film, from its own sheet of 01/2009 ----
+    FilmProfile(
+        name="AGFA_AVIPHOT_PAN_80",
+        aliases=("aviphot pan 80", "aviphot pan 80 pe1", "aviphot pan 80 pe0", "aviphot 80"),
+        description=(
+            "[T1] Agfa-Gevaert panchromatic aerial negative to 750 nm with near-infrared extension "
+            "(absolute maximum 730 nm), polyester PE1 0.10 mm / PE0 0.06 mm; ASA 64-100 by developing "
+            "time, contrast controllable (G-bar 0.9-1.8 in G 74 c, 1.5-1.95 in G 74 c + AD 74) in the "
+            "Gevatone 66 at 30 C, 20-70 s; RMS 9.2 @ 50 um, 287 / 101 lp/mm (USAF 1951), MTF printed "
+            "(sheet 01/2009). Speed is an ASA exposure setting, EAFS-class, not ISO 6."
+        ),
+        era="2009 (Agfa-Gevaert sheet 01/2009; listed in the 2009 «Aerial Photography» overview)",
+        is_monochrome=True,
+        # ✅ [T1] «can be exposed as a 64 ASA to 100 ASA film» (p3); the exposure/time chart
+        # (p5) puts the G 74 c curve on the ASA-80 line at about 40 s (64 at 20 s, 100 at
+        # 70 s) -- the band holding the stored 40 s curve and the sheet's 42 s reference
+        # processing. The left (ISO A / EAFS) axis reads 82 at 42 s (AVIPHOT_PAN_80_2009
+        # C6); the ASA setting is what is stored, as on AVIPHOT PAN 200.
+        exposure_index=80,
+        balance_kelvin=5500,
+        # ✅ [T1] CURVE TRACED 2026-10-22b from p4 «Characteristic curves in Gevatone 66, G 74 c,
+        # 30 C» (raster 1421 x 875 px, 0.1 log It x 0.1 D grid), the 40 s curve (solid) -- the
+        # nearest drawn time to the 42 s at which the sheet measures MTF, granularity and
+        # resolving power. dmin HELD at the fog/time chart's 40 s value 0.0845 (p6). Fit rms
+        # 0.017 D, max 0.037 D over 29 points (log It -3.0 to -0.22), constrained so
+        # the below-toe dip of the tied softplus stays inside the monotonicity gate (-1e-5).
+        # x RE-ORIGINED by +0.3413 (AVIPHOT_PAN_80_CURVE_X_SHIFT) so fog + 0.10 sits at -1.60,
+        # as the three AVIPHOT siblings' are. All twelve curves (G 74 c and G 74 c + AD 74, 20-70 s) in AVIPHOT_PAN_80_2009.
+        curves=_mono(ToneCurve(0.0845, 1.4033, -1.5979, 0.1242, -0.0820, 0.4400)),
+        # ✅ [T1] rms 9.2 TRACED from p3 «Granularity / Graininess» (sigmaD x 1000, 50 um spot,
+        # Gevatone 66, G 74 c, 30 C, 42 s) at diffuse density 1.0; the curve runs 8.5 at D 0.18
+        # to 12.2 at D 1.93 on a log axis (lowest line printed «0», i.e. 1). STORED CONVERTED to
+        # the 48 um convention as the siblings: 9.23 x (50/48) = 9.62. Clump triple scaled from
+        # AVIPHOT PAN 400S by sqrt(9.62/14.58) [T3]; gain and fog grain as PAN 400S.
+        # ✅ [T1] AND THE SHAPE IS MEASURED: the same chart is a sigma(D) curve from D 0.18 to
+        # 1.93 (diffuse density as printed), stored as read (rms x 1000, 50 um) in
+        # sigma_shape_points -- the first B&W NEGATIVE in this database to carry its maker's own
+        # granularity-against-density curve (queue F2b). Anchors summarise it as ratios to the
+        # value at D 1.0 (0.92 at 0.18, 1.32 at 1.93): a gentle rise, not the legacy default's
+        # 0.51 toe.
+        grain=GrainSpec(9.62, 3.668, 3.668, 3.668, clump_gain=1.00, fog_grain=0.20,
+                        sigma_shape_toe=0.9242, sigma_shape_mid=1.0, sigma_shape_dmax=1.3196,
+                        sigma_shape_toe_at=0.179, sigma_shape_dmax_at=1.928,
+                        sigma_shape_measured=True,
+                        sigma_shape_points=((0.179, 8.53), (0.3, 8.57), (0.5, 8.63), (0.7, 8.82),
+                                            (0.9, 9.07), (1.0, 9.23), (1.1, 9.45), (1.3, 9.94),
+                                            (1.5, 10.65), (1.7, 11.37), (1.9, 12.11), (1.928, 12.18))),
+        # ✅ [T1] f50 63.2 lp/mm TRACED from p2 «Photographic Modulation Transfer Function», the
+        # solid curve (42 and 70 s drawn as one): 115.3 / 101.4 / 85.1 / 64.5 / 51.4 / 42.1 % at
+        # 2.5 / 10 / 20 / 40 / 60 / 90 lp/mm, log-log grid (ordinate 10-100 % as one decade of
+        # labelled lines). The 20 s dashed curve: f50 84.1. ⚠ The low-frequency lift (115 % at
+        # 2.5 lp/mm) is not solved into adjacency, as on PAN 400S and PAN 200. Resolving power
+        # [T1] 287 / 101 (USAF 1951) in _RESOLVING_POWER.
+        mtf=MTFSpec(63.2, 63.2, 63.2,
+                    resolving_power_lp_mm_lowc=101.0, resolving_power_lp_mm_highc=287.0),
+        # Authored fallback only: both engines integrate the traced curve.
+        spectral_weights=(0.27, 0.55, 0.18),
+        misregistration_um=0.0,
+        default_format="ff35",
+        features=Feature.NONE,
+        base=BaseSpec(base_type="polyester",
+                      source="Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009, p1: PE1 polyester base 0.10 mm (.004 in); PE0 0.06 mm (.0025 in), same emulsion and back layer"),
+        emulsion=EmulsionSpec(
+            base_um=100.0, base_material="polyester",
+            source="[T1] Agfa-Gevaert N.V., AVIPHOT PAN 80 sheet 01/2009, p1: PE1 0.10 mm polyester (PE0 0.06 mm)"),
+        # ✅ [T1] TRACED 2026-10-22b from p2 «Absolute spectral sensitivity» (raster 681 x 420 px;
+        # reciprocal of the exposure in mJ/m2 for diffuse D 1.0 above fog; Gevatone 66 / G 74 c /
+        # 30 C / 42 s): 337-777 nm, absolute peak log S 1.684 at 730 nm, stored relative to it on
+        # 340-780 nm / 10 nm (-4.00 beyond the drawn curve). ⚠ THIS RASTER IS PIXEL-IDENTICAL to
+        # the one on the AVIPHOT PAN 20 sheet (mean |difference| 0.0 grey levels): Agfa printed one
+        # spectral chart on both sheets. See AGFA_AVIPHOT_PAN_20.
+        spectral=SpectralSensitivity(
+            lambda_start_nm=340.0, lambda_step_nm=10.0,
+            log_s_pan=(-1.47, -1.06, -0.81, -0.72, -0.62, -0.50, -0.44, -0.38, -0.36, -0.36, -0.36, -0.36, -0.36, -0.39, -0.43, -0.46, -0.45, -0.36, -0.29, -0.26, -0.25, -0.24, -0.23, -0.17, -0.11, -0.07, -0.07, -0.15, -0.27, -0.32, -0.33, -0.29, -0.23, -0.16, -0.13, -0.10, -0.07, -0.02, -0.01, 0.00, -0.11, -0.45, -0.83, -1.23, -4.00),
+            criterion="log_reciprocal_mJ_m2_D1.0_above_fog",
+            source="Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009, p2 Absolute spectral sensitivity (raster trace 2026-10-22b)",
+        ),
+        # ✅ [T1] p5 / p6 machine charts (Gevatone 66, 30 C): average gradient (contrast_index, as
+        # the siblings), ISO A / EAFS (left axis of the exposure/time chart) and fog every 5 s,
+        # 20-70 s, for G 74 c and for G 74 c + AD 74.
+        processing_family=ProcessingFamily(
+            points=(
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.3333, celsius=30.0, contrast_index=0.900, exposure_index=75, base_fog=0.0915),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.4167, celsius=30.0, contrast_index=1.078, exposure_index=77, base_fog=0.0882),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.5000, celsius=30.0, contrast_index=1.245, exposure_index=79, base_fog=0.0865),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.5833, celsius=30.0, contrast_index=1.385, exposure_index=80, base_fog=0.0853),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.6667, celsius=30.0, contrast_index=1.500, exposure_index=82, base_fog=0.0845),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.7500, celsius=30.0, contrast_index=1.592, exposure_index=83, base_fog=0.0833),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.8333, celsius=30.0, contrast_index=1.664, exposure_index=84, base_fog=0.0830),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=0.9167, celsius=30.0, contrast_index=1.719, exposure_index=85, base_fog=0.0824),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=1.0000, celsius=30.0, contrast_index=1.756, exposure_index=86, base_fog=0.0820),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=1.0833, celsius=30.0, contrast_index=1.782, exposure_index=87, base_fog=0.0820),
+                DevelopmentPoint(developer="G 74 c", dilution="stock", minutes=1.1667, celsius=30.0, contrast_index=1.797, exposure_index=88, base_fog=0.0820),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.3333, celsius=30.0, contrast_index=1.500, exposure_index=86, base_fog=0.0915),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.4167, celsius=30.0, contrast_index=1.682, exposure_index=88, base_fog=0.0944),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.5000, celsius=30.0, contrast_index=1.815, exposure_index=90, base_fog=0.0984),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.5833, celsius=30.0, contrast_index=1.877, exposure_index=92, base_fog=0.1039),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.6667, celsius=30.0, contrast_index=1.904, exposure_index=93, base_fog=0.1112),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.7500, celsius=30.0, contrast_index=1.933, exposure_index=94, base_fog=0.1210),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.8333, celsius=30.0, contrast_index=1.948, exposure_index=95, base_fog=0.1332),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=0.9167, celsius=30.0, contrast_index=1.951, exposure_index=95, base_fog=0.1471),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=1.0000, celsius=30.0, contrast_index=1.949, exposure_index=95, base_fog=0.1619),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=1.0833, celsius=30.0, contrast_index=1.946, exposure_index=95, base_fog=0.1761),
+                DevelopmentPoint(developer="G 74 c + AD 74", dilution="stock", minutes=1.1667, celsius=30.0, contrast_index=1.945, exposure_index=95, base_fog=0.1915),
+            ),
+            reference_developer="G 74 c", reference_dilution="stock",
+            source="Agfa-Gevaert N.V., AVIPHOT PAN 80 sheet 01/2009, p5 (exposure/time: ISO A / EAFS), p6 (average gradient/time, fog/time); Gevatone 66, 30 C; raster traces 2026-10-22b",
         ),
     ),
     # ---- 2026-10-07, owner request: Agfa-Gevaert's AVIPHOT PAN 400S PE1 aerial film ----
@@ -41426,7 +41767,19 @@ mtf=MTFSpec(42.2, 48.0, 55.3, adjacency=0.11, adjacency_um=17.0),
         # siblings: 19.1 x (50/48) = 19.90. ⚠ Measured at gamma 1.20, not at
         # the stored 40 s curve. Clump triple scaled from AVIPHOT PAN 400S by
         # sqrt(19.90/14.58) [T3]; gain and fog grain as PAN 400S.
-        grain=GrainSpec(19.90, 5.276, 5.276, 5.276, clump_gain=1.00, fog_grain=0.20),
+        # ✅ [T1] 2026-10-22b (owner rule: captured data goes into its field):
+        # the same p3 chart IS a sigma(D) curve, D 0.15-1.50, stored as read
+        # (rms x 1000, 50 um) in sigma_shape_points; anchors are its ratios to
+        # the value at D 1.0 (0.68 at 0.15, 1.17 at 1.50). ⚠ Measured at gamma
+        # 1.20 (about 30 s), the sheet's only series; the stored curve is 40 s.
+        grain=GrainSpec(19.90, 5.276, 5.276, 5.276, clump_gain=1.00, fog_grain=0.20,
+                        sigma_shape_toe=0.6838, sigma_shape_mid=1.0, sigma_shape_dmax=1.1738,
+                        sigma_shape_toe_at=0.15, sigma_shape_dmax_at=1.5,
+                        sigma_shape_measured=True,
+                        sigma_shape_points=((0.15, 13.06), (0.2, 13.45), (0.3, 14.14), (0.4, 14.93),
+                                            (0.5, 15.79), (0.6, 16.57), (0.7, 17.5), (0.8, 18.42),
+                                            (0.9, 18.8), (1.0, 19.1), (1.1, 19.57), (1.2, 20.3),
+                                            (1.3, 21.12), (1.4, 21.78), (1.5, 22.42))),
         # ✅ [T1] f50 68.6 lp/mm TRACED from p3 «Photographic MTF», the 40 s
         # (gamma 1.5) curve: 112.8 / 105.1 / 90.8 / 67.3 / 53.9 / 41.2 % at
         # 3 / 10 / 20 / 40 / 60 / 100 lp/mm. The log ordinate prints only
@@ -45570,6 +45923,7 @@ _PROVENANCE_SOURCES: dict[str, tuple[str, ...]] = {
         "agfamotionpictur00ckin): Scheiner 23 = Weston 24",
     ),
     "AGFA_AVIPHOT_PAN_20": ("Agfa-Gevaert N.V., «AVIPHOT PAN 20 PE0» technical data sheet, January 2009",),
+    "AGFA_AVIPHOT_PAN_80": ("Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.): base, spectral sensitivity, MTF, resolving power, granularity, filter factors, characteristic curves in G 74 c and G 74 c + AD 74, exposure / average gradient / fog against developing time", "Agfa-Gevaert N.V., «Aerial Photography -- Product Overview», 2009 (NGJWS GB 00200901): use, processing and average-gradient range",),
     "AGFA_AVIPHOT_PAN_400S": ("Agfa-Gevaert N.V., «AVIPHOT PAN 400S PE1/PE0» technical data sheet, January 2006",),
     "AGFA_AVIPHOT_PAN_200": ("Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.): film type, base, spectral sensitivity, resolving power, granularity, MTF, filter factors, machine and rewind processing charts", "W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», Int. Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43: Table 1, Fig. 3, Fig. 5b, Fig. 6b, Table 2 (film type B = AVIPHOT Pan 200)",),
     # 2026-09-29: the AF3-207U stocks.
@@ -64126,6 +64480,7 @@ _RESOLVING_POWER: dict[str, tuple[float, float]] = {
     "KONICA_CHROME_R100": (50.0, 125.0),
     "AGFA_AVIPHOT_PAN_400S": (40.3, 161.0), # Agfa 01/2006 p3, USAF 1951, TOC 1.6:1 / 1000:1
     "AGFA_AVIPHOT_PAN_200": (51.0, 181.0),  # Agfa sheet 02/2004 p2, ANSI PH 2.33, TOC 1.6:1 / 1000:1 (Bahnmüller 1992 Table 2: 50 / 130)
+    "AGFA_AVIPHOT_PAN_80": (101.0, 287.0),  # Agfa sheet 01/2009 p3, USAF 1951, TOC 1.6:1 / 1000:1, G 74 c 30 C 42 s
     "ROLLEI_SUPERPAN_200": (0.0, 180.0),   # R210701 p2 «Resolving power = 180 lp/mm», contrast not stated
     "ROLLEI_R3": (45.0, 100.0),        # 100 @ EI 400; sheet: up to 300 @ EI 25
     "ROLLEI_INFRARED_400": (55.0, 160.0),  # 160 high-contrast printed; low T3
@@ -64807,6 +65162,10 @@ _PROCESSING: dict[str, ProcessingSpec] = {
     # the profile stores (ASA 200 band 35-55 s).
     "AGFA_AVIPHOT_PAN_200": ProcessingSpec(developer="G 74 c", dilution="stock", minutes=0.6667, celsius=30.0,
                                            agitation="Gevatone 66 continuous-tone processor"),
+    # 2026-10-22b: Agfa AVIPHOT PAN 80 sheet 01/2009 -- the 40 s G 74 c curve the
+    # profile stores (ASA-80 point of the exposure/time chart).
+    "AGFA_AVIPHOT_PAN_80": ProcessingSpec(developer="G 74 c", dilution="stock", minutes=0.6667, celsius=30.0,
+                                          agitation="Gevatone 66 continuous-tone processor"),
     # 2026-10-07, ROLLEI review: the development the STORED curve was drawn /
     # measured at, so curve and processing describe one condition.
     # PAN 25: sheet p2 «Entwicklung Kodak D 76 ... 10 min bei 21°C» (dilution
@@ -65527,6 +65886,8 @@ _DENSITY_METRIC_OVERRIDES: dict[str, tuple[str, str]] = {
 _SPEED_CRITERION_OVERRIDES: dict[str, tuple[str, str]] = {
     "AGFA_AVIPHOT_PAN_200": ("manufacturer_ei",
         "Product name «AVIPHOT Pan 200» (Bahnmüller 1992, Agfa-Gevaert); the paper prints NO speed. In this family the number tracks the EAFS at the reference processing (PAN 400S 400 EAFS, PAN 20 22 EAFS at 42 s), so the index is EAFS-class and NOT an ISO 6 speed -- [T3]"),
+    "AGFA_AVIPHOT_PAN_80": ("manufacturer_ei",
+        "Agfa-Gevaert N.V., AVIPHOT PAN 80 sheet 01/2009, p3: «can be exposed as a 64 ASA to 100 ASA film»; p5 exposure/time chart: ASA exposure setting 64 / 80 / 100 at about 20 / 40 / 70 s in G 74 c (ISO A / EAFS 75 / 82 / 88 on its left axis) -- an aerial exposure setting, NOT an ISO 6 speed; exposure_index holds the ASA 80 of the stored 40 s curve"),
     "AGFA_AVIPHOT_PAN_400S": ("manufacturer_ei",
         "Agfa-Gevaert N.V., AVIPHOT PAN 400S PE1/PE0 sheet 01/2006, p3-4: «can be exposed as a 200 EAFS to 500 EAFS film» and «Speed in EAFS 200 / 400 / 500» at 20 / 42 / 70 s (G 74 c, 30 C) -- an Effective Aerial Film Speed, NOT an ISO 6 speed; exposure_index holds the 42 s value (400)"),
     "AGFA_AVIPHOT_PAN_20": ("manufacturer_ei",
@@ -67186,15 +67547,19 @@ _RECIPROCITY_TABLES: dict[str, ReciprocityTable] = {
         source="Fujifilm, «FUJICHROME PROVIA 100F Professional [RDP III] -- Data Sheet», ref. AF3-036E, 6 pages, held in the corpus, read 2026-09-24: 'seconds or longer, reciprocity-failure related color balance and exposure compensations are required', with the table Exposure time 1/4000-128 sec = no filter, no correction; 4 min = CC filter 2.5G, +1/3 stop; 8 min = Not Recommended. The footnote states 'Exposure correction values include filter exposure factors. These values are added to unfiltered exposure meter readings.' The 128-second no-correction window is unusually long and is the film's own headline claim rather than a rounding: the same sheet advertises 'Excellent Long-exposure Suitability'. WARNING -- ALSO ON DISK ALREADY. RECIPROCITY_MISSING listed this stock as 'AF3-036E named in the profile, not held'; the same bookkeeping error as PRO 400H, found the same day.",
     ),
     "AGFA_VISTA_PLUS_200": ReciprocityTable(
-        times_s=(1.0e-4, 10.0),
-        stops_correction=(0.0, 0.0),
-        source="AgfaPhoto «Technical Data Sheet AP-F», Stand 07/2007, page 3, 'Long and short-term effects', read 2026-09-24: 'The reciprocity effect of AgfaPhoto films is excellent. If the exposure time is within 1/10 000th and 10 second, the colours and speed remain the same. However if the exposure is any longer or shorter, then it may be necessary to make exposure or colour adjustments.' WARNING -- ONSET ONLY, AND IT REPLACES SOMETHING WORSE THAN AN ESTIMATE. This stock was running the class default p = 1.000, which is not a weak guess but reciprocity failure switched OFF ENTIRELY: a film that obeys the reciprocity law perfectly, which no emulsion does. A stated 10-second onset is a real bound where there was previously no effect at all. The sheet prints no correction ladder past 10 s, so the Schwarzschild exponent beyond the onset remains the class estimate and nothing past the endpoint is extrapolated. The sentence says 'AgfaPhoto films' as a range statement rather than naming one stock, so it is stored for the Vista films page 5 documents and for no others.",
+        times_s=(1.0/4000.0, 2.0, 4.0, 16.0, 64.0),
+        stops_correction=(0.0, 0.0, 0.3333, 0.6667, 1.0),
+        cc_filters=('', '', '', '', ''),
+        source="AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 (Lupus Imaging & Media; file of 12 Nov 2009), section 6 «Long Exposure Compensation» (p2 of the combined Vista plus 200 / 400 sheet), read 2026-10-22b: 'No exposure or color balance compensation is required for exposures within a 1/4000 to 2 second shutter speed range. However, for exposures of 4 seconds or longer, provide the compensations indicated below.' Exposure time 1/4000 to 2 s: unnecessary; 4 s: +1/3; 16 s: +2/3; 64 s: +1 (increase in lens opening). No colour correction printed. REPLACES the 2026-09-24 onset-only record from the generic AgfaPhoto «Technical Data Sheet AP-F» 07/2007 p3 ('within 1/10 000th and 10 second ... the colours and speed remain the same', a range statement for 'AgfaPhoto films'): this film's own sheet wins, and it puts the onset at 2-4 s, not 10 s. The ladder is the one FUJICOLOR SUPERIA's sheets print (2 / 4 / 16 / 64 s, 0 / 1/3 / 2/3 / 1), one more Fuji-template tell."
     ),
+
     "AGFA_VISTA_PLUS_400": ReciprocityTable(
-        times_s=(1.0e-4, 10.0),
-        stops_correction=(0.0, 0.0),
-        source="AgfaPhoto «Technical Data Sheet AP-F», Stand 07/2007, page 3, 'Long and short-term effects', read 2026-09-24: 'The reciprocity effect of AgfaPhoto films is excellent. If the exposure time is within 1/10 000th and 10 second, the colours and speed remain the same. However if the exposure is any longer or shorter, then it may be necessary to make exposure or colour adjustments.' WARNING -- ONSET ONLY, AND IT REPLACES SOMETHING WORSE THAN AN ESTIMATE. This stock was running the class default p = 1.000, which is not a weak guess but reciprocity failure switched OFF ENTIRELY: a film that obeys the reciprocity law perfectly, which no emulsion does. A stated 10-second onset is a real bound where there was previously no effect at all. The sheet prints no correction ladder past 10 s, so the Schwarzschild exponent beyond the onset remains the class estimate and nothing past the endpoint is extrapolated. The sentence says 'AgfaPhoto films' as a range statement rather than naming one stock, so it is stored for the Vista films page 5 documents and for no others.",
+        times_s=(1.0/4000.0, 2.0, 4.0, 16.0, 64.0),
+        stops_correction=(0.0, 0.0, 0.3333, 0.6667, 1.0),
+        cc_filters=('', '', '', '', ''),
+        source="AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 400 (Lupus Imaging & Media; file of 12 Nov 2009), section 6 «Long Exposure Compensation» (p6 of the combined Vista plus 200 / 400 sheet), read 2026-10-22b: 'No exposure or color balance compensation is required for exposures within a 1/4000 to 2 second shutter speed range. However, for exposures of 4 seconds or longer, provide the compensations indicated below.' Exposure time 1/4000 to 2 s: unnecessary; 4 s: +1/3; 16 s: +2/3; 64 s: +1 (increase in lens opening). No colour correction printed. REPLACES the 2026-09-24 onset-only record from the generic AgfaPhoto «Technical Data Sheet AP-F» 07/2007 p3 ('within 1/10 000th and 10 second ... the colours and speed remain the same', a range statement for 'AgfaPhoto films'): this film's own sheet wins, and it puts the onset at 2-4 s, not 10 s. The ladder is the one FUJICOLOR SUPERIA's sheets print (2 / 4 / 16 / 64 s, 0 / 1/3 / 2/3 / 1), one more Fuji-template tell."
     ),
+
     "KODAK_EKTAPRESS_PJ100": ReciprocityTable(
         times_s=(1.0e-4, 10.0),
         stops_correction=(0.0, 0.0),
@@ -67651,26 +68016,26 @@ _RECIPROCITY_TABLES: dict[str, ReciprocityTable] = {
     "KODAK_TRI_X_400TX": ReciprocityTable(
         times_s=(0.00001, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
         stops_correction=(1.0, 0.5, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
-        development_correction_pct=(0.0, 0.0, 0.0, 0.0, 0.0,
+        development_correction_pct=(20.0, 15.0, 10.0, 0.0, 0.0,
                                     -10.0, -20.0, -30.0),
         source=("Eastman Kodak Company, «KODAK PROFESSIONAL TRI-X 320 and 400 "
                 "Films», publication F-4017, May 2007, p2 'Exposure "
                 "Adjustments for Long and Short Exposures': 1/100,000 +1 stop, "
                 "1/10,000 +1/2, 1/1,000 to 1/10 none, 1 s +1 stop (adjusted 2 "
                 "s), 10 s +2 stops (50 s), 100 s +3 stops (1200 s); "
-                "development -10 / -20 / -30 % on the three long cells. "
-                "⚠ THE SHEET ALSO PRINTS +20 / +15 / +10 % DEVELOPMENT ON THE "
-                "THREE SHORT CELLS AND THEY ARE NOT STORED: "
-                "`ReciprocityTable.validate` refuses a positive development "
-                "correction because the schema defines the column as a "
-                "reduction. The figures are real and are recorded here in "
-                "prose rather than dropped silently -- carrying them needs a "
-                "schema change, not a sign flip"),
+                "development +20 / +15 / +10 % on the three short cells and "
+                "-10 / -20 / -30 % on the three long cells. 2026-10-22b (owner "
+                "rule: captured data goes into its field): the short-cell "
+                "development figures are now STORED -- the validator refusing "
+                "positive corrections was narrowed on 2026-09-22 to exposures "
+                "of 1 s and longer, which removed the reason they were held in "
+                "prose; KODAK_TECHNICAL_PAN and KODAK_PLUS_X_125 carry the "
+                "same kind of figures"),
     ),
     "KODAK_TRI_X_320TXP": ReciprocityTable(
         times_s=(0.00001, 0.0001, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
         stops_correction=(1.0, 0.5, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
-        development_correction_pct=(0.0, 0.0, 0.0, 0.0, 0.0,
+        development_correction_pct=(20.0, 15.0, 10.0, 0.0, 0.0,
                                     -10.0, -20.0, -30.0),
         source=("Eastman Kodak Company, «KODAK PROFESSIONAL TRI-X 320 and 400 "
                 "Films», publication F-4017, May 2007, p2 -- the same table. "
@@ -70360,8 +70725,10 @@ _TAGUCHI_OPTICAL_DOMINANT_EXPECTED: str = (
 #: c/mm, up from 100 / 50 / 28 estimated), and AVIPHOT PAN 20 is new at 235
 #: c/mm; each is impossible under its ANALOGY clump_um and possible under the
 #: random-dot diameter, which is this finding again on four more stocks.
+# 2026-10-22c: AGFA_AVIPHOT_PAN_20 left the list with its f50 235 -> 156.4
+# (owner decision, same-test sibling ratio).
 _TAGUCHI_IMPOSSIBLE_UNDER_CLUMP: tuple[str, ...] = (
-    "AGFA_AVIPHOT_PAN_20", "KODAK_PANATOMIC_X", "KODAK_RECORDING_2475",
+    "KODAK_PANATOMIC_X", "KODAK_RECORDING_2475",
     "KODAK_ROYAL_X_PAN_4166", "KODAK_TMAX_100", "KODAK_TMAX_400",
     "KODAK_TMAX_P3200", "KODAK_VERICHROME_PAN")
 
@@ -75793,6 +76160,11 @@ for _rec in (
     ParamSource(param="grain.clump_um_g", tier=3, status="estimated", unit="um",
         conditions="analogy AGFA_AVIPHOT_PAN_400S", source="", confidence="low",
         note="Triple scaled by sqrt(19.90 / 14.58)."),
+    ParamSource(param="grain.sigma_shape_points", tier=1, status="traced",
+        unit="(diffuse density, rms x 1000 at 50 um, as read)",
+        conditions="Gevatone 66, G 74 c, 30 C, gamma 1.20", source=_AV2 + ", p3 RMS granularity chart",
+        confidence="medium",
+        note="15 points D 0.15-1.50; the maker's own sigma(D) curve, used by both engines (2026-10-22b, owner rule). Measured at gamma 1.20; the stored curve is the 40 s (G-bar 1.49) one."),
     ParamSource(param="mtf.f50_g", tier=1, status="traced", unit="c/mm",
         conditions="40 s, gamma 1.5", source=_AV2 + ", p3 Photographic MTF (raster)", confidence="medium",
         note="3/10/20/40/60/100 lp/mm: 112.8/105.1/90.8/67.3/53.9/41.2 %; f50 68.6. Ordinate scale from its one-decade grid (only 100 labelled). 20 s: 61 % at 100; 70 s: f50 55.1. Bahnmüller Fig. 6b gave 34.0."),
@@ -75819,6 +76191,59 @@ for _rec in (
         note="Stored triple is the authored fallback; both engines integrate the traced curve."),
     ):
     _replace_param_source("AGFA_AVIPHOT_PAN_200", _rec)
+# ---- 2026-10-22b: AGFA AVIPHOT PAN 80 (owner-approved exception to the freeze, Q7 batch) ----
+_AV8 = "Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009"
+for _rec in (
+    ParamSource(param="curves.g.dmin", tier=1, status="traced", unit="density",
+        conditions="Gevatone 66, G 74 c, 30 C, 40 s", source=_AV8 + ", p6 fog/time chart",
+        confidence="high", note="Fog 0.0845 at 40 s (0.0915 at 20 s, 0.082 at 70 s in G 74 c; 0.091-0.19 in G 74 c + AD 74); dmin held there."),
+    ParamSource(param="curves.g.gamma", tier=1, status="traced", unit="softplus slope",
+        conditions="Gevatone 66, G 74 c, 30 C, 40 s; fit rms 0.017 D, max 0.037 D over 29 points",
+        source=_AV8 + ", p4 characteristic curves in G 74 c (raster)", confidence="high",
+        note="40 s curve of six (20-70 s); the sheet's average-gradient chart reads 1.50 at 40 s (1.54 at 42 s). The p5 G 74 c + AD 74 curves are in AVIPHOT_PAN_80_2009."),
+    ParamSource(param="grain.rms_granularity", tier=1, status="traced",
+        unit="rms diffuse density x 1000, 48 um aperture (converted from 50 um)",
+        conditions="diffuse density 1.0; Gevatone 66, G 74 c, 30 C, 42 s", source=_AV8 + ", p3 granularity chart (sigmaD x 1000)",
+        confidence="medium", note="9.23 at 50 um x (50/48) = 9.62. Curve 8.5 at D 0.18 to 12.2 at D 1.93; the abscissa is diffuse density as printed (about 9.4 at D 1.0 above fog)."),
+    ParamSource(param="grain.clump_um_g", tier=3, status="estimated", unit="um",
+        conditions="analogy AGFA_AVIPHOT_PAN_400S", source="", confidence="low",
+        note="Triple scaled by sqrt(9.62 / 14.58)."),
+    ParamSource(param="grain.sigma_shape_points", tier=1, status="traced",
+        unit="(diffuse density, rms x 1000 at 50 um, as read)",
+        conditions="Gevatone 66, G 74 c, 30 C, 42 s", source=_AV8 + ", p3 granularity chart (sigmaD x 1000)",
+        confidence="medium",
+        note="12 points D 0.18-1.93; the maker's own sigma(D) curve, used by both engines in place of the class anchors."),
+    ParamSource(param="mtf.f50_g", tier=1, status="traced", unit="c/mm",
+        conditions="42 and 70 s (one drawn curve), G 74 c, 30 C", source=_AV8 + ", p2 Photographic MTF (raster, log-log)",
+        confidence="medium", note="2.5/10/20/40/60/90 lp/mm: 115.3/101.4/85.1/64.5/51.4/42.1 %; f50 63.2. 20 s curve: f50 84.1, 48.3 % at 90 lp/mm."),
+    ParamSource(param="mtf.f50_r", tier=1, status="traced", unit="c/mm",
+        conditions="one panchromatic record", source=_AV8 + ", p2", confidence="medium",
+        note="Same value as f50_g (monochrome)."),
+    ParamSource(param="mtf.adjacency", tier=3, status="assumed", unit="lift amplitude",
+        conditions="115 % at 2.5 lp/mm (42 / 70 s)", source=_AV8 + ", p2", confidence="low",
+        note="Left 0, as AGFA_AVIPHOT_PAN_400S and _200: the drawn lift starts above 100 % at the lowest frequency, which the DoG lift cannot express."),
+    ParamSource(param="mtf.resolving_power_lp_mm_highc", tier=1, status="stated", unit="lp/mm",
+        conditions="USAF 1951, TOC 1000:1; Gevatone 66, G 74 c, 30 C, 42 s", source=_AV8 + ", p3: 287 line pairs (574 dots/mm)",
+        confidence="high", note="Same target and processing as AVIPHOT PAN 20 (800), so directly comparable; PAN 200 states ANSI PH 2.33."),
+    ParamSource(param="mtf.resolving_power_lp_mm_lowc", tier=1, status="stated", unit="lp/mm",
+        conditions="USAF 1951, TOC 1.6:1; Gevatone 66, G 74 c, 30 C, 42 s", source=_AV8 + ", p3: 101 line pairs (202 dots/mm)",
+        confidence="high", note="AVIPHOT PAN 20: 250 under the same conditions."),
+    ParamSource(param="exposure_index", tier=1, status="stated", unit="ASA exposure setting",
+        conditions="G 74 c, 30 C, about 40 s", source=_AV8 + ", p3 and p5 exposure/time chart",
+        confidence="high", note="«can be exposed as a 64 ASA to 100 ASA film»; 80 at the stored curve's development."),
+    ParamSource(param="processing.developer", tier=1, status="stated", unit="",
+        conditions="Gevatone 66 continuous-tone processor, 30 C", source=_AV8 + ", p4", confidence="high",
+        note="G 74 c or G 74 c + AD 74, 20-70 s by the required contrast and speed; fixer PFIX (or G333c); wash min. 6 l/min at 30 C. Stored at 40 s in G 74 c (the curve's condition)."),
+    ParamSource(param="halation.gain_r", tier=3, status="assumed", unit="dimensionless gain",
+        conditions="n/a", source="", confidence="low", note="The sheet names a protection layer and an antistatic back layer, no antihalation construction."),
+    ParamSource(param="emulsion.base_um", tier=1, status="stated", unit="um",
+        conditions="PE1; PE0 is 60 um with the same emulsion and back layer", source=_AV8 + ", p1", confidence="high", note=""),
+    ParamSource(param="spectral_weights", tier=1, status="derived", unit="normalised weights",
+        conditions="pan curve integrated against the render primary basis",
+        source=_AV8 + ", p2 (raster trace 2026-10-22b)", confidence="medium",
+        note="Stored triple is the authored fallback; both engines integrate the traced curve. The chart is pixel-identical to the one on the AVIPHOT PAN 20 sheet."),
+    ):
+    _replace_param_source("AGFA_AVIPHOT_PAN_80", _rec)
 _PX4018 = ("Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication "
            "F-4018, February 2002 (identical in May 2007)")
 for _rec in (
@@ -81535,10 +81960,16 @@ DEV_HARVEST_0929C_ADDED: dict[str, int] = {}
 def _append_dev_points(p: "FilmProfile", pts, src: str,
                        tally: "dict | None" = None) -> "FilmProfile":
     """Append points, skipping an exact (developer, dilution, minutes, celsius,
-    vessel, format, EI, contrast) twin already held."""
+    vessel, format, EI, contrast, edition, print geometry) twin already held.
+
+    ⚠ 2026-10-22d: edition and print geometry joined the key. Without them a
+    current-sheet point was dropped as a "twin" of an older-generation point
+    (HP5 Plus Perceptol stock 11 min at EI 200, 2004/2018 sheets, lost to the
+    pre-Plus book point) -- two editions are two answers, not one."""
     fam = p.processing_family
     key = lambda q: (q.developer, q.dilution, q.minutes, q.celsius, q.vessel,
-                     q.film_format, q.exposure_index, q.contrast_index)
+                     q.film_format, q.exposure_index, q.contrast_index,
+                     q.edition, q.print_geometry)
     have = {key(q) for q in (fam.points if fam else ())}
     new = tuple(q for q in pts if key(q) not in have)
     tally = DEV_HARVEST_0929C_ADDED if tally is None else tally
@@ -86119,11 +86550,11 @@ AF3_608E_TEXT_SOURCE = (
     "1999 distillation with a clean text layer: p2 «Development Conditions "
     "(Small Tank Processing)», Fuji and non-Fuji developer tables, 18-26 C by "
     "EI; p3 «Processing Capacities and Times (Small Tank Development, "
-    "20°C/68°F)», 135 36-exp. films. p3 AUTOMATIC PROCESSORS, recorded and not "
-    "stored as points (no vessel word exists for a machine): Kodak Versamat "
+    "20°C/68°F)», 135 36-exp. films. p3 AUTOMATIC PROCESSORS: Kodak Versamat "
     "with HPD (= Kodak Duraflo RT) at 26.5 C, processing speed EI 800 / 1600 / "
     "3200 = 5.5 / 4 / 3 ft/min on the 5AN and 411 and 11 / 8 / 6 ft/min on "
-    "the 11C; FP260 (FC) with SPD at 30 C, printed «Development Time (min.)» "
+    "the 11C -- stored 2026-10-22b as roller-transport points (4 ft path); "
+    "recorded only: FP260 (FC) with SPD at 30 C, printed «Development Time (min.)» "
     "50 / 60 / 90 at EI 800 / 1600 / 3200, kept as printed and NOT "
     "converted -- 50-90 minutes at 30 C cannot be right when the small-tank "
     "EI 1600 SPD time at 24 C is NR and at 22 C 3 1/2 min, so the unit is "
@@ -86248,9 +86679,10 @@ _replace_param_source("FUJI_NEOPAN_400", ParamSource(
 # DEVELOPMENT TABLES are read from the text layers. Development times are
 # the sheets' spiral-tank / deep-tank / dip-and-dunk column («min/20°C»,
 # intermittent agitation), stored as vessel "small tank" (a spiral tank)
-# like the Ilford tables already on file; the dip-and-dunk (24 C) and
-# ILFOLAB FP40 / RT RAPID (seconds, 26 C) machine rows are recorded here and
-# NOT stored, because no vessel word exists for a machine:
+# like the Ilford tables already on file; the dip-and-dunk (24 C) machine rows
+# are recorded here and NOT stored (no vessel word for a hanger machine). The
+# ILFOLAB FP40 / roller transport rows (seconds, 26 C) below ARE stored since
+# 2026-10-22b as vessel "roller transport" (_apply_registry_sweep_2026_10_22b):
 #   HP5 Plus, dip and dunk 24 C: ILFOTEC DD 1+4 7 / 10 / 14 / 18 min, T-Max RS
 #     4 1/2 / 5 / 7, Xtol 7 1/2 / 9 1/2 / 12 / 16 at EI 400 / 800 / 1600 /
 #     3200; RT RAPID 26 C 1+1+2 60 / 75 / 91 / 108 s, 1+1+5 70 / 95 / 120 /
@@ -87927,6 +88359,24 @@ AVIPHOT_PAN_200_2004 = {'C1': {'name': 'absolute spectral sensitivity', 'page': 
 PLUSX_125_F4018_2002 = {'Characteristic Curves (upper), D-76 small tank 20 C -- 11 min': {'page': 7, 'x': 'log H (lux-seconds) [axis labels carry an over-bar meaning minus]', 'y': 'diffuse visual density (absolute, incl. base+fog)', 'points': ((-3.131, 0.27), (-3.1, 0.272), (-3.0, 0.278), (-2.9, 0.286), (-2.8, 0.295), (-2.7, 0.308), (-2.6, 0.328), (-2.5, 0.357), (-2.4, 0.398), (-2.3, 0.449), (-2.2, 0.513), (-2.1, 0.585), (-2.0, 0.666), (-1.9, 0.752), (-1.8, 0.842), (-1.7, 0.936), (-1.6, 1.032), (-1.5, 1.13), (-1.4, 1.229), (-1.3, 1.329), (-1.2, 1.43), (-1.1, 1.535), (-1.0, 1.643), (-0.9, 1.75), (-0.8, 1.853), (-0.7, 1.953), (-0.6, 2.048), (-0.5, 2.137), (-0.4, 2.218), (-0.3, 2.288), (-0.2, 2.348), (-0.1, 2.402), (0.0, 2.456), (0.1, 2.508), (0.2, 2.557), (0.3, 2.603), (0.4, 2.642), (0.5, 2.675), (0.6, 2.704), (0.642, 2.716))}, 'Characteristic Curves (upper), D-76 small tank 20 C -- 7 min': {'page': 7, 'x': 'log H (lux-seconds) [axis labels carry an over-bar meaning minus]', 'y': 'diffuse visual density (absolute, incl. base+fog)', 'points': ((-3.131, 0.261), (-3.1, 0.262), (-3.0, 0.266), (-2.9, 0.271), (-2.8, 0.277), (-2.7, 0.285), (-2.6, 0.298), (-2.5, 0.317), (-2.4, 0.343), (-2.3, 0.376), (-2.2, 0.416), (-2.1, 0.463), (-2.0, 0.514), (-1.9, 0.57), (-1.8, 0.628), (-1.7, 0.687), (-1.6, 0.747), (-1.5, 0.811), (-1.4, 0.879), (-1.3, 0.95), (-1.2, 1.022), (-1.1, 1.095), (-1.0, 1.171), (-0.9, 1.251), (-0.8, 1.334), (-0.7, 1.417), (-0.6, 1.5), (-0.5, 1.583), (-0.4, 1.666), (-0.3, 1.743), (-0.2, 1.812), (-0.1, 1.876), (0.0, 1.935), (0.1, 1.992), (0.2, 2.044), (0.3, 2.092), (0.4, 2.137), (0.5, 2.185), (0.6, 2.236), (0.642, 2.257))}, 'Characteristic Curves (upper), D-76 small tank 20 C -- 5 min': {'page': 7, 'x': 'log H (lux-seconds) [axis labels carry an over-bar meaning minus]', 'y': 'diffuse visual density (absolute, incl. base+fog)', 'points': ((-3.131, 0.254), (-3.1, 0.255), (-3.0, 0.256), (-2.9, 0.259), (-2.8, 0.261), (-2.7, 0.266), (-2.6, 0.273), (-2.5, 0.282), (-2.4, 0.295), (-2.3, 0.313), (-2.2, 0.335), (-2.1, 0.362), (-2.0, 0.391), (-1.9, 0.425), (-1.8, 0.464), (-1.7, 0.508), (-1.6, 0.557), (-1.5, 0.606), (-1.4, 0.655), (-1.3, 0.704), (-1.2, 0.756), (-1.1, 0.81), (-1.0, 0.867), (-0.9, 0.926), (-0.8, 0.987), (-0.7, 1.048), (-0.6, 1.112), (-0.5, 1.178), (-0.4, 1.245), (-0.3, 1.308), (-0.2, 1.367), (-0.1, 1.427), (0.0, 1.49), (0.1, 1.553), (0.2, 1.613), (0.3, 1.666), (0.4, 1.712), (0.5, 1.754), (0.6, 1.794), (0.642, 1.81))}, 'Characteristic Curves (lower), T-MAX Developer small tank 20 C -- 6 min': {'page': 7, 'x': 'log H (lux-seconds) [axis labels carry an over-bar meaning minus]', 'y': 'diffuse visual density (absolute, incl. base+fog)', 'points': ((-3.15, 0.309), (-3.1, 0.311), (-3.0, 0.316), (-2.9, 0.321), (-2.8, 0.327), (-2.7, 0.335), (-2.6, 0.347), (-2.5, 0.364), (-2.4, 0.386), (-2.3, 0.413), (-2.2, 0.445), (-2.1, 0.483), (-2.0, 0.524), (-1.9, 0.569), (-1.8, 0.618), (-1.7, 0.67), (-1.6, 0.725), (-1.5, 0.785), (-1.4, 0.849), (-1.3, 0.914), (-1.2, 0.98), (-1.1, 1.047), (-1.0, 1.116), (-0.9, 1.184), (-0.8, 1.252), (-0.7, 1.32), (-0.6, 1.387), (-0.5, 1.456), (-0.4, 1.527), (-0.3, 1.598), (-0.2, 1.666), (-0.1, 1.732), (0.0, 1.798), (0.1, 1.865), (0.2, 1.93), (0.3, 1.993), (0.4, 2.052), (0.5, 2.11), (0.6, 2.166), (0.65, 2.194))}, 'Characteristic Curves (lower), T-MAX Developer small tank 20 C -- 7 min': {'page': 7, 'x': 'log H (lux-seconds) [axis labels carry an over-bar meaning minus]', 'y': 'diffuse visual density (absolute, incl. base+fog)', 'points': ((-3.15, 0.322), (-3.1, 0.324), (-3.0, 0.33), (-2.9, 0.337), (-2.8, 0.345), (-2.7, 0.356), (-2.6, 0.371), (-2.5, 0.394), (-2.4, 0.423), (-2.3, 0.458), (-2.2, 0.498), (-2.1, 0.544), (-2.0, 0.594), (-1.9, 0.648), (-1.8, 0.705), (-1.7, 0.767), (-1.6, 0.834), (-1.5, 0.902), (-1.4, 0.972), (-1.3, 1.044), (-1.2, 1.119), (-1.1, 1.196), (-1.0, 1.274), (-0.9, 1.353), (-0.8, 1.431), (-0.7, 1.507), (-0.6, 1.583), (-0.5, 1.659), (-0.4, 1.735), (-0.3, 1.809), (-0.2, 1.882), (-0.1, 1.957), (0.0, 2.028), (0.1, 2.092), (0.2, 2.151), (0.3, 2.208), (0.4, 2.264), (0.5, 2.318), (0.6, 2.37), (0.65, 2.396))}, 'Characteristic Curves (lower), T-MAX Developer small tank 20 C -- 11 min': {'page': 7, 'x': 'log H (lux-seconds) [axis labels carry an over-bar meaning minus]', 'y': 'diffuse visual density (absolute, incl. base+fog)', 'points': ((-3.15, 0.336), (-3.1, 0.34), (-3.0, 0.349), (-2.9, 0.359), (-2.8, 0.372), (-2.7, 0.389), (-2.6, 0.413), (-2.5, 0.447), (-2.4, 0.49), (-2.3, 0.543), (-2.2, 0.603), (-2.1, 0.671), (-2.0, 0.745), (-1.9, 0.824), (-1.8, 0.909), (-1.7, 1.0), (-1.6, 1.096), (-1.5, 1.194), (-1.4, 1.291), (-1.3, 1.39), (-1.2, 1.488), (-1.1, 1.586), (-1.0, 1.683), (-0.9, 1.777), (-0.8, 1.868), (-0.7, 1.957), (-0.6, 2.044), (-0.5, 2.13), (-0.4, 2.212), (-0.3, 2.288), (-0.2, 2.357), (-0.1, 2.423), (0.0, 2.488), (0.1, 2.555), (0.2, 2.621), (0.3, 2.682), (0.4, 2.739), (0.5, 2.791), (0.6, 2.843), (0.65, 2.868))}, 'Contrast Index Curves, Small Tank 68 F (20 C), upper-left -- D-76': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.267, 0.462), (5.0, 0.52), (6.0, 0.591), (7.0, 0.653), (8.0, 0.716), (9.0, 0.78), (10.0, 0.847), (11.0, 0.897), (11.072, 0.901))}, 'Contrast Index Curves, Small Tank 68 F (20 C), upper-left -- T-MAX RS': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.203, 0.562), (5.0, 0.603), (6.0, 0.656), (7.0, 0.708), (8.0, 0.76), (9.0, 0.816), (10.0, 0.871), (11.0, 0.914), (12.0, 0.948), (13.0, 0.978), (14.0, 1.007), (15.0, 1.033), (15.173, 1.037))}, 'Contrast Index Curves, Small Tank 68 F (20 C), upper-left -- HC-110 (B)': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.333, 0.613), (5.0, 0.646), (6.0, 0.699), (7.0, 0.757), (8.0, 0.811), (9.0, 0.862), (10.0, 0.899), (11.0, 0.931), (12.0, 0.958), (13.0, 0.98), (14.0, 0.997), (15.0, 1.014), (15.206, 1.017))}, 'Contrast Index Curves, Small Tank 68 F (20 C), upper-left -- T-MAX': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((5.4, 0.533), (6.0, 0.572), (7.0, 0.629), (8.0, 0.68), (9.0, 0.728), (10.0, 0.774), (11.0, 0.816), (12.0, 0.851), (13.0, 0.876), (14.0, 0.892), (15.0, 0.904), (16.0, 0.914), (17.0, 0.923), (17.3, 0.926))}, 'Contrast Index Curves, Small Tank 68 F (20 C), upper-left -- Microdol-X': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((6.5, 0.443), (7.0, 0.485), (8.0, 0.554), (9.0, 0.606), (10.0, 0.648), (11.0, 0.686), (12.0, 0.728), (13.0, 0.767), (14.0, 0.8), (15.0, 0.826), (16.0, 0.849), (17.0, 0.87), (17.3, 0.876))}, 'Contrast Index Curves, Small Tank 68 F (20 C), upper-left -- D-76 (1:1)': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.3, 0.342), (5.0, 0.38), (6.0, 0.434), (7.0, 0.485), (8.0, 0.534), (9.0, 0.579), (10.0, 0.62), (11.0, 0.658), (12.0, 0.697), (13.0, 0.734), (14.0, 0.771), (15.0, 0.808), (15.2, 0.815))}, 'Contrast Index Curves, Small Tank 68 F (20 C), upper-left -- Microdol-X 1:3': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((10.8, 0.493), (11.0, 0.5), (12.0, 0.531), (13.0, 0.563), (14.0, 0.593), (15.0, 0.622), (16.0, 0.649), (17.0, 0.675), (18.0, 0.7), (19.0, 0.724), (20.0, 0.747), (21.0, 0.77), (22.0, 0.793), (23.0, 0.816), (24.0, 0.839), (25.0, 0.863), (26.0, 0.886))}, 'Contrast Index Curves, Large Tank 68 F (20 C), upper-right -- T-MAX RS': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.9, 0.564), (5.0, 0.569), (6.0, 0.619), (7.0, 0.669), (8.0, 0.719), (9.0, 0.767), (10.0, 0.813), (11.0, 0.857), (12.0, 0.896), (13.0, 0.931), (14.0, 0.962), (15.0, 0.989), (16.0, 1.013), (17.0, 1.035), (17.1, 1.037))}, 'Contrast Index Curves, Large Tank 68 F (20 C), upper-right -- HC-110 (B)': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.9, 0.614), (5.0, 0.619), (6.0, 0.669), (7.0, 0.718), (8.0, 0.766), (9.0, 0.812), (10.0, 0.854), (11.0, 0.889), (12.0, 0.92), (13.0, 0.946), (14.0, 0.968), (15.0, 0.986), (16.0, 1.002), (17.0, 1.015), (17.1, 1.017))}, 'Contrast Index Curves, Large Tank 68 F (20 C), upper-right -- D-76': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.9, 0.463), (5.0, 0.47), (6.0, 0.544), (7.0, 0.614), (8.0, 0.672), (9.0, 0.737), (10.0, 0.794), (11.0, 0.845), (12.0, 0.896), (12.2, 0.906))}, 'Contrast Index Curves, Large Tank 68 F (20 C), upper-right -- D-76 (1:1)': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.9, 0.342), (5.0, 0.347), (6.0, 0.397), (7.0, 0.445), (8.0, 0.492), (9.0, 0.536), (10.0, 0.576), (11.0, 0.612), (12.0, 0.647), (13.0, 0.681), (14.0, 0.714), (15.0, 0.747), (16.0, 0.78), (17.0, 0.812), (17.1, 0.815))}, 'Contrast Index Curves, Large Tank 68 F (20 C), upper-right -- Microdol-X': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((7.3, 0.443), (8.0, 0.495), (9.0, 0.555), (10.0, 0.602), (11.0, 0.642), (12.0, 0.68), (13.0, 0.715), (14.0, 0.749), (15.0, 0.779), (16.0, 0.806), (17.0, 0.829), (18.0, 0.849), (19.0, 0.867), (19.5, 0.876))}, 'Contrast Index Curves, Large Tank 68 F (20 C), upper-right -- Microdol-X 1:3': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((12.2, 0.493), (13.0, 0.517), (14.0, 0.545), (15.0, 0.573), (16.0, 0.6), (17.0, 0.626), (18.0, 0.65), (19.0, 0.673), (20.0, 0.695), (21.0, 0.716), (22.0, 0.737), (23.0, 0.757), (24.0, 0.778), (25.0, 0.798), (26.0, 0.819), (27.0, 0.839), (28.0, 0.859), (29.0, 0.88), (29.299, 0.886))}, 'Contrast Index Curves, Small Tank 68 F (20 C), lower-left (XTOL) -- XTOL': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.9, 0.46), (5.0, 0.467), (6.0, 0.54), (7.0, 0.61), (8.0, 0.668), (9.0, 0.733), (10.0, 0.796), (11.0, 0.86), (12.0, 0.897), (13.0, 0.927), (14.0, 0.955), (15.0, 0.977), (15.056, 0.978))}, 'Contrast Index Curves, Small Tank 68 F (20 C), lower-left (XTOL) -- XTOL 1:1': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.871, 0.38), (5.0, 0.388), (6.0, 0.449), (7.0, 0.511), (8.0, 0.563), (9.0, 0.608), (10.0, 0.648), (11.0, 0.684), (12.0, 0.72), (12.957, 0.754))}, 'Contrast Index Curves, Large Tank 68 F (20 C), lower-right (XTOL) -- XTOL': {'page': 8, 'x': 'development time (min)', 'y': 'contrast index', 'points': ((4.9, 0.47), (5.0, 0.476), (6.0, 0.531), (7.0, 0.587), (8.0, 0.641), (9.0, 0.695), (10.0, 0.746), (11.0, 0.793), (12.0, 0.834), (13.0, 0.872), (14.0, 0.905), (15.0, 0.935), (16.0, 0.962), (17.0, 0.988), (17.1, 0.99))}, 'Spectral Sensitivity Curve -- D = 0.30 above Dmin': {'page': 9, 'x': 'wavelength (nm)', 'y': 'log sensitivity, sensitivity = 1/(erg/cm2) to reach the specified density', 'points': ((381.368, -0.4), (390.0, 0.835), (400.0, 1.698), (410.0, 1.891), (420.0, 1.836), (430.0, 1.782), (440.0, 1.71), (450.0, 1.617), (460.0, 1.533), (470.0, 1.458), (480.0, 1.366), (490.0, 1.269), (500.0, 1.19), (510.0, 1.121), (520.0, 1.104), (530.0, 1.133), (540.0, 1.171), (550.0, 1.199), (560.0, 1.241), (570.0, 1.286), (580.0, 1.295), (590.0, 1.259), (600.0, 1.212), (610.0, 1.187), (620.0, 1.197), (630.0, 1.201), (640.0, 1.012), (650.0, 0.562), (660.0, -0.105), (661.98, -0.25))}, 'Spectral Sensitivity Curve -- D = 1.00 above Dmin': {'page': 9, 'x': 'wavelength (nm)', 'y': 'log sensitivity, sensitivity = 1/(erg/cm2) to reach the specified density', 'points': ((441.497, 0.6), (450.0, 0.529), (460.0, 0.458), (470.0, 0.39), (480.0, 0.31), (490.0, 0.222), (500.0, 0.174), (510.0, 0.189), (520.0, 0.203), (530.0, 0.228), (540.0, 0.269), (550.0, 0.3), (560.0, 0.341), (570.0, 0.384), (580.0, 0.379), (590.0, 0.335), (600.0, 0.302), (610.0, 0.267), (620.0, 0.238), (630.0, 0.247), (640.0, 0.1), (650.0, -0.266), (651.944, -0.35))}, 'Reciprocity adjusted-exposure-time graph -- inset: calculated 0-10 s -> adjusted 0-50 s (left axis)': {'page': 2, 'x': 'calculated (metered) exposure time (s)', 'y': 'adjusted exposure time (s)', 'points': ((0.019, 0.13), (0.5, 1.19), (1.0, 2.41), (1.5, 3.82), (2.0, 5.53), (2.5, 7.52), (3.0, 9.76), (3.5, 12.16), (4.0, 14.66), (4.5, 17.23), (5.0, 19.82), (5.5, 22.39), (6.0, 25.06), (6.5, 27.94), (7.0, 30.95), (7.5, 34.03), (8.0, 37.24), (8.5, 40.54), (9.0, 43.78), (9.5, 46.9), (9.991, 49.88))}, 'Reciprocity adjusted-exposure-time graph -- main: calculated 0-100 s -> adjusted 0-1200 s (right axis, seconds; minutes scale 1-20 alongside)': {'page': 2, 'x': 'calculated (metered) exposure time (s)', 'y': 'adjusted exposure time (s)', 'points': ((0.118, 5.2), (5, 27.6), (10, 52.56), (15, 87.74), (20, 123.06), (25, 158.92), (30, 202.25), (35, 250.08), (40, 299.52), (45, 353.43), (50, 416.46), (55, 483.36), (60, 553.67), (65, 633.13), (70, 705.96), (75, 782.12), (80, 860.14), (85, 949.09), (90, 1037.4), (95, 1119.12), (100, 1195.7), (100.041, 1196.29))}, 'versamat': ({'text': 'You can process this film in roller-transport processors, such as the KODAK VERSAMAT Film Processor, Model 5, 11, or 411, with KODAK DURAFLO RT Developer Starter, KODAK DURAFLO RT Developer Replenisher, and KODAK Rapid Fixer.', 'page': 6}, {'table': 'Processing Steps and Conditions for KODAK VERSAMAT Film Processors -- KODAK PROFESSIONAL PLUS-X 125 Films', 'page': 6, 'columns': ('Step', 'No. of Racks', 'Path Length Model 11', 'Path Length Models 5 and 411', 'Temperature'), 'rows': (('Develop', '2', '8.5 ft (2.6 m)', '4 ft (1.2 m)', '80 +/- 0.5 F (26.5 +/- 0.3 C)'), ('Fix', '3', '12 ft (3.8 m)', '6 ft (1.9 m)', '80 F (26.5) nominal'), ('Wash', '2', '8 ft (2.4 m)', '4 ft (1.2 m)', '70 to 75 F (21 to 24 C)'), ('Dry', '(blank)', '8 ft (2.4 m)', '4 ft (1.2 m)', '105 to 140 F (40.5 to 60 C)'))}, {'text': 'The recommended machine speeds for processing KODAK PROFESSIONAL PLUS-X 125 Film to a contrast index of 0.56 is as follows: KODAK VERSAMAT Film Processor, Models 5 and 411: 4.0 ft (1.2 m) per minute; KODAK VERSAMAT Film Processor, Model 11: 8.5 ft (2.6 m) per minute.', 'page': 6}, {'table': 'Push Processing: Roller Transport Processors ("To process pushed PLUS-X 125 Film in a machine with DURAFLO RT Developer, use a normal machine process with the machine speed shown in the appropriate table below.")', 'page': 7, 'rows': (('VERSAMAT Models 5 and 411', 'EI 250/25 deg', '4.0 ft (1.2 m)/min (normal)'), ('VERSAMAT Models 5 and 411', 'EI 500/28 deg', '3.0 ft (0.9 m)/min'), ('VERSAMAT Model 11', 'EI 250/25 deg', '8.5 ft (2.6 m)/min (normal)'), ('VERSAMAT Model 11', 'EI 500/28 deg', '6.4 ft (1.9 m)/min'), ('Other Roller-Transport Processors, development time at 80 F (27 C)', 'EI 250/25 deg', '60 seconds (normal)'), ('Other Roller-Transport Processors', 'EI 500/28 deg', '80 seconds'))}, {'text': 'Processing Conditions for Other Roller-Transport Processors: Adjust the machine speed so that the development time for normally exposed film is approximately 60 seconds. The development time is measured from the time the film enters the developer to the time it enters the fixer. Differences in machine design that affect agitation and crossover times from one tank to the next may require development-time adjustments.', 'page': 6}, {'derived': 'Developer path / speed (computed here, not printed as a time): Models 5/411: 4 ft / 4.0 ft/min = 1.00 min; 4 ft / 3.0 ft/min = 1.33 min (80 s). Model 11: 8.5 ft / 8.5 ft/min = 1.00 min; 8.5 / 6.4 = 1.33 min (80 s). These equal the printed "other roller-transport" times 60 s (EI 250, normal) and 80 s (EI 500), so the printed path lengths are the developer path that converts speed to development time. For a Model 5 at speed v (m/min): t_dev = 1.2 m / v (4 ft / v in ft/min) -- valid for the 2-rack developer configuration printed here for PLUS-X.'}, {'caveats': 'Printed metric conversions are rounded and two are inconsistent with the feet values: 12 ft printed as 3.8 m (12 ft = 3.66 m), 6 ft as 1.9 m (1.83 m); 80 F printed as 26.5 C (=26.7 C) in the Versamat table and as 27 C in the other-RT table. The sheet does not state whether the 2-rack developer configuration is the same for other films (e.g. T-MAX P3200, рис. 3.261); no Versamat 1140/641/Versaflo data appear. Both editions print identical Versamat content.'}), 'edition_differences': ('Date line: "February 2002 * F-4018" vs "May 2007 * F-4018"; back page "New 2-02" vs "Revised 5-07"; 2007 adds "Film & Photofinishing Systems Group, EASTMAN KODAK COMPANY * ROCHESTER, NY 14650"; copyright 2002 vs 2007.', 'p1 SIZES AVAILABLE: 2002 prints three tables (135-24 / 135-36 on 5-mil gray acetate, CAT 141 0570 / 867 7593; 35 mm x 100 ft, spec 402, CAT 802 4804; 120 / 220 pro-pack on "3.6-mil gray acetate", CAT 858 5614 / 859 2149) plus "Sizes and CAT numbers may differ ... United Sates [sic] ... special order"; 2007 removes all tables and prints only "Catalog numbers and packaging may differ from country to country."', 'Typeface/layout changed in 2007 (Kodak logo, header position); line breaks differ (e.g. "tank)—Rolls"), no wording change.', 'All technical content (pp. 2-9: exposure, reciprocity table and graph, filter factors, safelight, every development/push/rotary table, Versamat/roller-transport, rack-and-tank, replenishment, image structure, characteristic, CI and spectral curves) is identical: every word identical; every vector curve identical within 0.0001 axis units (reciprocity graph within 0.03 s).', '2002 PDF holds 4 embedded JPEG packaging images on p1 (2007: none as image XObjects).')}
 
 FUJI_RD44_1999 = {'documents': (('rd_report_ff_rd044_002.pdf', 'フジカラーSuper400/Nexia H400の開発 (Development of Fujicolor Super400/Nexia H400), Y. Suga, FUJIFILM RESEARCH & DEVELOPMENT No.44 (1999) pp.7-13 (received 4 Nov 1998)'), ('rd_report_ff_rd044_all.pdf', 'FUJIFILM RESEARCH & DEVELOPMENT No.44-1999 (富士フイルム研究報告 第44号) -- original papers pp.1-70 and publication list pp.154-; the reprinted papers (journal pp.71-153) are NOT in this PDF')), 'current (pre-1998) Fuji ISO400 colour negative ("現行ISO400カラーネガフィルム"; not named) | Transmittance of the green-sensitive layer of the CURRENT (pre-1998) Fuji ISO400 colour negative': {'page': 2, 'figure': 'Fig. 3', 'x': 'wavelength [nm]', 'y': 'transmittance [%]', 'points': ((502.0, 41.6), (504.0, 41.8), (506.0, 42.0), (508.0, 42.9), (509.9, 43.4), (512.1, 43.7), (514.1, 44.2), (516.0, 45.0), (518.0, 45.9), (520.0, 46.4), (522.0, 46.9), (524.0, 46.7), (526.0, 46.0), (528.0, 44.9), (530.0, 43.6), (532.0, 42.1), (533.9, 40.2), (536.1, 38.1), (538.0, 35.8), (540.0, 33.6), (542.0, 31.5), (544.0, 29.4), (546.0, 27.5), (548.0, 25.7), (550.0, 24.8), (552.0, 24.1), (554.0, 24.5), (555.9, 25.5), (557.9, 26.8), (560.1, 28.8), (562.0, 30.9), (564.0, 33.4), (566.0, 36.3), (568.0, 39.3), (570.0, 43.0), (572.0, 47.1), (574.0, 51.7), (576.0, 56.6), (578.0, 61.4), (579.9, 65.9), (581.9, 70.7), (584.1, 74.8), (586.0, 77.6), (588.0, 79.8), (590.0, 81.5), (592.0, 82.5), (594.0, 83.0), (596.0, 83.8), (598.0, 83.9), (598.5, 83.9))}, 'Super400 (135) vs current ISO400 | CTF (sharpness) - Super400 (solid)': {'page': 4, 'figure': 'Fig. 7', 'x': 'spatial frequency [c/mm]', 'y': 'CTF', 'points': ((0.5, 1.049), (1, 1.054), (2, 1.071), (3, 1.088), (4, 1.099), (5, 1.098), (6, 1.099), (8, 1.087), (10, 1.074), (12, 1.038), (15, 0.979), (20, 0.875), (25, 0.77), (30, 0.669), (35, 0.568), (40, 0.466), (45, 0.411), (50, 0.358), (55, 0.306), (59.5, 0.258))}, 'current ISO400 (predecessor, e.g. ACE400 per text) | CTF (sharpness) - current film (dashed)': {'page': 4, 'figure': 'Fig. 7', 'x': 'spatial frequency [c/mm]', 'y': 'CTF', 'points': ((1.1, 1.035), (2, 1.05), (3, 1.061), (4, 1.068), (5, 1.054), (6, 1.045), (8, 1.014), (10, 0.99), (12, 0.94), (15, 0.881), (20, 0.786), (25, 0.711), (30, 0.618), (35, 0.527), (40, 0.438), (45, 0.39), (50, 0.341), (55, 0.292), (59.5, 0.248))}, 'Super400 | Density profile of the spectral sensitivity ("spectrogram"): density minus fog after slight uniform RED pre-exposure, then spectral exposure - positive band B (yellow-forming / blue-sensitive record (380-500 nm band); band attribution by wavelength, curves unlabelled in figure)': {'page': 5, 'figure': 'Fig. 8', 'x': 'wavelength [nm]', 'y': 'density - fog', 'points': ((387.8, 0.057), (390.2, 0.097), (392.6, 0.17), (394.9, 0.274), (397.3, 0.396), (399.7, 0.509), (402.0, 0.584), (404.4, 0.66), (406.8, 0.708), (409.1, 0.745), (411.5, 0.774), (413.9, 0.774), (416.2, 0.792), (418.6, 0.792), (420.9, 0.792), (423.3, 0.792), (425.7, 0.774), (428.0, 0.774), (430.4, 0.774), (432.8, 0.774), (435.1, 0.774), (439.9, 0.755), (442.2, 0.755), (447.0, 0.774), (449.3, 0.774), (451.7, 0.792), (454.1, 0.792), (456.4, 0.83), (458.8, 0.857), (461.1, 0.887), (463.5, 0.925), (465.9, 0.943), (468.2, 0.962), (470.6, 0.962), (473.0, 0.943), (475.3, 0.843), (477.7, 0.687), (480.1, 0.557), (482.4, 0.444), (484.8, 0.329), (487.2, 0.263), (489.5, 0.196), (491.9, 0.12), (494.3, 0.082), (496.6, 0.047), (499.0, 0.008))}, 'Super400 | Density profile of the spectral sensitivity ("spectrogram"): density minus fog after slight uniform RED pre-exposure, then spectral exposure - positive band G (magenta / green-sensitive record (480-600 nm band); band attribution by wavelength, curves unlabelled in figure)': {'page': 5, 'figure': 'Fig. 8', 'x': 'wavelength [nm]', 'y': 'density - fog', 'points': ((477.7, 0.01), (480.1, 0.009), (482.4, 0.038), (484.8, 0.057), (487.2, 0.075), (489.5, 0.086), (491.9, 0.12), (494.3, 0.132), (496.6, 0.158), (499.0, 0.182), (501.4, 0.217), (503.7, 0.253), (506.1, 0.283), (508.4, 0.312), (510.8, 0.35), (513.2, 0.387), (515.5, 0.424), (517.9, 0.462), (520.3, 0.498), (522.6, 0.53), (525.0, 0.575), (527.4, 0.621), (529.7, 0.663), (532.1, 0.708), (534.5, 0.745), (536.8, 0.781), (539.2, 0.802), (541.6, 0.83), (543.9, 0.849), (546.3, 0.849), (548.6, 0.849), (553.4, 0.849), (555.7, 0.849), (558.1, 0.849), (560.5, 0.83), (562.8, 0.811), (565.2, 0.784), (567.6, 0.726), (569.9, 0.662), (572.3, 0.594), (574.7, 0.503), (577.0, 0.435), (579.4, 0.36), (581.8, 0.262), (584.1, 0.189), (586.5, 0.13), (588.9, 0.086), (591.2, 0.057), (593.6, 0.038))}, 'Super400 | Density profile of the spectral sensitivity ("spectrogram"): density minus fog after slight uniform RED pre-exposure, then spectral exposure - positive band R (cyan / red-sensitive record (565-670 nm band); band attribution by wavelength, curves unlabelled in figure)': {'page': 5, 'figure': 'Fig. 8', 'x': 'wavelength [nm]', 'y': 'density - fog', 'points': ((569.9, 0.046), (572.3, 0.085), (574.7, 0.123), (577.0, 0.17), (579.4, 0.215), (581.8, 0.262), (584.1, 0.294), (586.5, 0.333), (588.9, 0.368), (591.2, 0.406), (593.6, 0.452), (595.9, 0.483), (598.3, 0.517), (600.7, 0.539), (603.0, 0.566), (605.4, 0.585), (607.8, 0.595), (610.1, 0.604), (612.5, 0.623), (614.9, 0.632), (617.2, 0.642), (619.6, 0.642), (624.3, 0.66), (626.7, 0.66), (629.1, 0.66), (631.4, 0.642), (633.8, 0.631), (636.1, 0.597), (638.5, 0.563), (640.9, 0.493), (643.2, 0.437), (645.6, 0.379), (648.0, 0.323), (650.3, 0.265), (652.7, 0.207), (655.1, 0.161), (657.4, 0.122), (659.8, 0.094), (662.2, 0.075), (664.5, 0.057), (666.9, 0.038))}, 'Super400 | Density profile of spectral sensitivity: lower (negative, below-fog) envelope = development inhibition by interimage effect; text: the red-sensitive layer density below fog; hatched part (approx. 500-590 nm) = interimage from CL into RL approximating the negative lobe of the r(lambda) colour-matching function': {'page': 5, 'figure': 'Fig. 8', 'x': 'wavelength [nm]', 'y': 'density - fog', 'points': ((394.9, -0.038), (399.7, -0.057), (402.0, -0.075), (404.4, -0.075), (411.5, -0.094), (413.9, -0.094), (416.2, -0.094), (418.6, -0.094), (428.0, -0.113), (430.4, -0.113), (432.8, -0.113), (435.1, -0.113), (437.5, -0.113), (439.9, -0.113), (442.2, -0.113), (444.6, -0.113), (447.0, -0.113), (449.3, -0.113), (451.7, -0.113), (454.1, -0.113), (456.4, -0.113), (458.8, -0.113), (461.1, -0.113), (463.5, -0.113), (465.9, -0.113), (468.2, -0.113), (470.6, -0.113), (473.0, -0.113), (475.3, -0.113), (477.7, -0.113), (480.1, -0.094), (482.4, -0.094), (484.8, -0.094), (489.5, -0.075), (491.9, -0.075), (494.3, -0.075), (496.6, -0.075), (499.0, -0.075), (501.4, -0.075), (503.7, -0.075), (508.4, -0.058), (510.8, -0.068), (513.2, -0.083), (515.5, -0.086), (517.9, -0.1), (520.3, -0.095), (522.6, -0.103), (525.0, -0.113), (527.4, -0.123), (529.7, -0.115), (532.1, -0.121), (534.5, -0.123), (536.8, -0.116), (539.2, -0.125), (541.6, -0.132), (543.9, -0.125), (546.3, -0.132), (548.6, -0.12), (553.4, -0.111), (555.7, -0.087), (558.1, -0.094), (560.5, -0.113), (562.8, -0.113), (565.2, -0.113), (567.6, -0.113), (572.3, -0.094), (574.7, -0.094), (577.0, -0.075), (579.4, -0.075), (581.8, -0.057), (584.1, -0.057), (586.5, -0.038), (588.9, -0.038))}, 'Super400 | Transmittance of green-sensitive layer + CL (solid)': {'page': 5, 'figure': 'Fig. 10', 'x': 'wavelength [nm]', 'y': 'transmittance [%]', 'points': ((502.0, 36.1), (504.0, 36.7), (506.0, 37.3), (508.0, 38.2), (510.0, 39.0), (512.0, 40.0), (514.0, 40.8), (516.0, 41.7), (518.0, 42.4), (520.0, 42.9), (522.0, 43.2), (524.0, 43.3), (526.0, 42.9), (528.0, 42.2), (530.0, 41.2), (532.0, 39.9), (534.0, 38.4), (536.0, 36.9), (538.0, 35.5), (540.0, 33.4), (542.0, 31.7), (544.0, 29.2), (546.0, 27.8), (548.0, 26.1), (550.0, 25.3), (552.0, 24.7), (554.0, 25.1), (556.0, 26.2), (558.0, 27.8), (560.0, 30.1), (562.0, 32.4), (564.0, 35.7), (566.0, 39.5), (568.0, 43.2), (570.0, 47.5), (572.0, 51.0), (574.0, 55.2), (576.0, 60.1), (578.0, 64.8), (580.0, 68.7), (582.0, 72.8), (584.0, 75.4), (586.0, 78.0), (588.0, 80.0), (590.0, 81.2), (592.0, 82.1), (594.0, 82.7), (596.0, 83.1), (598.0, 83.1))}, 'current ISO400 | Transmittance of green-sensitive layer (dashed)': {'page': 5, 'figure': 'Fig. 10', 'x': 'wavelength [nm]', 'y': 'transmittance [%]', 'points': ((502.0, 42.0), (504.0, 42.3), (506.0, 42.5), (508.0, 43.2), (510.0, 43.7), (512.0, 44.3), (514.0, 44.7), (516.0, 45.5), (518.0, 46.1), (520.0, 46.7), (522.0, 47.3), (524.0, 47.1), (526.0, 46.5), (528.0, 45.5), (530.0, 43.9), (532.0, 42.4), (534.0, 40.4), (536.0, 38.8), (538.0, 36.5), (540.0, 34.2), (542.0, 31.7), (544.0, 29.2), (546.0, 27.8), (548.0, 26.1), (550.0, 25.3), (552.0, 24.7), (554.0, 25.1), (556.0, 26.2), (558.0, 27.8), (560.0, 30.1), (562.0, 31.4), (564.0, 33.2), (566.0, 36.2), (568.0, 39.7), (570.0, 43.7), (572.0, 47.1), (574.0, 50.8), (576.0, 56.5), (578.0, 61.5), (580.0, 65.5), (582.0, 70.5), (584.0, 74.3), (586.0, 78.0), (588.0, 80.0), (590.0, 81.2), (592.0, 82.1), (594.0, 82.7), (596.0, 83.1), (598.0, 83.1))}, 'Super400 | spectral sensitivity BL (solid)': {'page': 5, 'figure': 'Fig. 11', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (axis 0-3, unit not stated)', 'points': ((387.0, 0.41), (388.9, 0.52), (390.7, 0.73), (392.6, 0.91), (394.4, 1.07), (396.3, 1.21), (398.1, 1.34), (400.0, 1.5), (401.9, 1.61), (403.7, 1.71), (405.6, 1.8), (407.4, 1.83), (409.3, 1.9), (411.1, 1.93), (413.0, 1.96), (414.8, 1.96), (416.7, 1.97), (418.5, 1.99), (420.4, 1.99), (425.9, 1.99), (431.5, 1.99), (438.9, 1.99), (444.4, 1.99), (446.3, 2.0), (448.1, 2.02), (451.9, 2.02), (453.7, 2.05), (455.6, 2.07), (457.4, 2.09), (459.3, 2.12), (461.1, 2.15), (463.0, 2.19), (464.8, 2.23), (466.7, 2.27), (468.5, 2.3), (470.4, 2.32), (472.2, 2.32), (474.1, 2.3), (475.9, 2.27), (477.8, 2.19), (479.6, 2.04), (481.5, 1.78), (483.3, 1.67), (485.2, 1.46), (487.0, 1.27), (488.9, 1.1), (490.7, 1.04), (492.6, 0.92), (494.4, 0.82), (496.3, 0.73), (498.1, 0.65), (500.0, 0.58), (501.9, 0.56))}, 'current ISO400 | spectral sensitivity BL (dashed)': {'page': 5, 'figure': 'Fig. 11', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (axis 0-3, unit not stated)', 'points': ((381.5, 0.42), (383.3, 0.58), (385.2, 0.76), (387.0, 0.85), (388.9, 1.01), (390.7, 1.13), (392.6, 1.2), (394.4, 1.33), (396.3, 1.43), (398.1, 1.52), (409.3, 1.81), (411.1, 1.84), (413.0, 1.84), (414.8, 1.84), (416.7, 1.86), (418.5, 1.87), (420.4, 1.87), (422.2, 1.84), (424.1, 1.84), (425.9, 1.84), (427.8, 1.84), (431.5, 1.82), (440.7, 1.81), (444.4, 1.81), (446.3, 1.83), (448.1, 1.84), (451.9, 1.86), (453.7, 1.87), (457.4, 1.94), (459.3, 1.96), (461.1, 2.02), (463.0, 2.05), (464.8, 2.08), (466.7, 2.11), (468.5, 2.14), (470.4, 2.17), (472.2, 2.16), (474.1, 2.11), (475.9, 2.03), (477.8, 1.91), (479.6, 1.79))}, 'Super400 | spectral sensitivity GL (solid)': {'page': 5, 'figure': 'Fig. 11', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (axis 0-3, unit not stated)', 'points': ((481.5, 0.61), (483.3, 0.7), (485.2, 0.79), (487.0, 0.87), (492.6, 1.17), (494.4, 1.27), (498.1, 1.47), (501.9, 1.63), (503.7, 1.7), (505.6, 1.75), (509.3, 1.82), (511.1, 1.86), (513.0, 1.93), (514.8, 1.97), (516.7, 2.01), (518.5, 2.04), (520.4, 2.07), (522.2, 2.11), (524.1, 2.15), (525.9, 2.18), (527.8, 2.22), (529.6, 2.25), (531.5, 2.27), (533.3, 2.3), (535.2, 2.33), (537.0, 2.35), (538.9, 2.38), (540.7, 2.39), (542.6, 2.4), (544.4, 2.41), (546.3, 2.41), (548.1, 2.42), (550.0, 2.44), (551.9, 2.44), (553.7, 2.44), (555.6, 2.44), (557.4, 2.44), (559.3, 2.41), (561.1, 2.41), (563.0, 2.39), (564.8, 2.38), (566.7, 2.35), (568.5, 2.33), (570.4, 2.29), (572.2, 2.23), (574.1, 2.12), (575.9, 2.0), (577.8, 1.88), (579.6, 1.72), (581.5, 1.55), (583.3, 1.42), (585.2, 1.21), (587.0, 1.0), (588.9, 0.84), (590.7, 0.69), (592.6, 0.67))}, 'current ISO400 | spectral sensitivity GL (dashed)': {'page': 5, 'figure': 'Fig. 11', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (axis 0-3, unit not stated)', 'points': ((470.4, 0.65), (472.2, 0.66), (474.1, 0.7), (475.9, 0.78), (477.8, 0.82), (479.6, 0.9), (481.5, 0.95), (483.3, 1.05), (485.2, 1.16), (492.6, 1.4), (494.4, 1.43), (498.1, 1.6), (513.0, 1.84), (514.8, 1.89), (516.7, 1.91), (518.5, 1.93), (520.4, 1.96), (522.2, 1.99), (525.9, 2.03), (527.8, 2.05), (531.5, 2.11), (533.3, 2.13), (535.2, 2.14), (537.0, 2.17), (538.9, 2.17), (540.7, 2.18), (546.3, 2.19), (548.1, 2.2), (550.0, 2.2), (553.7, 2.2), (555.6, 2.21), (557.4, 2.23), (561.1, 2.23), (563.0, 2.23), (564.8, 2.23), (566.7, 2.2), (568.5, 2.18), (572.2, 2.11))}, 'Super400 | spectral sensitivity CL = 4th (cyan-sensitive) layer (dash-dot "一点鎖線" per text; label "CL")': {'page': 5, 'figure': 'Fig. 11', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (axis 0-3, unit not stated)', 'points': ((501.9, 1.54), (503.7, 1.58), (507.4, 1.65), (511.1, 1.69), (513.0, 1.71), (514.8, 1.73), (516.7, 1.75), (518.5, 1.75), (522.2, 1.81), (524.1, 1.85), (525.9, 1.87), (527.8, 1.89), (529.6, 1.9), (531.5, 1.91), (533.3, 1.93), (535.2, 1.93), (537.0, 1.87), (538.9, 1.83), (540.7, 1.8), (542.6, 1.72), (546.3, 1.49), (548.1, 1.25), (550.0, 1.11), (551.9, 0.94), (553.7, 0.86), (555.6, 0.65), (557.4, 0.58), (559.3, 0.51))}, 'Super400 | spectral sensitivity RL (solid)': {'page': 5, 'figure': 'Fig. 11', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (axis 0-3, unit not stated)', 'points': ((561.1, 0.56), (563.0, 0.64), (564.8, 0.71), (566.7, 0.79), (568.5, 0.89), (570.4, 0.97), (572.2, 1.05), (574.1, 1.14), (575.9, 1.23), (577.8, 1.31), (579.6, 1.38), (585.2, 1.67), (587.0, 1.71), (588.9, 1.8), (590.7, 1.87), (592.6, 1.94), (594.4, 1.99), (596.3, 2.01), (598.1, 2.06), (600.0, 2.08), (601.9, 2.1), (603.7, 2.13), (605.6, 2.15), (607.4, 2.17), (609.3, 2.18), (611.1, 2.2), (613.0, 2.21), (614.8, 2.23), (616.7, 2.24), (618.5, 2.26), (620.4, 2.26), (622.2, 2.26), (624.1, 2.26), (625.9, 2.26), (627.8, 2.26), (629.6, 2.26), (631.5, 2.25), (633.3, 2.23), (635.2, 2.21), (637.0, 2.2), (638.9, 2.16), (640.7, 2.11), (644.4, 1.98), (646.3, 1.89), (648.1, 1.78), (650.0, 1.65), (651.9, 1.51), (653.7, 1.39), (655.6, 1.25), (657.4, 1.1), (659.3, 0.98), (661.1, 0.86), (663.0, 0.74), (664.8, 0.62), (666.7, 0.51), (668.5, 0.46))}, 'current ISO400 | spectral sensitivity RL (dashed)': {'page': 5, 'figure': 'Fig. 11', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (axis 0-3, unit not stated)', 'points': ((566.7, 0.4), (568.5, 0.44), (570.4, 0.53), (572.2, 0.62), (574.1, 0.66), (575.9, 0.77), (577.8, 0.9), (579.6, 0.93), (581.5, 1.04), (583.3, 1.15), (585.2, 1.21), (587.0, 1.32), (588.9, 1.44), (590.7, 1.56), (592.6, 1.65), (594.4, 1.75), (596.3, 1.79), (598.1, 1.84), (600.0, 1.86), (601.9, 1.87), (605.6, 1.94), (607.4, 1.95), (609.3, 1.96), (613.0, 1.96), (614.8, 1.97), (616.7, 1.97), (620.4, 1.99), (622.2, 1.99), (624.1, 1.99), (625.9, 1.99), (627.8, 2.02), (629.6, 2.03), (631.5, 2.04), (635.2, 2.05), (637.0, 2.07), (638.9, 2.08), (640.7, 2.11), (642.6, 2.08), (644.4, 2.09), (646.3, 2.11), (650.0, 2.09), (651.9, 2.08), (655.6, 2.05), (657.4, 2.02), (659.3, 1.96), (661.1, 1.93), (663.0, 1.84), (664.8, 1.66), (666.7, 1.53), (668.5, 1.41), (670.4, 1.19), (672.2, 1.01), (674.1, 0.88), (675.9, 0.76), (677.8, 0.64), (679.6, 0.49), (681.5, 0.37))}, 'white fluorescent lamp | spectral power distribution of white fluorescent lamp (thin grey line), arbitrary scale on the same axis': {'page': 5, 'figure': 'Fig. 11', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (axis 0-3, unit not stated)', 'points': ((372.2, 0.09), (381.5, 0.09), (387.0, 0.12), (394.4, 0.15), (396.3, 0.18), (398.1, 0.19), (400.0, 0.32), (401.9, 0.72), (403.7, 1.11), (405.6, 1.25), (407.4, 0.87), (409.3, 0.43), (411.1, 0.27), (415.0, 0.27), (416.7, 0.3), (420.4, 0.3), (422.2, 0.33), (424.1, 0.33), (425.9, 0.36), (427.8, 0.36), (429.6, 0.42), (431.5, 1.07), (433.3, 2.25), (435.2, 2.82), (437.0, 2.25), (438.9, 1.43), (440.7, 0.88), (442.6, 0.65), (444.4, 0.52), (448.1, 0.48), (451.9, 0.5), (455.6, 0.5), (459.3, 0.53), (463.0, 0.53), (464.8, 0.55), (466.7, 0.58), (468.5, 0.58), (470.4, 0.56), (479.6, 0.56), (490.7, 0.56), (494.4, 0.53), (500.0, 0.53), (510.0, 0.53), (518.5, 0.53), (520.4, 0.56), (522.2, 0.56), (524.1, 0.59), (525.9, 0.62), (527.8, 0.62), (529.6, 0.65), (531.5, 0.68), (533.3, 0.73), (535.2, 0.77), (537.0, 0.8), (538.9, 0.83), (540.7, 0.97), (542.6, 1.4), (544.4, 1.88), (546.3, 2.2), (548.1, 2.0), (550.0, 1.67), (551.9, 1.48), (553.7, 1.41), (555.6, 1.37), (557.4, 1.38), (559.3, 1.44), (561.1, 1.5), (563.0, 1.54), (564.8, 1.59), (566.7, 1.62), (568.5, 1.66), (570.4, 1.68), (572.2, 1.74), (574.1, 1.84), (579.6, 2.02), (581.5, 1.99), (583.3, 1.88), (588.9, 1.63), (590.7, 1.6), (594.4, 1.57), (596.3, 1.53), (598.1, 1.5), (600.0, 1.44), (601.9, 1.41), (603.7, 1.35), (605.6, 1.31), (607.4, 1.26), (609.3, 1.21), (611.1, 1.16), (613.0, 1.11), (614.8, 1.06), (616.7, 1.02), (618.5, 0.97), (620.4, 0.93), (622.2, 0.88), (624.1, 0.85), (625.9, 0.8), (627.8, 0.76), (629.6, 0.72), (631.5, 0.68), (633.3, 0.65), (635.2, 0.62), (637.0, 0.59), (638.9, 0.55), (640.7, 0.53), (642.6, 0.49), (644.4, 0.48), (646.3, 0.45), (648.1, 0.42), (650.0, 0.4), (651.9, 0.37), (653.7, 0.36), (655.6, 0.33), (657.4, 0.3), (659.3, 0.3), (661.1, 0.27), (663.0, 0.27), (664.8, 0.24), (668.5, 0.24), (670.4, 0.21), (672.2, 0.21), (674.1, 0.18), (677.8, 0.18), (679.6, 0.15), (683.3, 0.15), (685.2, 0.13), (687.0, 0.12), (694.4, 0.12), (698.1, 0.09), (700.0, 0.09))}, 'theoretical (no film) | New red sensitivity distribution from linear combination of LMS functions - solid curve (smaller negative lobe)': {'page': 3, 'figure': 'Fig. 4', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (relative, LMS peak ~50)', 'points': ((446.7, -3.0), (450.0, -3.5), (453.3, -4.2), (456.7, -4.8), (460.0, -5.4), (463.3, -6.1), (466.7, -6.6), (470.0, -6.6), (473.3, -7.1), (476.7, -7.3), (480.0, -7.4), (483.3, -7.4), (486.7, -7.3), (490.0, -7.1), (493.3, -7.1), (496.7, -7.1), (500.0, -7.0), (503.3, -7.0), (506.7, -6.6), (510.0, -6.6), (513.3, -5.9), (516.7, -4.8), (520.0, -3.4), (523.3, -1.1), (526.7, 1.3), (530.0, 3.0), (533.3, 6.1), (536.7, 9.0), (540.0, 12.1), (543.3, 15.6), (553.3, 27.1), (556.7, 30.8), (560.0, 35.6), (563.3, 39.4), (566.7, 43.6), (570.0, 48.6), (576.7, 57.1), (580.0, 60.2), (583.3, 64.3), (586.7, 67.3), (590.0, 70.2), (593.3, 72.2), (596.7, 74.0), (600.0, 74.4), (603.3, 74.0), (606.7, 73.4), (610.0, 71.6), (613.3, 68.9), (616.7, 65.8), (620.0, 61.5), (623.3, 58.2), (626.7, 52.3), (630.0, 47.5), (633.3, 41.7), (636.7, 37.9), (640.0, 32.7), (643.3, 28.5), (646.7, 24.6), (650.0, 20.5), (656.7, 14.5), (660.0, 12.0), (666.7, 7.8), (670.0, 6.2))}, 'theoretical (no film) | New red sensitivity distribution from linear combination of LMS functions - dashed curve (larger negative lobe)': {'page': 3, 'figure': 'Fig. 4', 'x': 'wavelength [nm]', 'y': 'spectral sensitivity (relative)', 'points': ((446.7, -5.4), (450.0, -7.1), (456.7, -9.5), (460.0, -11.4), (466.7, -13.3), (470.0, -14.5), (476.7, -16.2), (480.0, -16.8), (486.7, -17.4), (490.0, -19.2), (496.7, -20.6), (500.0, -22.8), (506.7, -25.9), (510.0, -28.3), (513.3, -28.3), (516.7, -29.0), (520.0, -28.3), (526.7, -25.4), (530.0, -21.3), (536.7, -16.2), (540.0, -10.9), (546.7, -0.9), (550.0, 4.6), (553.3, 14.1), (560.0, 25.0), (576.7, 62.5), (580.0, 68.7), (586.7, 84.2), (590.0, 92.1), (593.3, 96.9), (600.0, 102.3), (606.7, 103.4), (610.0, 100.5), (613.3, 98.8), (616.7, 95.2), (620.0, 89.7), (623.3, 83.1), (626.7, 78.7), (630.0, 67.5), (633.3, 61.0), (636.7, 56.6), (640.0, 49.0), (643.3, 40.8), (650.0, 30.7), (653.3, 25.3), (656.7, 22.7), (660.0, 18.4), (666.7, 12.2), (670.0, 9.0))}, 'Macbeth chart original | Color reproduction of Macbeth-chart patches in CIELAB a*b* plane - original (patch: [a*,b*] in TICK UNITS; numeric value of a tick is not printed)': {'page': 4, 'figure': 'Fig. 6', 'x': 'a* [ticks]', 'y': 'b* [ticks]', 'points': (('Y', (0.36, 7.59)), ('O', (3.0, 5.93)), ('R', (5.54, 3.02)), ('MR', (4.57, 1.59)), ('M', (4.86, -1.22)), ('P', (2.22, -2.19)), ('B', (1.63, -4.75)), ('C', (-2.61, -2.74)), ('G', (-3.77, 3.17)), ('YG', (-2.27, 5.62)))}, 'Super400 | Color reproduction of Macbeth-chart patches in CIELAB a*b* plane - super400 (patch: [a*,b*] in TICK UNITS; numeric value of a tick is not printed)': {'page': 4, 'figure': 'Fig. 6', 'x': 'a* [ticks]', 'y': 'b* [ticks]', 'points': (('Y', (0.34, 7.01)), ('O', (2.04, 6.72)), ('R', (5.5, 3.58)), ('MR', (4.55, 1.31)), ('M', (4.6, -1.21)), ('P', (2.19, -2.47)), ('B', (1.55, -5.11)), ('C', (-2.76, -3.04)), ('G', (-3.35, 3.06)), ('YG', (-0.42, 5.92)))}, 'current (ACE400 per text) | Color reproduction of Macbeth-chart patches in CIELAB a*b* plane - current (patch: [a*,b*] in TICK UNITS; numeric value of a tick is not printed)': {'page': 4, 'figure': 'Fig. 6', 'x': 'a* [ticks]', 'y': 'b* [ticks]', 'points': (('Y', (0.61, 6.67)), ('O', (2.48, 6.36)), ('R', (5.29, 4.28)), ('MR', (4.34, 1.74)), ('M', (4.33, -0.68)), ('P', (2.39, -1.86)), ('B', (0.33, -4.31)), ('C', (-2.8, -2.71)), ('G', (-3.18, 2.22)), ('YG', (-0.16, 5.39)))}, 'Instax film (instant, ISO 800) - not in database | D-logH characteristic curve of Instax SFG emulsion system: solid = complete curve (tabular high-speed + regular low-speed sigma crystals)': {'page': 5, 'figure': 'Fig. 1 (Instax article)', 'x': 'log H [lux*s]', 'y': 'density D', 'points': ((-3.6, 2.317), (-3.5, 2.317), (-3.4, 2.317), (-3.3, 2.3), (-3.2, 2.3), (-3.1, 2.267), (-3.0, 2.233), (-2.9, 2.183), (-2.8, 2.107), (-2.7, 1.994), (-2.65, 1.924), (-2.6, 1.825), (-2.55, 1.717), (-2.5, 1.6), (-2.45, 1.48), (-2.4, 1.359), (-2.35, 1.241), (-2.3, 1.124), (-2.25, 1.009), (-2.2, 0.908), (-2.15, 0.809), (-2.1, 0.722), (-2.05, 0.641), (-2.0, 0.567), (-1.95, 0.509), (-1.9, 0.45), (-1.85, 0.407), (-1.8, 0.367), (-1.75, 0.325), (-1.7, 0.29), (-1.6, 0.233), (-1.5, 0.2), (-1.4, 0.183), (-1.3, 0.167), (-1.2, 0.167), (-1.0, 0.167), (-0.8, 0.167))}, 'Instax film - not in database | D-logH: dashed curve (drawn with octahedral-crystal icon; interpreted as the regular low-speed sigma-crystal emulsion contribution - attribution by icon only)': {'page': 5, 'figure': 'Fig. 1 (Instax article)', 'x': 'log H [lux*s]', 'y': 'density D', 'points': ((-3.47, 1.067), (-3.4, 1.067), (-3.3, 1.05), (-3.1, 1.05), (-2.97, 1.033), (-2.78, 1.033), (-2.73, 1.017), (-2.62, 1.0), (-2.57, 0.983), (-2.45, 0.95), (-2.42, 0.933), (-2.32, 0.883), (-2.3, 0.867), (-2.12, 0.7), (-2.1, 0.683))}, 'Instax film vs Fotorama ACE instant film - not in database | Dmax vs use temperature: instax(flat curve) (legend markers not resolvable; assignment from text: Instax extends the recommended range down to 10 C)': {'page': 6, 'figure': 'Fig. 2 (Instax article)', 'x': 'use temperature [C]', 'y': 'Dmax', 'points': ((5, 2.01), (10, 2.16), (15, 2.19), (20, 2.18), (25, 2.14), (30, 2.15), (35, 2.12))}, 'Instax film vs Fotorama ACE instant film - not in database | Dmax vs use temperature: ACE(steep curve) (legend markers not resolvable; assignment from text: Instax extends the recommended range down to 10 C)': {'page': 6, 'figure': 'Fig. 2 (Instax article)', 'x': 'use temperature [C]', 'y': 'Dmax', 'points': ((5, 1.51), (10, 1.75), (15, 1.91), (20, 2.07), (25, 2.14), (30, 2.15), (35, 2.12))}, 'items': ({'film': 'Super400 (135) / Nexia H400 (APS, IX240)', 'quantity': 'product identity / launch', 'values': 'announced August 1998; Super400 = 35 mm, New Nexia H400 = Advanced Photo System', 'units': '', 'conditions': '', 'page': 1, 'figure': 'abstract, sec.1', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Super400 / Nexia H400', 'quantity': 'ISO speed', 'values': '400', 'units': 'ISO', 'conditions': '', 'page': 1, 'figure': 'title/sec.2', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Super400 / Nexia H400', 'quantity': '4th colour-sensitive layer (CL, "New fourth layer technology")', 'values': 'present', 'units': '', 'conditions': '', 'page': 1, 'figure': 'abstract; sec.3-4, 6.1', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Super400 / Nexia H400', 'quantity': 'CL position in stack', 'values': 'between green-sensitive layer (GL) and red-sensitive layer (RL), adjacent to the LOWEST-speed GL sub-layer; no colour-mixing-prevention interlayer needed there', 'units': '', 'conditions': '', 'page': 3, 'figure': 'sec.4, Fig. 5, Fig. 9', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Fujicolor Reala (FUJICOLOR_SUPERIA_REALA in DB)', 'quantity': 'CL position in stack', 'values': 'between yellow-filter layer and GL (i.e. order BL / YF / CL / GL / RL per Fig.5 schematic)', 'units': '', 'conditions': 'Reala launched 1989', 'page': 3, 'figure': 'sec.4, Fig. 5', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Super400 (Fig.9 SEM)', 'quantity': 'relative layer thickness from cross-section brackets (no scale bar)', 'values': {'BL': 18, 'GL': 16, 'CL': 5, 'RL': 23, 'total_emulsion_side_px': 91}, 'units': 'pixels of the 159x146 px image (relative only)', 'conditions': 'SEM cross section of Super400', 'page': 5, 'figure': 'Fig. 9', 'kind': 'digitized', 'uncertainty': '+-2 px each'}, {'film': 'Super400 / Nexia H400', 'quantity': 'RL spectral sensitivity shifted to shorter wavelength (as in Reala) to reduce colour shift from far-red reflectance', 'values': 'qualitative; Fig.11: Super400 RL long-wave end ~668 nm vs current ~681 nm; Super400 RL peak 2.26 at ~619-630 nm vs current max 2.11 at ~641-646 nm', 'units': 'nm', 'conditions': '', 'page': 3, 'figure': 'sec.4, 5.1, Fig.11', 'kind': 'printed+digitized', 'uncertainty': '+-1.5 nm'}, {'film': 'Super400', 'quantity': 'spectral sensitivity peak wavelengths (Fig.11, solid curves)', 'values': {'BL': '2.32 at 470-472 nm (plateau ~1.96-2.02 at 413-452 nm)', 'GL': '2.44 at 550-557 nm', 'CL': '1.93 at 533-535 nm (flat 1.87-1.93 over 524-537 nm; steep fall from ~541 nm)', 'RL': '2.26 at 618-630 nm'}, 'units': 'nm; axis units', 'conditions': 'spectral sensitivity, units not stated', 'page': 5, 'figure': 'Fig. 11', 'kind': 'digitized', 'uncertainty': '+-1.5 nm (+-5 nm for CL peak position because of flat top)'}, {'film': 'Super400', 'quantity': 'CL peak level relative to GL peak (Fig.11)', 'values': -0.51, 'units': 'axis units of Fig.11 (if log sensitivity: log units)', 'conditions': '', 'page': 5, 'figure': 'Fig. 11', 'kind': 'digitized', 'uncertainty': '+-0.07'}, {'film': 'Super400 vs current', 'quantity': 'Spectral sensitivity level differences (Fig.11)', 'values': {'BL plateau': 'S400 ~1.96-2.02 vs current ~1.81-1.87', 'BL peak': '2.32 vs 2.17', 'GL peak': '2.44 vs ~2.23 (current flat 2.20-2.23 at 546-565 nm)', 'RL max': '2.26 vs 2.11', 'GL short edge': 'S400 GL starts ~481 nm (0.61); current GL starts ~470 nm (0.65)'}, 'units': 'axis units', 'conditions': '', 'page': 5, 'figure': 'Fig. 11', 'kind': 'digitized', 'uncertainty': '+-0.06'}, {'film': 'white fluorescent lamp (Fig.11)', 'quantity': 'SPD features', 'values': 'Hg lines at ~405, ~436, ~546 nm, broad band with maximum ~2.0 near 578-581 nm (on the figure scale)', 'units': 'nm', 'conditions': '', 'page': 5, 'figure': 'Fig. 11', 'kind': 'digitized', 'uncertainty': '+-1.5 nm'}, {'film': 'Super400 vs current', 'quantity': 'green cast under fluorescent light', 'values': 'reduced; cause: current film renders ~575 nm (broad fluorescent emission) as green because RL short-wave sensitivity is low and GL->RL interimage acts from GL long side', 'units': '', 'conditions': 'mixed daylight (left) + white fluorescent (right) illumination, Photo 3', 'page': 4, 'figure': 'sec.5.2, 6.1, Photo 3', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Super400 vs current', 'quantity': 'Reproduction of visible spectrum (Fig.12) - extent of yellow hue band', 'values': {'Super400': '~568-584 nm (~16 nm)', 'current': '~575-580 nm (~5 nm)', 'red end of reproduced spectrum': 'Super400 ~655 nm, current ~668 nm'}, 'units': 'nm', 'conditions': 'printed photograph of a spectrum; hue classification 40-75 deg HLS on the printed CMYK image', 'page': 5, 'figure': 'Fig. 12', 'kind': 'digitized', 'uncertainty': '+-3 nm (printing/screening)'}, {'film': 'current ISO400 CN film (predecessor)', 'quantity': 'green-layer transmittance at 550 nm', 'values': 'about 25', 'units': '%', 'conditions': '', 'page': 2, 'figure': 'sec.3 text + Fig.3', 'kind': 'printed', 'uncertainty': ''}, {'film': 'current ISO400 CN film', 'quantity': 'green-layer transmittance minimum (Fig.3)', 'values': '24.1 at 552 nm; 46.9 at 522 nm (local max); 83.9 at 598-600 nm', 'units': '% ; nm', 'conditions': '', 'page': 2, 'figure': 'Fig. 3', 'kind': 'digitized', 'uncertainty': '+-0.5 %'}, {'film': 'Super400', 'quantity': 'GL+CL transmittance vs current GL (Fig.10)', 'values': {'520 nm': '42.9 vs 46.7', '530 nm': '41.2 vs 43.9', '552 nm (minimum)': '24.7 vs 24.7', '566 nm': '39.5 vs 36.2', '576 nm': '60.1 vs 56.5', '>590 nm': 'curves coincide (~81-83)'}, 'units': '%', 'conditions': '', 'page': 5, 'figure': 'Fig. 10', 'kind': 'digitized', 'uncertainty': '+-1 %'}, {'film': 'Super400', 'quantity': 'Spectrogram after red pre-exposure (Fig.8): band maxima', 'values': {'B': '0.96 at ~468-471 nm (shoulder 0.79 at 416-423 nm)', 'G': '0.85 at ~544-558 nm', 'R': '0.66 at ~624-629 nm'}, 'units': 'density - fog', 'conditions': 'slight uniform red pre-exposure, then spectral exposure; process not stated', 'page': 5, 'figure': 'Fig. 8', 'kind': 'digitized', 'uncertainty': '+-2.5 nm, +-0.02 D'}, {'film': 'Super400', 'quantity': 'Interimage (development inhibition) of red-sensitive layer seen as density below fog (Fig.8)', 'values': {'420-478 nm': 'about -0.11', '~490-504 nm': 'about -0.075', 'hatched CL->RL region': '~500 to ~590 nm, minimum about -0.13 at ~540-550 nm', 'returns to 0': '~595 nm'}, 'units': 'density - fog', 'conditions': 'red pre-exposure as above', 'page': 5, 'figure': 'Fig. 8', 'kind': 'digitized', 'uncertainty': '+-0.02 D, +-2.5 nm'}, {'film': 'none (CIE / theory)', 'quantity': 'LMS from CIE RGB colour-matching functions', 'values': 'L=0.354r+0.643g+0.002b; M=0.182r+0.807g+0.011b; S=0.000r+0.010g+0.990b', 'units': '', 'conditions': '', 'page': 2, 'figure': 'sec.3 equations', 'kind': 'printed', 'uncertainty': ''}, {'film': 'none (CIE / theory)', 'quantity': 'RGB colour-matching functions from LMS', 'values': 'r=4.22L-3.20M-0.02S; g=-1.25L+2.28M-0.03S; b=0.03L-0.05M+1.02S', 'units': '', 'conditions': '', 'page': 2, 'figure': 'sec.3 equations', 'kind': 'printed', 'uncertainty': ''}, {'film': 'theoretical red sensitivity target (Fig.4)', 'quantity': 'negative lobe of new red sensitivity', 'values': {'solid': 'min about -7.4 at 480-483 nm, zero crossing ~525 nm, peak 74.4 at ~600 nm', 'dashed': 'min about -29 at ~517 nm, zero crossing ~546 nm, peak ~103.4 at ~605 nm'}, 'units': 'relative (LMS peak ~50)', 'conditions': '', 'page': 3, 'figure': 'Fig. 4', 'kind': 'digitized', 'uncertainty': '+-2 nm, +-2-3 units'}, {'film': 'Super400 vs current (ACE400)', 'quantity': 'Macbeth chart colour reproduction (Fig.6): chroma radius in a*b* tick units', 'values': {'Y': {'original': 7.6, 'super400': 7.02, 'current': 6.7}, 'O': {'original': 6.65, 'super400': 7.02, 'current': 6.83}, 'R': {'original': 6.31, 'super400': 6.56, 'current': 6.8}, 'MR': {'original': 4.84, 'super400': 4.73, 'current': 4.68}, 'M': {'original': 5.01, 'super400': 4.76, 'current': 4.38}, 'P': {'original': 3.12, 'super400': 3.3, 'current': 3.03}, 'B': {'original': 5.02, 'super400': 5.34, 'current': 4.32}, 'C': {'original': 3.78, 'super400': 4.11, 'current': 3.9}, 'G': {'original': 4.93, 'super400': 4.54, 'current': 3.88}, 'YG': {'original': 6.06, 'super400': 5.93, 'current': 5.39}}, 'units': 'ticks (a*b* units per tick not printed)', 'conditions': '', 'page': 4, 'figure': 'Fig. 6', 'kind': 'digitized', 'uncertainty': '+-0.07 tick'}, {'film': 'Super400 vs current', 'quantity': 'CTF at selected frequencies (Fig.7)', 'values': {'peak': 'S400 1.10 at 4-6 c/mm; current 1.07 at 4 c/mm', '10 c/mm': '1.074 vs 0.990', '20 c/mm': '0.875 vs 0.786', '40 c/mm': '0.466 vs 0.438', '59.5 c/mm': '0.258 vs 0.248', 'CTF=0.5 frequency': '38.3 vs 36.5 c/mm'}, 'units': 'CTF; c/mm', 'conditions': 'layer/colour record and measurement conditions not stated', 'page': 4, 'figure': 'Fig. 7', 'kind': 'digitized', 'uncertainty': '+-0.01 CTF, +-0.5 c/mm for f50'}, {'film': 'Super400 vs current', 'quantity': 'Edge effect (Fig.15, microdensitometer traces of an exposed bar, no axis scale): overshoot of edge peak above plateau, relative to step height', 'values': {'Super400': 'left edge 14.0 %, right edge 12.2 %', 'current': 'left edge 6.9 %, right edge 4.6 %', 'undershoot at foot': 'Super400 right foot ~3 %; others within trace noise (~1.5 %)'}, 'units': '% of step height', 'conditions': 'traces drawn at equal scale (assumed: same figure, same bar width 82-84 px)', 'page': 6, 'figure': 'Fig. 15', 'kind': 'digitized', 'uncertainty': '+-1 % (single-pixel spike tops)'}, {'film': 'Super400 / Nexia H400', 'quantity': 'DIR coupler type', 'values': 'two-step-timing DIR coupler: COUP-T1-T2-DI + QDI -> DYE + T1-T2-DI; T1-T2-DI -> T2-DI; T2-DI -> DI (release timing controls DI diffusion -> edge enhancement)', 'units': '', 'conditions': '', 'page': 6, 'figure': 'sec.6.3', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Super400 / Nexia H400', 'quantity': 'emulsion grains', 'values': '"super uniform fine grain": hexagonal tabular AgX grains, improved monodispersity with high aspect ratio, uniform internal structure; edge dislocations built into the fringe (act as temporary photo-electron traps, suppress recombination with dye holes -> prevents dye desensitization); latent image at hexagon corners. No dimensions, aspect ratio, iodide or silver coverage given', 'units': '', 'conditions': '', 'page': 6, 'figure': 'sec.6.2, Fig.13', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Nexia H400 only', 'quantity': 'yellow filter layer', 'values': 'solid-dispersed yellow-filter dye replaces colloidal silver (colloidal silver has broad absorption with unwanted long-wave absorption); gives higher speed of lower layers and better speed/granularity ratio for the small APS format', 'units': '', 'conditions': '', 'page': 7, 'figure': 'sec.6.4', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Super400 / Nexia H400', 'quantity': 'granularity (RMS), resolving power, characteristic curves, gamma, reciprocity, latent image stability, dye densities, processing', 'values': 'not found in the issue', 'units': '', 'conditions': '', 'page': 1, 'figure': '-', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Fujicolor product line (1998)', 'quantity': 'films carrying the new 4th-layer technology', 'values': 'Super400 (135), Nexia H400 (APS), overseas New Superia series ISO 100/200/400, New Nexia A200, Nexia D100; previously Reala ACE and Nexia F already had a 4th layer -> most Fuji amateur CN films ISO<=400 have it', 'units': '', 'conditions': '', 'page': 7, 'figure': 'sec.7', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Super400 vs current', 'quantity': 'colour reproduction claims', 'values': 'higher saturation of blue, green, magenta etc.; yellow hue loses magenta tint; better violet fidelity; deep red rose shows shading; objects with far-red reflectance (sweater vs suit) both reproduced purple', 'units': '', 'conditions': 'Photos 1-2, Fig.6', 'page': 4, 'figure': 'sec.5.1', 'kind': 'printed', 'uncertainty': ''}, {'film': 'APS (IX240) films incl. Nexia (Fuji APS line: Nexia F, A, H shown in Photo/Fig.1 page)', 'quantity': 'film base material', 'values': 'PEN (polyethylene naphthalate), Below-Tg-Annealed ("BTA", A-PEN); replaces TAC to obtain thin, strong base with low core-set curl', 'units': '', 'conditions': '', 'page': 51, 'figure': 'PEN article sec.1, Fig.9', 'kind': 'printed', 'uncertainty': ''}, {'film': 'APS PEN base', 'quantity': 'glass transition temperature Tg of PEN', 'values': '120', 'units': 'C', 'conditions': '', 'page': 52, 'figure': 'PEN article sec.1', 'kind': 'printed', 'uncertainty': ''}, {'film': 'APS PEN base', 'quantity': 'BTA heat treatment', 'values': 'just below Tg (~120 C) for >=24 h ("1日以上"; elsewhere "数日" = several days), temperature fluctuation must stay within 1 C; rolls ~3000 m long, >1 m wide; exceeding Tg even momentarily (e.g. during subbing) erases the effect', 'units': '', 'conditions': '', 'page': 54, 'figure': 'PEN article sec.1, 3.2', 'kind': 'printed', 'uncertainty': ''}, {'film': 'APS PEN base', 'quantity': 'surface treatment', 'values': 'vacuum glow-discharge plasma, ~3000 V between electrodes, film exposed 1-2 s; film pre-heating reconciles dry and wet adhesion; rod-electrode array', 'units': '', 'conditions': '', 'page': 52, 'figure': 'PEN article sec.3.1, Fig.2, Fig.6', 'kind': 'printed', 'uncertainty': ''}, {'film': '35 mm vs APS cartridge', 'quantity': 'spool core diameter', 'values': '35 mm: 11 mm phi; APS: 7 mm phi', 'units': 'mm', 'conditions': '', 'page': 52, 'figure': 'PEN article Fig.1', 'kind': 'printed', 'uncertainty': ''}, {'film': 'APS', 'quantity': 'market data', 'values': 'APS launched April 1996 (Fuji, Kodak, Canon, Nikon, Minolta); APS ~20 % of film sales at time of writing', 'units': '', 'conditions': '', 'page': 55, 'figure': 'PEN article sec.1, 4', 'kind': 'printed', 'uncertainty': ''}, {'film': 'TAC, PET, PEN, A-PEN', 'quantity': 'core-set curl comparison', 'values': 'photo only: A-PEN (BTA) nearly flat, PEN curled, TAC and PET strongly curled after storage in same cartridge at "car-boot-like" conditions; no numbers', 'units': '', 'conditions': '', 'page': 55, 'figure': 'PEN article Fig.9', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Instax / Instax mini film (instant) - not in DB', 'quantity': 'ISO speed', 'values': '800', 'units': 'ISO', 'conditions': '', 'page': 5, 'figure': 'Instax article sec.2.2', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Instax film', 'quantity': 'emulsion', 'values': 'high-speed layers: tabular "sigma crystal" grains; low-speed (highlight) layers: regular (normal-habit) sigma crystals (direct-positive emulsion); reflective layer halved', 'units': '', 'conditions': '', 'page': 5, 'figure': 'Instax article sec.3.1.1, Fig.1', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Instax film', 'quantity': 'recommended development (use) temperature', 'values': '10-35 (previous ACE system 15-35)', 'units': 'C', 'conditions': '', 'page': 6, 'figure': 'Instax article sec.3.1.1 (3)', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Instax film', 'quantity': 'image size', 'values': 'Instax mini: 46 x 62 mm (card-size unit); Instax (wide): 99 x 62 mm, unit 85 x 108 mm', 'units': 'mm', 'conditions': '', 'page': 7, 'figure': 'Instax article sec.3.2.1.1', 'kind': 'printed', 'uncertainty': ''}, {'film': 'Instax film', 'quantity': 'Dmin / Dmax of characteristic curve (Fig.1)', 'values': 'Dmax ~2.32 (logH <= -3.4), Dmin ~0.17 (logH >= -1.35); mid-scale slope about -2.3 D per log H between logH -2.6 (D 1.83) and -2.2 (D 0.91)', 'units': 'D; log lux-s', 'conditions': '', 'page': 5, 'figure': 'Instax article Fig.1', 'kind': 'digitized', 'uncertainty': '+-0.02'}, {'film': 'Digital in-printer camera (Instax mini output)', 'quantity': 'VFPH print head', 'values': '2 rows x 240 pixels, 256 dpi (sec.3.3.3.1 text) / 254 dpi (spec list); 640x480 image, RGB 8 bit each, 62 x 46 mm, ~35 s per print', 'units': '', 'conditions': '', 'page': 8, 'figure': 'Instax article sec.3.3.3', 'kind': 'printed', 'uncertainty': ''})}
+
+# ---------------------------------------------------------------------------
+# 2026-10-22b (owner-approved, queue Q7 batch): REFERENCE REGISTRIES.
+#   AVIPHOT_PAN_80_2009        Agfa-Gevaert «AVIPHOT PAN 80» sheet 01/2009 (7 pp.):
+#                              raster traces C1-C8 (spectral, MTF, granularity,
+#                              12 characteristic curves, EAFS/ASA, G-bar, fog vs
+#                              time), filter factors, resolving power, base, assortment
+#   AGFA_AERIAL_OVERVIEW_2009  Agfa-Gevaert «Aerial Photography -- Product Overview»
+#                              (2009): film list, G-bar ranges, ASP 70/44/94 tables
+#   AVIPHOT_OWNER_COMPARISON   the owner's PAN 20 / 80 / 200 comparison table and
+#                              its check against the three sheets
+# Traced 2026-10-22b (methods: doc/RESULT_2026-10-22b_aviphot_pan80_q7.md).
+# ---------------------------------------------------------------------------
+#: x shift applied to the 40 s G 74 c fit so fog + 0.10 sits at -1.60 (profile curve).
+AVIPHOT_PAN_80_CURVE_X_SHIFT = 0.3413
+AVIPHOT_PAN_80_2009 = {'C1': {'name': 'absolute spectral sensitivity', 'page': 2, 'x': 'wavelength nm', 'y': 'log sensitivity, log10(1/(mJ/m2))', 'conditions': 'Gevatone 66, G 74 c, 30 °C, 42 s; reciprocal of the exposure for diffuse D 1.0 above fog', 'points': ((336.9, 0.0), (337.5, 0.1), (339.8, 0.2), (342.0, 0.3), (344.3, 0.4), (346.6, 0.5), (352.2, 0.7), (354.4, 0.8), (355, 0.786), (360, 0.873), (365, 0.924), (370, 0.965), (375, 1.012), (380, 1.062), (385, 1.14), (390, 1.186), (395, 1.214), (400, 1.244), (405, 1.28), (410, 1.308), (415, 1.319), (420, 1.319), (425, 1.319), (430, 1.319), (450, 1.319), (455, 1.319), (460, 1.319), (465, 1.312), (470, 1.297), (475, 1.278), (480, 1.255), (485, 1.234), (490, 1.222), (495, 1.218), (500, 1.231), (505, 1.271), (510, 1.322), (515, 1.362), (520, 1.393), (525, 1.416), (530, 1.427), (535, 1.431), (540, 1.431), (545, 1.44), (550, 1.44), (555, 1.44), (560, 1.452), (565, 1.482), (570, 1.516), (575, 1.547), (580, 1.572), (585, 1.595), (590, 1.611), (595, 1.618), (600, 1.617), (605, 1.589), (610, 1.531), (615, 1.473), (620, 1.413), (625, 1.361), (635, 1.361), (640, 1.358), (645, 1.357), (650, 1.39), (655, 1.43), (660, 1.454), (665, 1.484), (670, 1.521), (675, 1.533), (680, 1.552), (685, 1.579), (695, 1.588), (700, 1.614), (705, 1.648), (710, 1.668), (715, 1.668), (720, 1.677), (725, 1.683), (730, 1.684), (735, 1.661), (738.9, 1.6), (743.3, 1.5), (745.6, 1.4), (747.8, 1.3), (754.4, 1.1), (756.7, 1.0), (758.9, 0.9), (761.1, 0.8), (763.3, 0.7), (765.6, 0.6), (768.9, 0.5), (771.1, 0.4), (773.3, 0.3), (775.6, 0.2), (776.7, 0.1))}, 'C2': {'name': 'photographic MTF', 'page': 2, 'x': 'frequency lp/mm', 'y': 'MTF %', 'conditions': 'Gevatone 66, G 74 c, 30 °C; 1 = 20 s, 2 and 3 = 42 and 70 s (one drawn curve)', 'points': {'1: 20 s (dashed)': ((2.5, 111.1), (3, 111.5), (7, 108.7), (8, 107.1), (10, 104.3), (12, 101.7), (15, 98.9), (20, 92.7), (25, 87.4), (30, 81.4), (35, 76.9), (40, 72.9), (50, 65.3), (60, 59.5), (70, 54.4), (80, 51.3), (90, 48.3)), '2+3: 42 and 70 s (solid)': ((2.5, 115.3), (3, 114.8), (4, 113.4), (5, 110.9), (6, 108.6), (7, 106.2), (8, 104.6), (10, 101.4), (12, 97.6), (15, 92.8), (20, 85.1), (25, 79.1), (30, 72.9), (35, 68.7), (40, 64.5), (50, 57.0), (60, 51.4), (70, 47.3), (80, 44.8), (90, 42.1))}}, 'C3': {'name': 'RMS granularity (sigmaD x 1000) vs diffuse density', 'page': 3, 'x': 'diffuse density', 'y': 'sigmaD x 1000 (log axis; lowest line labelled «0» = 1)', 'conditions': '50 um spot; Gevatone 66, G 74 c, 30 °C, 42 s', 'points': ((0.179, 8.53), (0.2, 8.53), (0.3, 8.57), (0.4, 8.6), (0.5, 8.63), (0.6, 8.71), (0.7, 8.82), (0.8, 8.93), (0.9, 9.07), (1.0, 9.23), (1.1, 9.45), (1.2, 9.69), (1.3, 9.94), (1.4, 10.28), (1.5, 10.65), (1.6, 11.03), (1.7, 11.37), (1.8, 11.74), (1.9, 12.11), (1.928, 12.18))}, 'C4': {'name': 'characteristic curves, G 74 c', 'page': 4, 'x': 'log It (relative)', 'y': 'diffuse density', 'conditions': 'Gevatone 66, G 74 c, 30 °C; 20/30/40/50/60/70 s', 'points': {'20 s': ((-3.0, 0.078), (-2.9, 0.078), (-2.8, 0.078), (-2.7, 0.078), (-2.6, 0.078), (-2.5, 0.08), (-2.4, 0.085), (-2.3, 0.09), (-2.2, 0.091), (-2.1, 0.098), (-2.0, 0.118), (-1.9, 0.15), (-1.8, 0.205), (-1.7, 0.279), (-1.6, 0.364), (-1.5, 0.45), (-1.4, 0.534), (-1.3, 0.609), (-1.2, 0.683), (-1.1, 0.756), (-1.0, 0.83), (-0.9, 0.904), (-0.8, 0.982), (-0.7, 1.06), (-0.6, 1.137), (-0.5, 1.216), (-0.4, 1.296), (-0.3, 1.375), (-0.22, 1.437)), '30 s': ((-3.0, 0.078), (-2.9, 0.078), (-2.8, 0.078), (-2.7, 0.078), (-2.6, 0.078), (-2.5, 0.08), (-2.4, 0.085), (-2.3, 0.095), (-2.2, 0.101), (-2.1, 0.12), (-2.0, 0.142), (-1.9, 0.187), (-1.8, 0.253), (-1.7, 0.344), (-1.6, 0.451), (-1.5, 0.557), (-1.4, 0.665), (-1.3, 0.773), (-1.2, 0.872), (-1.1, 0.969), (-1.0, 1.065), (-0.9, 1.157), (-0.8, 1.248), (-0.7, 1.334), (-0.6, 1.42), (-0.5, 1.503), (-0.4, 1.589), (-0.3, 1.676), (-0.22, 1.746)), '40 s': ((-3.0, 0.078), (-2.9, 0.078), (-2.8, 0.078), (-2.7, 0.078), (-2.6, 0.078), (-2.5, 0.08), (-2.4, 0.085), (-2.3, 0.096), (-2.2, 0.103), (-2.1, 0.12), (-2.0, 0.157), (-1.9, 0.212), (-1.8, 0.295), (-1.7, 0.384), (-1.6, 0.506), (-1.5, 0.653), (-1.4, 0.793), (-1.3, 0.929), (-1.2, 1.055), (-1.1, 1.167), (-1.0, 1.268), (-0.9, 1.364), (-0.8, 1.451), (-0.7, 1.535), (-0.6, 1.618), (-0.5, 1.702), (-0.4, 1.786), (-0.3, 1.876), (-0.22, 1.947)), '50 s': ((-3.0, 0.078), (-2.9, 0.078), (-2.8, 0.078), (-2.7, 0.078), (-2.6, 0.078), (-2.5, 0.08), (-2.4, 0.085), (-2.3, 0.1), (-2.2, 0.113), (-2.1, 0.143), (-2.0, 0.181), (-1.9, 0.236), (-1.8, 0.324), (-1.7, 0.43), (-1.6, 0.569), (-1.5, 0.737), (-1.4, 0.882), (-1.3, 1.024), (-1.2, 1.166), (-1.1, 1.303), (-1.0, 1.416), (-0.9, 1.515), (-0.8, 1.594), (-0.7, 1.668), (-0.6, 1.747), (-0.5, 1.836), (-0.4, 1.928), (-0.3, 2.027), (-0.23, 2.092)), '60 s': ((-3.0, 0.078), (-2.9, 0.078), (-2.8, 0.078), (-2.7, 0.078), (-2.6, 0.078), (-2.5, 0.09), (-2.4, 0.106), (-2.3, 0.121), (-2.2, 0.146), (-2.1, 0.183), (-2.0, 0.234), (-1.9, 0.304), (-1.8, 0.404), (-1.7, 0.516), (-1.6, 0.647), (-1.5, 0.833), (-1.4, 1.044), (-1.3, 1.21), (-1.2, 1.361), (-1.1, 1.491), (-1.0, 1.603), (-0.9, 1.703), (-0.8, 1.799), (-0.7, 1.885), (-0.6, 1.971), (-0.5, 2.05), (-0.4, 2.133), (-0.3, 2.216), (-0.22, 2.287)), '70 s': ((-3.0, 0.078), (-2.9, 0.078), (-2.8, 0.078), (-2.7, 0.078), (-2.6, 0.078), (-2.5, 0.09), (-2.4, 0.106), (-2.3, 0.121), (-2.2, 0.146), (-2.1, 0.183), (-2.0, 0.234), (-1.9, 0.304), (-1.8, 0.404), (-1.7, 0.519), (-1.6, 0.678), (-1.5, 0.869), (-1.4, 1.083), (-1.3, 1.275), (-1.2, 1.431), (-1.1, 1.558), (-1.0, 1.674), (-0.9, 1.771), (-0.8, 1.863), (-0.7, 1.949), (-0.6, 2.032), (-0.5, 2.11), (-0.4, 2.193), (-0.3, 2.275), (-0.22, 2.347))}, 'merged': ('all six curves: logIt -3.00 to -2.55 share one fog band (band centre, D~0.077-0.080); -2.55 to -2.40 the band thickens, 60/70 s taken at its upper edge, 20-50 s at its lower edge', '60 s & 70 s: -2.55 to -1.70 drawn on top of each other (dash pattern overlaps, strands <=4 px apart, identity ambiguous) -> identical values; separate from -1.68 (70 s above 60 s)', '20/30/40/50 s: -2.40 to -2.15 one bundle 6-12 px thick; 50 s placed at bundle top edge, 20 s at bottom edge, 40 s/30 s interpolated between (order assumed 50>40>30>20)', '40 s & 30 s: -2.15 to -2.00 coincide (single stroke) -> equal values (0.120 at -2.10)')}, 'C5': {'name': 'characteristic curves, G 74 c + AD 74', 'page': 5, 'x': 'log It (relative)', 'y': 'diffuse density', 'conditions': 'Gevatone 66, G 74 c + AD 74, 30 °C; 20/30/40/50/60/70 s', 'points': {'20 s': ((-3.0, 0.068), (-2.9, 0.072), (-2.8, 0.074), (-2.7, 0.076), (-2.6, 0.08), (-2.5, 0.089), (-2.4, 0.097), (-2.3, 0.104), (-2.2, 0.117), (-2.1, 0.144), (-2.0, 0.187), (-1.9, 0.244), (-1.8, 0.317), (-1.7, 0.429), (-1.6, 0.579), (-1.5, 0.737), (-1.4, 0.887), (-1.3, 1.019), (-1.2, 1.143), (-1.1, 1.255), (-1.0, 1.37), (-0.9, 1.478), (-0.8, 1.584), (-0.7, 1.684), (-0.6, 1.781), (-0.5, 1.871), (-0.4, 1.96), (-0.3, 2.044), (-0.23, 2.102)), '30 s': ((-3.0, 0.098), (-2.9, 0.098), (-2.8, 0.098), (-2.7, 0.098), (-2.6, 0.102), (-2.5, 0.108), (-2.4, 0.117), (-2.3, 0.128), (-2.2, 0.151), (-2.1, 0.186), (-2.0, 0.236), (-1.9, 0.304), (-1.8, 0.392), (-1.7, 0.509), (-1.6, 0.677), (-1.5, 0.87), (-1.4, 1.055), (-1.3, 1.234), (-1.2, 1.392), (-1.1, 1.547), (-1.0, 1.688), (-0.9, 1.801), (-0.8, 1.905), (-0.7, 2.002), (-0.6, 2.093), (-0.5, 2.179), (-0.4, 2.259), (-0.3, 2.337), (-0.28, 2.352)), '40 s': ((-3.0, 0.12), (-2.9, 0.127), (-2.8, 0.129), (-2.7, 0.131), (-2.6, 0.134), (-2.5, 0.137), (-2.4, 0.144), (-2.3, 0.159), (-2.2, 0.192), (-2.1, 0.232), (-2.0, 0.283), (-1.9, 0.351), (-1.8, 0.444), (-1.7, 0.586), (-1.6, 0.775), (-1.5, 0.956), (-1.4, 1.154), (-1.3, 1.381), (-1.2, 1.571), (-1.1, 1.728), (-1.0, 1.869), (-0.9, 2.002), (-0.8, 2.123), (-0.7, 2.232), (-0.6, 2.324), (-0.5, 2.377), (-0.4, 2.389), (-0.39, 2.39)), '50 s': ((-3.0, 0.139), (-2.9, 0.144), (-2.8, 0.148), (-2.7, 0.152), (-2.6, 0.154), (-2.5, 0.157), (-2.4, 0.168), (-2.3, 0.191), (-2.2, 0.217), (-2.1, 0.253), (-2.0, 0.313), (-1.9, 0.393), (-1.8, 0.49), (-1.7, 0.634), (-1.6, 0.828), (-1.5, 1.054), (-1.4, 1.267), (-1.3, 1.442), (-1.2, 1.622), (-1.1, 1.803), (-1.0, 1.965), (-0.9, 2.103), (-0.8, 2.229), (-0.7, 2.331), (-0.6, 2.373), (-0.56, 2.384)), '60 s': ((-3.0, 0.173), (-2.9, 0.176), (-2.8, 0.18), (-2.7, 0.183), (-2.6, 0.191), (-2.5, 0.202), (-2.4, 0.213), (-2.3, 0.227), (-2.2, 0.256), (-2.1, 0.299), (-2.0, 0.354), (-1.9, 0.438), (-1.8, 0.554), (-1.7, 0.698), (-1.6, 0.884), (-1.5, 1.09), (-1.4, 1.286), (-1.3, 1.482), (-1.2, 1.695), (-1.1, 1.872), (-1.0, 2.031), (-0.9, 2.173), (-0.8, 2.286), (-0.7, 2.387)), '70 s': ((-3.0, 0.205), (-2.9, 0.205), (-2.8, 0.206), (-2.7, 0.209), (-2.6, 0.217), (-2.5, 0.227), (-2.4, 0.243), (-2.3, 0.264), (-2.2, 0.294), (-2.1, 0.327), (-2.0, 0.386), (-1.9, 0.491), (-1.8, 0.596), (-1.7, 0.753), (-1.6, 0.946), (-1.5, 1.163), (-1.4, 1.38), (-1.3, 1.582), (-1.2, 1.768), (-1.1, 1.931), (-1.0, 2.09), (-0.9, 2.243), (-0.8, 2.338), (-0.7, 2.391))}, 'merged': ('fog strands are separate (no merge in the toe)', '50 s & 60 s: -1.50 to -1.32 overlap (strands 0-4 px apart); where one wide run, 60 s = left edge, 50 s = right edge, else shared centre', '60 s & 70 s: converge at their common drawn end, logIt -0.75 to -0.70, D~2.39 (chart top 2.4)')}, 'C6': {'name': 'exposure/time curves', 'page': 5, 'x': 'developing time s', 'y': 'ISO A / EAFS (left; only 80 and 100 labelled, read linearly between them) and ASA exposure setting (right; 64 / 80 / 100, log)', 'conditions': 'Gevatone 66, 30 °C; G 74 c solid, G 74 c + AD 74 dashed', 'points': {'G 74 c': ((20, 75.16, 64.8), (25, 76.86, 68.5), (30, 78.76, 72.9), (35, 80.34, 76.8), (40, 81.81, 80.6), (45, 83.19, 84.4), (50, 84.38, 87.7), (55, 85.49, 91.0), (60, 86.38, 93.7), (65, 87.46, 97.1), (70, 88.19, 99.5)), 'G 74 c + AD 74': ((20, 85.67, 91.6), (25, 87.92, 98.6), (30, 90.04, 105.7), (35, 91.74, 111.8), (40, 93.07, 116.8), (45, 94.0, 120.4), (50, 94.65, 123.1), (55, 94.96, 124.3), (60, 95.04, 124.7), (65, 95.04, 124.7), (70, 94.8, 124.1))}, 'columns': ('time s', 'EAFS (left axis)', 'same height on the ASA axis')}, 'C7': {'name': 'average gradient vs developing time', 'page': 6, 'x': 'developing time s', 'y': 'G-bar', 'conditions': 'Gevatone 66, 30 °C', 'points': {'G 74 c': ((20, 0.9), (25, 1.078), (30, 1.245), (35, 1.385), (40, 1.5), (45, 1.592), (50, 1.664), (55, 1.719), (60, 1.756), (65, 1.782), (70, 1.797)), 'G 74 c + AD 74': ((20, 1.5), (25, 1.682), (30, 1.815), (35, 1.877), (40, 1.904), (45, 1.933), (50, 1.948), (55, 1.951), (60, 1.949), (65, 1.946), (70, 1.945))}}, 'C8': {'name': 'fog vs developing time', 'page': 6, 'x': 'developing time s', 'y': 'diffuse density', 'conditions': 'Gevatone 66, 30 °C', 'points': {'G 74 c': ((20, 0.0915), (25, 0.0882), (30, 0.0865), (35, 0.0853), (40, 0.0845), (45, 0.0833), (50, 0.083), (55, 0.0824), (60, 0.082), (65, 0.082), (70, 0.082)), 'G 74 c + AD 74': ((20, 0.0915), (25, 0.0944), (30, 0.0984), (35, 0.1039), (40, 0.1112), (45, 0.121), (50, 0.1332), (55, 0.1471), (60, 0.1619), (65, 0.1761), (70, 0.1915))}}, 'filter_factors': {'L 453 yellow': 1.5, 'L 519 orange-yellow': 1.8, 'L 599 red': 3.0, 'L 622 deep red': 4.0}, 'resolving_lp_mm': {'TOC 1000:1': 287, 'TOC 1.6:1': 101, 'target': 'USAF 1951', 'processing': 'Gevatone 66, G 74 c, 30 °C, 42 s'}, 'exposure_range': 'ASA 64 to 100 (p3)', 'base': {'PE1': '0.10 mm polyester', 'PE0': '0.06 mm polyester, same emulsion and back layer'}, 'processing': {'developer': 'G 74 c or G 74 c + AD 74', 'time': '20-70 s', 'fixer': 'PFIX (or G333c)', 'wash': 'min. 6 l/min at 30 °C'}, 'assortment': {'PE1 240 mm x 76 m': 'AH897 EB5SZ', 'PE1 240 mm x 152 m': 'AM897 EB5PT'}}
+AGFA_AERIAL_OVERVIEW_2009 = {'document': 'Agfa-Gevaert N.V., «Aerial Photography -- Product Overview», 4 pp., 2009 (NGJWS GB 00200901; PDF created 2009-01-23)', 'camera_films_bw': {'Aviphot Pan 80 PE1 / PE0': {'type': 'high resolution, intermediate speed, extremely fine grain panchromatic negative film', 'use': 'low to high altitude flights', 'processing': 'continuous tone processor or rewind; G 74 c or G 74 c + AD 74; Pfix + Aditan', 'average_gradient': (0.9, 1.9), 'notes': 'protection layer against scratching; can be processed low contrast (large scale) or high contrast'}, 'Aviphot Pan 200 PE1 / PE0 / PE0-AR': {'type': 'medium speed, fine grain panchromatic negative film', 'use': 'low to medium altitude flights', 'processing': 'as Pan 80', 'average_gradient': (0.8, 1.6), 'notes': 'no special recording filters required; yellow filters for higher contrast'}, 'Aviphot Pan 400S PE1 / PE0': {'type': 'high speed, low fog, fine grain panchromatic negative film', 'use': 'short photo-flights, low sun angle', 'processing': 'as Pan 80', 'average_gradient': (0.6, 1.1), 'notes': 'low fog even at long or hot processing; highly efficient anti-halation layer; wide exposure latitude'}}, 'aviphot_pan_20': 'NOT LISTED in this 2009 overview (the PAN 20 PE0 sheet of 01/2009 is the only Agfa source for it on file)', 'copying_films_bw': {'Avitone P 1 p / P 3 p': 'orthochromatic continuous tone, G-bar 1.3-1.6', 'Avitone P 1 p-HR / P 3 p-HR': 'blue sensitive very high resolution, G-bar 0.8-1.0 in G 74 c', 'Avitone PD 1 p-OS / PD 3 p-OS': 'orthochromatic diapositive, G-bar 1.0-1.3', 'Rapitone M1 / M2': 'variable contrast paper'}, 'colour_films': {'Aviphot Color X100 PE1': 'panchromatic negative, no colour mask, ASP 70 (C-41 / AN-6 compatible), 1,500-25,000 ft', 'Aviphot Color X400 PE1': 'panchromatic negative, no colour mask, ASP 70, 1,500-15,000 ft', 'Aviphot Color N800 PE1': 'panchromatic negative, triple masking, ASP 70 (C-41), 2,500-15,000 ft', 'Aviphot Chrome 200 PE1': 'colour reversal, ASP 44 (E-6), 2,500-15,000 ft', 'Avitone CP 70 / CP 94': 'colour copying films, 0.175 mm polyester', 'Rapitone C1 / C2': 'colour paper (ASP 94 / RA-4)'}, 'process_ASP70_roller': (('Developer 70 CD-R / Starter 70 CD-S', '3 min 15 s', '37.8 ± 0.25 °C', '1075 ml/m2'), ('Bleach 70 BL-R / acetic acid 60 %', '4 min 20 s', '38 ± 3', '810 ml/m2'), ('Wash', '1 min 5 s', '38 ± 3', '-'), ('Fixer FX univ or FX Unifix', '4 min 20 s', '38 ± 3', '810 ml/m2'), ('Wash', '3 min 15 s', '38 ± 3', '-'), ('Final bath 70 FI', '1 min 5 s', '24-41', '810 ml/m2')), 'process_ASP70_push': 'developing time up to max. 5 min 20 s and/or developer temperature up to max. 41 °C', 'process_ASP44_roller': (('1st Developer 44 FD-R / Starter FD-S', '5-7 min', '38 ± 0.3', '2150 ml/m2'), ('Wash', '1-4 min', '33-38', '-'), ('Reversal bath 44 RE', '1-4 min', '24-39', '1100 ml/m2'), ('Colour developer 44 CD-R / Starter 44 CD-S', '5-8 min', '38 ± 0.6', '2150 ml/m2'), ('Pre-bleach 44 P BL', '1-4 min', '24-39', '1100 ml/m2'), ('Bleach 44 BL-R / Starter 44 BL-S', '6-8 min', '33-39', '215 ml/m2'), ('Fixer FX univ or FX unifix', '4-6 min', '33-39', '1100 ml/m2'), ('Wash', '2-4 min', '33-39', '-'), ('Wash', '2-4 min', '33-39', '-'), ('Final bath 44 FI', '30 s-4 min', 'room temperature', '1100 ml/m2')), 'process_ASP94_roller': (('Colour Developer 94 CD-R / Starter 94 CD-S', '45 s paper / 110 s film (150 s for neutral shadows)', '35 ± 0.3', '215 / 500 ml/m2'), ('Colour Developer 94 CD-LR / Starter 94 CD-S', '45 s / 110 s', '-', '160 / 500 ml/m2'), ('Bleach-Fix 94 BX-MR', '45 s / 110 s', '30-36', '215 / 500 ml/m2'), ('Wash', '90 s / 220 s', '30-40', '2-5 / 4-11 ml/m2'))}
+AVIPHOT_OWNER_COMPARISON = {'source': 'Comparison table supplied by the owner 2026-10-22 (a secondary compilation citing tables.pirate-photo.fr, Avi_P80_04.doc and Avi_P200_04.doc, i.e. the three Agfa sheets); kept as a cross-check, not as a source', 'rows': {'resolution TOC 1000:1 lp/mm': {'PAN 20': 800, 'PAN 80': 287, 'PAN 200': 181}, 'resolution TOC 1.6:1 lp/mm': {'PAN 20': 250, 'PAN 80': 101, 'PAN 200': 51}, 'RMS granularity': {'PAN 20': '8 at D 1.0 above fog', 'PAN 80': 'curve vs density', 'PAN 200': 'curve vs density'}, 'granularity aperture': {'PAN 20': '50 um', 'PAN 80': '50 um', 'PAN 200': '50 um'}, 'spectral sensitivity': {'PAN 20': 'to 750 nm', 'PAN 80': 'to 750 nm', 'PAN 200': 'to 750 nm'}, 'contrast': {'PAN 20': 'high, relatively independent of processing', 'PAN 80': 'controllable by processing', 'PAN 200': 'controllable by processing'}}, 'check_2026_10_22b': 'Every number matches the maker sheets on file: PAN 20 01/2009 p1 (800 / 250 lp/mm, RMS 8 at D 1.0 above fog, 50 um spot); PAN 80 01/2009 p3 (287 / 101 lp/mm, 50 um spot; curve reads 9.2 at D 1.0); PAN 200 02/2004 p2-p3 (181 / 51 lp/mm, 50 um spot; curve reads 19.1 at D 1.0). ⚠ Owner note: PAN 20 and PAN 80 resolution is USAF 1951 at identical processing (Gevatone 66, G 74 c, 30 C, 42 s), so they compare directly; PAN 200 states ANSI PH 2.33 -- compare with care.'}
 
 
 
@@ -91325,8 +91775,10 @@ def grain_marginal_coeff(n_elem: float, size_sigma_log: float = 0.0) -> float:
 #: achieves. Stored so the refusal is a number that can be re-derived rather
 #: than a claim in a comment; `G-V48-SATFIT` recomputes it on every build.
 GRAIN_SIGMA_SAT_GLOBAL_FIT: tuple[float, float] = (0.95, 0.75)
-GRAIN_SIGMA_SAT_GLOBAL_RMS_MEAN: float = 0.140
-GRAIN_SIGMA_SAT_GLOBAL_RMS_WORST: float = 0.253
+# 2026-10-22c: re-measured against the measured colour negatives' FULL traced
+# tables (owner decision: tables replace the 3-4 anchors); was 0.140 / 0.253.
+GRAIN_SIGMA_SAT_GLOBAL_RMS_MEAN: float = 0.198
+GRAIN_SIGMA_SAT_GLOBAL_RMS_WORST: float = 0.247
 GRAIN_SIGMA_SAT_GATE: float = 0.10
 
 #: ⚠ WHY THE MODE EXISTS AT ALL IF IT IS REFUSED. Because the refusal has to be
@@ -116880,6 +117332,2218 @@ def _apply_records_2026_10_16e(p: "FilmProfile") -> "FilmProfile":
 FILM_PROFILES = tuple(_apply_records_2026_10_16e(_p) for _p in FILM_PROFILES)
 
 
+# 2026-10-22b (Q7): AVIPHOT PAN 20's support, from Agfa's own PE0 designation.
+# Applied AFTER the 2026-10-16e pass, whose class-default record it replaces.
+_PAN20_BASE_REC = ParamSource(
+    param="emulsion.base_um", tier=2, status="derived", unit="um",
+    conditions="PE0 polyester; the PAN 20 sheet prints «thinner» base, no number",
+    source="Agfa-Gevaert N.V., AVIPHOT PAN 80 sheet 01/2009 p1 («Aviphot Pan 80 PE0 with a polyester base of 0.06mm»), AVIPHOT PAN 200 sheet 02/2004 p1 (PE0 0.06 mm) and AVIPHOT PAN 400S sheet 01/2006 p1 (PE0 60 um)",
+    confidence="medium",
+    note="Three Agfa sheets define the PE0 designation as 0.06 mm polyester; PAN 20 is sold only as PE0. Replaces the 127 um acetate cine class default (2026-10-22b).")
+
+
+def _apply_pan20_base_2026_10_22b(p: "FilmProfile") -> "FilmProfile":
+    if p.name != "AGFA_AVIPHOT_PAN_20":
+        return p
+    ps = tuple(_PAN20_BASE_REC if x.param == "emulsion.base_um" else x
+               for x in p.param_sources)
+    if _PAN20_BASE_REC not in ps:
+        raise ValueError("AGFA_AVIPHOT_PAN_20: no emulsion.base_um record to replace")
+    return replace(p, param_sources=ps)
+
+
+FILM_PROFILES = tuple(_apply_pan20_base_2026_10_22b(_p) for _p in FILM_PROFILES)
+
+
+# 2026-10-22b (owner request): AgfaPhoto «Vista plus 200» Product Information
+# (file of 12 Nov 2009; the same pages 1-4 as the combined Vista plus 200 / 400
+# sheet harvested 2026-09-07 for its eight vector panels). Its TEXT sections
+# were never stored: the tungsten conversion filter (section 2) and the raw-stock
+# storage limits (section 8). The long-exposure ladder (section 6) is in
+# _RECIPROCITY_TABLES. Processed-film storage (section 10: «more than 20 years
+# below 10 C, 10-20 years below 25 C, 30-50 % RH») has no field -- it is not a
+# dye-fade table -- and is kept in VISTA_PLUS_2009_TEXT.
+VISTA_PLUS_2009_TEXT = {
+    "document": "AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 (4 pp.) and Vista plus 200 / 400 (8 pp.), produced for and distributed by Lupus Imaging & Media GmbH & Co. KG; PDF created 12 Nov 2009",
+    "speed": {"AGFA_VISTA_PLUS_200": ("ISO 200/24° daylight, no filter", "ISO 50/18° under 3200 K tungsten with Wratten No. 80A (or AgfaPhoto LBB-12)"),
+              "AGFA_VISTA_PLUS_400": ("ISO 400/27° daylight, no filter", "ISO 100/21° under 3200 K tungsten with Wratten No. 80A (or AgfaPhoto LBB-12)")},
+    "tungsten_lamps": "use a Wratten 80A (AgfaPhoto LBB-12) and open the lens +2 stops; no further compensation with TTL metering",
+    "fluorescent": "a greenish tint, corrected in printing; no filter; shutter slower than 1/30 s recommended",
+    "long_exposure": ((1.0 / 4000.0, 2.0, "unnecessary"), (4.0, "+1/3"), (16.0, "+2/3"), (64.0, "+1")),
+    "lighting_ratio": "main-to-fill within 1:4",
+    "raw_storage": {"short_term": "store at 15 °C or below", "long_term": "store at 0 °C or below", "after_cold": "warm up over 3 h (refrigerated) or 6 h (frozen) before opening"},
+    "processed_storage": (("more than 20 years", "below 10 °C", "30-50 % RH"), ("10-20 years", "below 25 °C", "30-50 % RH")),
+    "process": "AP 70 / CN-16 / C41",
+    "base": "cellulose triacetate, 122 um (135); production number C74 and above (200), H74 and above (400)",
+    "spectral_unit": "sensitivity = reciprocal of the exposure (J/cm2) for a specified density",
+}
+_VISTA_TUNGSTEN = {"AGFA_VISTA_PLUS_200": 50, "AGFA_VISTA_PLUS_400": 100}
+_VISTA_SRC = ("AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», "
+              "Vista plus 200 / 400 (Lupus Imaging & Media), file of 12 Nov 2009")
+
+
+def _apply_vista_plus_text_2026_10_22b(p: "FilmProfile") -> "FilmProfile":
+    if p.name not in _VISTA_TUNGSTEN:
+        return p
+    have = {x.param for x in p.param_sources}
+    for k in ("conversion_filter_tungsten", "base.raw_storage_max_f"):
+        if k in have:
+            raise ValueError("%s.%s: 2026-10-22b would duplicate a record" % (p.name, k))
+    ei = _VISTA_TUNGSTEN[p.name]
+    recs = (
+        ParamSource(param="conversion_filter_tungsten", tier=1, status="stated", unit="",
+            conditions="3200 K tungsten", source=_VISTA_SRC + ", sections 2 and 5",
+            confidence="high", note="Wratten No. 80A or AgfaPhoto LBB-12; open +2 stops (ISO 200 -> 50, 400 -> 100: the filter factor, so no tungsten index is stored)."),
+        ParamSource(param="base.raw_storage_max_f", tier=1, status="stated", unit="deg F",
+            conditions="unprocessed film, short-term", source=_VISTA_SRC + ", section 8",
+            confidence="high", note="«Store at 15 °C or below» (59 F); long-term «0 °C or below»."),
+    )
+    # ⚠ The tungsten INDEX (ISO 50 / 100) is NOT stored: it is the 80A filter
+    # factor, refused on 2026-09-06c (G-DEAD-REFUSE-VISTA-EIT); the field holds
+    # unfiltered pairs only. The filter itself is the stored datum.
+    return replace(p,
+                   conversion_filter_tungsten="Wratten No. 80A (or AgfaPhoto LBB-12)",
+                   base=replace(p.base, raw_storage_max_f=59.0,
+                                source=(p.base.source + " | " if p.base.source else "")
+                                + _VISTA_SRC + ", section 8: short-term at 15 C or below, long-term at 0 C or below"),
+                   param_sources=p.param_sources + recs)
+
+
+FILM_PROFILES = tuple(_apply_vista_plus_text_2026_10_22b(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-22b -- REGISTRY -> FIELD SWEEP (owner rule: captured data goes into
+# its database field; a reference registry may only hold what has no field).
+# Every value below was already traced into a registry in this module and is
+# now written to the field the schema has for it. Audit of all registries:
+# doc/RESULT_2026-10-22b_aviphot_pan80_q7.md §8.
+# ---------------------------------------------------------------------------
+_F4018 = ("Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication "
+          "F-4018, February 2002 (identical in May 2007)")
+_AF3_608E = "Fuji Photo Film Co., Ltd., «NEOPAN 1600 Professional» data sheet, Ref. AF3-608E"
+
+#: F-4018 p7 characteristic curves, gamma = least-squares slope of each traced
+#: curve between fog + 0.4 and fog + 1.4 D, fog = the curve's own minimum.
+_PLUSX_F4018_GAMMA = (
+    ("D-76", 5.0, 0.610, 0.254), ("D-76", 7.0, 0.752, 0.261), ("D-76", 11.0, 0.990, 0.270),
+    ("T-MAX", 6.0, 0.676, 0.309), ("T-MAX", 7.0, 0.751, 0.322), ("T-MAX", 11.0, 0.950, 0.336),
+)
+
+
+def _sweep_points(p):
+    """Development points the registries hold for this stock, or ()."""
+    if p.name == "KODAK_PLUS_X_125":
+        pts = [DevelopmentPoint(developer=d, dilution="stock", minutes=m, celsius=20.0,
+                                gamma=g, exposure_index=125, base_fog=f,
+                                vessel="small tank", edition="F-4018 2002 p7")
+               for d, m, g, f in _PLUSX_F4018_GAMMA]
+        # p6-7 VERSAMAT Models 5 / 411: 4 ft developer path at 4.0 / 3.0 ft/min
+        # (Model 11: 8.5 ft at 8.5 / 6.4 ft/min, the same times), DURAFLO RT,
+        # 26.5 C; CI 0.56 at the normal speed, which the push table calls EI 250.
+        pts.append(DevelopmentPoint(developer="KODAK DURAFLO RT", dilution="stock",
+                                    minutes=1.0, celsius=26.5, contrast_index=0.56,
+                                    contrast_criterion="kodak_ci",
+                                    exposure_index=250, vessel="roller transport",
+                                    edition="F-4018 2002 p6-7"))
+        pts.append(DevelopmentPoint(developer="KODAK DURAFLO RT", dilution="stock",
+                                    minutes=4.0 / 3.0, celsius=26.5, exposure_index=500,
+                                    vessel="roller transport", edition="F-4018 2002 p6-7"))
+        return tuple(pts)
+    if p.name == "FUJI_NEOPAN_1600":
+        # AF3-608E p3: Versamat with HPD (= Kodak DURAFLO RT) at 26.5 C, EI 800 /
+        # 1600 / 3200 at 5.5 / 4 / 3 ft/min on the 5AN and 411 (11 / 8 / 6 on the
+        # 11C); developer path 4 ft on Models 5 / 411 (Kodak F-4018 p6).
+        return tuple(DevelopmentPoint(developer="HPD (Kodak DURAFLO RT)", dilution="stock",
+                                      minutes=4.0 / v, celsius=26.5, exposure_index=ei,
+                                      vessel="roller transport",
+                                      edition="AF3-608E p3, Versamat 5AN / 411")
+                     for ei, v in ((800, 5.5), (1600, 4.0), (3200, 3.0)))
+    if p.name in _ILFORD_RT:
+        return tuple(DevelopmentPoint(developer=d, dilution=dil, minutes=round(sec / 60.0, 4),
+                                      celsius=c, exposure_index=ei, vessel="roller transport")
+                     for d, dil, c, row in _ILFORD_RT[p.name]
+                     for ei, sec in zip((400, 800, 1600, 3200, 6400), row) if sec)
+    return ()
+
+
+#: Ilford «ILFOLAB FP40, roller transport and short leader machines (sec)»
+#: rows, EI 400 / 800 / 1600 / 3200 / 6400 (0 = «−»). 2018 sheets; the
+#: developers printed only in the older edition from it (2004 HP5 Plus,
+#: 2002 DELTA 3200), the rule the small-tank rows follow.
+_ILFORD_RT = {
+    "ILFORD_HP5_PLUS_400": (
+        ("Ilfotec RT Rapid", "1+1+2", 26.0, (60, 75, 91, 108)),
+        ("Ilfotec RT Rapid", "1+1+5", 26.0, (70, 95, 120, 166)),
+        ("Ilfotec HC", "1+11", 24.0, (55, 70, 90, 130)),
+        ("KODAK DURAFLO RT", "stock", 26.0, (60, 81, 120, 166)),
+    ),
+    "ILFORD_DELTA_3200": (
+        ("Ilfotec RT Rapid", "1+1+2", 26.0, (54, 65, 73, 84, 104)),
+        ("Ilfotec RT Rapid", "1+1+5", 26.0, (95, 108, 120, 153, 176)),
+        ("KODAK DURAFLO RT", "stock", 26.0, (54, 65, 73, 84, 104)),
+    ),
+}
+_ILFORD_RT_SRC = {
+    "ILFORD_HP5_PLUS_400": "ILFORD «HP5 PLUS» technical information, Nov 2018, p4 (RT RAPID rows) and July 2004, "
+                           "p5 (ILFOTEC HC 1+11 at 24 C and Kodak Duraflo RT, 2004 only)",
+    "ILFORD_DELTA_3200": "ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018, p4 (RT RAPID rows) "
+                         "and September 2002, p5 (Kodak Duraflo RT, 2002 only)",
+}
+
+
+#: stock -> (stored mtf_rolloff_q, fitted q, fit rms in % points, registry curve);
+#: stored to two decimals like the rest of the corpus (the kernel record is keyed
+#: on the stored literal).
+_SWEEP_MTF_Q = {
+    "AGFA_AVIPHOT_PAN_200": (1.92, 1.918, 5.06, "AVIPHOT_PAN_200_2004 C3, 40 s"),
+    "AGFA_AVIPHOT_PAN_80": (1.77, 1.766, 4.24, "AVIPHOT_PAN_80_2009 C2, 42 / 70 s"),
+}
+#: stock -> processing.contrast_index printed at the stored processing condition
+_SWEEP_PROC_CI = {
+    "AGFA_AVIPHOT_PAN_200": (1.493, "average gradient 1.49 at 40 s, p6 chart (AVIPHOT_PAN_200_2004 C7)"),
+    "AGFA_AVIPHOT_PAN_80": (1.500, "average gradient 1.50 at 40 s, p6 chart (AVIPHOT_PAN_80_2009 C7)"),
+    "AGFA_AVIPHOT_PAN_400S": (0.90, "average gradient 0.90 at 42 s, p4 table"),
+    "AGFA_AVIPHOT_PAN_20": (2.11, "«Gr: Contrast 2.11» at 42 s, p2 legend"),
+}
+
+
+def _apply_registry_sweep_2026_10_22b(p: "FilmProfile") -> "FilmProfile":
+    kw = {}
+    recs = []
+    pts = _sweep_points(p)
+    if pts:
+        kw["processing_family"] = replace(p.processing_family,
+                                          points=p.processing_family.points + pts)
+        if p.name == "KODAK_PLUS_X_125":
+            recs.append(ParamSource(param="processing_family.points", tier=1, status="traced",
+                unit="(developer, min, C, gamma, fog)", conditions="small tank, 20 C; DURAFLO RT 26.5 C",
+                source=_F4018 + ", p7 characteristic curves (vector) and p6-7 VERSAMAT tables",
+                confidence="high",
+                note="6 gamma points (D-76 5 / 7 / 11 min 0.61 / 0.75 / 0.99; T-MAX 6 / 7 / 11 min 0.68 / 0.75 / 0.95) "
+                     "with their fog, and 2 roller-transport points (1.00 min CI 0.56 EI 250; 1.33 min EI 500). "
+                     "The D-76 group now carries the Development Time control (it sat on the 1956 Microdol group)."))
+        elif p.name in _ILFORD_RT:
+            recs.append(ParamSource(param="processing_family.points", tier=1, status="stated",
+                unit="(developer, dilution, s, C, EI)", conditions="roller transport, 26 C (Ilfotec HC 24 C)",
+                source=_ILFORD_RT_SRC[p.name], confidence="high",
+                note="%d time-only points from the «ILFOLAB FP40, roller transport and short leader machines» "
+                     "table, stored as vessel «roller transport» (v64). Earlier refusal reason (no vessel word "
+                     "for a machine) removed. The dip-and-dunk rows stay recorded only: no vessel word for a "
+                     "hanger machine." % len(pts)))
+        else:
+            recs.append(ParamSource(param="processing_family.points", tier=2, status="derived",
+                unit="(developer, min, C, EI)", conditions="Versamat 5AN / 411, HPD, 26.5 C",
+                source=_AF3_608E + ", p3 automatic processors; developer path 4 ft from " + _F4018 + ", p6",
+                confidence="medium",
+                note="Times = 4 ft / (5.5, 4, 3 ft/min) = 0.73 / 1.00 / 1.33 min at EI 800 / 1600 / 3200; the 11C's "
+                     "speeds are double, i.e. the same times on its longer path. Earlier refusal reason (no vessel "
+                     "word for a machine) removed by «roller transport» (v64)."))
+    if p.name in _SWEEP_MTF_Q:
+        q, qfit, rms, where = _SWEEP_MTF_Q[p.name]
+        kw["mtf"] = replace(p.mtf, mtf_measured=True, mtf_rolloff_q=q)
+        recs.append(ParamSource(param="mtf.mtf_rolloff_q", tier=1, status="derived", unit="exponent",
+            conditions="M(f) = 1 / (1 + (f/f50)^q), f50 held; fitted above the low-frequency lift on M < 98 %",
+            source="this module's traced maker MTF curve (" + where + ")", confidence="medium",
+            note="q %.2f (fitted %.3f, rms %.2f %% points, sovremennye_2004.rolloff_q, the corpus fitter). The "
+                 "lift above 100 %% at the lowest frequencies is not representable by the carrier." % (q, qfit, rms)))
+    if p.name in _SWEEP_PROC_CI:
+        ci, what = _SWEEP_PROC_CI[p.name]
+        kw["processing"] = replace(p.processing, contrast_index=ci)
+        recs.append(ParamSource(param="processing.contrast_index", tier=1, status="stated", unit="G-bar",
+            conditions="the stored curve's processing (G 74 c, Gevatone 66, 30 C)",
+            source="the stock's own Agfa sheet: " + what, confidence="high",
+            note="Equal to the family point at the same condition."))
+    if p.name == "FUJICOLOR_SUPERIA_REALA":
+        kw["layer_stack"] = replace(p.layer_stack, order=("blue", "green", "red"),
+            source="FUJIFILM Research & Development No. 44 (1999), sec. 4 Fig. 5: Reala coated "
+                   "BL / yellow filter / CL / GL / RL top to bottom; the three main records "
+                   "blue-green-red, the fourth (CL) layer between the yellow filter and GL")
+        recs.append(ParamSource(param="layer_stack.order", tier=1, status="stated", unit="",
+            conditions="top to bottom as coated", source="FUJIFILM Research & Development No. 44 (1999), Fig. 5",
+            confidence="medium", note="Four-layer stack projected to its three main records; CL position in the source string."))
+    if not kw:
+        return p
+    have = {x.param for x in p.param_sources}
+    for r in recs:
+        if r.param in have:
+            raise ValueError("%s.%s: 2026-10-22b sweep would duplicate a record" % (p.name, r.param))
+    return replace(p, param_sources=p.param_sources + tuple(recs), **kw)
+
+
+FILM_PROFILES = tuple(_apply_registry_sweep_2026_10_22b(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-22c -- OWNER DECISIONS ON THE SWEEP'S OPEN ITEMS (answers 2026-10-22):
+# every traced datum with a field goes into it, the decision items included.
+#   * the full traced sigma(D) curves of the 17 stocks that carried 3-4
+#     anchors only (v59 tables, <= GRAIN_SIGMA_TABLE_MAX points, endpoints at
+#     the stored toe_at / dmax_at, anchors reproduced within 3 %, same density
+#     space as the anchors -- plot / visual density where the anchors are);
+#   * AVIPHOT PAN 20 f50 from the same-test sibling ratio (PAN 80, USAF 1951,
+#     G 74 c 42 s): 0.626 x RP(1.6:1) 250 = 156.4 lp/mm (owner: "~156");
+#   * REALA red -> green interimage scaled to reproduce Fig. 17 (-0.365 D);
+#   * KODAK HIE and AVIPHOT PAN 400S roll-off exponents from their traced MTF;
+#   * PLUS-X 125: the F-4018 p8 contrast-index curves as development points and
+#     the CI at the stored processing (D-76 small tank 5.5 min) from them.
+# The development-group tie rule (processing.celsius) is in film_sim /
+# AlgoDevelopmentTime.hpp, not here.
+# ---------------------------------------------------------------------------
+_SIGMA_TABLES_2026_10_22C = {
+    'EASTMAN_5293_250T_1982': (
+        ((0.732, 11.16), (0.78, 11.88), (0.83, 12.22), (0.9, 12.2), (0.94, 11.9), (1.0, 11.13), (1.11, 9.33), (1.19, 8.095), (1.31, 6.533), (1.35, 6.221), (1.43, 5.935), (1.57, 5.734), (1.71, 5.386), (1.9, 5.155), (1.93, 5.155), (2.022, 5.261)),
+        "Kennel, Sehlin et al., 'Eastman Color High-Speed Negative Film 5293', SMPTE J. 91(10) 922-930 (1982), Fig. 13 'visual RMS granularity', log E eliminated against the density curve in the same frame",
+        'visual'),
+    'EASTMAN_EXR_100T_5248': (
+        ((0.612, 8.713), (0.62, 9.315), (0.65, 10.21), (0.74, 11.57), (0.77, 11.47), (0.82, 10.85), (1.0, 7.317), (1.06, 6.472), (1.12, 6.045), (1.17, 5.989), (1.32, 6.48), (1.38, 6.452), (1.55, 5.944), (1.64, 5.864), (1.82, 5.908), (2.051, 6.173)),
+        "Kodak EASTMAN EXR 100T 5248 technical sheet, p3 'Diffuse RMS Granularity Curves', vector paths",
+        'green'),
+    'EASTMAN_EXR_50D_5245': (
+        ((0.572, 7.155), (0.59, 7.289), (0.64, 8.206), (0.68, 8.648), (0.73, 8.851), (0.8, 8.484), (0.96, 6.459), (1.0, 6.036), (1.07, 5.481), (1.16, 5.011), (1.29, 4.578), (1.47, 4.167), (1.57, 4.1), (1.78, 4.418), (2.091, 4.373)),
+        "Kodak EASTMAN EXR 50D 5245 technical sheet, p4 'Diffuse RMS Granularity Curves', vector paths",
+        'green'),
+    'FUJI_PROVIA_100F': (
+        ((0.33, 4.366), (0.35, 4.43), (0.88, 7.546), (1.0, 7.881), (1.15, 8.282), (1.41, 9.762), (1.44, 9.851), (1.46, 10.05), (2.06, 13.44), (2.08, 13.51)),
+        "Ikeda et al., 'Development of Super High Image Quality Color Reversal Films FUJICHROME PROVIA 100F and 400F', FUJIFILM RESEARCH & DEVELOPMENT No.46 (2001), Fig. 5 left panel, RDP III (solid), sigma_D vs density",
+        'single (visual) curve per film'),
+    'FUJI_PROVIA_400F': (
+        ((0.46, 6.653), (0.51, 7.23), (0.73, 9.664), (0.76, 9.896), (0.77, 10.15), (0.82, 10.64), (1.0, 12.64), (1.62, 19.43), (1.96, 23.5), (1.98, 23.6)),
+        "Ikeda et al., 'Development of Super High Image Quality Color Reversal Films FUJICHROME PROVIA 100F and 400F', FUJIFILM RESEARCH & DEVELOPMENT No.46 (2001), Fig. 5 right panel, RHP III (solid), sigma_D vs density",
+        'single (visual) curve per film'),
+    'KODAK_EKTACHROME_100D_5285': (
+        ((0.141, 1.916), (0.15, 2.266), (0.18, 2.815), (0.23, 3.615), (0.57, 8.545), (0.68, 9.903), (1.0, 13.13), (1.19, 15.22), (1.39, 17.81), (1.98, 26.41), (2.2, 29.25), (3.14, 39.81), (3.3, 41.05), (3.514, 40.63)),
+        "Kodak H-1-5285 (EKTACHROME 100D), p4 'Diffuse RMS Granularity Curves', vector paths",
+        'green'),
+    'KODAK_TRI_X_REVERSAL_200': (
+        ((0.352, 4.581), (0.41, 6.104), (0.68, 11.58), (1.0, 17.65), (1.42, 26.69), (1.45, 28.21), (1.56, 30.29), (1.58, 32.28), (1.69, 34.18), (1.71, 35.54), (2.05, 41.47), (2.56, 47.18), (2.72, 48.24), (2.91, 48.24), (3.02, 49.62), (3.089, 49.77)),
+        "Kodak H-1-7266 (TRI-X Reversal 7266), p3 'rms Granularity Curve' (Granularity vs. Density, reversal process), embedded 770x748 raster, density and grain paired on the shared log-exposure axis",
+        'single silver layer (diffuse visual)'),
+    'KODAK_VISION2_500T_5218': (
+        ((0.592, 11.19), (0.61, 12.51), (0.64, 13.59), (0.69, 14.59), (0.74, 14.95), (0.8, 14.39), (0.95, 10.62), (1.0, 9.575), (1.08, 8.373), (1.16, 7.72), (1.41, 6.734), (1.5, 6.558), (1.58, 6.631), (1.81, 7.503), (2.0, 7.7), (2.309, 6.719)),
+        "Kodak H-1-5218 (VISION2 500T), p4 'Diffuse RMS Granularity Curves', vector paths",
+        'green'),
+    'KODAK_VISION2_50D_5201': (
+        ((0.621, 2.983), (0.66, 4.92), (0.69, 5.765), (0.74, 6.403), (0.8, 6.653), (0.87, 6.454), (1.0, 5.535), (1.08, 5.15), (1.24, 5.401), (1.49, 4.609), (1.61, 4.511), (1.72, 4.624), (1.84, 5.093), (2.01, 5.14), (2.1, 5.315), (2.349, 4.929)),
+        'Kodak H-1-5201 (VISION2 50D, 10-2005 brochure), p3 granularity panel, vector paths, layer identity by ink colour',
+        'green'),
+    'KODAK_VISION3_200T_5213': (
+        ((0.614, 3.034), (0.63, 4.198), (0.64, 5.582), (0.69, 7.827), (0.73, 8.888), (0.8, 9.205), (0.93, 8.368), (1.0, 7.483), (1.06, 6.946), (1.2, 6.889), (1.5, 5.418), (1.86, 5.789), (2.12, 5.671), (2.29, 5.241), (2.42, 5.112), (2.663, 4.368)),
+        "Kodak VISION3 200T 5213/7213 Technical Information, p3 'Diffuse rms Granularity Curves', embedded raster",
+        'pooled R/G/B band centre (sheet prints one overlapping band)'),
+    'KODAK_VISION3_250D_5207': (
+        ((0.593, 4.951), (0.62, 7.239), (0.67, 9.082), (0.73, 10.58), (0.8, 10.7), (0.88, 9.957), (0.96, 8.446), (1.0, 8.346), (1.43, 6.132), (1.83, 6.645), (2.02, 7.109), (2.28, 6.335), (2.46, 5.992), (2.59, 5.284), (2.66, 5.08), (2.695, 4.718)),
+        "Kodak VISION3 250D 5207/7207 Technical Information, p3 'Diffuse rms Granularity Curves', embedded raster",
+        'green'),
+    'KODAK_VISION3_500T_5219': (
+        ((0.595, 7.113), (0.65, 11.91), (0.67, 11.73), (0.78, 13.92), (0.8, 13.89), (1.0, 10.6), (1.13, 9.252), (1.29, 9.069), (1.42, 7.864), (1.56, 7.176), (1.64, 7.171), (1.87, 8.104), (2.06, 8.336), (2.37, 7.598), (2.56, 6.767), (2.712, 5.841)),
+        "Kodak VISION3 500T 5219/7219 Technical Data, p3 'Diffuse rms Granularity Curves', embedded raster",
+        'green'),
+    'KODAK_VISION3_500T_5219_AHU': (
+        ((0.595, 7.113), (0.65, 11.91), (0.67, 11.73), (0.78, 13.92), (0.8, 13.89), (1.0, 10.6), (1.13, 9.252), (1.29, 9.069), (1.42, 7.864), (1.56, 7.176), (1.64, 7.171), (1.87, 8.104), (2.06, 8.336), (2.37, 7.598), (2.56, 6.767), (2.712, 5.841)),
+        "Kodak VISION3 500T 5219/7219 Technical Data, p3 'Diffuse rms Granularity Curves', embedded raster (MEASUREMENT_COPIES copy of KODAK_VISION3_500T_5219)",
+        'green'),
+    'KODAK_VISION3_50D_5203': (
+        ((0.614, 1.97), (0.63, 3.426), (0.66, 4.6), (0.68, 4.664), (0.75, 6.305), (0.8, 6.503), (1.0, 5.008), (1.05, 4.825), (1.48, 4.471), (1.92, 4.593), (2.11, 4.796), (2.23, 4.7), (2.33, 4.447), (2.49, 3.652), (2.6, 3.694), (2.63, 3.17)),
+        "Kodak VISION3 50D 5203/7203 Technical Information, p3 'Diffuse rms Granularity Curves', embedded raster",
+        'green'),
+    'KODAK_VISION_200T_5274': (
+        ((0.582, 7.332), (0.64, 11.33), (0.66, 12.34), (0.68, 12.65), (0.7, 12.52), (0.83, 10.5), (0.92, 9.518), (1.0, 9.183), (1.09, 9.204), (1.14, 8.954), (1.28, 7.762), (1.37, 7.162), (1.48, 6.764), (1.9, 6.439), (2.12, 5.998), (2.211, 5.605)),
+        "Kodak VISION 200T 5274 technical sheet, p3 'Diffuse RMS Granularity Curves', vector paths",
+        'green'),
+    'KODAK_VISION_250D_5246': (
+        ((0.582, 7.799), (0.59, 8.802), (0.61, 12.01), (0.62, 12.93), (0.66, 13.43), (0.69, 13.24), (0.78, 10.69), (0.83, 9.738), (0.9, 8.941), (1.0, 8.281), (1.16, 7.643), (1.4, 7.038), (1.6, 6.783), (1.77, 6.841), (2.08, 7.377), (2.201, 7.42)),
+        "Kodak VISION 250D 5246 technical sheet, p4 'Diffuse RMS Granularity Curves', vector paths",
+        'green'),
+    'KODAK_VISION_500T_5279': (
+        ((0.576, 12.72), (0.59, 15.1), (0.61, 17.66), (0.63, 18.65), (0.65, 18.8), (0.68, 18.52), (0.87, 15.13), (1.0, 13.23), (1.12, 11.82), (1.24, 10.69), (1.36, 9.837), (1.48, 9.202), (1.59, 8.745), (1.93, 7.586), (2.14, 6.96), (2.21, 6.681)),
+        "Kodak VISION 500T 5279 technical sheet, p2 'Diffuse RMS Granularity Curves', vector paths",
+        'green'),
+}
+
+
+#: F-4018 p8 «Contrast Index Curves» -> (developer, dilution) as this module
+#: spells them on the PLUS-X points already on file.
+_F4018_CI_DEV = {
+    "D-76": ("D-76", ""), "D-76 (1:1)": ("D-76", "1:1"), "T-MAX RS": ("T-MAX RS", ""),
+    "HC-110 (B)": ("HC-110", "Dil B"), "T-MAX": ("T-MAX", "1+4"),
+    "Microdol-X": ("MICRODOL-X", ""), "Microdol-X 1:3": ("MICRODOL-X", "1:3"),
+    "XTOL": ("XTOL", ""), "XTOL 1:1": ("XTOL", "1:1"),
+}
+
+
+def _f4018_ci_points():
+    out = []
+    for key, rec in PLUSX_125_F4018_2002.items():
+        if not key.startswith("Contrast Index Curves"):
+            continue
+        dev, dil = _F4018_CI_DEV[key.split("--")[1].strip()]
+        vessel = "small tank" if "Small Tank" in key else "large tank"
+        for t, ci in rec["points"]:
+            out.append(DevelopmentPoint(developer=dev, dilution=dil, minutes=round(float(t), 3),
+                                        celsius=20.0, contrast_index=round(float(ci), 3),
+                                        contrast_criterion="kodak_ci", exposure_index=125,
+                                        vessel=vessel, edition="F-4018 2002 p8"))
+    return tuple(out)
+
+
+def _plusx_ci_at_processing():
+    import numpy as _np
+    pts = PLUSX_125_F4018_2002["Contrast Index Curves, Small Tank 68 F (20 C), upper-left -- D-76"]["points"]
+    return round(float(_np.interp(5.5, [a for a, _ in pts], [b for _, b in pts])), 3)
+
+
+_PAN20_F50 = round(63.2 / 101.0 * 250.0, 1)        # 156.4
+_REALA_CL_K = 0.2386    # fuji_cl_strength.py solve under _REALA_A_GR
+_REALA_A_GR = -0.5608   # harvest_2026_10_15c.reala_fig17_model -> -0.365 D (was -0.3026, -0.208 D)
+#: stock -> (stored q, fitted q, rms % points, how)
+_DECISION_MTF_Q = {
+    "KODAK_HIE": (0.89, 0.893, 4.58, "HIE_MTF_CURVE (Современные 2004, рис. 3.366), fitted above its 4 c/mm "
+                  "maximum; the 77-79 %% low-frequency plateau is not representable (the carrier is 1.0 at zero)"),
+    "AGFA_AVIPHOT_PAN_400S": (3.39, 3.394, 0.17, "AVIPHOT_400S_MTF_POINTS (Agfa 01/2006 p3): only the 60 and "
+                              "80 lp/mm vertices lie below 98 %% (the corpus fitter needs 8), so q is a two-point "
+                              "least-squares slope -- weakly constrained; the 132 %% lift is not representable"),
+}
+
+
+def _put_source(srcs, rec):
+    return tuple(r for r in srcs if r.param != rec.param) + (rec,)
+
+
+def _apply_owner_decisions_2026_10_22c(p: "FilmProfile") -> "FilmProfile":
+    kw = {}
+    srcs = p.param_sources
+    if p.name in _SIGMA_TABLES_2026_10_22C:
+        pts, src, layer = _SIGMA_TABLES_2026_10_22C[p.name]
+        kw["grain"] = replace(p.grain, sigma_shape_points=pts)
+        srcs = _put_source(srcs, ParamSource(param="grain.sigma_shape_points", tier=1, status="traced",
+            unit="(absolute density, rms x 1000 as read)", conditions="%s record; same density space as the "
+            "stored anchors" % layer, source=src, confidence="medium",
+            note="Full trace (%d points) replacing the 3-4 anchor interpolation (owner decision 2026-10-22); "
+                 "endpoints at the stored toe_at / dmax_at, anchors reproduced within 3 %%." % len(pts)))
+    if p.name == "AGFA_AVIPHOT_PAN_20":
+        f = _PAN20_F50
+        kw["mtf"] = replace(p.mtf, f50_r=f, f50_g=f, f50_b=f)
+        for ch in ("mtf.f50_r", "mtf.f50_g", "mtf.f50_b"):
+            srcs = _put_source(srcs, ParamSource(param=ch, tier=2, status="derived", unit="cycles/mm",
+                conditions="no MTF printed; USAF 1951, Gevatone 66 / G 74 c, 30 C, 42 s -- the test of its sibling",
+                source="Agfa-Gevaert N.V., «AVIPHOT PAN 20 PE0» sheet, January 2009, p1 «TOC 1,6:1 = 250 line pairs»; "
+                       "ratio from Agfa-Gevaert N.V., «AVIPHOT PAN 80» sheet, January 2009: f50 63.2 (traced MTF, "
+                       "42 / 70 s) / RP(1.6:1) 101 = 0.626",
+                confidence="low",
+                note="156.4 = 0.626 x 250 (owner decision 2026-10-22, «~156»), replacing 235 (database median "
+                     "0.94 x RP). Still the highest f50 in the database."))
+    if p.name == "FUJICOLOR_SUPERIA_REALA":
+        kw["interimage"] = replace(p.interimage, a_gr=_REALA_A_GR)
+        # the CL strength is calibrated THROUGH stage 8b, so it is re-solved
+        # under the corrected interimage (fuji_cl_strength.py): 0.8870 -> 0.2386.
+        # The SUPERIA transfer stocks keep 0.8870 -- REALA's strength solved
+        # under the class-analogy interimage they still carry.
+        kw["spectral"] = replace(p.spectral, cl_red_inhibition=_REALA_CL_K)
+        old = next((r for r in srcs if r.param == "spectral.cl_red_inhibition"), None)
+        srcs = _put_source(srcs, ParamSource(param="spectral.cl_red_inhibition", tier=2, status="derived",
+            unit=(old.unit if old else "log E per D"), conditions=(old.conditions if old else ""),
+            source=(old.source if old else ""), confidence="low",
+            note="2026-10-22c: re-solved 0.8870 -> %.4f with interimage.a_gr corrected to Fig. 17 (owner "
+                 "decision); red 480-530 nm rms vs the paper 0.008 -> 0.011 D (bias b 0.0054 -> 0.0110, scale s 1.59 -> 2.21)." % _REALA_CL_K))
+        srcs = _put_source(srcs, ParamSource(param="interimage.a_gr", tier=2, status="derived", unit="",
+            conditions="Fig. 17 protocol replayed through stage 8b: red step 2.5 log E, green flash 0.70 D above D-min",
+            source="N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «Color Reproduction of Fujicolor "
+                   "REALA», Nihon Shashin Gakkaishi 52(1) 41-47 (1989), Fig. 17: green falls 1.513 -> 1.148 D "
+                   "(-0.365) over a 1.554 D red rise",
+            confidence="medium",
+            note="Scaled 1.854x from the class analogy (-0.3026, which replayed -0.208 D) to -0.5608, which "
+                 "replays -0.365 D (owner decision 2026-10-22). Only this coefficient moves."))
+    if p.name in _DECISION_MTF_Q:
+        q, qf, rms, how = _DECISION_MTF_Q[p.name]
+        kw["mtf"] = replace(p.mtf, mtf_measured=True, mtf_rolloff_q=q)
+        srcs = _put_source(srcs, ParamSource(param="mtf.mtf_rolloff_q", tier=2, status="derived", unit="exponent",
+            conditions="M(f) = 1 / (1 + (f/f50)^q), f50 held at the stored traced crossing",
+            source="this module's traced MTF: " + (how % ()), confidence="low",
+            note="q %.2f (fitted %.3f, rms %.2f %% points); owner decision 2026-10-22 to store the shape rather "
+                 "than keep the Gaussian carrier." % (q, qf, rms)))
+    if p.name == "KODAK_PLUS_X_125":
+        ci = _plusx_ci_at_processing()
+        extra = _f4018_ci_points()
+        kw["processing"] = replace(p.processing, contrast_index=ci)
+        kw["processing_family"] = replace(p.processing_family,
+                                          points=p.processing_family.points + extra)
+        srcs = _put_source(srcs, ParamSource(param="processing.contrast_index", tier=1, status="derived",
+            unit="Kodak CI", conditions="D-76 stock, small tank, 20 C, 5.5 min (the stored processing)",
+            source=_F4018 + ", p8 «Contrast Index Curves», small tank, D-76 (vector)", confidence="medium",
+            note="CI %.3f linearly interpolated on the maker's curve between its 5.0 and 6.0 min vertices "
+                 "(owner decision 2026-10-22)." % ci))
+        old = next((r for r in srcs if r.param == "processing_family.points"), None)
+        srcs = _put_source(srcs, ParamSource(param="processing_family.points", tier=1, status="traced",
+            unit=(old.unit if old else ""), conditions=(old.conditions if old else "") + "; F-4018 p8 CI curves 20 C",
+            source=(old.source if old else _F4018) + "; p8 «Contrast Index Curves» (16 curves, vector)",
+            confidence="high",
+            note=((old.note + " ") if old else "") + "2026-10-22c: + %d CI points, the maker's 16 p8 curves at "
+                 "their vector vertices, small and large tank (owner decision: denser F-4018 cells; tagged "
+                 "«F-4018 2002 p8», so the book reproductions stay their own groups)." % len(extra)))
+    if not kw:
+        return p
+    return replace(p, param_sources=srcs, **kw)
+
+
+FILM_PROFILES = tuple(_apply_owner_decisions_2026_10_22c(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-22c -- SCHEMA v65 RECORDS (owner decision: "add all requested fields
+# into database and store these values"). Every row below sat in a registry or
+# a comment because it had no field or was refused for what it is; each is now
+# stored LABELLED (`evidence`) in the v65 carriers. Inventory and per-item
+# reasons: doc/RESULT_2026-10-22b_aviphot_pan80_q7.md §10. No render reads any
+# of it (selector and C++ emission skip points whose evidence is set).
+# ---------------------------------------------------------------------------
+_V65_DATA = {
+    'AGFA_AVIPHOT_PAN_200': dict(
+        curves=(
+            ExtraCurve(label='Bahnmüller Fig. 3 type B relative spectral sensitivity', kind='spectral_sensitivity', x_unit='wavelength nm (400 nm upward, 10 nm steps)', y_unit='relative sensitivity (linear)', conditions='type B sensitizer', evidence='superseded', edition='Bahnmüller 1992',
+                xs=(400.0, 410.0, 420.0, 430.0, 440.0, 450.0, 460.0, 470.0, 480.0, 490.0, 500.0, 510.0, 520.0, 530.0, 540.0, 550.0, 560.0, 570.0, 580.0, 590.0, 600.0, 610.0, 620.0, 630.0, 640.0, 650.0, 660.0, 670.0, 680.0, 690.0, 700.0, 710.0, 720.0, 730.0, 740.0, 750.0, 760.0,), ys=(0.563, 0.664, 0.724, 0.771, 0.783, 0.765, 0.746, 0.72, 0.667, 0.565, 0.516, 0.5, 0.546, 0.614, 0.705, 0.786, 0.847, 0.897, 0.954, 0.99, 1.028, 1.047, 1.032, 1.013, 0.99, 0.979, 0.96, 0.973, 0.993, 0.987, 0.965, 0.909, 0.914, 1.019, 1.149, 1.0, 0.0,),
+                source='W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», International Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43 (Table 1, Fig. 3, Fig. 5b, Figs. 6a/6b, Table 2 read 2026-10-15), Fig. 3'),
+            ExtraCurve(label='Bahnmüller Fig. 5b type B characteristic, ir filter', kind='characteristic_curve', x_unit='relative log(It)', y_unit='density', conditions='type B behind the ir filter (green separation / red separation / cut-off below 715 nm); one gradient, white xenon', evidence='superseded', edition='Bahnmüller 1992',
+                xs=(0.5, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.0, 5.25, 5.5, 5.75,), ys=(0.12, 0.12, 0.19, 0.29, 0.51, 0.91, 1.32, 1.7, 2.2, 2.43, 2.71, 2.87, 3.1, 3.2, 3.28, 3.33, 3.4, 3.46, 3.52, 3.56,),
+                source='W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», International Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43 (Table 1, Fig. 3, Fig. 5b, Figs. 6a/6b, Table 2 read 2026-10-15), Fig. 5b'),
+            ExtraCurve(label='Bahnmüller Fig. 5b type B characteristic, green filter', kind='characteristic_curve', x_unit='relative log(It)', y_unit='density', conditions='type B behind the green filter (green separation / red separation / cut-off below 715 nm); one gradient, white xenon', evidence='superseded', edition='Bahnmüller 1992',
+                xs=(2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.0, 5.25, 5.5, 5.75,), ys=(0.18, 0.3, 0.55, 0.96, 1.39, 1.79, 2.13, 2.41, 2.63, 2.86, 3.04, 3.24, 3.37,),
+                source='W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», International Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43 (Table 1, Fig. 3, Fig. 5b, Figs. 6a/6b, Table 2 read 2026-10-15), Fig. 5b'),
+            ExtraCurve(label='Bahnmüller Fig. 5b type B characteristic, red filter', kind='characteristic_curve', x_unit='relative log(It)', y_unit='density', conditions='type B behind the red filter (green separation / red separation / cut-off below 715 nm); one gradient, white xenon', evidence='superseded', edition='Bahnmüller 1992',
+                xs=(2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.25, 4.5, 4.75, 5.0, 5.25, 5.5, 5.75,), ys=(0.1, 0.14, 0.22, 0.4, 0.7, 1.13, 1.53, 1.97, 2.22, 2.5, 2.72, 2.92, 3.12,),
+                source='W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», International Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43 (Table 1, Fig. 3, Fig. 5b, Figs. 6a/6b, Table 2 read 2026-10-15), Fig. 5b'),
+            ExtraCurve(label='Bahnmüller Fig. 6b type B MTF, green band', kind='mtf', x_unit='lp/mm', y_unit='transfer factor % at D 1.0', conditions='type B, green exposing band, D 1.0', evidence='superseded', edition='Bahnmüller 1992',
+                xs=(2.0, 6.0, 10.0, 20.0, 40.0, 60.0,), ys=(104.8, 101.8, 100.6, 80.3, 40.8, 25.3,),
+                source='W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», International Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43 (Table 1, Fig. 3, Fig. 5b, Figs. 6a/6b, Table 2 read 2026-10-15), Fig. 6b'),
+            ExtraCurve(label='Bahnmüller Fig. 6b type B MTF, red band', kind='mtf', x_unit='lp/mm', y_unit='transfer factor % at D 1.0', conditions='type B, red exposing band, D 1.0', evidence='superseded', edition='Bahnmüller 1992',
+                xs=(2.0, 6.0, 10.0, 20.0, 40.0, 60.0,), ys=(102.8, 100.5, 100.3, 90.0, 50.3, 30.5,),
+                source='W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», International Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43 (Table 1, Fig. 3, Fig. 5b, Figs. 6a/6b, Table 2 read 2026-10-15), Fig. 6b'),
+            ExtraCurve(label='Bahnmüller Fig. 6b type B MTF, ir band', kind='mtf', x_unit='lp/mm', y_unit='transfer factor % at D 1.0', conditions='type B, ir exposing band, D 1.0', evidence='superseded', edition='Bahnmüller 1992',
+                xs=(2.0, 6.0, 10.0, 20.0, 40.0, 60.0,), ys=(107.1, 105.2, 104.3, 92.6, 58.4, 36.3,),
+                source='W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», International Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43 (Table 1, Fig. 3, Fig. 5b, Figs. 6a/6b, Table 2 read 2026-10-15), Fig. 6b'),
+            ExtraCurve(label='rewind ISO A / speed vs time', kind='speed_vs_time', x_unit='developing time (printed «s», scale 5-25; text and C11/C12 use min)', y_unit='ISO A (left axis unlabelled 190-365)', conditions='rewind G 74 c 20 °C', evidence='axis_inconsistent', edition='Agfa sheet 02/2004',
+                xs=(10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0, 19.5,), ys=(185.9, 201.2, 216.1, 229.9, 243.1, 255.1, 267.5, 276.9, 286.5, 294.4, 298.3,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p9 «exposure/time, rewind»'),
+            ExtraCurve(label='characteristic G 74 c 40 s', kind='characteristic_curve', x_unit='rel. log It (sheet axis; stored curve x = sheet x + 1.042)', y_unit='density D', conditions='Gevatone 66, G 74 c, 30 °C, 40 s', evidence='vendor_trace_of_stored_condition', edition='Agfa sheet 02/2004',
+                xs=(-2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3,), ys=(0.19, 0.254, 0.339, 0.441, 0.558, 0.695, 0.837, 0.973, 1.1, 1.224, 1.338, 1.448, 1.555, 1.75, 1.834, 1.917, 1.996, 2.077, 2.147, 2.216, 2.282, 2.34, 2.379,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p5 «characteristic curves, automatic processing»'),
+            ExtraCurve(label='MTF 40 s (gamma 1.5)', kind='mtf', x_unit='lp/mm', y_unit='MTF %', conditions='Gevatone 66, G 74 c, 30 °C, 40 s (gamma 1.5)', evidence='vendor_trace_of_stored_condition', edition='Agfa sheet 02/2004',
+                xs=(3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0,), ys=(112.8, 112.5, 111.5, 110.1, 109.1, 107.7, 105.1, 102.2, 97.9, 90.8, 83.8, 77.4, 72.0, 67.3, 59.4, 53.9, 49.4, 46.7, 44.1, 41.2,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p3 «photographic MTF» (log ordinate, only «100» labelled)'),
+            ExtraCurve(label='filter absorption L 453', kind='filter_density', x_unit='wavelength nm', y_unit='density D', conditions='filter L 453; read as wavelength at each density level', evidence='vendor_trace', edition='Agfa sheet 02/2004',
+                xs=(497.0, 478.1, 462.4, 452.4, 445.6, 440.8, 438.4, 434.3, 430.7, 427.1, 423.5, 419.1, 415.9, 412.7,), ys=(0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 2.9,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p4 «filter absorption curves»'),
+            ExtraCurve(label='filter absorption L 519', kind='filter_density', x_unit='wavelength nm', y_unit='density D', conditions='filter L 519; read as wavelength at each density level', evidence='vendor_trace', edition='Agfa sheet 02/2004',
+                xs=(572.5, 560.8, 548.8, 541.2, 535.5, 530.7, 527.1, 522.7, 517.9, 513.1, 499.8, 493.8, 489.0,), ys=(0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 2.0, 2.5, 2.9,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p4 «filter absorption curves»'),
+            ExtraCurve(label='filter absorption L 599', kind='filter_density', x_unit='wavelength nm', y_unit='density D', conditions='filter L 599; read as wavelength at each density level', evidence='vendor_trace', edition='Agfa sheet 02/2004',
+                xs=(624.3, 613.1, 602.6, 597.4, 594.2, 591.0, 587.3, 583.7, 581.3, 578.1, 577.7, 571.7, 568.9, 566.9,), ys=(0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 2.9,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p4 «filter absorption curves»'),
+            ExtraCurve(label='filter absorption L 622', kind='filter_density', x_unit='wavelength nm', y_unit='density D', conditions='filter L 622; read as wavelength at each density level', evidence='vendor_trace', edition='Agfa sheet 02/2004',
+                xs=(661.6, 651.2, 639.2, 631.1, 625.5, 620.3, 616.7, 612.7, 610.6, 609.4, 607.0, 604.6, 602.2, 601.4,), ys=(0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 2.5, 2.9,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p4 «filter absorption curves»'),
+            ExtraCurve(label='characteristic G 74 c 70 s', kind='characteristic_curve', x_unit='rel. log It (sheet axis; stored curve x = sheet x + 1.042)', y_unit='density D', conditions='Gevatone 66, G 74 c, 30 °C, 70 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(-2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.2,), ys=(0.287, 0.388, 0.526, 0.689, 0.861, 1.036, 1.213, 1.389, 1.55, 1.711, 1.861, 2.003, 2.126, 2.339,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p5 «characteristic curves, automatic processing»'),
+            ExtraCurve(label='characteristic G 74 c 60 s', kind='characteristic_curve', x_unit='rel. log It (sheet axis; stored curve x = sheet x + 1.042)', y_unit='density D', conditions='Gevatone 66, G 74 c, 30 °C, 60 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(-2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.2, -1.1, -1.0,), ys=(0.254, 0.338, 0.471, 0.611, 0.778, 0.955, 1.111, 1.266, 1.439, 1.597, 1.734, 1.866, 2.189, 2.284, 2.364,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p5 «characteristic curves, automatic processing»'),
+            ExtraCurve(label='characteristic G 74 c 50 s', kind='characteristic_curve', x_unit='rel. log It (sheet axis; stored curve x = sheet x + 1.042)', y_unit='density D', conditions='Gevatone 66, G 74 c, 30 °C, 50 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(-2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7,), ys=(0.218, 0.294, 0.405, 0.529, 0.676, 0.824, 0.976, 1.127, 1.271, 1.415, 1.549, 1.674, 1.782, 1.975, 2.073, 2.161, 2.242, 2.313, 2.384,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p5 «characteristic curves, automatic processing»'),
+            ExtraCurve(label='characteristic G 74 c 30 s', kind='characteristic_curve', x_unit='rel. log It (sheet axis; stored curve x = sheet x + 1.042)', y_unit='density D', conditions='Gevatone 66, G 74 c, 30 °C, 30 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(-2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3,), ys=(0.159, 0.204, 0.274, 0.361, 0.461, 0.571, 0.682, 0.795, 0.897, 1.009, 1.115, 1.213, 1.308, 1.482, 1.567, 1.652, 1.729, 1.803, 1.876, 1.949, 2.017, 2.088, 2.158,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p5 «characteristic curves, automatic processing»'),
+            ExtraCurve(label='characteristic G 74 c 20 s', kind='characteristic_curve', x_unit='rel. log It (sheet axis; stored curve x = sheet x + 1.042)', y_unit='density D', conditions='Gevatone 66, G 74 c, 30 °C, 20 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(-2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3,), ys=(0.129, 0.158, 0.2, 0.255, 0.327, 0.412, 0.497, 0.584, 0.663, 0.755, 0.835, 0.916, 0.991, 1.138, 1.212, 1.282, 1.355, 1.424, 1.492, 1.561, 1.631, 1.697, 1.765,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p5 «characteristic curves, automatic processing»'),
+            ExtraCurve(label='characteristic rewind G 74 c 20 min', kind='characteristic_curve', x_unit='rel. log It (sheet axis, rewind panel)', y_unit='density D', conditions='G 74 c, 20 °C, rewind (Zeiss FE example), 240 mm x 76 m, 20 min', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.4, 2.5, 2.6, 2.7,), ys=(0.181, 0.19, 0.21, 0.245, 0.304, 0.379, 0.456, 0.533, 0.621, 0.714, 0.813, 0.92, 1.033, 1.154, 1.288, 1.423, 1.538, 1.646, 1.747, 1.846, 1.934, 2.025, 2.105, 2.26, 2.335, 2.404, 2.478,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p8 «characteristic curves, rewind»'),
+            ExtraCurve(label='characteristic rewind G 74 c 15 min', kind='characteristic_curve', x_unit='rel. log It (sheet axis, rewind panel)', y_unit='density D', conditions='G 74 c, 20 °C, rewind (Zeiss FE example), 240 mm x 76 m, 15 min', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.6, 2.7, 2.8, 2.9, 3.0,), ys=(0.11, 0.132, 0.147, 0.168, 0.192, 0.231, 0.28, 0.349, 0.434, 0.525, 0.618, 0.701, 0.791, 0.882, 0.978, 1.074, 1.17, 1.272, 1.376, 1.478, 1.577, 1.674, 1.77, 1.862, 1.952, 2.121, 2.203, 2.28, 2.357, 2.431,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p8 «characteristic curves, rewind»'),
+            ExtraCurve(label='characteristic rewind G 74 c 10 min', kind='characteristic_curve', x_unit='rel. log It (sheet axis, rewind panel)', y_unit='density D', conditions='G 74 c, 20 °C, rewind (Zeiss FE example), 240 mm x 76 m, 10 min', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.8, 2.9, 3.0,), ys=(0.11, 0.113, 0.124, 0.135, 0.148, 0.17, 0.201, 0.234, 0.264, 0.313, 0.376, 0.456, 0.555, 0.657, 0.742, 0.832, 0.915, 0.995, 1.071, 1.151, 1.231, 1.314, 1.398, 1.48, 1.557, 1.632, 1.695, 1.819, 1.879, 1.931,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p8 «characteristic curves, rewind»'),
+            ExtraCurve(label='MTF 20 s (gamma 0.8)', kind='mtf', x_unit='lp/mm', y_unit='MTF %', conditions='Gevatone 66, G 74 c, 30 °C, 20 s (gamma 0.8)', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0,), ys=(117.4, 116.4, 115.8, 115.2, 114.6, 114.4, 113.5, 112.1, 109.0, 104.5, 100.1, 96.5, 93.1, 89.1, 81.8, 75.3, 70.4, 67.3, 64.1, 61.1,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p3 «photographic MTF» (log ordinate, only «100» labelled)'),
+            ExtraCurve(label='MTF 70 s (gamma 1.8)', kind='mtf', x_unit='lp/mm', y_unit='MTF %', conditions='Gevatone 66, G 74 c, 30 °C, 70 s (gamma 1.8)', evidence='vendor_trace_other_processing', edition='Agfa sheet 02/2004',
+                xs=(3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0,), ys=(106.7, 105.4, 104.8, 103.8, 102.5, 100.6, 96.3, 93.4, 89.4, 82.9, 76.7, 70.9, 65.1, 60.4, 52.6, 47.7, 43.7, 41.2, 38.2, 36.1,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p3 «photographic MTF» (log ordinate, only «100» labelled)'),
+            ExtraCurve(label='uncaptioned p8 panel 38 m', kind='unknown_vs_time', x_unit='developing time min', y_unit='D', conditions='legend: 1 = 38 m, 2 = 76 m (no caption)', evidence='vendor_trace_uncaptioned', edition='Agfa sheet 02/2004',
+                xs=(15.0, 17.5, 20.0,), ys=(0.101, 0.109, 0.114,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p8 uncaptioned panel'),
+            ExtraCurve(label='uncaptioned p8 panel 76 m', kind='unknown_vs_time', x_unit='developing time min', y_unit='D', conditions='legend: 1 = 38 m, 2 = 76 m (no caption)', evidence='vendor_trace_uncaptioned', edition='Agfa sheet 02/2004',
+                xs=(20.0, 22.5, 25.0,), ys=(0.1, 0.112, 0.124,),
+                source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p8 uncaptioned panel'),
+        ),
+        filters=(
+            FilterFactor(filter='L 453', equivalent='', role='contrast', illuminant='not stated', factor=1.5, factor_hi=0.0, exposure_index_through=0,
+                as_printed='L 453 = 1.5', evidence='vendor', edition='Agfa sheet 02/2004', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.) (filter curves p4; factor page not recorded)'),
+            FilterFactor(filter='L 519', equivalent='', role='contrast', illuminant='not stated', factor=1.8, factor_hi=0.0, exposure_index_through=0,
+                as_printed='L 519 = 1.8', evidence='vendor', edition='Agfa sheet 02/2004', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.) (filter curves p4; factor page not recorded)'),
+            FilterFactor(filter='L 599', equivalent='', role='contrast', illuminant='not stated', factor=3.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='L 599 = 3.0', evidence='vendor', edition='Agfa sheet 02/2004', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.) (filter curves p4; factor page not recorded)'),
+            FilterFactor(filter='L 622', equivalent='', role='contrast', illuminant='not stated', factor=4.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='L 622 = 4.0', evidence='vendor', edition='Agfa sheet 02/2004', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.) (filter curves p4; factor page not recorded)'),
+        ),
+        facts=(
+            ExtraFact(key='bahnmuller_1992.sensitizer_B_max_nm', kind='spectral_peak', value=750.0, lo=0.0, hi=0.0, unit='nm', text='Table 1 prints 750; the text gives 740 (Fig. 3 agrees with 740); «long-wave limit about 10 to 15 nm further»',
+                conditions='', evidence='superseded', edition='Bahnmüller 1992', source='W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», International Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43 (Table 1, Fig. 3, Fig. 5b, Figs. 6a/6b, Table 2 read 2026-10-15), Table 1'),
+            ExtraFact(key='bahnmuller_1992.resolving_power', kind='resolving_power', value=0.0, lo=50.0, hi=130.0, unit='lines/mm (lo = low contrast, hi = high contrast)', text='130 / 50',
+                conditions='', evidence='superseded', edition='Bahnmüller 1992', source='W. Bahnmüller (Agfa-Gevaert AG, Mortsel), «AVIPHOT Black & White Films -- Senzitization and Modulation Transfer Function», International Archives of Photogrammetry and Remote Sensing XXIX (ISPRS 1992), pp. 41-43 (Table 1, Fig. 3, Fig. 5b, Figs. 6a/6b, Table 2 read 2026-10-15), Table 2'),
+            ExtraFact(key='base_thickness.PE0', kind='base_thickness_by_format', value=60.0, lo=0.0, hi=0.0, unit='um', text='PE0 0.06 mm polyester (PE1 0.10 mm is stored) ; also PE0 AR',
+                conditions='variant PE0', evidence='vendor', edition='', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p1'),
+            ExtraFact(key='asa_setting_band_machine', kind='speed_band', value=125.0, lo=20.0, hi=25.0, unit='ASA (lo/hi = developing time s)', text='',
+                conditions='Gevatone 66, G 74 c, 30 °C', evidence='vendor', edition='Agfa sheet 02/2004', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p6 exposure/time chart'),
+            ExtraFact(key='asa_setting_band_machine', kind='speed_band', value=160.0, lo=25.0, hi=35.0, unit='ASA (lo/hi = developing time s)', text='',
+                conditions='Gevatone 66, G 74 c, 30 °C', evidence='vendor', edition='Agfa sheet 02/2004', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p6 exposure/time chart'),
+            ExtraFact(key='asa_setting_band_machine', kind='speed_band', value=200.0, lo=35.0, hi=55.0, unit='ASA (lo/hi = developing time s)', text='',
+                conditions='Gevatone 66, G 74 c, 30 °C', evidence='vendor', edition='Agfa sheet 02/2004', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p6 exposure/time chart'),
+            ExtraFact(key='asa_setting_band_machine', kind='speed_band', value=250.0, lo=55.0, hi=70.0, unit='ASA (lo/hi = developing time s)', text='',
+                conditions='Gevatone 66, G 74 c, 30 °C', evidence='vendor', edition='Agfa sheet 02/2004', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p6 exposure/time chart'),
+            ExtraFact(key='spectral.absolute_peak', kind='spectral_absolute_level', value=1.805, lo=0.0, hi=0.0, unit='log10(1/(mJ/m2))', text='absolute spectral sensitivity at its peak (the stored curve is relative)',
+                conditions='peak at 731 nm', evidence='vendor_trace', edition='', source='Agfa-Gevaert, «AVIPHOT PAN 200 PE1 / PE0 / PE0 AR» technical data sheet, February 2004 (10 pp.), p2'),
+            ExtraFact(key='agfa_overview_2009.average_gradient', kind='average_gradient_range', value=0.0, lo=0.8, hi=1.6, unit='', text='«average gradient between 0.8 and 1.6»',
+                conditions='continuous tone processor or rewind; G 74 c or G 74 c + AD 74', evidence='vendor_overview', edition='', source='Agfa-Gevaert N.V., «Aerial Photography -- Product Overview», 2009'),
+        ),
+        points=(
+        ),
+    ),
+    'AGFA_AVIPHOT_PAN_400S': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='agfa_overview_2009.average_gradient', kind='average_gradient_range', value=0.0, lo=0.6, hi=1.1, unit='', text='«average gradient between 0.6 and 1.1»',
+                conditions='continuous tone processor or rewind; G 74 c or G 74 c + AD 74', evidence='vendor_overview', edition='', source='Agfa-Gevaert N.V., «Aerial Photography -- Product Overview», 2009'),
+        ),
+        points=(
+        ),
+    ),
+    'AGFA_AVIPHOT_PAN_80': dict(
+        curves=(
+            ExtraCurve(label='characteristic G 74 c 40 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c, 30 °C, 40 s', evidence='vendor_trace_of_stored_condition', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.22,), ys=(0.078, 0.078, 0.078, 0.078, 0.078, 0.08, 0.085, 0.096, 0.103, 0.12, 0.157, 0.212, 0.295, 0.384, 0.506, 0.653, 0.793, 0.929, 1.055, 1.167, 1.268, 1.364, 1.451, 1.535, 1.618, 1.702, 1.786, 1.876, 1.947,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p4 «characteristic curves, G 74 c»'),
+            ExtraCurve(label='MTF 42 and 70 s', kind='mtf', x_unit='lp/mm', y_unit='MTF %', conditions='Gevatone 66, G 74 c, 30 °C, 42 and 70 s (one solid curve)', evidence='vendor_trace_of_stored_condition', edition='Agfa sheet 01/2009',
+                xs=(2.5, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0,), ys=(115.3, 114.8, 113.4, 110.9, 108.6, 106.2, 104.6, 101.4, 97.6, 92.8, 85.1, 79.1, 72.9, 68.7, 64.5, 57.0, 51.4, 47.3, 44.8, 42.1,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p2 «photographic MTF»'),
+            ExtraCurve(label='characteristic G 74 c 20 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c, 30 °C, 20 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.22,), ys=(0.078, 0.078, 0.078, 0.078, 0.078, 0.08, 0.085, 0.09, 0.091, 0.098, 0.118, 0.15, 0.205, 0.279, 0.364, 0.45, 0.534, 0.609, 0.683, 0.756, 0.83, 0.904, 0.982, 1.06, 1.137, 1.216, 1.296, 1.375, 1.437,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p4 «characteristic curves, G 74 c»'),
+            ExtraCurve(label='characteristic G 74 c 30 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c, 30 °C, 30 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.22,), ys=(0.078, 0.078, 0.078, 0.078, 0.078, 0.08, 0.085, 0.095, 0.101, 0.12, 0.142, 0.187, 0.253, 0.344, 0.451, 0.557, 0.665, 0.773, 0.872, 0.969, 1.065, 1.157, 1.248, 1.334, 1.42, 1.503, 1.589, 1.676, 1.746,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p4 «characteristic curves, G 74 c»'),
+            ExtraCurve(label='characteristic G 74 c 50 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c, 30 °C, 50 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.23,), ys=(0.078, 0.078, 0.078, 0.078, 0.078, 0.08, 0.085, 0.1, 0.113, 0.143, 0.181, 0.236, 0.324, 0.43, 0.569, 0.737, 0.882, 1.024, 1.166, 1.303, 1.416, 1.515, 1.594, 1.668, 1.747, 1.836, 1.928, 2.027, 2.092,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p4 «characteristic curves, G 74 c»'),
+            ExtraCurve(label='characteristic G 74 c 60 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c, 30 °C, 60 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.22,), ys=(0.078, 0.078, 0.078, 0.078, 0.078, 0.09, 0.106, 0.121, 0.146, 0.183, 0.234, 0.304, 0.404, 0.516, 0.647, 0.833, 1.044, 1.21, 1.361, 1.491, 1.603, 1.703, 1.799, 1.885, 1.971, 2.05, 2.133, 2.216, 2.287,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p4 «characteristic curves, G 74 c»'),
+            ExtraCurve(label='characteristic G 74 c 70 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c, 30 °C, 70 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.22,), ys=(0.078, 0.078, 0.078, 0.078, 0.078, 0.09, 0.106, 0.121, 0.146, 0.183, 0.234, 0.304, 0.404, 0.519, 0.678, 0.869, 1.083, 1.275, 1.431, 1.558, 1.674, 1.771, 1.863, 1.949, 2.032, 2.11, 2.193, 2.275, 2.347,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p4 «characteristic curves, G 74 c»'),
+            ExtraCurve(label='characteristic G 74 c + AD 74 20 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c + AD 74, 30 °C, 20 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.23,), ys=(0.068, 0.072, 0.074, 0.076, 0.08, 0.089, 0.097, 0.104, 0.117, 0.144, 0.187, 0.244, 0.317, 0.429, 0.579, 0.737, 0.887, 1.019, 1.143, 1.255, 1.37, 1.478, 1.584, 1.684, 1.781, 1.871, 1.96, 2.044, 2.102,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p5 «characteristic curves, G 74 c + AD 74»'),
+            ExtraCurve(label='characteristic G 74 c + AD 74 30 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c + AD 74, 30 °C, 30 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.28,), ys=(0.098, 0.098, 0.098, 0.098, 0.102, 0.108, 0.117, 0.128, 0.151, 0.186, 0.236, 0.304, 0.392, 0.509, 0.677, 0.87, 1.055, 1.234, 1.392, 1.547, 1.688, 1.801, 1.905, 2.002, 2.093, 2.179, 2.259, 2.337, 2.352,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p5 «characteristic curves, G 74 c + AD 74»'),
+            ExtraCurve(label='characteristic G 74 c + AD 74 40 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c + AD 74, 30 °C, 40 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.39,), ys=(0.12, 0.127, 0.129, 0.131, 0.134, 0.137, 0.144, 0.159, 0.192, 0.232, 0.283, 0.351, 0.444, 0.586, 0.775, 0.956, 1.154, 1.381, 1.571, 1.728, 1.869, 2.002, 2.123, 2.232, 2.324, 2.377, 2.389, 2.39,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p5 «characteristic curves, G 74 c + AD 74»'),
+            ExtraCurve(label='characteristic G 74 c + AD 74 50 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c + AD 74, 30 °C, 50 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.56,), ys=(0.139, 0.144, 0.148, 0.152, 0.154, 0.157, 0.168, 0.191, 0.217, 0.253, 0.313, 0.393, 0.49, 0.634, 0.828, 1.054, 1.267, 1.442, 1.622, 1.803, 1.965, 2.103, 2.229, 2.331, 2.373, 2.384,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p5 «characteristic curves, G 74 c + AD 74»'),
+            ExtraCurve(label='characteristic G 74 c + AD 74 60 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c + AD 74, 30 °C, 60 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7,), ys=(0.173, 0.176, 0.18, 0.183, 0.191, 0.202, 0.213, 0.227, 0.256, 0.299, 0.354, 0.438, 0.554, 0.698, 0.884, 1.09, 1.286, 1.482, 1.695, 1.872, 2.031, 2.173, 2.286, 2.387,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p5 «characteristic curves, G 74 c + AD 74»'),
+            ExtraCurve(label='characteristic G 74 c + AD 74 70 s', kind='characteristic_curve', x_unit='log It (relative, sheet axis; stored curve x = sheet x + 0.3413)', y_unit='diffuse density', conditions='Gevatone 66, G 74 c + AD 74, 30 °C, 70 s', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(-3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7,), ys=(0.205, 0.205, 0.206, 0.209, 0.217, 0.227, 0.243, 0.264, 0.294, 0.327, 0.386, 0.491, 0.596, 0.753, 0.946, 1.163, 1.38, 1.582, 1.768, 1.931, 2.09, 2.243, 2.338, 2.391,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p5 «characteristic curves, G 74 c + AD 74»'),
+            ExtraCurve(label='MTF 20 s', kind='mtf', x_unit='lp/mm', y_unit='MTF %', conditions='Gevatone 66, G 74 c, 30 °C, 20 s (dashed curve 1)', evidence='vendor_trace_other_processing', edition='Agfa sheet 01/2009',
+                xs=(2.5, 3.0, 7.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0,), ys=(111.1, 111.5, 108.7, 107.1, 104.3, 101.7, 98.9, 92.7, 87.4, 81.4, 76.9, 72.9, 65.3, 59.5, 54.4, 51.3, 48.3,),
+                source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p2 «photographic MTF»'),
+        ),
+        filters=(
+            FilterFactor(filter='L 453 yellow', equivalent='', role='contrast', illuminant='not stated', factor=1.5, factor_hi=0.0, exposure_index_through=0,
+                as_printed='L 453 yellow = 1.5', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.) (page not recorded in the registry; RESULT 2026-10-22b §2 cites p2-p7)'),
+            FilterFactor(filter='L 519 orange-yellow', equivalent='', role='contrast', illuminant='not stated', factor=1.8, factor_hi=0.0, exposure_index_through=0,
+                as_printed='L 519 orange-yellow = 1.8', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.) (page not recorded in the registry; RESULT 2026-10-22b §2 cites p2-p7)'),
+            FilterFactor(filter='L 599 red', equivalent='', role='contrast', illuminant='not stated', factor=3.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='L 599 red = 3.0', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.) (page not recorded in the registry; RESULT 2026-10-22b §2 cites p2-p7)'),
+            FilterFactor(filter='L 622 deep red', equivalent='', role='contrast', illuminant='not stated', factor=4.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='L 622 deep red = 4.0', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.) (page not recorded in the registry; RESULT 2026-10-22b §2 cites p2-p7)'),
+        ),
+        facts=(
+            ExtraFact(key='base_thickness.PE0', kind='base_thickness_by_format', value=60.0, lo=0.0, hi=0.0, unit='um', text='PE0 0.06 mm polyester (PE1 0.10 mm is stored)',
+                conditions='variant PE0', evidence='vendor', edition='', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p1'),
+            ExtraFact(key='assortment_code', kind='assortment', value=0.0, lo=0.0, hi=0.0, unit='', text='PE1 240 mm x 76 m: AH897 EB5SZ',
+                conditions='', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.)'),
+            ExtraFact(key='assortment_code', kind='assortment', value=0.0, lo=0.0, hi=0.0, unit='', text='PE1 240 mm x 152 m: AM897 EB5PT',
+                conditions='', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.)'),
+            ExtraFact(key='processing_recommendation.developer', kind='processing_recommendation', value=0.0, lo=0.0, hi=0.0, unit='', text='G 74 c or G 74 c + AD 74',
+                conditions='', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.)'),
+            ExtraFact(key='processing_recommendation.time', kind='processing_recommendation', value=0.0, lo=0.0, hi=0.0, unit='', text='20-70 s',
+                conditions='', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.)'),
+            ExtraFact(key='processing_recommendation.fixer', kind='processing_recommendation', value=0.0, lo=0.0, hi=0.0, unit='', text='PFIX (or G333c)',
+                conditions='', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.)'),
+            ExtraFact(key='processing_recommendation.wash', kind='processing_recommendation', value=0.0, lo=0.0, hi=0.0, unit='', text='min. 6 l/min at 30 °C',
+                conditions='', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.)'),
+            ExtraFact(key='exposure_range', kind='speed_range', value=0.0, lo=64.0, hi=100.0, unit='ASA', text='ASA 64 to 100 (p3)',
+                conditions='', evidence='vendor', edition='Agfa sheet 01/2009', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p3'),
+            ExtraFact(key='spectral.absolute_peak', kind='spectral_absolute_level', value=1.684, lo=0.0, hi=0.0, unit='log10(1/(mJ/m2))', text='absolute spectral sensitivity at its peak (the stored curve is relative)',
+                conditions='peak at 730 nm; Gevatone 66, G 74 c', evidence='vendor_trace', edition='', source='Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009 (7 pp.), p2'),
+            ExtraFact(key='agfa_overview_2009.average_gradient', kind='average_gradient_range', value=0.0, lo=0.9, hi=1.9, unit='', text='«average gradient between 0.9 and 1.9»',
+                conditions='continuous tone processor or rewind; G 74 c or G 74 c + AD 74', evidence='vendor_overview', edition='', source='Agfa-Gevaert N.V., «Aerial Photography -- Product Overview», 2009'),
+        ),
+        points=(
+        ),
+    ),
+    'AGFA_VISTA_PLUS_200': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Wratten No. 80A (or AgfaPhoto LBB-12)', equivalent='', role='conversion', illuminant='tungsten 3200 K', factor=0.0, factor_hi=0.0, exposure_index_through=50,
+                as_printed='ISO 50/18° under 3200 K tungsten with Wratten No. 80A (or AgfaPhoto LBB-12)', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 (4 pp.) and Vista plus 200 / 400 (8 pp.), produced for and distributed by Lupus Imaging & Media GmbH & Co. KG; PDF created 12 Nov 2009, section 2'),
+        ),
+        facts=(
+            ExtraFact(key='processed_storage', kind='processed_storage', value=10.0, lo=20.0, hi=0.0, unit='°C (below); years', text='more than 20 years, below 10 °C, 30-50 % RH',
+                conditions='RH 30-50 %', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 (4 pp.) and Vista plus 200 / 400 (8 pp.), produced for and distributed by Lupus Imaging & Media GmbH & Co. KG; PDF created 12 Nov 2009, section 10'),
+            ExtraFact(key='processed_storage', kind='processed_storage', value=25.0, lo=10.0, hi=20.0, unit='°C (below); years', text='10-20 years, below 25 °C, 30-50 % RH',
+                conditions='RH 30-50 %', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 (4 pp.) and Vista plus 200 / 400 (8 pp.), produced for and distributed by Lupus Imaging & Media GmbH & Co. KG; PDF created 12 Nov 2009, section 10'),
+            ExtraFact(key='handling.after_cold', kind='handling_note', value=0.0, lo=0.0, hi=0.0, unit='', text='warm up over 3 h (refrigerated) or 6 h (frozen) before opening',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009, section 8'),
+            ExtraFact(key='handling.fluorescent', kind='handling_note', value=0.0, lo=0.0, hi=0.0, unit='', text='a greenish tint, corrected in printing; no filter; shutter slower than 1/30 s recommended',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009, section 2'),
+            ExtraFact(key='handling.lighting_ratio', kind='handling_note', value=0.0, lo=0.0, hi=0.0, unit='', text='main-to-fill within 1:4',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009'),
+            ExtraFact(key='handling.tungsten_lamps', kind='handling_note', value=0.0, lo=0.0, hi=0.0, unit='', text='use a Wratten 80A (AgfaPhoto LBB-12) and open the lens +2 stops; no further compensation with TTL metering',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009, section 2'),
+            ExtraFact(key='raw_storage.long_term', kind='raw_storage', value=0.0, lo=0.0, hi=0.0, unit='°C (or below)', text='long-term: store at 0 °C or below',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009, section 8'),
+        ),
+        points=(
+        ),
+    ),
+    'AGFA_VISTA_PLUS_400': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Wratten No. 80A (or AgfaPhoto LBB-12)', equivalent='', role='conversion', illuminant='tungsten 3200 K', factor=0.0, factor_hi=0.0, exposure_index_through=100,
+                as_printed='ISO 100/21° under 3200 K tungsten with Wratten No. 80A (or AgfaPhoto LBB-12)', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 (4 pp.) and Vista plus 200 / 400 (8 pp.), produced for and distributed by Lupus Imaging & Media GmbH & Co. KG; PDF created 12 Nov 2009, section 2'),
+        ),
+        facts=(
+            ExtraFact(key='processed_storage', kind='processed_storage', value=10.0, lo=20.0, hi=0.0, unit='°C (below); years', text='more than 20 years, below 10 °C, 30-50 % RH',
+                conditions='RH 30-50 %', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 (4 pp.) and Vista plus 200 / 400 (8 pp.), produced for and distributed by Lupus Imaging & Media GmbH & Co. KG; PDF created 12 Nov 2009, section 10'),
+            ExtraFact(key='processed_storage', kind='processed_storage', value=25.0, lo=10.0, hi=20.0, unit='°C (below); years', text='10-20 years, below 25 °C, 30-50 % RH',
+                conditions='RH 30-50 %', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 (4 pp.) and Vista plus 200 / 400 (8 pp.), produced for and distributed by Lupus Imaging & Media GmbH & Co. KG; PDF created 12 Nov 2009, section 10'),
+            ExtraFact(key='handling.after_cold', kind='handling_note', value=0.0, lo=0.0, hi=0.0, unit='', text='warm up over 3 h (refrigerated) or 6 h (frozen) before opening',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009, section 8'),
+            ExtraFact(key='handling.fluorescent', kind='handling_note', value=0.0, lo=0.0, hi=0.0, unit='', text='a greenish tint, corrected in printing; no filter; shutter slower than 1/30 s recommended',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009, section 2'),
+            ExtraFact(key='handling.lighting_ratio', kind='handling_note', value=0.0, lo=0.0, hi=0.0, unit='', text='main-to-fill within 1:4',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009'),
+            ExtraFact(key='handling.tungsten_lamps', kind='handling_note', value=0.0, lo=0.0, hi=0.0, unit='', text='use a Wratten 80A (AgfaPhoto LBB-12) and open the lens +2 stops; no further compensation with TTL metering',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009, section 2'),
+            ExtraFact(key='raw_storage.long_term', kind='raw_storage', value=0.0, lo=0.0, hi=0.0, unit='°C (or below)', text='long-term: store at 0 °C or below',
+                conditions='', evidence='vendor', edition='', source='AgfaPhoto Holding GmbH, «Product Information -- Color Negative Film», Vista plus 200 / 400, produced for Lupus Imaging & Media GmbH & Co. KG, 2009, section 8'),
+        ),
+        points=(
+        ),
+    ),
+    'EASTMANCOLOR_5248_1953': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Wratten 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=16,
+                as_printed='exposure index Tungsten 25 / Daylight 16 with a Wratten 85', evidence='vendor', edition='', source='(Eastman Kodak) «Improved Color Films for Color Motion-Picture Production», J. SMPTE 61, December 1953, pp671-672'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'EASTMAN_5247_1983': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Wratten Gelatin No. 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=80,
+                as_printed="'Daylight 80/20' requires a WRATTEN Gelatin No. 85", evidence='vendor', edition='', source='Eastman Kodak Company, «EASTMAN Color Negative Film 5247», publication TI0835, revised 6-93'),
+            FilterFactor(filter='No. 82B', equivalent='', role='conversion', illuminant='tungsten 3000 K', factor=0.0, factor_hi=0.0, exposure_index_through=80,
+                as_printed="'Tungsten (3000 K) 80/20' requires a No. 82B", evidence='vendor', edition='', source='Eastman Kodak Company, publication TI0835, revised 6-93'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'EASTMAN_5254_1968': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Wratten 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=64,
+                as_printed='«For daylight conditions, with the Wratten 85 filter, the Exposure Index is 64.»', evidence='vendor', edition='', source='R. L. Beeler, R. A. Morris, C. W. Simonds, «A New, Higher Speed Color Negative Film», J. SMPTE 77(9), September 1968, p 988'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'EASTMAN_5293_250T_1982': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Wratten No. 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=160,
+                as_printed='EI 160 in daylight through a Wratten No. 85', evidence='owner_t3', edition='', source='Owner-supplied T3 block, 2026-09-17 (the 1982 paper states no daylight rating)'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'EASTMAN_EKTACHROME_5239': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='85B', equivalent='', role='conversion', illuminant='tungsten 3200 K', factor=0.0, factor_hi=0.0, exposure_index_through=40,
+                as_printed="'Tungsten* (3200 K)-40/17' with footnote '*with 85B filter' (as printed)", evidence='vendor', edition='', source='Eastman Kodak Company, «EASTMAN EKTACHROME Film (Daylight) 7239», H-1-5239, Minor Revision 2-99'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'EASTMAN_EXR_200T_5293': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='No. 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=125,
+                as_printed='daylight 125 with No.85 = filter factor', evidence='vendor', edition='', source='EASTMAN EXR 200T Film 5293/7293, Kodak publication H-1-5293t, August 2003'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'EASTMAN_EXR_500T_5296': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='No. 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=320,
+                as_printed='daylight 320/26 with No.85 = filter factor', evidence='vendor', edition='', source='EASTMAN EXR 500T Film 5296, Kodak MPTVI data sheet TI1664, reissued 6-92'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'EKTACHROME_160T': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='81A', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=125,
+                as_printed='125 photolamp with 81A', evidence='vendor', edition='', source='Eastman Kodak Company, KODAK EKTACHROME 160T Professional (EPT), publication E-144'),
+        ),
+        facts=(
+            ExtraFact(key='base_thickness.120', kind='base_thickness_by_format', value=99.06, lo=0.0, hi=0.0, unit='um', text='3.9 mil acetate; «E-144 p1: 3.9-mil (0.10 mm) for 120»',
+                conditions='format 120', evidence='vendor', edition='', source='Eastman Kodak Company, E-144, p1'),
+        ),
+        points=(
+        ),
+    ),
+    'FERRANIA_P30': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+        ),
+        points=(
+            (DevelopmentPoint(developer='Adox Adonal', dilution='1:80', minutes=16.5, celsius=19.0, contrast_index=0.0, exposure_index=80,
+                vessel='small tank', edition='', evidence='community_curated', procedure='small tank: continuous inversions first minute, then two inversions every minute'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Fuji Negastar', dilution='1:4', minutes=5.0, celsius=24.0, contrast_index=0.0, exposure_index=80,
+                vessel='dip and dunk', edition='', evidence='community_curated', procedure='lab processing (dip-and-dunk). ⚠ printed «24ºC/72.5ºF», which disagree'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Ilford DD', dilution='1:4', minutes=11.0, celsius=24.0, contrast_index=0.0, exposure_index=80,
+                vessel='dip and dunk', edition='', evidence='community_curated', procedure='lab processing (dip-and-dunk)'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Ilford DD-X', dilution='1:5', minutes=7.5, celsius=20.0, contrast_index=0.0, exposure_index=50,
+                vessel='rotary tank', edition='', evidence='community_curated', procedure='rotary tank: continuous rotation'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Ilford DD-X', dilution='1:6', minutes=15.0, celsius=20.5, contrast_index=0.0, exposure_index=80,
+                vessel='rotary tank', edition='', evidence='community_curated', procedure='rotary tank: continuous rotation'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Ilford ID-11', dilution='1:1', minutes=13.5, celsius=20.0, contrast_index=0.0, exposure_index=80,
+                vessel='small tank', edition='', evidence='community_curated', procedure='small tank: three inversions each minute'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Ilford Microphen', dilution='1:3', minutes=17.0, celsius=20.0, contrast_index=0.0, exposure_index=80,
+                vessel='rotary tank', edition='', evidence='community_curated', procedure='rotary tank: continuous rotation'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Kodak XTOL', dilution='1:1', minutes=12.0, celsius=20.0, contrast_index=0.0, exposure_index=80,
+                vessel='small tank', edition='', evidence='community_curated', procedure='small tank: inversions for first minute, then 10 second agitations each minute'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Kodak XTOL', dilution='1:3', minutes=16.0, celsius=20.0, contrast_index=0.0, exposure_index=80,
+                vessel='rotary tank', edition='', evidence='community_curated', procedure='lab processing / rotary tank: continuous rotation'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Perceptol', dilution='stock', minutes=9.0, celsius=20.0, contrast_index=0.0, exposure_index=80,
+                vessel='small tank', edition='', evidence='community_curated', procedure='small tank: first 30 seconds continuous, then 2 inversions each minute'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Promicrol', dilution='1:9', minutes=8.0, celsius=20.0, contrast_index=0.0, exposure_index=80,
+                vessel='rotary tank', edition='', evidence='community_curated', procedure='rotary tank: continuous rotation'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Promicrol', dilution='1:14', minutes=8.5, celsius=20.5, contrast_index=0.0, exposure_index=50,
+                vessel='small tank', edition='', evidence='community_curated', procedure='small tank: 30 second agitations for 2 minutes, then 2 inversions each minute'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='R09 (Rodinal)', dilution='1:50', minutes=14.0, celsius=20.0, contrast_index=0.0, exposure_index=80,
+                vessel='small tank', edition='', evidence='community_curated', procedure='small tank: inversions for first 30 seconds, then inversions for 10 seconds each minute'), 'FERRANIA, «P30 Best Practices» v 2.5, p3 «Additional Community-Submitted Processing Techniques»'),
+            (DevelopmentPoint(developer='Kodak X-Tol', dilution='1+2', minutes=10.0, celsius=24.0, contrast_index=0.0, exposure_index=20,
+                vessel='', edition='', evidence='community_forum', procedure='analogica.it «ometto», 10/10/2020, EI 12-20, 2 minute pre-bath at working temperature; printed condenser, #2, Ilford FB Classic. His result: «la grana è assente e i passaggi tonali sono ricchi di grigi. Anche il contrasto è sotto controllo»'), 'analogica.it thread «Ferrania P-30 new test» (author and date in the procedure text)'),
+            (DevelopmentPoint(developer='Kodak D-96', dilution='stock', minutes=10.0, celsius=18.0, contrast_index=0.0, exposure_index=25,
+                vessel='', edition='', evidence='community_forum', procedure='analogica.it «gfirmani», 05/01/2021: «Esposta a 25 asa e sviluppata in d96 sui 18 gradi x 10 minuti». ⚠ D-96 is the cine negative developer Ferrania themselves call «most similar to the original P30 developer made by Ferrania in the 1960s»'), 'analogica.it thread «Ferrania P-30 new test» (author and date in the procedure text)'),
+            (DevelopmentPoint(developer='Kodak D-76', dilution='1+1', minutes=13.0, celsius=20.0, contrast_index=0.0, exposure_index=50,
+                vessel='', edition='', evidence='community_forum', procedure='analogica.it «chromemax», 15/01/2018, Jobo continuous rotation: «D-76 per 13 minuti si hanno degli onesti 50 iso, ma con un gradiente di contrasto pazzesco» -- about N+3'), 'analogica.it thread «Ferrania P-30 new test» (author and date in the procedure text)'),
+            (DevelopmentPoint(developer='Kodak D-76', dilution='1+1', minutes=4.5, celsius=20.0, contrast_index=0.0, exposure_index=12,
+                vessel='', edition='', evidence='community_forum', procedure='analogica.it «chromemax», 15/01/2018, continuous first minute then 30 s: his best print of the series, grade 2 -- «la stampa è equilibrata ed ha un buon contrasto; tecnicamente un ottimo punto di partenza»'), 'analogica.it thread «Ferrania P-30 new test» (author and date in the procedure text)'),
+            (DevelopmentPoint(developer='R09 (Rodinal)', dilution='1+50', minutes=14.0, celsius=20.0, contrast_index=0.0, exposure_index=80,
+                vessel='', edition='', evidence='community_forum', procedure="analogica.it «chromemax», 15/01/2018, Paterson inversion. ⚠ SAME DEVELOPER AND DILUTION AS FERRANIA'S OWN COMMUNITY ROW ABOVE AND THE SAME 14 MINUTES, reached independently -- but he reports it does not get there: «si mangia sensibilità», the curve shifted right with a long flat toe, and «bisogna usare una sensibilità di 12 iso per compensare il mancato annerimento»"), 'analogica.it thread «Ferrania P-30 new test» (author and date in the procedure text)'),
+        ),
+    ),
+    'FUJICOLOR_PORTRAIT_NPZ_800': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Wratten No. 80A (or Fuji LBB-12)', equivalent='', role='conversion', illuminant='tungsten 3200 K', factor=0.0, factor_hi=0.0, exposure_index_through=200,
+                as_printed='ISO 200/24 deg under 3200 K tungsten with a Wratten No. 80A (or Fuji LBB-12)', evidence='vendor', edition='', source='FUJIFILM DATA SHEET, FUJICOLOR PORTRAIT FILM NPZ 800 PROFESSIONAL, Ref. No. AF3-100E, section 3'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'FUJICOLOR_SUPERIA_REALA': dict(
+        curves=(
+            ExtraCurve(label='Fig. 18 grey-exposure H-D curve B', kind='characteristic_curve', x_unit='log H (lux s)', y_unit='density (densitometry unstated)', conditions='grey exposure (Fig. 18)', evidence='other_edition', edition='REALA 1989 original (Sasaki et al.)',
+                xs=(-3.4, -3.2, -3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4,), ys=(0.985, 0.987, 1.0, 1.03, 1.085, 1.177, 1.281, 1.406, 1.519, 1.641, 1.762, 1.884, 2.005, 2.122, 2.232, 2.351, 2.47, 2.582, 2.69, 2.79,),
+                source='N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «フジカラーリアラの色再現» / «Color Reproduction of Fujicolor REALA», Nihon Shashin Gakkaishi (J. Soc. Photogr. Sci. Technol. Japan) 52(1) 41-47 (1989), Fig. 18 «H-D curve of REALA of gray exposure»'),
+            ExtraCurve(label='Fig. 18 grey-exposure H-D curve G', kind='characteristic_curve', x_unit='log H (lux s)', y_unit='density (densitometry unstated)', conditions='grey exposure (Fig. 18)', evidence='other_edition', edition='REALA 1989 original (Sasaki et al.)',
+                xs=(-3.4, -3.2, -3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4,), ys=(0.811, 0.813, 0.819, 0.837, 0.869, 0.926, 1.007, 1.109, 1.208, 1.321, 1.436, 1.547, 1.665, 1.776, 1.882, 1.985, 2.099, 2.195, 2.291, 2.379,),
+                source='N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «フジカラーリアラの色再現» / «Color Reproduction of Fujicolor REALA», Nihon Shashin Gakkaishi (J. Soc. Photogr. Sci. Technol. Japan) 52(1) 41-47 (1989), Fig. 18 «H-D curve of REALA of gray exposure»'),
+            ExtraCurve(label='Fig. 18 grey-exposure H-D curve R', kind='characteristic_curve', x_unit='log H (lux s)', y_unit='density (densitometry unstated)', conditions='grey exposure (Fig. 18)', evidence='other_edition', edition='REALA 1989 original (Sasaki et al.)',
+                xs=(-3.4, -3.2, -3.0, -2.8, -2.6, -2.4, -2.2, -2.0, -1.8, -1.6, -1.4, -1.2, -1.0, -0.8, -0.6, -0.4, -0.2, 0.0, 0.2, 0.4,), ys=(0.517, 0.517, 0.521, 0.532, 0.555, 0.606, 0.682, 0.799, 0.911, 1.04, 1.165, 1.293, 1.422, 1.54, 1.658, 1.785, 1.908, 2.027, 2.144, 2.246,),
+                source='N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «フジカラーリアラの色再現» / «Color Reproduction of Fujicolor REALA», Nihon Shashin Gakkaishi (J. Soc. Photogr. Sci. Technol. Japan) 52(1) 41-47 (1989), Fig. 18 «H-D curve of REALA of gray exposure»'),
+            ExtraCurve(label='Fig. 11 CL spectral sensitivity (design schematic)', kind='spectral_sensitivity', x_unit='wavelength nm', y_unit='S (linear, peak-normalised)', conditions='design schematic beside block-shaped B/G/R', evidence='other_edition_design', edition='REALA 1989 original',
+                xs=(473.0, 476.0, 479.0, 482.0, 485.0, 488.0, 491.0, 494.0, 497.0, 500.0, 503.0, 506.0, 509.0, 512.0, 515.0, 518.0, 521.0, 524.0, 527.0, 530.0, 533.0, 536.0, 539.0, 542.0, 545.0, 548.0,), ys=(0.07, 0.15, 0.21, 0.25, 0.33, 0.4, 0.47, 0.55, 0.61, 0.69, 0.75, 0.82, 0.88, 0.95, 0.99, 1.0, 0.99, 0.96, 0.9, 0.75, 0.62, 0.51, 0.4, 0.24, 0.12, 0.02,),
+                source='N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «フジカラーリアラの色再現» / «Color Reproduction of Fujicolor REALA», Nihon Shashin Gakkaishi (J. Soc. Photogr. Sci. Technol. Japan) 52(1) 41-47 (1989), Fig. 11'),
+            ExtraCurve(label='Fig. 13 spectral density profile R (above white-light fog F)', kind='spectral_density_profile', x_unit='wavelength nm', y_unit='density above F', conditions='mixed light (spectrum + white light)', evidence='other_edition', edition='REALA 1989 original',
+                xs=(390.0, 400.0, 410.0, 420.0, 430.0, 440.0, 450.0, 460.0, 470.0, 480.0, 490.0, 500.0, 510.0, 520.0, 530.0, 540.0, 550.0, 560.0, 570.0, 580.0, 590.0, 600.0, 610.0, 620.0, 630.0, 640.0, 650.0, 660.0, 670.0, 680.0, 690.0,), ys=(0.0, 0.0, 0.0, 0.0, -0.002, -0.005, -0.005, 0.0, 0.0, -0.032, -0.055, -0.063, -0.064, -0.06, -0.052, -0.028, 0.036, 0.133, 0.183, 0.256, 0.344, 0.427, 0.484, 0.509, 0.501, 0.421, 0.244, 0.099, 0.036, 0.004, 0.0,),
+                source='N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «フジカラーリアラの色再現» / «Color Reproduction of Fujicolor REALA», Nihon Shashin Gakkaishi (J. Soc. Photogr. Sci. Technol. Japan) 52(1) 41-47 (1989), Fig. 13'),
+            ExtraCurve(label='Fig. 13 spectral density profile G (above white-light fog F)', kind='spectral_density_profile', x_unit='wavelength nm', y_unit='density above F', conditions='mixed light (spectrum + white light)', evidence='other_edition', edition='REALA 1989 original',
+                xs=(390.0, 400.0, 410.0, 420.0, 430.0, 440.0, 450.0, 460.0, 470.0, 480.0, 490.0, 500.0, 510.0, 520.0, 530.0, 540.0, 550.0, 560.0, 570.0, 580.0, 590.0, 600.0, 610.0, 620.0, 630.0, 640.0, 650.0, 660.0, 670.0, 680.0, 690.0,), ys=(-0.004, -0.024, -0.035, -0.041, -0.041, -0.035, -0.025, -0.001, 0.049, 0.143, 0.233, 0.284, 0.33, 0.38, 0.441, 0.515, 0.527, 0.411, 0.334, 0.256, 0.098, -0.026, -0.07, -0.084, -0.093, -0.095, -0.076, -0.039, -0.001, 0.0, 0.0,),
+                source='N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «フジカラーリアラの色再現» / «Color Reproduction of Fujicolor REALA», Nihon Shashin Gakkaishi (J. Soc. Photogr. Sci. Technol. Japan) 52(1) 41-47 (1989), Fig. 13'),
+            ExtraCurve(label='Fig. 13 spectral density profile B (above white-light fog F)', kind='spectral_density_profile', x_unit='wavelength nm', y_unit='density above F', conditions='mixed light (spectrum + white light)', evidence='other_edition', edition='REALA 1989 original',
+                xs=(390.0, 400.0, 410.0, 420.0, 430.0, 440.0, 450.0, 460.0, 470.0, 480.0, 490.0, 500.0, 510.0, 520.0, 530.0, 540.0, 550.0, 560.0, 570.0, 580.0, 590.0, 600.0, 610.0, 620.0, 630.0, 640.0, 650.0, 660.0, 670.0, 680.0, 690.0,), ys=(0.272, 0.42, 0.486, 0.492, 0.482, 0.466, 0.45, 0.461, 0.448, 0.259, 0.109, 0.05, 0.0, -0.029, -0.052, -0.068, -0.058, -0.025, 0.0, 0.001, 0.015, 0.032, 0.045, 0.052, 0.049, 0.042, 0.029, 0.0, 0.0, 0.0, 0.0,),
+                source='N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «フジカラーリアラの色再現» / «Color Reproduction of Fujicolor REALA», Nihon Shashin Gakkaishi (J. Soc. Photogr. Sci. Technol. Japan) 52(1) 41-47 (1989), Fig. 13'),
+            ExtraCurve(label='Fig. 17 interimage reala_r', kind='interimage_receiver', x_unit='red log E (relative)', y_unit='density', conditions='red causer step, uniform green receiver flash', evidence='other_edition', edition='REALA 1989 original',
+                xs=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5,), ys=(0.433, 0.43, 0.427, 0.424, 0.427, 0.437, 0.456, 0.484, 0.52, 0.572, 0.633, 0.716, 0.797, 0.878, 0.963, 1.052, 1.143, 1.242, 1.335, 1.443, 1.54, 1.64, 1.736, 1.828, 1.914, 1.987,),
+                source='N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «フジカラーリアラの色再現» / «Color Reproduction of Fujicolor REALA», Nihon Shashin Gakkaishi (J. Soc. Photogr. Sci. Technol. Japan) 52(1) 41-47 (1989), Fig. 17'),
+            ExtraCurve(label='Fig. 17 interimage reala_g', kind='interimage_receiver', x_unit='red log E (relative)', y_unit='density', conditions='red causer step, uniform green receiver flash', evidence='other_edition', edition='REALA 1989 original',
+                xs=(0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0, 2.1, 2.2, 2.3, 2.4, 2.5,), ys=(1.513, 1.513, 1.507, 1.507, 1.487, 1.476, 1.458, 1.441, 1.421, 1.401, 1.381, 1.358, 1.331, 1.299, 1.269, 1.242, 1.219, 1.203, 1.192, 1.183, 1.173, 1.166, 1.162, 1.158, 1.152, 1.148,),
+                source='N. Sasaki, K. Takahashi, H. Ikoma (Fuji Photo Film Co., Ltd.), «フジカラーリアラの色再現» / «Color Reproduction of Fujicolor REALA», Nihon Shashin Gakkaishi (J. Soc. Photogr. Sci. Technol. Japan) 52(1) 41-47 (1989), Fig. 17'),
+        ),
+        filters=(
+            FilterFactor(filter='LBB-12 / Wratten 80A', equivalent='', role='conversion', illuminant='tungsten', factor=0.0, factor_hi=0.0, exposure_index_through=25,
+                as_printed='ISO 25/15 deg tungsten through an LBB-12 / Wratten 80A', evidence='vendor', edition='', source='FUJIFILM DATA SHEET, FUJICOLOR SUPERIA REALA [CS], Ref. No. AF3-967E, section 2'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'FUJICOLOR_SUPERIA_XTRA_800': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='LBB-12 / Wratten 80A', equivalent='', role='conversion', illuminant='tungsten', factor=0.0, factor_hi=0.0, exposure_index_through=200,
+                as_printed='ISO 200/24 deg tungsten through an LBB-12 / Wratten 80A', evidence='vendor', edition='', source='FUJIFILM DATA SHEET, FUJICOLOR SUPERIA X-TRA 800 [CZ], Ref. No. AF3-068E, section 2'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'FUJICOLOR_SUPER_F500_8572': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='(none)', equivalent='', role='conversion', illuminant='HMI', factor=0.0, factor_hi=0.0, exposure_index_through=320,
+                as_printed='seven-row illuminant/filter EI table (HMI 320; ...)', evidence='vendor', edition='', source='FUJICOLOR SUPER F-500 datasheet (35mm Type 8572 / 16mm Type 8672), p1'),
+            FilterFactor(filter='CC-30R', equivalent='', role='colour_compensating', illuminant='white fluorescent', factor=0.0, factor_hi=0.0, exposure_index_through=250,
+                as_printed='white fluorescent CC-30R at 250', evidence='vendor', edition='', source='FUJICOLOR SUPER F-500 datasheet, p1'),
+            FilterFactor(filter='CC-30R', equivalent='', role='colour_compensating', illuminant='3-band 5000 K fluorescent', factor=0.0, factor_hi=0.0, exposure_index_through=250,
+                as_printed='3-band 5000 K CC-30R at 250', evidence='vendor', edition='', source='FUJICOLOR SUPER F-500 datasheet, p1'),
+            FilterFactor(filter='CC-40R', equivalent='', role='colour_compensating', illuminant='6700 K', factor=0.0, factor_hi=0.0, exposure_index_through=200,
+                as_printed='6700 K CC-40R at 200', evidence='vendor', edition='', source='FUJICOLOR SUPER F-500 datasheet, p1'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'FUJI_ASTIA_100F': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=45.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Fuji Astra 100 RAP» (transparency); 2290 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Fuji Astra 100 RAP', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+        ),
+        points=(
+        ),
+    ),
+    'FUJI_F125_8530': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Fuji LBA-12 / Wratten 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=80,
+                as_printed='EI 125 at 3200 K, 80 daylight with LBA-12 / Wratten 85', evidence='vendor_translated', edition='', source='Noguchi, Urata, Murai (Fuji), transl. in «Техника кино и телевидения» 1990 No.1, Table 2 p56'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'FUJI_NEOPAN_1600': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Fuji SC-39', equivalent='Wratten 1A', role='contrast', illuminant='daylight', factor=1.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25: daylight 1.0/2.0/4.0/8.0, tungsten 1.0/1.5/3.0/6.0', evidence='vendor', edition='AF3-608E(N)', source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), p1"),
+            FilterFactor(filter='Fuji SC-39', equivalent='Wratten 1A', role='contrast', illuminant='tungsten', factor=1.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25: daylight 1.0/2.0/4.0/8.0, tungsten 1.0/1.5/3.0/6.0', evidence='vendor', edition='AF3-608E(N)', source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), p1"),
+            FilterFactor(filter='Fuji SC-48', equivalent='Wratten 8', role='contrast', illuminant='daylight', factor=2.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25: daylight 1.0/2.0/4.0/8.0, tungsten 1.0/1.5/3.0/6.0', evidence='vendor', edition='AF3-608E(N)', source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), p1"),
+            FilterFactor(filter='Fuji SC-48', equivalent='Wratten 8', role='contrast', illuminant='tungsten', factor=1.5, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25: daylight 1.0/2.0/4.0/8.0, tungsten 1.0/1.5/3.0/6.0', evidence='vendor', edition='AF3-608E(N)', source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), p1"),
+            FilterFactor(filter='Fuji SC-56', equivalent='Wratten 21', role='contrast', illuminant='daylight', factor=4.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25: daylight 1.0/2.0/4.0/8.0, tungsten 1.0/1.5/3.0/6.0', evidence='vendor', edition='AF3-608E(N)', source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), p1"),
+            FilterFactor(filter='Fuji SC-56', equivalent='Wratten 21', role='contrast', illuminant='tungsten', factor=3.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25: daylight 1.0/2.0/4.0/8.0, tungsten 1.0/1.5/3.0/6.0', evidence='vendor', edition='AF3-608E(N)', source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), p1"),
+            FilterFactor(filter='Fuji SC-60', equivalent='Wratten 25', role='contrast', illuminant='daylight', factor=8.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25: daylight 1.0/2.0/4.0/8.0, tungsten 1.0/1.5/3.0/6.0', evidence='vendor', edition='AF3-608E(N)', source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), p1"),
+            FilterFactor(filter='Fuji SC-60', equivalent='Wratten 25', role='contrast', illuminant='tungsten', factor=6.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Fuji SC-39/SC-48/SC-56/SC-60 = Wratten 1A/8/21/25: daylight 1.0/2.0/4.0/8.0, tungsten 1.0/1.5/3.0/6.0', evidence='vendor', edition='AF3-608E(N)', source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), p1"),
+        ),
+        facts=(
+            ExtraFact(key='safelight', kind='safelight', value=20.0, lo=1.0, hi=0.0, unit='W (lamp); lo = minimum distance m', text='Fuji SLG4 dark green 20 W at >=1 m',
+                conditions='', evidence='vendor', edition='', source="Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET 'NEOPAN 1600 Professional', Ref. No. AF3-608E(N), p2"),
+        ),
+        points=(
+            (DevelopmentPoint(developer='SPD', dilution='stock', minutes=50.0, celsius=30.0, contrast_index=0.0, exposure_index=800,
+                vessel='automatic processor', edition='', evidence='unit_doubt', procedure='FP260 FC; printed «Development Time (min.)» 50 / 60 / 90; unit probably seconds (small-tank SPD EI 1600 is 3 1/2 min at 22 C); value stored AS PRINTED'), 'Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «NEOPAN 1600 Professional», Ref. No. AF3-608E(N), p3 automatic processors'),
+            (DevelopmentPoint(developer='SPD', dilution='stock', minutes=60.0, celsius=30.0, contrast_index=0.0, exposure_index=1600,
+                vessel='automatic processor', edition='', evidence='unit_doubt', procedure='FP260 FC; printed «Development Time (min.)» 50 / 60 / 90; unit probably seconds (small-tank SPD EI 1600 is 3 1/2 min at 22 C); value stored AS PRINTED'), 'Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «NEOPAN 1600 Professional», Ref. No. AF3-608E(N), p3 automatic processors'),
+            (DevelopmentPoint(developer='SPD', dilution='stock', minutes=90.0, celsius=30.0, contrast_index=0.0, exposure_index=3200,
+                vessel='automatic processor', edition='', evidence='unit_doubt', procedure='FP260 FC; printed «Development Time (min.)» 50 / 60 / 90; unit probably seconds (small-tank SPD EI 1600 is 3 1/2 min at 22 C); value stored AS PRINTED'), 'Fuji Photo Film Co., Ltd., FUJIFILM DATA SHEET «NEOPAN 1600 Professional», Ref. No. AF3-608E(N), p3 automatic processors'),
+        ),
+    ),
+    'FUJI_NEOPAN_400': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+        ),
+        points=(
+            (DevelopmentPoint(developer='Minidol Fine', dilution='stock', minutes=7.0, celsius=24.0, contrast_index=0.0, exposure_index=0,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='automatic-processor row (a dip-and-dunk machine); EI not stated in the record'), 'Fuji Photo Film Co., Ltd. / FUJIFILM Imaging, «ネオパン 400 PRESTO（120） NEOPAN 400 PRESTO (120)», FUJIFILM PRODUCT INFORMATION BULLETIN, Ref. No. 163AR0121A (神Q-07-7-FP), 2007'),
+            (DevelopmentPoint(developer='D-76', dilution='stock', minutes=13.0, celsius=20.0, contrast_index=0.83, exposure_index=400,
+                vessel='', edition='', evidence='conflicting_label', procedure="label «D-76 13 min, G 0.83»; the same maker's guide prints 12 min for this G"), 'Fujifilm, NEOPAN 400 PRESTO (120) bulletin 2007, p3'),
+        ),
+    ),
+    'FUJI_NEOPAN_SS': dict(
+        curves=(
+            ExtraCurve(label='Ooue 1961 Fig. 5 resolving power vs density (Neopan SS / Microfine)', kind='resolving_power_vs_density', x_unit='density', y_unit='lines/mm', conditions='Neopan SS developed in Microfine', evidence='other_generation', edition='Neopan SS c. 1961 coating',
+                xs=(0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0,), ys=(58.0, 63.1, 70.0, 77.8, 83.6, 89.2, 94.5, 97.7, 100.5, 102.3, 102.8, 101.3, 98.7, 94.3, 89.5,),
+                source='Ooue Shingo (Fuji Photo Film Research Laboratories), «Graininess and Sharpness of Photographic Film», Television (テレビジョン) 15(8), 1961, pp. 464-468, 第5図 (Fig. 5)'),
+            ExtraCurve(label='Takano 1969 Fig. 8 Selwyn granularity vs aperture (Neopan-SS)', kind='selwyn_vs_aperture', x_unit='sqrt(A) um', y_unit='Selwyn G = sqrt(A)*sigma(D)', conditions='Neopan-SS sample as named in Fig. 8', evidence='other_generation', edition='Neopan SS c. 1969 coating',
+                xs=(4.9, 11.7, 18.4, 25.2, 31.9, 38.7, 45.4, 52.2, 58.9, 65.7, 72.4, 79.2, 85.9,), ys=(0.235, 0.404, 0.504, 0.559, 0.592, 0.609, 0.618, 0.623, 0.627, 0.628, 0.629, 0.628, 0.625,),
+                source='Kiyoshi Takano, «写真フィルムの粒状性» / "Granularity of Photographic Film", テレビジョン (J. Inst. Telev. Engrs. Japan) 23(1) 13-23 (1969), Fig. 8'),
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='ooue_1959.wiener_f_half.D 1.03', kind='wiener_spectrum_fit', value=45.6, lo=0.0, hi=0.0, unit='lines/mm', text='f_half 45.6, exponent n 0.71 of P0 exp(-ln2 (f/f_half)^n)',
+                conditions='Neopan SS / Minidol 20C 10 min, D 1.03', evidence='other_generation', edition='Neopan SS 1959 coating', source='Shingo Ooue (Fuji Photo Film Research Laboratory), «写真感光材料の粒状性» Part 2, J. Soc. Phot. Sci. Japan 22(2) 91-99 (1959), Fig. 26'),
+            ExtraFact(key='ooue_1959.wiener_exponent.D 1.03', kind='wiener_spectrum_fit', value=0.71, lo=0.0, hi=0.0, unit='', text='',
+                conditions='Neopan SS / Minidol 20C 10 min, D 1.03', evidence='other_generation', edition='Neopan SS 1959 coating', source='Shingo Ooue (Fuji Photo Film Research Laboratory), «写真感光材料の粒状性» Part 2, J. Soc. Phot. Sci. Japan 22(2) 91-99 (1959), Fig. 26'),
+            ExtraFact(key='ooue_1959.wiener_f_half.D 0.45', kind='wiener_spectrum_fit', value=70.8, lo=0.0, hi=0.0, unit='lines/mm', text='f_half 70.8, exponent n 0.89 of P0 exp(-ln2 (f/f_half)^n)',
+                conditions='Neopan SS / Minidol 20C 10 min, D 0.45', evidence='other_generation', edition='Neopan SS 1959 coating', source='Shingo Ooue (Fuji Photo Film Research Laboratory), «写真感光材料の粒状性» Part 2, J. Soc. Phot. Sci. Japan 22(2) 91-99 (1959), Fig. 26'),
+            ExtraFact(key='ooue_1959.wiener_exponent.D 0.45', kind='wiener_spectrum_fit', value=0.89, lo=0.0, hi=0.0, unit='', text='',
+                conditions='Neopan SS / Minidol 20C 10 min, D 0.45', evidence='other_generation', edition='Neopan SS 1959 coating', source='Shingo Ooue (Fuji Photo Film Research Laboratory), «写真感光材料の粒状性» Part 2, J. Soc. Phot. Sci. Japan 22(2) 91-99 (1959), Fig. 26'),
+            ExtraFact(key='ooue_1960.granularity_density_exponent', kind='granularity_vs_density_fit', value=0.672, lo=0.0, hi=0.0, unit='n in v ∝ D^n', text='R² 0.995; ordinate read as rms (settled by Ooue 1959 Part 2 §4.2.2)',
+                conditions='Neopan SS / Microfine, 10 um aperture referred to film', evidence='other_generation', edition='Neopan SS c. 1959-60 coating', source='Shingo Ooue, «粒状性の研究(第1報) 新しい粒状性測定装置», J. Soc. Phot. Sci. Japan 23(1) 7-10 (1960), Fig. 7'),
+            ExtraFact(key='ooue_1961.f50', kind='mtf_f50', value=25.4, lo=23.9, hi=26.9, unit='lines/mm', text='read by eye off a 600 dpi render, ±1.5 lines/mm',
+                conditions='curve 1 «Neopan SS»', evidence='other_generation', edition='Neopan SS c. 1961 coating', source='Ooue Shingo (Fuji Photo Film Research Laboratories), «Graininess and Sharpness of Photographic Film», Television (テレビジョン) 15(8), 1961, pp. 464-468, Fig. 8'),
+            ExtraFact(key='ooue_1961.resolving_peak', kind='resolving_power_peak', value=102.8, lo=0.8, hi=0.0, unit='lines/mm (lo = density at peak)', text='',
+                conditions='Neopan SS / Microfine', evidence='other_generation', edition='Neopan SS c. 1961 coating', source='Ooue Shingo (Fuji Photo Film Research Laboratories), «Graininess and Sharpness of Photographic Film», Television (テレビジョン) 15(8), 1961, pp. 464-468, Fig. 5'),
+            ExtraFact(key='takano_1969.clump_um_at_gain_0.3', kind='clump_fit', value=4.78, lo=0.0, hi=0.0, unit='um', text='clump_gain 0.3 -> clump_um 4.78 (pair not identifiable from an aperture series alone)',
+                conditions='fit of film_sim.grain_reference_energy to Fig. 8 Neopan-SS trace', evidence='other_generation_derived', edition='Neopan SS c. 1969 coating', source='Kiyoshi Takano, «写真フィルムの粒状性» / "Granularity of Photographic Film", テレビジョン (J. Inst. Telev. Engrs. Japan) 23(1) 13-23 (1969), Fig. 8 (fit by this project)'),
+            ExtraFact(key='takano_1969.clump_um_at_gain_0.85', kind='clump_fit', value=2.46, lo=0.0, hi=0.0, unit='um', text='clump_gain 0.85 -> clump_um 2.46 (pair not identifiable from an aperture series alone)',
+                conditions='fit of film_sim.grain_reference_energy to Fig. 8 Neopan-SS trace', evidence='other_generation_derived', edition='Neopan SS c. 1969 coating', source='Kiyoshi Takano, «写真フィルムの粒状性» / "Granularity of Photographic Film", テレビジョン (J. Inst. Telev. Engrs. Japan) 23(1) 13-23 (1969), Fig. 8 (fit by this project)'),
+            ExtraFact(key='takano_1969.clump_um_at_gain_1.5', kind='clump_fit', value=1.88, lo=0.0, hi=0.0, unit='um', text='clump_gain 1.5 -> clump_um 1.88 (pair not identifiable from an aperture series alone)',
+                conditions='fit of film_sim.grain_reference_energy to Fig. 8 Neopan-SS trace', evidence='other_generation_derived', edition='Neopan SS c. 1969 coating', source='Kiyoshi Takano, «写真フィルムの粒状性» / "Granularity of Photographic Film", テレビジョン (J. Inst. Telev. Engrs. Japan) 23(1) 13-23 (1969), Fig. 8 (fit by this project)'),
+        ),
+        points=(
+        ),
+    ),
+    'FUJI_SUPER_F125_8532': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='LBA-12 or Wratten 85', equivalent='', role='conversion', illuminant='HMI', factor=0.0, factor_hi=0.0, exposure_index_through=80,
+                as_printed='EI 80 daylight and 80 HMI with an LBA-12 or Wratten 85', evidence='vendor', edition='', source='FUJICOLOR SUPER F-125 datasheet (Type 8532)'),
+            FilterFactor(filter='CC-30R', equivalent='', role='colour_compensating', illuminant='fluorescent', factor=0.0, factor_hi=0.0, exposure_index_through=64,
+                as_printed='64 with CC-30R under fluorescent', evidence='vendor', edition='', source='FUJICOLOR SUPER F-125 datasheet (Type 8532)'),
+            FilterFactor(filter='CC-40R', equivalent='', role='colour_compensating', illuminant='6700 K', factor=0.0, factor_hi=0.0, exposure_index_through=50,
+                as_printed='50 at 6700 K with CC-40R', evidence='vendor', edition='', source='FUJICOLOR SUPER F-125 datasheet (Type 8532)'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'GEVACHROME_600': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='CTO 12', equivalent='', role='conversion', illuminant='daylight and arc 5500-6500 K', factor=0.0, factor_hi=0.0, exposure_index_through=25,
+                as_printed="'Tageslicht und Bogenlampen 5500-6500 K, Filter CTO 12: 15 DIN (25 ASA)'", evidence='vendor', edition='', source='J. E. Rens / K. Van Bets, «Gevachrome-Farbumkehrfilme fuer Farbfernsehen», KINO-TECHNIK 1968 Nr. 10, Tab. II p262'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'GEVACHROME_605': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='CTO 12', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=80,
+                as_printed='daylight index 20 DIN (80 ASA) with CTO 12', evidence='vendor', edition='', source='J. E. Rens / K. Van Bets, KINO-TECHNIK 1968 Nr. 10'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'GEVACOLOR_NEG_652': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='CTO-12', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=12,
+                as_printed='12 in daylight behind a CTO-12', evidence='secondary', edition='', source='Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», Искусство, 1958'),
+            FilterFactor(filter='CTO-16', equivalent='', role='conversion', illuminant='intense arc', factor=0.0, factor_hi=0.0, exposure_index_through=10,
+                as_printed='10 under an intense arc behind CTO-16', evidence='secondary', edition='', source='Чельцов, Бонгард 1958'),
+            FilterFactor(filter='CTO-20', equivalent='', role='conversion', illuminant='daylight shade', factor=0.0, factor_hi=0.0, exposure_index_through=8,
+                as_printed='8 in daylight shade behind CTO-20', evidence='secondary', edition='', source='Чельцов, Бонгард 1958'),
+        ),
+        facts=(
+            ExtraFact(key='exposure_index.direct_tungsten_3200K', kind='speed_band', value=16.0, lo=0.0, hi=0.0, unit='ASA', text='16 in direct tungsten at 3200 K (nominal ASA 32 at 3200 K)',
+                conditions='', evidence='secondary', edition='', source='Чельцов В. С., Бонгард С. А., «Цветное проявление трёхслойных светочувствительных материалов», Искусство, 1958'),
+        ),
+        points=(
+        ),
+    ),
+    'ILFORD_DELTA_3200': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+        ),
+        points=(
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=8.0, celsius=24.0, contrast_index=0.0, exposure_index=400,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=8.5, celsius=24.0, contrast_index=0.0, exposure_index=800,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=9.5, celsius=24.0, contrast_index=0.0, exposure_index=1600,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=10.5, celsius=24.0, contrast_index=0.0, exposure_index=3200,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=13.5, celsius=24.0, contrast_index=0.0, exposure_index=6400,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=19.0, celsius=24.0, contrast_index=0.0, exposure_index=12500,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='T-Max RS', dilution='', minutes=4.0, celsius=24.0, contrast_index=0.0, exposure_index=400,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='T-Max RS', dilution='', minutes=4.5, celsius=24.0, contrast_index=0.0, exposure_index=800,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='T-Max RS', dilution='', minutes=5.0, celsius=24.0, contrast_index=0.0, exposure_index=1600,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='T-Max RS', dilution='', minutes=6.5, celsius=24.0, contrast_index=0.0, exposure_index=3200,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='T-Max RS', dilution='', minutes=8.5, celsius=24.0, contrast_index=0.0, exposure_index=6400,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='T-Max RS', dilution='', minutes=10.5, celsius=24.0, contrast_index=0.0, exposure_index=12500,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=8.0, celsius=24.0, contrast_index=0.0, exposure_index=400,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=9.0, celsius=24.0, contrast_index=0.0, exposure_index=800,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=10.5, celsius=24.0, contrast_index=0.0, exposure_index=1600,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=13.5, celsius=24.0, contrast_index=0.0, exposure_index=3200,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=17.5, celsius=24.0, contrast_index=0.0, exposure_index=6400,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=23.0, celsius=24.0, contrast_index=0.0, exposure_index=12500,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; record says «at EI 400-12500» for six times -- EI per time assigned here in ascending order (400/800/1600/3200/6400/12500), verify against the sheet'), 'ILFORD «DELTA 3200 PROFESSIONAL» technical information, Nov 2018 / September 2002'),
+        ),
+    ),
+    'ILFORD_HP5_PLUS_400': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+        ),
+        points=(
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=7.0, celsius=24.0, contrast_index=0.0, exposure_index=400,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=10.0, celsius=24.0, contrast_index=0.0, exposure_index=800,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=14.0, celsius=24.0, contrast_index=0.0, exposure_index=1600,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='ILFOTEC DD', dilution='1+4', minutes=18.0, celsius=24.0, contrast_index=0.0, exposure_index=3200,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='T-Max RS', dilution='', minutes=4.5, celsius=24.0, contrast_index=0.0, exposure_index=400,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; ⚠ only three times printed in the record (4 1/2 / 5 / 7) for EI 400 / 800 / 1600 / 3200 -- which EI lacks a time is not recorded'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='T-Max RS', dilution='', minutes=5.0, celsius=24.0, contrast_index=0.0, exposure_index=800,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; ⚠ only three times printed in the record (4 1/2 / 5 / 7) for EI 400 / 800 / 1600 / 3200 -- which EI lacks a time is not recorded'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='T-Max RS', dilution='', minutes=7.0, celsius=24.0, contrast_index=0.0, exposure_index=1600,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C; ⚠ only three times printed in the record (4 1/2 / 5 / 7) for EI 400 / 800 / 1600 / 3200 -- which EI lacks a time is not recorded'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=7.5, celsius=24.0, contrast_index=0.0, exposure_index=400,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=9.5, celsius=24.0, contrast_index=0.0, exposure_index=800,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=12.0, celsius=24.0, contrast_index=0.0, exposure_index=1600,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+            (DevelopmentPoint(developer='Xtol', dilution='', minutes=16.0, celsius=24.0, contrast_index=0.0, exposure_index=3200,
+                vessel='dip and dunk', edition='', evidence='vendor', procedure='dip and dunk 24 C'), 'ILFORD «HP5 PLUS» technical information, Nov 2018 / July 2004'),
+        ),
+    ),
+    'ILFORD_PAN_F': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Ilford Alpha 104', equivalent='', role='contrast', illuminant='daylight', factor=1.5, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Alpha 104, Beta 401, Gamma 402, Tri-Blue 304, Tri-Green 404, Tri-Red 204 at 1 1/2, 2, 4, 5 1/2, 6 and 10 in daylight and 1 1/4, 1 1/2, 3, 14, 6 and 3 1/2 under half-watt lighting', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Alpha 104', equivalent='', role='contrast', illuminant='half-watt (tungsten)', factor=1.25, factor_hi=0.0, exposure_index_through=0,
+                as_printed='(same table)', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Beta 401', equivalent='', role='contrast', illuminant='daylight', factor=2.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Alpha 104, Beta 401, Gamma 402, Tri-Blue 304, Tri-Green 404, Tri-Red 204 at 1 1/2, 2, 4, 5 1/2, 6 and 10 in daylight and 1 1/4, 1 1/2, 3, 14, 6 and 3 1/2 under half-watt lighting', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Beta 401', equivalent='', role='contrast', illuminant='half-watt (tungsten)', factor=1.5, factor_hi=0.0, exposure_index_through=0,
+                as_printed='(same table)', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Gamma 402', equivalent='', role='contrast', illuminant='daylight', factor=4.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Alpha 104, Beta 401, Gamma 402, Tri-Blue 304, Tri-Green 404, Tri-Red 204 at 1 1/2, 2, 4, 5 1/2, 6 and 10 in daylight and 1 1/4, 1 1/2, 3, 14, 6 and 3 1/2 under half-watt lighting', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Gamma 402', equivalent='', role='contrast', illuminant='half-watt (tungsten)', factor=3.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='(same table)', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Tri-Blue 304', equivalent='', role='contrast', illuminant='daylight', factor=5.5, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Alpha 104, Beta 401, Gamma 402, Tri-Blue 304, Tri-Green 404, Tri-Red 204 at 1 1/2, 2, 4, 5 1/2, 6 and 10 in daylight and 1 1/4, 1 1/2, 3, 14, 6 and 3 1/2 under half-watt lighting', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Tri-Blue 304', equivalent='', role='contrast', illuminant='half-watt (tungsten)', factor=14.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='(same table)', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Tri-Green 404', equivalent='', role='contrast', illuminant='daylight', factor=6.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Alpha 104, Beta 401, Gamma 402, Tri-Blue 304, Tri-Green 404, Tri-Red 204 at 1 1/2, 2, 4, 5 1/2, 6 and 10 in daylight and 1 1/4, 1 1/2, 3, 14, 6 and 3 1/2 under half-watt lighting', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Tri-Green 404', equivalent='', role='contrast', illuminant='half-watt (tungsten)', factor=6.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='(same table)', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Tri-Red 204', equivalent='', role='contrast', illuminant='daylight', factor=10.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='Alpha 104, Beta 401, Gamma 402, Tri-Blue 304, Tri-Green 404, Tri-Red 204 at 1 1/2, 2, 4, 5 1/2, 6 and 10 in daylight and 1 1/4, 1 1/2, 3, 14, 6 and 3 1/2 under half-watt lighting', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+            FilterFactor(filter='Ilford Tri-Red 204', equivalent='', role='contrast', illuminant='half-watt (tungsten)', factor=3.5, factor_hi=0.0, exposure_index_through=0,
+                as_printed='(same table)', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+        ),
+        facts=(
+            ExtraFact(key='safelight', kind='safelight', value=0.0, lo=0.0, hi=0.0, unit='', text='NO safelight of any kind («the material should be handled in total darkness»)',
+                conditions='', evidence='other_generation', edition='Pan F, the 1949 35 mm miniature coating', source='Peter Hansell, «35 mm. Filmstrip Technique», Ilford Limited, London, 1949, pp. 44-45'),
+        ),
+        points=(
+        ),
+    ),
+    'KODACHROME_64': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='No. 80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=20,
+                as_printed='16 with 80A / 20 with 80B are filtered', evidence='secondary', edition='', source='В. Л. Лихачев, «Современные фотоматериалы и их обработка», Табл. 3.111 p259 (number from param_sources[23].conditions)'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_EKTACHROME_100D_5285': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80A', equivalent='', role='conversion', illuminant='tungsten 3200 K', factor=0.0, factor_hi=0.0, exposure_index_through=25,
+                as_printed="'Tungsten (3200K): 25 (with 80A filter)'", evidence='vendor', edition='', source='Eastman Kodak Company, H-1-5285, Revised 2-10'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_EKTACHROME_100_EPN': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='No. 80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=32,
+                as_printed='E-27 p2: EI 100 daylight / electronic flash, 32 with a No. 80B (3400 K photolamp)', evidence='vendor', edition='', source='Eastman Kodak Company, «KODAK EKTACHROME 100 Professional Film», E-27, May 1998, p2'),
+        ),
+        facts=(
+            ExtraFact(key='base_thickness.120 / 220', kind='base_thickness_by_format', value=91.44, lo=0.0, hi=0.0, unit='um', text='3.6 mil acetate; «E-27 p1: ... 3.6-mil acetate for 120 / 220»',
+                conditions='format 120 / 220', evidence='vendor', edition='', source='Eastman Kodak Company, E-27, May 1998, p1'),
+            ExtraFact(key='base_thickness.4x5 to 11x14 inch sheets', kind='base_thickness_by_format', value=208.28, lo=0.0, hi=0.0, unit='um', text='8.2 mil acetate; «E-27 p1: 8.2-mil acetate for 4x5 to 11x14 inch sheets»',
+                conditions='format 4x5 to 11x14 inch sheets', evidence='vendor', edition='', source='Eastman Kodak Company, E-27, May 1998, p1'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_HIE': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='No. 25, 29 or 89B', equivalent='', role='infrared', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=50,
+                as_printed='«Табл. 3.280» EI per taking filter: No. 25, 29 or 89B 50 daylight / 125 tungsten (TTL metering, D-76)', evidence='secondary', edition='', source='В. Л. Лихачев, «Современные фотоматериалы и их обработка», СЛОН-ПРЕСС, 2003, табл. 3.280 (PDF p435)'),
+            FilterFactor(filter='No. 25, 29 or 89B', equivalent='', role='infrared', illuminant='tungsten', factor=0.0, factor_hi=0.0, exposure_index_through=125,
+                as_printed='«Табл. 3.280» EI per taking filter: No. 25, 29 or 89B 50 daylight / 125 tungsten (TTL metering, D-76)', evidence='secondary', edition='', source='В. Л. Лихачев, «Современные фотоматериалы и их обработка», СЛОН-ПРЕСС, 2003, табл. 3.280 (PDF p435)'),
+            FilterFactor(filter='No. 87', equivalent='', role='infrared', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=25,
+                as_printed='«Табл. 3.280» EI per taking filter: No. 87 25 daylight / 64 tungsten (TTL metering, D-76)', evidence='secondary', edition='', source='В. Л. Лихачев, «Современные фотоматериалы и их обработка», СЛОН-ПРЕСС, 2003, табл. 3.280 (PDF p435)'),
+            FilterFactor(filter='No. 87', equivalent='', role='infrared', illuminant='tungsten', factor=0.0, factor_hi=0.0, exposure_index_through=64,
+                as_printed='«Табл. 3.280» EI per taking filter: No. 87 25 daylight / 64 tungsten (TTL metering, D-76)', evidence='secondary', edition='', source='В. Л. Лихачев, «Современные фотоматериалы и их обработка», СЛОН-ПРЕСС, 2003, табл. 3.280 (PDF p435)'),
+            FilterFactor(filter='No. 87C', equivalent='', role='infrared', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=10,
+                as_printed='«Табл. 3.280» EI per taking filter: No. 87C 10 daylight / 25 tungsten (TTL metering, D-76)', evidence='secondary', edition='', source='В. Л. Лихачев, «Современные фотоматериалы и их обработка», СЛОН-ПРЕСС, 2003, табл. 3.280 (PDF p435)'),
+            FilterFactor(filter='No. 87C', equivalent='', role='infrared', illuminant='tungsten', factor=0.0, factor_hi=0.0, exposure_index_through=25,
+                as_printed='«Табл. 3.280» EI per taking filter: No. 87C 10 daylight / 25 tungsten (TTL metering, D-76)', evidence='secondary', edition='', source='В. Л. Лихачев, «Современные фотоматериалы и их обработка», СЛОН-ПРЕСС, 2003, табл. 3.280 (PDF p435)'),
+        ),
+        facts=(
+            ExtraFact(key='base_thickness.sheet (HSI)', kind='base_thickness_by_format', value=177.8, lo=0.0, hi=0.0, unit='um', text='7 mil ESTAR Thick; «sheet HSI on 7-mil ESTAR Thick»',
+                conditions='format sheet (HSI)', evidence='vendor', edition='', source='Eastman Kodak, «KODAK High Speed Infrared Film», F-13, June 2000, p1'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PANATOMIC_X': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='kodak_1956.resolving_power_class', kind='resolving_power_band', value=0.0, lo=120.0, hi=150.0, unit='lines/mm', text='«Very High» (120-150 lines/mm per pp. 19-20; test-chart contrast not stated)',
+                conditions='', evidence='class_band_contrast_unstated', edition='Kodak Data Book, Seventh Edition, 1956', source="Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, the «Definition» row of the film's own data sheet, with the class boundaries from pages 19-20 of the same book."),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PANATOMIC_X_SHEET_1952': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='kodak_1956.resolving_power_class', kind='resolving_power_band', value=0.0, lo=95.0, hi=115.0, unit='lines/mm', text='«High» (95-115 lines/mm per pp. 19-20; test-chart contrast not stated)',
+                conditions='', evidence='class_band_contrast_unstated', edition='Kodak Data Book, Seventh Edition, 1956', source="Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, the «Definition» row of the film's own data sheet, with the class boundaries from pages 19-20 of the same book."),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PLUS_X_125': dict(
+        curves=(
+            ExtraCurve(label='characteristic D-76 small tank 20 C 11 min', kind='characteristic_curve', x_unit='log H (lux-seconds)', y_unit='diffuse visual density (absolute, incl. base+fog)', conditions='D-76, small tank, 20 °C, 11 min', evidence='vendor_vector_other_processing', edition='F-4018 2002 p7',
+                xs=(-3.131, -3.1, -3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.642,), ys=(0.27, 0.272, 0.278, 0.286, 0.295, 0.308, 0.328, 0.357, 0.398, 0.449, 0.513, 0.585, 0.666, 0.752, 0.842, 0.936, 1.032, 1.13, 1.229, 1.329, 1.43, 1.535, 1.643, 1.75, 1.853, 1.953, 2.048, 2.137, 2.218, 2.288, 2.348, 2.402, 2.456, 2.508, 2.557, 2.603, 2.642, 2.675, 2.704, 2.716,),
+                source='Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication F-4018, February 2002 (technical content identical in May 2007), p7 «Characteristic Curves» (vector paths)'),
+            ExtraCurve(label='characteristic D-76 small tank 20 C 7 min', kind='characteristic_curve', x_unit='log H (lux-seconds)', y_unit='diffuse visual density (absolute, incl. base+fog)', conditions='D-76, small tank, 20 °C, 7 min', evidence='vendor_vector_other_processing', edition='F-4018 2002 p7',
+                xs=(-3.131, -3.1, -3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.642,), ys=(0.261, 0.262, 0.266, 0.271, 0.277, 0.285, 0.298, 0.317, 0.343, 0.376, 0.416, 0.463, 0.514, 0.57, 0.628, 0.687, 0.747, 0.811, 0.879, 0.95, 1.022, 1.095, 1.171, 1.251, 1.334, 1.417, 1.5, 1.583, 1.666, 1.743, 1.812, 1.876, 1.935, 1.992, 2.044, 2.092, 2.137, 2.185, 2.236, 2.257,),
+                source='Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication F-4018, February 2002 (technical content identical in May 2007), p7 «Characteristic Curves» (vector paths)'),
+            ExtraCurve(label='characteristic D-76 small tank 20 C 5 min', kind='characteristic_curve', x_unit='log H (lux-seconds)', y_unit='diffuse visual density (absolute, incl. base+fog)', conditions='D-76, small tank, 20 °C, 5 min', evidence='vendor_vector_other_processing', edition='F-4018 2002 p7',
+                xs=(-3.131, -3.1, -3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.642,), ys=(0.254, 0.255, 0.256, 0.259, 0.261, 0.266, 0.273, 0.282, 0.295, 0.313, 0.335, 0.362, 0.391, 0.425, 0.464, 0.508, 0.557, 0.606, 0.655, 0.704, 0.756, 0.81, 0.867, 0.926, 0.987, 1.048, 1.112, 1.178, 1.245, 1.308, 1.367, 1.427, 1.49, 1.553, 1.613, 1.666, 1.712, 1.754, 1.794, 1.81,),
+                source='Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication F-4018, February 2002 (technical content identical in May 2007), p7 «Characteristic Curves» (vector paths)'),
+            ExtraCurve(label='characteristic T-MAX Developer small tank 20 C 6 min', kind='characteristic_curve', x_unit='log H (lux-seconds)', y_unit='diffuse visual density (absolute, incl. base+fog)', conditions='T-MAX Developer, small tank, 20 °C, 6 min', evidence='vendor_vector_other_processing', edition='F-4018 2002 p7',
+                xs=(-3.15, -3.1, -3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65,), ys=(0.309, 0.311, 0.316, 0.321, 0.327, 0.335, 0.347, 0.364, 0.386, 0.413, 0.445, 0.483, 0.524, 0.569, 0.618, 0.67, 0.725, 0.785, 0.849, 0.914, 0.98, 1.047, 1.116, 1.184, 1.252, 1.32, 1.387, 1.456, 1.527, 1.598, 1.666, 1.732, 1.798, 1.865, 1.93, 1.993, 2.052, 2.11, 2.166, 2.194,),
+                source='Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication F-4018, February 2002 (technical content identical in May 2007), p7 «Characteristic Curves» (vector paths)'),
+            ExtraCurve(label='characteristic T-MAX Developer small tank 20 C 7 min', kind='characteristic_curve', x_unit='log H (lux-seconds)', y_unit='diffuse visual density (absolute, incl. base+fog)', conditions='T-MAX Developer, small tank, 20 °C, 7 min', evidence='vendor_vector_other_processing', edition='F-4018 2002 p7',
+                xs=(-3.15, -3.1, -3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65,), ys=(0.322, 0.324, 0.33, 0.337, 0.345, 0.356, 0.371, 0.394, 0.423, 0.458, 0.498, 0.544, 0.594, 0.648, 0.705, 0.767, 0.834, 0.902, 0.972, 1.044, 1.119, 1.196, 1.274, 1.353, 1.431, 1.507, 1.583, 1.659, 1.735, 1.809, 1.882, 1.957, 2.028, 2.092, 2.151, 2.208, 2.264, 2.318, 2.37, 2.396,),
+                source='Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication F-4018, February 2002 (technical content identical in May 2007), p7 «Characteristic Curves» (vector paths)'),
+            ExtraCurve(label='characteristic T-MAX Developer small tank 20 C 11 min', kind='characteristic_curve', x_unit='log H (lux-seconds)', y_unit='diffuse visual density (absolute, incl. base+fog)', conditions='T-MAX Developer, small tank, 20 °C, 11 min', evidence='vendor_vector_other_processing', edition='F-4018 2002 p7',
+                xs=(-3.15, -3.1, -3.0, -2.9, -2.8, -2.7, -2.6, -2.5, -2.4, -2.3, -2.2, -2.1, -2.0, -1.9, -1.8, -1.7, -1.6, -1.5, -1.4, -1.3, -1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65,), ys=(0.336, 0.34, 0.349, 0.359, 0.372, 0.389, 0.413, 0.447, 0.49, 0.543, 0.603, 0.671, 0.745, 0.824, 0.909, 1.0, 1.096, 1.194, 1.291, 1.39, 1.488, 1.586, 1.683, 1.777, 1.868, 1.957, 2.044, 2.13, 2.212, 2.288, 2.357, 2.423, 2.488, 2.555, 2.621, 2.682, 2.739, 2.791, 2.843, 2.868,),
+                source='Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication F-4018, February 2002 (technical content identical in May 2007), p7 «Characteristic Curves» (vector paths)'),
+            ExtraCurve(label='spectral sensitivity D = 1.00 above Dmin', kind='spectral_sensitivity', x_unit='wavelength nm', y_unit='log sensitivity, 1/(erg/cm2) to reach D = 1.00 above Dmin (absolute)', conditions='D = 1.00 above Dmin', evidence='vendor_vector_second_criterion', edition='F-4018 2002 p9',
+                xs=(441.497, 450.0, 460.0, 470.0, 480.0, 490.0, 500.0, 510.0, 520.0, 530.0, 540.0, 550.0, 560.0, 570.0, 580.0, 590.0, 600.0, 610.0, 620.0, 630.0, 640.0, 650.0, 651.944,), ys=(0.6, 0.529, 0.458, 0.39, 0.31, 0.222, 0.174, 0.189, 0.203, 0.228, 0.269, 0.3, 0.341, 0.384, 0.379, 0.335, 0.302, 0.267, 0.238, 0.247, 0.1, -0.266, -0.35,),
+                source='Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication F-4018, February 2002 (technical content identical in May 2007), p9 «Spectral Sensitivity Curve»'),
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=100.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak Plus-X 125 (1970)» (black-and-white); 5080 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak Plus-X 125 (1970)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=80.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak Plus-X 125, 2147/4147 (2004)» (black-and-white); 4064 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak Plus-X 125, 2147/4147 (2004)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=110.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak Plus-X 125 5062 (2004)» (black-and-white); 5600 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak Plus-X 125 5062 (2004)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+            ExtraFact(key='kodak_1956.resolving_power_class', kind='resolving_power_band', value=0.0, lo=95.0, hi=115.0, unit='lines/mm', text='«High» (95-115 lines/mm per pp. 19-20; test-chart contrast not stated)',
+                conditions='', evidence='other_generation', edition='Kodak Data Book, Seventh Edition, 1956', source="Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, the «Definition» row of the film's own data sheet, with the class boundaries from pages 19-20 of the same book."),
+            ExtraFact(key='spectral.absolute_peak_log_s', kind='spectral_absolute_level', value=1.891, lo=410.0, hi=0.0, unit='log10(1/(erg/cm2)) (lo = wavelength nm)', text='stored log_s_pan is relative (0 at 410 nm)',
+                conditions='D = 0.30 above Dmin', evidence='vendor_vector', edition='F-4018 2002 p9', source='Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», publication F-4018, February 2002 (technical content identical in May 2007), p9'),
+            ExtraFact(key='base_thickness.120 / 220', kind='base_thickness_by_format', value=91.44, lo=0.0, hi=0.0, unit='um', text='3.6 mil gray acetate; «pro-pack on «3.6-mil gray acetate», CAT 858 5614 / 859 2149»',
+                conditions='format 120 / 220', evidence='edition_2002_only', edition='', source='F-4018 February 2002 p1 (SIZES AVAILABLE tables; removed in the May 2007 edition)'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PORTRA_100T': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='base_thickness.120', kind='base_thickness_by_format', value=99.06, lo=0.0, hi=0.0, unit='um', text="3.9 mil acetate; «120 '3.9-mil (0.10 mm)'»",
+                conditions='format 120', evidence='vendor', edition='', source='Eastman Kodak Company, E-2468 (October 2006) p1'),
+            ExtraFact(key='base_thickness.sheets', kind='base_thickness_by_format', value=177.8, lo=0.0, hi=0.0, unit='um', text="7 mil ESTAR Thick Base; «sheets on 'ESTAR Thick Base' '7-mil (0.18 mm)'»",
+                conditions='format sheets', evidence='vendor', edition='', source='Eastman Kodak Company, E-2468 (October 2006) p1'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PORTRA_160NC': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=50,
+                as_printed='160NC/160VC, 400NC/400VC and 800 rated 40/100/200 through an 80A and 50/125/250 through an 80B', evidence='vendor_other_publication', edition='', source='Eastman Kodak Company, KODAK PROFESSIONAL PORTRA 100T Film, E-2468, revised 10-06, p1 NOTICE OF DISCONTINUANCE table'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PORTRA_160VC': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=50,
+                as_printed='160NC/160VC, 400NC/400VC and 800 rated 40/100/200 through an 80A and 50/125/250 through an 80B', evidence='vendor_other_publication', edition='', source='Eastman Kodak Company, KODAK PROFESSIONAL PORTRA 100T Film, E-2468, revised 10-06, p1 NOTICE OF DISCONTINUANCE table'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PORTRA_400NC': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=125,
+                as_printed='160NC/160VC, 400NC/400VC and 800 rated 40/100/200 through an 80A and 50/125/250 through an 80B', evidence='vendor_other_publication', edition='', source='Eastman Kodak Company, KODAK PROFESSIONAL PORTRA 100T Film, E-2468, revised 10-06, p1 NOTICE OF DISCONTINUANCE table'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PORTRA_400VC': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=125,
+                as_printed='160NC/160VC, 400NC/400VC and 800 rated 40/100/200 through an 80A and 50/125/250 through an 80B', evidence='vendor_other_publication', edition='', source='Eastman Kodak Company, KODAK PROFESSIONAL PORTRA 100T Film, E-2468, revised 10-06, p1 NOTICE OF DISCONTINUANCE table'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PORTRA_800': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=250,
+                as_printed='160NC/160VC, 400NC/400VC and 800 rated 40/100/200 through an 80A and 50/125/250 through an 80B', evidence='vendor_other_publication', edition='', source='Eastman Kodak Company, KODAK PROFESSIONAL PORTRA 100T Film, E-2468, revised 10-06, p1 NOTICE OF DISCONTINUANCE table'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_PRO_100T_PRT': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='81A', equivalent='', role='conversion', illuminant='photolamp', factor=0.0, factor_hi=0.0, exposure_index_through=80,
+                as_printed='80/20 through an 81A on photolamps', evidence='vendor', edition='', source='KODAK Pro 100T Film / PRT, publication E-29, April 1999'),
+            FilterFactor(filter='85B', equivalent='', role='conversion', illuminant='daylight or flash', factor=0.0, factor_hi=0.0, exposure_index_through=64,
+                as_printed='64/19 through an 85B on daylight or flash', evidence='vendor', edition='', source='KODAK Pro 100T Film / PRT, publication E-29, April 1999'),
+        ),
+        facts=(
+            ExtraFact(key='base_thickness.120', kind='base_thickness_by_format', value=99.06, lo=0.0, hi=0.0, unit='um', text='3.9 mil acetate; «BASE [T1]: 3.9-mil acetate in 120»',
+                conditions='format 120', evidence='vendor', edition='', source='KODAK Pro 100T Film / PRT, E-29, April 1999'),
+            ExtraFact(key='base_thickness.sheets', kind='base_thickness_by_format', value=177.8, lo=0.0, hi=0.0, unit='um', text='7 mil ESTAR; «7-mil ESTAR in sheets»',
+                conditions='format sheets', evidence='vendor', edition='', source='KODAK Pro 100T Film / PRT, E-29, April 1999'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_ROYAL_ORTHO_1956': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='safelight', kind='safelight', value=0.0, lo=0.0, hi=0.0, unit='', text="'may be handled without danger of fogging by a safelight transmitting only deep red' (stated for materials sensitive only to blue-violet, blue and green)",
+                conditions='', evidence='qualitative_class_statement', edition='Kodak Data Book 1956', source='Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, page 11'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_ROYAL_PAN_4141': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='kodak_1956.resolving_power_class', kind='resolving_power_band', value=0.0, lo=75.0, hi=90.0, unit='lines/mm', text='«Medium» (75-90 lines/mm per pp. 19-20; test-chart contrast not stated)',
+                conditions='', evidence='class_band_contrast_unstated', edition='Kodak Data Book, Seventh Edition, 1956', source="Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, the «Definition» row of the film's own data sheet, with the class boundaries from pages 19-20 of the same book."),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_ROYAL_X_PAN_4166': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='kodak_1956.resolving_power_class', kind='resolving_power_band', value=0.0, lo=60.0, hi=70.0, unit='lines/mm', text='«Moderately Low» (60-70 lines/mm per pp. 19-20; test-chart contrast not stated)',
+                conditions='', evidence='class_band_contrast_unstated', edition='Kodak Data Book, Seventh Edition, 1956', source="Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, the «Definition» row of the film's own data sheet, with the class boundaries from pages 19-20 of the same book."),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_SUPER_XX_PAN_4142': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='kodak_1956.resolving_power_class', kind='resolving_power_band', value=0.0, lo=75.0, hi=90.0, unit='lines/mm', text='«Medium» (75-90 lines/mm per pp. 19-20; test-chart contrast not stated)',
+                conditions='', evidence='class_band_contrast_unstated', edition='Kodak Data Book, Seventh Edition, 1956', source="Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, the «Definition» row of the film's own data sheet, with the class boundaries from pages 19-20 of the same book."),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_TECHNICAL_PAN': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=200.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak Technical Pan Technidol (2004)» (black-and-white); 10160 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak Technical Pan Technidol (2004)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=135.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text="«Kodak Technical Pan HC100 (Dis'04)» (black-and-white); 6860 ppi as printed",
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition="Kodak Technical Pan HC100 (Dis'04)", source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=85.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak Technical Pan (1984)» (black-and-white); 4320 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak Technical Pan (1984)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=170.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak technical Pan (1976)» (black-and-white); 8636 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak technical Pan (1976)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_TMAX_100': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=110.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak T-Max 100 (1987)» (black-and-white); 5600 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak T-Max 100 (1987)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_TMAX_400': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=60.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak T-Max 400 (1987)» (black-and-white); 3048 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak T-Max 400 (1987)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_TMAX_P3200': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=134.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak T-Max 3200 (2005)» (black-and-white); 6807 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak T-Max 3200 (2005)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_TRI_X_320TXP': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=55.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak Tri-X 320 (Ortho) (1975)» (black-and-white); 2794 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak Tri-X 320 (Ortho) (1975)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_TRI_X_400TX': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='vitale_2009.f30', kind='mtf_f30', value=50.0, lo=0.0, hi=0.0, unit='lp/mm at 30 % modulation', text='«Kodak Tri-X 400 (1976)» (black-and-white); 2540 ppi as printed',
+                conditions='30 % modulation', evidence='other_generation_or_condition', edition='Kodak Tri-X 400 (1976)', source='Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4 «Published Native Resolution Data for Still Film» (lp/mm at 30 % modulation, compiled from Kodak and Fuji publications)'),
+            ExtraFact(key='kodak_1956.resolving_power_class', kind='resolving_power_band', value=0.0, lo=75.0, hi=90.0, unit='lines/mm', text='«Medium» (75-90 lines/mm per pp. 19-20; test-chart contrast not stated)',
+                conditions='', evidence='other_generation', edition='Kodak Data Book, Seventh Edition, 1956', source="Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, the «Definition» row of the film's own data sheet, with the class boundaries from pages 19-20 of the same book."),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_TRI_X_SHEET_1952': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='kodak_1956.resolving_power_class', kind='resolving_power_band', value=0.0, lo=75.0, hi=90.0, unit='lines/mm', text='«Medium» (75-90 lines/mm per pp. 19-20; test-chart contrast not stated)',
+                conditions='', evidence='class_band_contrast_unstated', edition='Kodak Data Book, Seventh Edition, 1956', source="Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, the «Definition» row of the film's own data sheet, with the class boundaries from pages 19-20 of the same book."),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VERICHROME_PAN': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='kodak_1956.resolving_power_class', kind='resolving_power_band', value=0.0, lo=95.0, hi=115.0, unit='lines/mm', text='«High» (95-115 lines/mm per pp. 19-20; test-chart contrast not stated)',
+                conditions='', evidence='class_band_contrast_unstated', edition='Kodak Data Book, Seventh Edition, 1956', source="Eastman Kodak Company, «Kodak Films», Kodak Data Book, Seventh Edition, 1956, the «Definition» row of the film's own data sheet, with the class boundaries from pages 19-20 of the same book."),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION2_200T_5217': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='No. 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=125,
+                as_printed='daylight 125 with No.85', evidence='vendor', edition='', source='KODAK VISION2 200T 5217/7217, H-1-5217, rev. 10-2005'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION2_250D_5205': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80A', equivalent='', role='conversion', illuminant='tungsten', factor=0.0, factor_hi=0.0, exposure_index_through=64,
+                as_printed='tungsten 64 with 80A', evidence='vendor', edition='', source='KODAK VISION2 250D 5205/7205, H-1-5205t, August 2004'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION2_500T_5218': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='No. 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=320,
+                as_printed='daylight 320 with No.85', evidence='vendor', edition='', source='KODAK VISION2 500T 5218/7218, H-1-5218t, March 2006'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION2_50D_5201': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='WRATTEN 80A', equivalent='', role='conversion', illuminant='tungsten 3200 K', factor=0.0, factor_hi=0.0, exposure_index_through=12,
+                as_printed='EI 12 tungsten 3200 K WITH a WRATTEN 80A', evidence='vendor', edition='', source="Eastman Kodak Company, 'KODAK VISION2 50D Color Negative Film 5201 / 7201', H-1-5201, New 10-2005"),
+        ),
+        facts=(
+            ExtraFact(key='safelight', kind='safelight', value=0.0, lo=0.0, hi=0.0, unit='', text="'Do not use a safelight. Handle unprocessed film in total darkness.'",
+                conditions='', evidence='vendor', edition='', source="Eastman Kodak Company, 'KODAK VISION2 50D Color Negative Film 5201 / 7201', H-1-5201, New 10-2005"),
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION3_200T_5213': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=125,
+                as_printed="'Daylight - 125 (with 85 filter)'", evidence='vendor', edition='', source='Eastman Kodak Company, H-1-5213, Revised 3-26'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION3_250D_5207': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80A', equivalent='', role='conversion', illuminant='tungsten 3200 K', factor=0.0, factor_hi=0.0, exposure_index_through=64,
+                as_printed="'Tungsten (3200K): 64 (with 80A filter)'", evidence='vendor', edition='', source='Eastman Kodak Company, H-1-5207, Revised 3-26'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION3_500T_5219': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=320,
+                as_printed="'Daylight - 320 (with 85 filter)'", evidence='vendor', edition='', source='Eastman Kodak Company, H-1-5219, Revised 3-22'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION3_500T_5219_AHU': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=320,
+                as_printed="'Daylight - 320 (with 85 filter)'", evidence='vendor', edition='', source='Eastman Kodak Company, H-1-5219, Revised 3-26 (AHU generation; plots identical to 3-22)'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION3_50D_5203': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80A', equivalent='', role='conversion', illuminant='tungsten 3200 K', factor=0.0, factor_hi=0.0, exposure_index_through=12,
+                as_printed="'Tungsten (3200K): 12 (with 80A filter)'", evidence='vendor', edition='', source='Eastman Kodak Company, H-1-5203, Revised 3-26'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KODAK_VISION_200T_5274': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='No. 85', equivalent='', role='conversion', illuminant='daylight', factor=0.0, factor_hi=0.0, exposure_index_through=125,
+                as_printed='daylight 125 with No.85', evidence='vendor', edition='', source='KODAK VISION 200T 5274/7274, H-1-5274, April 1997'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KONICA_CENTURIA_SUPER_1600': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp', factor=0.0, factor_hi=0.0, exposure_index_through=520,
+                as_printed='photolamp 520 with 80B', evidence='vendor', edition='', source='Konica Color CENTURIA SUPER 1600 technical data sheet (undated, post-Feb-2002)'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KONICA_CENTURIA_SUPER_400': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=125,
+                as_printed='the 125 / 100 values need 80B / 80A filters', evidence='vendor', edition='', source="Konica film's own sheet (param_sources[23].note)"),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KONICA_CHROME_R100': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=32,
+                as_printed='ISO 100 daylight, with 32 through an 80B', evidence='vendor', edition='', source='«Konica Chrome R-100 Film -- Technical Data Sheet», undated (PDF dated 1999)'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KONICA_IMPRESA_50': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp', factor=0.0, factor_hi=0.0, exposure_index_through=16,
+                as_printed='photolamp 16 with 80B', evidence='vendor', edition='', source='Konica Color IMPRESA 50 Professional Film, PUB. No. TDSN-501'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'KONICA_VX_100': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='80B', equivalent='', role='conversion', illuminant='photolamp 3400 K', factor=0.0, factor_hi=0.0, exposure_index_through=32,
+                as_printed='The 3400 K / 3200 K entries (32 and 25) are FILTER-DERIVED indices (Wratten 80B / 80A)', evidence='vendor', edition='', source='Konica Color VX 100 Film (IMPROVED) -- TECHNICAL DATA SHEET'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'ROLLEI_INFRARED_400': dict(
+        curves=(
+        ),
+        filters=(
+            FilterFactor(filter='Red 695 (89B)', equivalent='', role='infrared', illuminant='not stated', factor=16.0, factor_hi=0.0, exposure_index_through=0,
+                as_printed='filter factors incl. Red 695 (89B) 16', evidence='vendor', edition='R210701 (2021)', source='Hans O. Mahn GmbH & Co. KG / MACO, «ROLLEI INFRARED» DATA SHEET, R210701 (July 2021)'),
+            FilterFactor(filter='Infrared 715 (88A)', equivalent='', role='infrared', illuminant='not stated', factor=16.0, factor_hi=32.0, exposure_index_through=0,
+                as_printed='Infrared 715 (88A) 16-32', evidence='vendor', edition='R210701 (2021)', source='Hans O. Mahn GmbH & Co. KG / MACO, «ROLLEI INFRARED» DATA SHEET, R210701 (July 2021)'),
+        ),
+        facts=(
+        ),
+        points=(
+        ),
+    ),
+    'ROLLEI_R3': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='reciprocity_contrast_effect', kind='qualitative', value=0.0, lo=0.0, hi=0.0, unit='', text='«The reciprocity error results in steeper contrast»',
+                conditions='long exposures', evidence='qualitative', edition='', source='Rollei Fototechnic GmbH / MACO, «ROLLEI R³ -- Product information and instructions for use», October 2004, p12'),
+            ExtraFact(key='development.ranged_and_diagram', kind='processing_recommendation', value=0.0, lo=0.0, hi=0.0, unit='', text='LP-SUPERGRAIN 1+7 20 C ≈9.5 min @EI 400 → 26 min @EI 6400; 21-25 C: -5/-10/-15/-20/-30 %; HIGH SPEED 1+7 ISO 100-6400 9-13 ... 29-32 min, LOW SPEED 1+4 ISO 25-200 20-22 ... 23-25 min at 24 C, Xtol 1+2 ISO 200-400 24-29 min',
+                conditions='', evidence='vendor', edition='', source='Rollei/MACO R³ product information, October 2004, pp15-17'),
+        ),
+        points=(
+        ),
+    ),
+    'SVEMA_FOTO_130': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='chibisov_1988.S_gost', kind='tertiary_summary', value=130.0, lo=0.0, hi=0.0, unit='ед. ГОСТ', text='row Фото-130',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_recommended', kind='tertiary_summary', value=0.8, lo=0.0, hi=0.0, unit='', text='row Фото-130',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_max', kind='tertiary_summary', value=1.4, lo=0.0, hi=0.0, unit='', text='row Фото-130',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.D0', kind='tertiary_summary', value=0.0, lo=0.16, hi=0.25, unit='D', text='«0,16—0,25» as printed (row Фото-130)',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.latitude_L', kind='tertiary_summary', value=1.5, lo=0.0, hi=0.0, unit='lg H', text='row Фото-130',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.resolving_power_R', kind='tertiary_summary', value=75.0, lo=0.0, hi=0.0, unit='mm^-1', text='row Фото-130',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+        ),
+        points=(
+        ),
+    ),
+    'SVEMA_FOTO_250': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='chibisov_1988.S_gost', kind='tertiary_summary', value=250.0, lo=0.0, hi=0.0, unit='ед. ГОСТ', text='row Фото-250',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_recommended', kind='tertiary_summary', value=0.8, lo=0.0, hi=0.0, unit='', text='row Фото-250',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_max', kind='tertiary_summary', value=1.4, lo=0.0, hi=0.0, unit='', text='row Фото-250',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.D0', kind='tertiary_summary', value=0.0, lo=0.2, hi=0.3, unit='D', text='«0,2—0,3» as printed (row Фото-250)',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.latitude_L', kind='tertiary_summary', value=1.5, lo=0.0, hi=0.0, unit='lg H', text='row Фото-250',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.resolving_power_R', kind='tertiary_summary', value=70.0, lo=0.0, hi=0.0, unit='mm^-1', text='row Фото-250',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+        ),
+        points=(
+        ),
+    ),
+    'SVEMA_FOTO_32': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='chibisov_1988.S_gost', kind='tertiary_summary', value=32.0, lo=0.0, hi=0.0, unit='ед. ГОСТ', text='row Фото-32',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_recommended', kind='tertiary_summary', value=0.8, lo=0.0, hi=0.0, unit='', text='row Фото-32',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_max', kind='tertiary_summary', value=1.4, lo=0.0, hi=0.0, unit='', text='row Фото-32',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.D0', kind='tertiary_summary', value=0.0, lo=0.05, hi=0.1, unit='D', text='«0,5—0,1» as printed (row Фото-32) -- read as misprint for 0,05—0,1',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.latitude_L', kind='tertiary_summary', value=1.5, lo=0.0, hi=0.0, unit='lg H', text='row Фото-32',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.resolving_power_R', kind='tertiary_summary', value=116.0, lo=0.0, hi=0.0, unit='mm^-1', text='row Фото-32',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+        ),
+        points=(
+        ),
+    ),
+    'SVEMA_FOTO_65': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='chibisov_1988.S_gost', kind='tertiary_summary', value=65.0, lo=0.0, hi=0.0, unit='ед. ГОСТ', text='row Фото-65',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_recommended', kind='tertiary_summary', value=0.8, lo=0.0, hi=0.0, unit='', text='row Фото-65',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_max', kind='tertiary_summary', value=1.4, lo=0.0, hi=0.0, unit='', text='row Фото-65',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.D0', kind='tertiary_summary', value=0.0, lo=0.1, hi=0.16, unit='D', text='«0,1—0,16» as printed (row Фото-65)',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.latitude_L', kind='tertiary_summary', value=1.5, lo=0.0, hi=0.0, unit='lg H', text='row Фото-65',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.resolving_power_R', kind='tertiary_summary', value=92.0, lo=0.0, hi=0.0, unit='mm^-1', text='row Фото-65',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+        ),
+        points=(
+        ),
+    ),
+    'TASMA_OCH_200': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='chibisov_1988.S_gost', kind='tertiary_summary', value=180.0, lo=0.0, hi=0.0, unit='ед. ГОСТ', text='row ОЧ-180',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_recommended', kind='tertiary_summary', value=1.6, lo=0.0, hi=0.0, unit='', text='row ОЧ-180',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.D0', kind='tertiary_summary', value=0.0, lo=0.08, hi=0.08, unit='D', text='«0,08» as printed (row ОЧ-180)',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.latitude_L', kind='tertiary_summary', value=0.9, lo=0.0, hi=0.0, unit='lg H', text='row ОЧ-180',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.resolving_power_R', kind='tertiary_summary', value=95.0, lo=0.0, hi=0.0, unit='mm^-1', text='row ОЧ-180',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.longwave_limit_nm', kind='sensitisation_longwave_limit', value=680.0, lo=0.0, hi=0.0, unit='nm', text='row ОЧ-180',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+        ),
+        points=(
+        ),
+    ),
+    'TASMA_OCH_45': dict(
+        curves=(
+        ),
+        filters=(
+        ),
+        facts=(
+            ExtraFact(key='chibisov_1988.S_gost', kind='tertiary_summary', value=45.0, lo=0.0, hi=0.0, unit='ед. ГОСТ', text='row ОЧ-45',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_recommended', kind='tertiary_summary', value=1.6, lo=0.0, hi=0.0, unit='', text='row ОЧ-45',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.gamma_max', kind='tertiary_summary', value=2.2, lo=0.0, hi=0.0, unit='', text='row ОЧ-45',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.D0', kind='tertiary_summary', value=0.0, lo=0.06, hi=0.06, unit='D', text='«0,06» as printed (row ОЧ-45)',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.latitude_L', kind='tertiary_summary', value=1.05, lo=0.0, hi=0.0, unit='lg H', text='row ОЧ-45',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.resolving_power_R', kind='tertiary_summary', value=110.0, lo=0.0, hi=0.0, unit='mm^-1', text='row ОЧ-45',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+            ExtraFact(key='chibisov_1988.longwave_limit_nm', kind='sensitisation_longwave_limit', value=660.0, lo=0.0, hi=0.0, unit='nm', text='row ОЧ-45',
+                conditions='', evidence='tertiary', edition='', source='Чибисов К. В. и др., «Фотография в прошлом, настоящем и будущем», М.: Наука, 1988, Приложение «Характеристики некоторых фото- и киноматериалов», табл. I, с. 157-158. ⚠ TERTIARY SUMMARY.'),
+        ),
+        points=(
+        ),
+    ),
+}
+
+
+#: Registry fits that are not the stored curve -> ExtraToneCurve. Axes as in the
+#: registry (each one's own sheet / lg H axis; the stored curve's shift is named).
+def _v65_tone_fits(name):
+    out = []
+    for (st, doc, cond, status), (q, rms, _mx, gb) in ROLLEI_CURVE_FITS.items():
+        if st == name and status != "adopted":
+            out.append(ExtraToneCurve(label=cond, conditions="sheet axis (stored x = sheet x %+.2f); %s" % (
+                ROLLEI_CURVE_X_SHIFT.get(st, 0.0), doc), evidence="vendor_fit_other_processing",
+                dmin=q[0], gamma=q[1], toe_x=q[2], toe_k=q[3], shoulder_x=q[4], shoulder_k=q[5],
+                fit_rms=rms, gbar=gb, source="Rollei / MACO sheet traced in the ROLLEI folder review (2026-10-07): " + doc))
+    if name == "AGFA_AVIPHOT_PAN_400S":
+        for (cond, status), (q, rms, _mx, gb) in AVIPHOT_400S_CURVE_FITS.items():
+            if status != "adopted":
+                out.append(ExtraToneCurve(label=cond, conditions="sheet axis = absolute log It + 3 (stored x = "
+                    "sheet x %+.2f)" % AVIPHOT_400S_CURVE_X_SHIFT, evidence="vendor_fit_other_processing",
+                    dmin=q[0], gamma=q[1], toe_x=q[2], toe_k=q[3], shoulder_x=q[4], shoulder_k=q[5],
+                    fit_rms=rms, gbar=gb, source="Agfa-Gevaert, «AVIPHOT PAN 400S PE1» sheet, January 2006, p4"))
+    for (st, dev, dil, mins), (q, rms, _mx, gb) in ILFORD_SHEET_CURVE_FITS.items():
+        if st == name:
+            out.append(ExtraToneCurve(label="%s %s %.1f min" % (dev, dil, mins), conditions="relative log E "
+                "(stored x = sheet x %+.2f); the stored curve is a separate fit" % ILFORD_CURVE_X_SHIFT.get(st, 0.0),
+                evidence="vendor_fit_other_processing", dmin=q[0], gamma=q[1], toe_x=q[2], toe_k=q[3],
+                shoulder_x=q[4], shoulder_k=q[5], fit_rms=rms, gbar=gb,
+                source="ILFORD technical information (2018 / 2002-2004 editions), vector characteristic curves"))
+    for (st, layer, status), (q, rms, _mx) in GURLEV_1986_CURVE_FITS.items():
+        if st == name and status != "adopted":
+            ch = layer if layer in ("r", "g", "b") else ""
+            out.append(ExtraToneCurve(label="record fit %s" % layer, channel=ch, conditions="x = lg H in lux s "
+                "(negatives); reversal -lg H re-origined to green D 1.20 at 0", evidence="record_fit",
+                dmin=q[0], gamma=q[1], toe_x=q[2], toe_k=q[3], shoulder_x=q[4], shoulder_k=q[5],
+                fit_rms=rms, gbar=0.0, source=_GURLEV_1986_SRC_FOR_V65))
+    return tuple(out)
+
+
+_GURLEV_1986_SRC_FOR_V65 = ("Гурлев Д. С., «Справочник по фотографии (светочувствительные материалы)», "
+                            "Киев: Техніка, 1986 -- characteristic curves traced per record")
+#: Inert-field corrections the inventory found (owner rule: the field holds
+#: what the film's own documents say).
+_V65_BASE_FIX = {
+    "KODAK_TECHNICAL_PAN": (101.6, "polyester", 1, "stated",
+        "Eastman Kodak, publication P-255 and the 2003 KODAK PROFESSIONAL catalogue: Technical Pan 2415 "
+        "in 135 on «4-mil ESTAR-AH Base»", "4 mil = 101.6 um; replaces the 127.0 acetate class default."),
+}
+for _n in ("KODAK_ROYAL_PAN_4141", "KODAK_ROYAL_X_PAN_4166", "KODAK_SUPER_XX_PAN_4142"):
+    _V65_BASE_FIX[_n] = (177.8, "polyester", 2, "derived",
+        "Eastman Kodak F-5 (1979): «ESTAR Thick Base»; thickness of ESTAR Thick Base as Kodak prints it "
+        "on its sheet-film pages (0.19 mm / 0.007 inch, e.g. E-4046, 2016)",
+        "7 mil = 177.8 um from Kodak's own definition of ESTAR Thick Base; replaces the 203.2 acetate "
+        "sheet-film class default the film's own base name contradicts.")
+
+
+def _apply_schema_v65_records(p: "FilmProfile") -> "FilmProfile":
+    d = _V65_DATA.get(p.name)
+    fits = _v65_tone_fits(p.name)
+    kw = {}
+    srcs = p.param_sources
+    if p.name == "AGFA_AVIPHOT_PAN_80":
+        c6 = AVIPHOT_PAN_80_2009["C6"]["points"]
+        extra = tuple(ExtraCurve(label="ASA exposure setting, " + dev, kind="speed_vs_time",
+            x_unit="developing time s", y_unit="ASA setting (right axis)", conditions="Gevatone 66, 30 C",
+            evidence="vendor_trace", xs=tuple(float(r[0]) for r in rows), ys=tuple(float(r[2]) for r in rows),
+            source="Agfa-Gevaert N.V., «AVIPHOT PAN 80» technical data sheet, January 2009, p5 exposure/time chart, right axis")
+            for dev, rows in c6.items())
+        d = dict(d or {}, curves=tuple((d or {}).get("curves", ())) + extra)
+    if d:
+        if d.get("curves"):
+            kw["extra_curves"] = p.extra_curves + tuple(d["curves"])
+        if d.get("filters"):
+            kw["filter_factors"] = p.filter_factors + tuple(d["filters"])
+        if d.get("facts"):
+            kw["extra_facts"] = p.extra_facts + tuple(d["facts"])
+        if d.get("points"):
+            pts = tuple(q for q, _src in d["points"])
+            kw["processing_family"] = replace(p.processing_family, points=p.processing_family.points + pts)
+            old = next((r for r in srcs if r.param == "processing_family.points"), None)
+            cites = sorted({src for _q, src in d["points"]})
+            ev = sorted({q.evidence or "vendor" for q in pts})
+            note = ("2026-10-22c (schema v65, owner decision): + %d points stored LABELLED (evidence %s); "
+                    "a labelled point is never a development axis." % (len(pts), ", ".join(ev)))
+            srcs = _put_source(srcs, ParamSource(param="processing_family.points",
+                tier=(old.tier if old else 2), status=(old.status if old else "stated"),
+                unit=(old.unit if old else "(developer, min, C, EI)"),
+                conditions=(old.conditions if old else ""),
+                source=((old.source + "; ") if old else "") + "; ".join(cites),
+                confidence=(old.confidence if old else "medium"),
+                note=((old.note + " ") if old else "") + note))
+    if fits:
+        kw["extra_tone_curves"] = p.extra_tone_curves + fits
+    if p.name in _V65_BASE_FIX:
+        um, mat, tier, status, src, note = _V65_BASE_FIX[p.name]
+        kw["emulsion"] = replace(p.emulsion, base_um=um, base_material=mat)
+        # the halation kernel is geometry x support thickness (v59): re-derive it
+        kw["halation"] = _apply_v59_halation_ring(replace(p, emulsion=kw["emulsion"])).halation
+        srcs = _put_source(srcs, ParamSource(param="emulsion.base_um", tier=tier, status=status, unit="um",
+            conditions="135 / sheet as named", source=src, confidence="medium" if tier == 2 else "high",
+            note=note + " Recorded 2026-10-22c (owner rule: data into its field)."))
+    if p.name in ("TASMA_OCH_45", "TASMA_OCH_200") and p.tolerance:
+        kw["tolerance"] = tuple(replace(t, thermostat_shrinkage_pct_max=0.3, source=t.source + (
+            "  ||  2026-10-22c (owner rule: data into its field): thermostat_shrinkage_pct_max 0.3 from §2.5 "
+            "«усадка не более 0,3 % (ГОСТ 11477-65)» -- the method standard the ТУ thermostat (oven) rows "
+            "cite; the standard does not use the word «термостат».")) for t in p.tolerance)
+    if not kw:
+        return p
+    return replace(p, param_sources=srcs, **kw)
+
+
+FILM_PROFILES = tuple(_apply_schema_v65_records(_p) for _p in FILM_PROFILES)
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-22d -- FINAL ITEMS OF THE BATCH (owner approvals, 2026-10-22):
+#   * SUPERIA same-category CL transfers follow REALA's re-solved strength;
+#   * EXR 100T daylight EI = its own sheet's «Daylight -- 64» (No. 85);
+#   * tungsten / daylight EI convention: an EI the maker prints for exposure
+#     through the STANDARD conversion filter (80A family on daylight film under
+#     3200 K tungsten, 85 / 85B on tungsten film in daylight) lives in
+#     exposure_index_tungsten / _daylight + conversion_filter_*; other
+#     illuminants (photolamp, HMI, arcs, CTO) stay FilterFactor records;
+#   * Vitale 2009 «1940» rows on the closest DB stocks, labelled;
+#   * Ilford «Ilford-lumiere» (Ilford France, Dec 2007): the time/temperature
+#     chart and DELTA 3200's EI range;
+#   * Rollei RETRO 100 & 400 (Rollei sheet in Photo Stock's French
+#     translation, March 2007): RETRO 400 development rows, push, storage.
+# ---------------------------------------------------------------------------
+_SUPERIA_CL_TRANSFER = ("FUJICOLOR_SUPERIA_100", "FUJICOLOR_SUPERIA_200", "FUJICOLOR_SUPERIA_1600",
+                        "FUJICOLOR_SUPERIA_XTRA_400", "FUJICOLOR_SUPERIA_XTRA_800")
+_VITALE_SRC = ("Tim Vitale, «Estimating the Resolution of Historic Film Images: Using the Resolving Power "
+               "Equation (RPE) and Estimates of Lens Quality», Version 9, November 2009, Table 4")
+#: (stock, Vitale row, f30 lp/mm, ppi printed, base, match)
+_VITALE_1940 = (
+    ("KODAK_VERICHROME_1952", "Kodak Verichrome (1940)", 40.0, 2030, "nitrate", "same product line; profile era 1931-1956"),
+    ("EASTMAN_SUPER_XX_1938", "Eastman Super-XX (1940)", 45.0, 2285, "safety", "same cine product; profile era 1938-1950s"),
+    ("KODAK_PANATOMIC_X_SHEET_1952", "Kodak Panatomic-X (1940)", 55.0, 2795, "nitrate", "same name; the profile is the SHEET film"),
+    ("EASTMAN_SUPER_XX_1938", "Kodak Super-XX (1940)", 45.0, 2286, "nitrate", "same name; Kodak still film vs the Eastman cine profile"),
+    ("EASTMAN_PLUS_X_1231_1938", "Kodak Plus-X Pan (1940)", 50.0, 2540, "nitrate", "same name; Kodak still film vs the Eastman cine profile"),
+    ("KODAK_TRI_X_SHEET_1952", "Eastman Tri-X (1940)", 40.0, 2030, "safety", "weak: Eastman cine Tri-X vs the Kodak sheet profile"),
+)
+_ILFORD_LUMIERE = ("Ilford Imaging France, «Ilford -- lumière» product brochure (French), QuarkXPress, "
+                   "December 2007")
+_RETRO_FR = ("Rollei / MACO «RETRO 100 & 400» sheet, French translation by Photo Stock (Paris, translated by "
+             "Marc Charvet), March 2007, p2")
+#: (developer, dilution, minutes, celsius, EI) -- the RETRO 400 rows the stored
+#: 2009 table lacks; RHS 1+12 at EI 400 prints 6:45 here against the 2009
+#: table's 8:30, so both are kept, this one tagged.
+_RETRO400_FR_POINTS = (
+    ("Rollei RHS", "1+12", 6.75, 20.0, 400), ("Rollei RHS", "1+15", 9.5, 20.0, 400),
+    ("Rollei RLS", "1+4", 13.0, 24.0, 400),
+    ("Rollei RHS", "1+7", 8.0, 20.0, 800), ("Rollei RHS", "1+12", 9.0, 20.0, 800),
+    ("Rollei RHS", "1+15", 13.0, 20.0, 800),
+)
+
+
+def _is_80a(f):
+    f = f.upper()
+    return "80A" in f or "LBB-12" in f
+
+
+def _is_85(f):
+    f = f.upper().replace("NO.", "").replace("WRATTEN", "").replace("GELATIN", "")
+    toks = f.replace("/", " ").replace(",", " ").split()
+    return any(t in ("85", "85B") for t in toks) or "LBA-12" in f
+
+
+def _apply_final_2026_10_22d(p: "FilmProfile") -> "FilmProfile":
+    kw = {}
+    srcs = p.param_sources
+    if p.name in _SUPERIA_CL_TRANSFER:
+        kw["spectral"] = replace(p.spectral, cl_red_inhibition=_REALA_CL_K)
+        old = next(r for r in srcs if r.param == "spectral.cl_red_inhibition")
+        srcs = _put_source(srcs, replace(old, note=old.note + " 2026-10-22d (owner decision): follows REALA's "
+                                         "strength re-solved under its Fig. 17 interimage, 0.8870 -> %.4f." % _REALA_CL_K))
+    if p.name == "EASTMAN_EXR_100T_5248":
+        kw["exposure_index_daylight"] = 64
+        kw["conversion_filter_daylight"] = "Wratten No. 85"
+        srcs = _put_source(srcs, ParamSource(param="exposure_index_daylight", tier=1, status="stated", unit="EI",
+            conditions="daylight 5500 K through a KODAK WRATTEN Gelatin Filter No. 85",
+            source="Eastman Kodak Company, «EASTMAN EXR 100T Color Negative Film 5248/7248», H-1-7248, March 1999: "
+                   "«EXPOSURE INDEX Daylight* -- 64 Tungsten (3200 K) -- 100»",
+            confidence="high", note="Was 80 (no source); corrected 2026-10-22d to the sheet's 64 (owner approval)."))
+    # tungsten / daylight conversion EI into the fields (owner convention)
+    keep, moved = [], []
+    for x in p.filter_factors:
+        ill = x.illuminant.lower()
+        to_t = (x.role == "conversion" and x.exposure_index_through > 0 and _is_80a(x.filter)
+                and ill.startswith("tungsten") and "3000" not in ill and p.balance_kelvin >= 5000
+                and not p.exposure_index_tungsten and "exposure_index_tungsten" not in kw)
+        to_d = (x.role == "conversion" and x.exposure_index_through > 0 and _is_85(x.filter)
+                and ill.startswith("daylight") and p.balance_kelvin <= 3400
+                and not p.exposure_index_daylight and "exposure_index_daylight" not in kw)
+        if to_t:
+            kw["exposure_index_tungsten"] = x.exposure_index_through
+            kw["conversion_filter_tungsten"] = p.conversion_filter_tungsten or x.filter
+            moved.append(("exposure_index_tungsten", x))
+        elif to_d:
+            kw["exposure_index_daylight"] = x.exposure_index_through
+            kw["conversion_filter_daylight"] = p.conversion_filter_daylight or x.filter
+            moved.append(("exposure_index_daylight", x))
+        else:
+            keep.append(x)
+    if moved:
+        kw["filter_factors"] = tuple(keep)
+        for fld, x in moved:
+            srcs = _put_source(srcs, ParamSource(param=fld, tier=1 if x.evidence.startswith("vendor") else 3,
+                status="stated", unit="EI", conditions="%s, through %s" % (x.illuminant, x.filter),
+                source=x.source, confidence="high" if x.evidence.startswith("vendor") else "low",
+                note="As printed: %s. Moved from the v65 filter-factor record into the field (owner convention "
+                     "2026-10-22d: the EI through the standard conversion filter is the field's datum)."
+                     % (x.as_printed or x.exposure_index_through)))
+    facts = []
+    for st, row, f30, ppi, base, match in _VITALE_1940:
+        if st == p.name:
+            facts.append(ExtraFact(key="vitale_2009.f30", kind="mtf_f30", value=f30, unit="lp/mm at 30 % modulation",
+                text="«%s» (black-and-white); %d ppi as printed; flag «target 30:1, %s»" % (row, ppi, base),
+                conditions="Kodak 1940-56 30:1 target resolution (a resolving power, not an MTF point); mapping: "
+                           + match, evidence="other_generation", edition=row, source=_VITALE_SRC))
+    if p.name in ("ILFORD_HP5_PLUS_400", "ILFORD_DELTA_3200"):
+        facts.append(ExtraFact(key="development.time_temperature", kind="processing_recommendation",
+            value=-0.096, lo=14.0, hi=24.0, unit="d ln(time) per degC",
+            text="«Traitement à des températures différentes»: about -9 % development time per +1 C (every "
+                 "line of the chart, 1.5-29 min at 20 C); worked example 12 min at 20 C = 10 min at 22 C = "
+                 "15 min at 18 C",
+            conditions="all Ilford films and developers, 14-24 C (traced, 15 lines, slope -0.095 .. -0.097)",
+            evidence="vendor", edition="Ilford France 2007 (same chart as the DELTA 3200 sheet, Sept 2002)",
+            source=_ILFORD_LUMIERE + ", p36"))
+    if p.name == "ILFORD_DELTA_3200":
+        facts.append(ExtraFact(key="exposure_index.range", kind="speed_range", lo=400.0, hi=6400.0, value=25000.0,
+            unit="EI", text="good quality EI 400-6400, ideal 1600-6400; up to EI 25000 after a test",
+            conditions="value = the tested ceiling", evidence="vendor",
+            edition="Ilford France 2007 (same wording as the 2002 sheet)", source=_ILFORD_LUMIERE + ", p27"))
+    if p.name == "ROLLEI_RETRO_400":
+        pts = tuple(DevelopmentPoint(developer=d, dilution=dil, minutes=m, celsius=c, exposure_index=ei,
+                                     edition="Rollei sheet, FR transl. 2007") for d, dil, m, c, ei in _RETRO400_FR_POINTS)
+        kw["processing_family"] = replace(p.processing_family, points=p.processing_family.points + pts)
+        kw["push"] = replace(p.push, max_push_stops=1.0, source=_RETRO_FR + ": «peut être poussé jusqu'à ISO 800/30°»")
+        kw["base"] = replace(p.base, raw_storage_max_f=46.4, guaranteed_shelf_life_months=24,
+                             source=p.base.source + "; " + _RETRO_FR + ": unexposed film 24 months in its original "
+                                    "packing at no more than 8 C (stored 46.4 F)")
+        facts.append(ExtraFact(key="base_thickness_by_format", kind="base_thickness_by_format", value=95.0,
+            unit="um", text="120 roll film 95 um cellulose triacetate (135: 120 um, the stored base)",
+            evidence="vendor", source=_RETRO_FR))
+        srcs = _put_source(srcs, ParamSource(param="push.max_push_stops", tier=1, status="stated", unit="stops",
+            conditions="ISO 400 -> 800", source=_RETRO_FR, confidence="high",
+            note="«peut être poussé jusqu'à ISO 800/30° en employant un traitement adapté» (2026-10-22d)."))
+        old = next((r for r in srcs if r.param == "processing_family.points"), None)
+        srcs = _put_source(srcs, ParamSource(param="processing_family.points", tier=1, status="stated",
+            unit="(developer, dilution, min, C, EI)", conditions="small tank, agitation every 30 s, 20 C (RLS 24 C)",
+            source=((old.source + "; ") if old else "") + _RETRO_FR, confidence="high",
+            note=((old.note + " ") if old else "") + "2026-10-22d: + 6 RETRO 400 rows (RHS 1+12 / 1+15, RLS at EI 400; "
+                 "RHS 1+7 / 1+12 / 1+15 at EI 800), tagged; RHS 1+12 EI 400 prints 6:45 here vs 8:30 in the 2009 table."))
+    if facts:
+        kw["extra_facts"] = p.extra_facts + tuple(facts)
+    if not kw:
+        return p
+    return replace(p, param_sources=srcs, **kw)
+
+
+FILM_PROFILES = tuple(_apply_final_2026_10_22d(_p) for _p in FILM_PROFILES)
+
+
 # ---------------------------------------------------------------------------
 #  2026-10-18 -- VALUES FOUND IN THE SOURCES BUT NOT YET STORED (owner request)
 # ---------------------------------------------------------------------------
@@ -117282,18 +119946,23 @@ _RECIP_2026_10_19 = (
         "the attribution."),
      "F-13 p4, the maker's own table; resolves P96q(2). Stored 2026-10-19 "
      "(owner approval)."),
-    ("KODAK_PLUS_X_125", _recip(
-        (1e-5, 1e-4, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
-        (1.0, 0.5, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
-        _S04 + ", Табл. 3.191 p348 (Plus-X Pan PX/PXP/PXE/PXT) and Табл. 3.223 "
-        "p379 (Professional Plus-X 125/125PX), identical cell for cell: "
-        "1/100000 s +1 stop; 1/10000 s +1/2; 1/1000-1/10 s none; 1 s +1 "
-        "(adjusted 2 s); 10 s +2 (50 s); 100 s +3 (1200 s). Metered-time axis. "
-        "The book prints no development-change column (Kodak's own sheets "
-        "do); none is stored."),
-     "Kodak's long/short-exposure table as the book reprints it, twice. "
-     "Replaces the class Schwarzschild default for a stated exposure time. "
-     "Stored 2026-10-19 (owner approval)."),
+    ("KODAK_PLUS_X_125", ReciprocityTable(
+        times_s=(1e-5, 1e-4, 0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
+        stops_correction=(1.0, 0.5, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
+        development_correction_pct=(20.0, 15.0, 10.0, 0.0, 0.0, -10.0, -20.0, -30.0),
+        source="Eastman Kodak Company, «KODAK PROFESSIONAL PLUS-X 125 Film», "
+        "publication F-4018, February 2002 (identical in May 2007), p2 «Adjustments "
+        "for Long and Short Exposures»: 1/100,000 s +1 stop, development +20 %; "
+        "1/10,000 s +1/2 stop, +15 %; 1/1,000 s none, +10 %; 1/100 and 1/10 s "
+        "none, none; 1 s +1 stop (2 s), -10 %; 10 s +2 stops (50 s), -20 %; "
+        "100 s +3 stops (1200 s), -30 %. Metered-time axis. 2026-10-22b: the "
+        "maker's sheet replaces the book reprint as the cited source and adds "
+        "its DEVELOPMENT column, which the reprint " + "(" + _S04 + ", Табл. "
+        "3.191 p348 and Табл. 3.223 p379, identical exposure cells) omits."),
+     "Kodak's own long/short-exposure table WITH its development-change "
+     "column (F-4018 p2). Replaces the class Schwarzschild default for a stated "
+     "exposure time. Stored 2026-10-19 (owner approval); development column "
+     "2026-10-22b (owner rule: captured data goes into its field)."),
     ("KODAK_EKTAPAN_100", _recip(
         (0.001, 0.01, 0.1, 1.0, 10.0, 100.0),
         (0.0, 0.0, 0.0, 1.0, 2.0, 3.0),
@@ -117968,6 +120637,9 @@ def grain_sigma(grain: GrainSpec, dmin: float, dmax: float, density):
 #: the multi-lobe blur).
 _MTF_KERNEL_TABLE2_FIT: dict[float, tuple[float, float, float]] = {
     1.9600: (+0.303981, 0.381476, 1.296813),   # 2026-10-04, EKTACHROME_64 combined-curve q (Лихачев 2003), max|err| 0.0210 vs Gaussian 0.1424
+    1.7700: (+0.349403, 0.369322, 1.422919),   # 2026-10-22b, AGFA_AVIPHOT_PAN_80 (Agfa 01/2009 C2), max|err| 0.0289 vs Gaussian 0.1649
+    0.8900: (+0.488251, 0.226410, 3.116064),   # 2026-10-22c, KODAK_HIE (рис. 3.366), max|err| 0.0847 vs Gaussian 0.2972
+    3.3900: (+1.056415, 1.010399, 6.248328),   # 2026-10-22c, AGFA_AVIPHOT_PAN_400S (Agfa 01/2006), max|err| 0.0311 vs Gaussian 0.0728
     1.9700: (+0.301478, 0.381937, 1.291144),   # 2026-10-04, KODAK_VERICOLOR_III_160 combined-curve q, max|err| 0.0206 vs Gaussian 0.1413
     2.0100: (+0.291438, 0.383641, 1.269469),   # 2026-10-04, KONICA_CENTURIA_SUPER_1600 combined-curve q, max|err| 0.0192 vs Gaussian 0.1368
     2.2500: (+0.235036, 0.392692, 1.172652),   # 2026-10-04, KONICA_CENTURIA_SUPER_400 combined-curve q, max|err| 0.0124 vs Gaussian 0.1116
@@ -118159,6 +120831,9 @@ _MTF_KERNEL_TABLE3: dict[float, tuple[float, float, float, float, float]] = {
     1.5800: (+0.198224, +0.488443, 0.224448, 0.812824, 2.482724),   # max|err| 0.0146  vs two-lobe 0.0384
     1.5900: (+0.188275, +0.527555, 0.218743, 0.840259, 2.613335),   # max|err| 0.0125  vs two-lobe 0.0378
     1.7000: (+0.186490, +0.570586, 0.238194, 0.888867, 2.685936),   # max|err| 0.0131  vs two-lobe 0.0322
+    0.8900: (+0.357356, +0.404033, 0.169373, 1.254814, 8.686946),   # max|err| 0.0346  vs two-lobe 0.0847  2026-10-22c KODAK_HIE (below every other q; mtf_kernel_fit.KNOWN_CEILING)
+    1.7700: (+0.146902, +0.515148, 0.220950, 0.779281, 2.055772),   # max|err| 0.0090  vs two-lobe 0.0289  2026-10-22b AGFA_AVIPHOT_PAN_80
+    3.3900: (+0.164788, +1.072449, 0.548761, 1.238962, 2.726444),   # max|err| 0.0037  vs two-lobe 0.0311  2026-10-22c AGFA_AVIPHOT_PAN_400S
     1.8400: (+0.153048, +0.549878, 0.240036, 0.827945, 2.129143),   # max|err| 0.0093  vs two-lobe 0.0257
     1.8600: (+0.155851, +0.531013, 0.245939, 0.836938, 2.011360),   # max|err| 0.0097  vs two-lobe 0.0249
     1.8700: (+0.146854, +0.545123, 0.240928, 0.818197, 2.049525),   # max|err| 0.0087  vs two-lobe 0.0245

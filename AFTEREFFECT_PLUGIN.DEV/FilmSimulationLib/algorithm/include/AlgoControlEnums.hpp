@@ -826,11 +826,9 @@ constexpr bool SpectralTakingDef    = false;
 //  film_sim.RenderSettings.spectral_upsampling.
 constexpr bool SpectralUpsamplingDef = false;
 
-// -- Fuji fourth (CL) layer (2026-10-21, owner-approved, queue P96s) ----------
-//  Stage 8b red-record inhibition by the cyan-minus-sensitive layer. OFF by
-//  default; effective only on stocks with log_s_c and cl_red_inhibition > 0.
-//  Twin: film_sim.RenderSettings.fourth_layer.
-constexpr bool FourthLayerDef = false;
+// -- Fuji fourth (CL) layer --------------------------------------------------
+//  2026-10-22e (owner decision): NO CONTROL. FourthLayerDef is removed; the
+//  layer is always applied where the stock carries its data (stage 8b).
 
 // -- aim exposure (2026-10-22, owner-approved batch, G-209-AIM) ---------------
 //  Places metered 18 % grey on the maker's grey-card aim density by translating
