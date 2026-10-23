@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <algorithm>
 #include "GuidedFilterEnum.hpp"
-#include "AE_Effect.h"
+
 
 struct AlgoControls
 {
@@ -92,6 +92,6 @@ inline AlgoControls getAlgoControlsDefault(void) noexcept
     return ctrl;
 }
 
-const AlgoControls getAlgoControls (PF_ParamDef* params[]);
+
 
 #endif // __IMAGE_LAB_GUIDED_FILTER_CONTROLS__

@@ -117,6 +117,9 @@
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="include\GuidedFilter_CUDA.hpp">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\GuidedFilter.cpp">
@@ -170,6 +173,9 @@
   <ItemGroup>
     <CustomBuild Include="GuidedFilter.r">
       <Filter>resource</Filter>
+    </CustomBuild>
+    <CustomBuild Include="src\GuidedFilter_CUDA32.cu">
+      <Filter>src</Filter>
     </CustomBuild>
   </ItemGroup>
 </Project>

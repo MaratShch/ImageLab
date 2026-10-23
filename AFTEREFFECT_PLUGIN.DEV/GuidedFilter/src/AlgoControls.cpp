@@ -2,8 +2,9 @@
 #include <algorithm>
 #include "AlgoControls.hpp"
 #include "Common.hpp"
+#include "GuidedFilter.hpp"
 #include "GuidedFilterEnum.hpp"
-#include "AE_Effect.h"
+
 
 
 template <typename T>
