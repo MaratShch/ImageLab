@@ -357,6 +357,9 @@
     <ClCompile Include="database\src\film_profiles_data_77.cpp">
       <Filter>database\src</Filter>
     </ClCompile>
+    <ClCompile Include="algorithm\src\FilmSimLutGenerator.cpp">
+      <Filter>algorithm\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="database\include\film_enum.hpp">
@@ -603,6 +606,9 @@
       <Filter>algorithm\include</Filter>
     </ClInclude>
     <ClInclude Include="algorithm\include\film_damage_constants.hpp">
+      <Filter>algorithm\include</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\include\FilmSimLutGenerator.hpp">
       <Filter>algorithm\include</Filter>
     </ClInclude>
   </ItemGroup>

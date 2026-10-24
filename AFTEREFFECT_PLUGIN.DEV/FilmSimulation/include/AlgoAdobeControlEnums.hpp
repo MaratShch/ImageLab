@@ -7,6 +7,7 @@ enum class FilmSimulationCtrl : int32_t
 {
     VIDEO_INPUT,
     SETUP_BUTTON, // button for run dialog control
+    LUT_GENERATE, // button for generate LUT
     GROUP_START_FILM_PROPERTIES,
     FILM_STOCK,
     FILM_FORMAT,
@@ -86,6 +87,7 @@ enum class FilmSimulationCtrl : int32_t
 
 constexpr char itemNames[][32] = {
     " ",                            // 0
+    " ",
     "Film Stock",
     "Film Stock",
     "Film Format",

@@ -111,6 +111,15 @@ struct AlgoFreqState
     AlgoType* gxB;
     AlgoType* shY;              // 2*sizeY      complex exp(-2 pi j fy dy)
     AlgoType* shX;              // 2*specPitch  complex exp(-2 pi j fx dx)
+    // 2026-10-24, LUT generation only. 0 on every render (AlgoFreqInit sets
+    // it). FilmSimLutGenerator sets 1 on its OWN copy of the handler; every
+    // filter then applies its zero-frequency gain T(0) pixel by pixel, without
+    // a transform -- dst = T(0) * src, the response of a large uniform patch,
+    // and the twin of lut_export.py replacing film_sim.apply_transfer by the
+    // same DC gain. No FFT means no round-off leaking between pixels, which a
+    // lattice spanning 1e-5 .. 6.5e4 in one frame would otherwise suffer in
+    // float. Spectrum slots hold the plain plane while it is set.
+    int32_t   dcOnly;
 };
 
 

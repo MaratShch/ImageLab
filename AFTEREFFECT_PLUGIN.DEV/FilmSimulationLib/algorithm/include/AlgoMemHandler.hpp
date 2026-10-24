@@ -264,6 +264,16 @@ struct MemHandler
     float* Scr_SpectralLut;
 
     std::size_t totalSize;   // bytes obtained from the pool
+
+    // --- LUT generation (2026-10-24) -------------------------------------------
+    // 0 for every render: the allocator zero-initialises the handler and nothing
+    // in the render path sets it. FilmSimLutGenerator sets it to 1 -- together
+    // with Freq.dcOnly -- on its OWN COPY of the handler only; Algorithm_Main
+    // then runs the bromide drag at its flat-field level, and every spatial
+    // transfer applies its zero-frequency gain (AlgoFrequency.hpp), so each
+    // pixel is the response of a large uniform patch of its colour -- what a
+    // 3D LUT can hold. Last member, so no earlier offset moved.
+    int32_t lutMode;
 };
 
 
@@ -319,7 +329,6 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
 //  safe to call twice.
 // ---------------------------------------------------------------------------
 void free_memory_buffers (MemHandler& algoMemHandler) noexcept;
-
 
 inline bool mem_handler_valid(const MemHandler& hndl) noexcept
 {

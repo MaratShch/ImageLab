@@ -160,6 +160,7 @@
     <ClCompile Include="algorithm\src\Algo_15_Sim.cpp" />
     <ClCompile Include="algorithm\src\Algo_16_Sim.cpp" />
     <ClCompile Include="algorithm\src\Algo_17_Sim.cpp" />
+    <ClCompile Include="algorithm\src\FilmSimLutGenerator.cpp" />
     <ClCompile Include="database\src\film_profiles.cpp" />
     <ClCompile Include="database\src\film_profiles_data_01.cpp" />
     <ClCompile Include="database\src\film_profiles_data_02.cpp" />
@@ -314,6 +315,7 @@
     <ClInclude Include="algorithm\include\AlgoTransmittance.hpp" />
     <ClInclude Include="algorithm\include\AlgoTypes.hpp" />
     <ClInclude Include="algorithm\include\AlgoVeilingFlare.hpp" />
+    <ClInclude Include="algorithm\include\FilmSimLutGenerator.hpp" />
     <ClInclude Include="algorithm\include\film_damage_constants.hpp" />
     <ClInclude Include="algorithm\include\film_params_mask.hpp" />
     <ClInclude Include="database\include\film_enum.hpp" />

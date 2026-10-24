@@ -164,6 +164,7 @@ bool AlgoFreqInit (AlgoFreqState& st, const int32_t sizeX, const int32_t sizeY,
     st.sizeX = sizeX;
     st.sizeY = sizeY;
     st.specPitch = st.plan.specPitch;
+    st.dcOnly = 0;
     {
         const std::size_t one = RoundLine(FourierTransform::Real2DSpecElements<AlgoType>(sizeX, sizeY) * sizeof(AlgoType));
         for (int32_t i = 0; i < ALGO_FREQ_SPECTRA; i++)
@@ -272,9 +273,52 @@ namespace
 }
 
 
+// ---------------------------------------------------------------------------
+//  dcOnly (LUT generation): the transfer's zero-frequency gain, in double, as
+//  PrepareTransfer + Mul would evaluate it at f = 0 -- every Gaussian factor is
+//  1 there (the weights remain), the law 1 / (1 + 0) is 1, the shift phase 0.
+// ---------------------------------------------------------------------------
+namespace
+{
+    HighPrecType DcSum (const AlgoFreqGaussSum& s) noexcept
+    {
+        HighPrecType v = 0.0;
+        for (int32_t i = 0; i < s.n; i++)
+            v += (s.w[i] < 1.0e-18 && s.w[i] > -1.0e-18) ? 0.0 : s.w[i];
+        return v;
+    }
+
+    AlgoType DcGain (const AlgoFreqTransfer& t) noexcept
+    {
+        HighPrecType g = 1.0;
+        if (t.sumA.n > 0) g *= DcSum(t.sumA);
+        if (t.sumB.n > 0) g *= DcSum(t.sumB);
+        return static_cast<AlgoType>(g);
+    }
+
+    //: spectrum slot used as a plain real plane (rows of 2 * specPitch >= sizeX)
+    inline AlgoType* SlotRow (const AlgoFreqState& st, const int32_t slot, const int32_t r) noexcept
+    {
+        return st.spec[slot] + static_cast<std::ptrdiff_t>(r) * 2 * st.specPitch;
+    }
+}
+
+
 void AlgoFreqFilterPlane (const AlgoFreqState& st, const AlgoType* src, AlgoType* dst,
                           const int32_t pitch, const AlgoFreqTransfer& t) noexcept
 {
+    if (0 != st.dcOnly)
+    {
+        const AlgoType g = DcGain(t);
+        for (int32_t r = 0; r < st.sizeY; r++)
+        {
+            const AlgoType* s = src + static_cast<std::ptrdiff_t>(r) * pitch;
+            AlgoType*       d = dst + static_cast<std::ptrdiff_t>(r) * pitch;
+            for (int32_t c = 0; c < st.sizeX; c++)
+                d[c] = s[c] * g;
+        }
+        return;
+    }
     const TransferEval ev = PrepareTransfer(st, t);
     FourierTransform::Real2DForward<L>(st.plan, src, pitch, st.spec[0], st.work);
     FourierTransform::Real2DInverse<L>(st.plan, st.spec[0], ev, st.spec[0], dst, pitch, InverseScale(st), st.work);
@@ -284,6 +328,17 @@ void AlgoFreqFilterPlane (const AlgoFreqState& st, const AlgoType* src, AlgoType
 void AlgoFreqForward (const AlgoFreqState& st, const AlgoType* src, const int32_t pitch,
                       const int32_t slot) noexcept
 {
+    if (0 != st.dcOnly)
+    {
+        for (int32_t r = 0; r < st.sizeY; r++)
+        {
+            const AlgoType* s = src + static_cast<std::ptrdiff_t>(r) * pitch;
+            AlgoType*       d = SlotRow(st, slot, r);
+            for (int32_t c = 0; c < st.sizeX; c++)
+                d[c] = s[c];
+        }
+        return;
+    }
     FourierTransform::Real2DForward<L>(st.plan, src, pitch, st.spec[slot], st.work);
 }
 
@@ -291,6 +346,18 @@ void AlgoFreqForward (const AlgoFreqState& st, const AlgoType* src, const int32_
 void AlgoFreqInverse (const AlgoFreqState& st, const int32_t slot, const AlgoFreqTransfer& t,
                       AlgoType* dst, const int32_t pitch) noexcept
 {
+    if (0 != st.dcOnly)
+    {
+        const AlgoType g = DcGain(t);
+        for (int32_t r = 0; r < st.sizeY; r++)
+        {
+            const AlgoType* s = SlotRow(st, slot, r);
+            AlgoType*       d = dst + static_cast<std::ptrdiff_t>(r) * pitch;
+            for (int32_t c = 0; c < st.sizeX; c++)
+                d[c] = s[c] * g;
+        }
+        return;
+    }
     const TransferEval ev = PrepareTransfer(st, t);
     FourierTransform::Real2DInverse<L>(st.plan, st.spec[slot], ev, st.spec[slot], dst, pitch, InverseScale(st), st.work);
 }
@@ -299,6 +366,26 @@ void AlgoFreqInverse (const AlgoFreqState& st, const int32_t slot, const AlgoFre
 void AlgoFreqMeanMix3 (const AlgoFreqState& st, const HighPrecType keep, const HighPrecType mix,
                        const AlgoFreqTransfer& t) noexcept
 {
+    if (0 != st.dcOnly)
+    {
+        const AlgoType k = static_cast<AlgoType>(keep);
+        const AlgoType m = static_cast<AlgoType>(mix / 3.0);
+        const AlgoType g = DcGain(t);
+        for (int32_t r = 0; r < st.sizeY; r++)
+        {
+            AlgoType* p0 = SlotRow(st, 0, r);
+            AlgoType* p1 = SlotRow(st, 1, r);
+            AlgoType* p2 = SlotRow(st, 2, r);
+            for (int32_t c = 0; c < st.sizeX; c++)
+            {
+                const AlgoType shared = (g * (p0[c] + p1[c] + p2[c])) * m;
+                p0[c] = p0[c] * k + shared;
+                p1[c] = p1[c] * k + shared;
+                p2[c] = p2[c] * k + shared;
+            }
+        }
+        return;
+    }
     const TransferEval ev = PrepareTransfer(st, t);
     const AlgoType k = static_cast<AlgoType>(keep);
     const AlgoType m = static_cast<AlgoType>(mix / 3.0);

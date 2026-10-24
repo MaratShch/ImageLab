@@ -1551,10 +1551,28 @@ void Algorithm_Main
     //     the stage returns on its first branch. See queue row C23.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("09c  bromide drag");
-    (void)AlgoStage09c_BromideDrag(cur.r, cur.g, cur.b,   // in place on the current image
-                                   scrDbar, scrDbarBlur,   // 2026-10-02: the same locals as every other call
-                                   sizeX, sizeY, pitch,
-                                   profile, pxPerMm);
+    if (0 == memHandler.lutMode)
+    {
+        (void)AlgoStage09c_BromideDrag(cur.r, cur.g, cur.b,   // in place on the current image
+                                       scrDbar, scrDbarBlur,   // 2026-10-02: the same locals as every other call
+                                       sizeX, sizeY, pitch,
+                                       profile, pxPerMm);
+    }
+    else
+    {
+        // 2026-10-24, LUT generation only: one row at a time. A one-row call
+        // seeds its accumulator with the row itself (s = e), which is the drag
+        // a large uniform patch settles at -- each pixel independent of every
+        // other, as a 3D LUT entry must be. Same stage, same arithmetic.
+        for (int32_t y = 0; y < sizeY; y++)
+        {
+            const std::ptrdiff_t o = static_cast<std::ptrdiff_t>(y) * pitch;
+            (void)AlgoStage09c_BromideDrag(cur.r + o, cur.g + o, cur.b + o,
+                                           scrDbar + o, scrDbarBlur + o,
+                                           sizeX, 1, pitch,
+                                           profile, pxPerMm);
+        }
+    }
 
     // -----------------------------------------------------------------------
     // 10. SCAN MTF AND MISREGISTRATION                     S09b -> S10
