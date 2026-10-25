@@ -3,6 +3,7 @@
 #include "AlgoControlAdobe.hpp"
 #include "AlgoControlEnums.hpp"
 #include "AlgoAdobeControlEnums.hpp"
+#include "AlgoControlValues.hpp"
 #include "film_params_mask.hpp"
 #include "CompileTimeUtils.hpp"
 #include "CommonAdobeAE.hpp"
@@ -25,6 +26,7 @@ static constexpr ControlBit kStockDependentControls[] =
     { FilmSimulationCtrl::EXPOSURE_TIME,            film::eCTRL_BIT_EXPOSURE_TIME_S },
     { FilmSimulationCtrl::MID_GRAY_TARGET,          film::eCTRL_BIT_GREY_TARGET },
     { FilmSimulationCtrl::BLACK_POINT_STRETCH,      film::eCTRL_BIT_BLACK_POINT_STRETCH },
+    { FilmSimulationCtrl::AIM_EXPOSURE,             film::eCTRL_BIT_AIM_EXPOSURE },
     { FilmSimulationCtrl::DEVELOPMENT_ENABLE,       film::eCTRL_BIT_DEVELOPMENT_MINUTES },
     { FilmSimulationCtrl::DEVELOPMENT_TIME,         film::eCTRL_BIT_DEVELOPMENT_MINUTES },
     { FilmSimulationCtrl::DEVELOPMENT_TEMPERATURE,  film::eCTRL_BIT_DEVELOPMENT_CELSIUS },
@@ -52,6 +54,7 @@ static constexpr ControlBit kStockDependentControls[] =
     { FilmSimulationCtrl::SCANNER_FIXED_PATTERN,    film::eCTRL_BIT_SCANNER_FIXED_PATTERN },
     { FilmSimulationCtrl::ENABLE_FILM_DAMAGE,       film::eCTRL_BIT_FILM_DAMAGE_ENABLED },
     { FilmSimulationCtrl::OVERALL_STRENGHT,         film::eCTRL_BIT_DAMAGE_STRENGTH },
+    { FilmSimulationCtrl::DAMAGE_SEED,              film::eCTRL_BIT_DAMAGE_SEED },
     { FilmSimulationCtrl::DUST,                     film::eCTRL_BIT_DUST_LEVEL },
     { FilmSimulationCtrl::DEBRIS,                   film::eCTRL_BIT_DEBRIS_LEVEL },
     { FilmSimulationCtrl::FIBRES,                   film::eCTRL_BIT_FIBRE_LEVEL },
@@ -67,19 +70,93 @@ static constexpr ControlBit kStockDependentControls[] =
     { FilmSimulationCtrl::COLOUR_VEIL,              film::eCTRL_BIT_COLOUR_VEIL },
     { FilmSimulationCtrl::PRINTER_FLICKER,          film::eCTRL_BIT_FLICKER_STOPS },
     { FilmSimulationCtrl::SCANNER_ARTIFACTS,        film::eCTRL_BIT_SCANNER_ARTIFACTS },
+    { FilmSimulationCtrl::DEFECT_READER_OPTICS,     film::eCTRL_BIT_DEFECT_OPTICS },
+    { FilmSimulationCtrl::TRANSPORT_SCRATCH_LIFETIME, film::eCTRL_BIT_SCRATCH_LIFETIME },
+    { FilmSimulationCtrl::PERSISTENT_DUST_LIFETIME, film::eCTRL_BIT_DUST_LIFETIME },
+    { FilmSimulationCtrl::DEFECT_VARIABILITY,       film::eCTRL_BIT_DEFECT_VARIABILITY },
+    { FilmSimulationCtrl::DEFECT_VISIBILITY,        film::eCTRL_BIT_DEFECT_VISIBILITY },
     { FilmSimulationCtrl::SPECTRAL_TAKING_MATRIX,   film::eCTRL_BIT_SPECTRAL_TAKING },
     { FilmSimulationCtrl::GRAIN_TEMPORAL_MODE,      film::eCTRL_BIT_GRAIN_TEMPORAL_MODE },
+    { FilmSimulationCtrl::GRAIN_SEED,               film::eCTRL_BIT_SEED },
     { FilmSimulationCtrl::SPECTRAL_UPSAMPLING,      film::eCTRL_BIT_SPECTRAL_UPSAMPLING },
     { FilmSimulationCtrl::FILM_AGE_EXPIRED_STOCK,   film::eCTRL_BIT_FILM_AGE_MONTHS }
 };
 
 
+// Children of "Enable Film Damage": usable only while the box is ticked.
+static bool is_film_damage_child(const FilmSimulationCtrl ctrl) noexcept
+{
+    switch (ctrl)
+    {
+        case FilmSimulationCtrl::OVERALL_STRENGHT:
+        case FilmSimulationCtrl::DAMAGE_SEED:
+        case FilmSimulationCtrl::DUST:
+        case FilmSimulationCtrl::DEBRIS:
+        case FilmSimulationCtrl::FIBRES:
+        case FilmSimulationCtrl::CLUMPING:
+        case FilmSimulationCtrl::GATE_DIRT:
+        case FilmSimulationCtrl::GATE_WAVE:
+        case FilmSimulationCtrl::SPLICE_AND_TEAR_EVENTS:
+        case FilmSimulationCtrl::TRANSPORT_SCRATCHES:
+        case FilmSimulationCtrl::HANDLING_SCRATCHES:
+        case FilmSimulationCtrl::PROCESSING_QUALITY:
+        case FilmSimulationCtrl::DRYING_MARKS:
+        case FilmSimulationCtrl::STORAGE_SEVERITY:
+        case FilmSimulationCtrl::COLOUR_VEIL:
+        case FilmSimulationCtrl::PRINTER_FLICKER:
+        case FilmSimulationCtrl::SCANNER_ARTIFACTS:
+        case FilmSimulationCtrl::DEFECT_READER_OPTICS:
+        case FilmSimulationCtrl::TRANSPORT_SCRATCH_LIFETIME:
+        case FilmSimulationCtrl::PERSISTENT_DUST_LIFETIME:
+        case FilmSimulationCtrl::DEFECT_VARIABILITY:
+        case FilmSimulationCtrl::DEFECT_VISIBILITY:
+            return true;
+        default:
+            return false;
+    }
+}
+
+
+// Enabled = the stock can use the control AND its governing check-box allows
+// it. Mirrors the gating in getAlgoControls(), so a greyed control is exactly
+// a control whose value the render ignores.
+static bool is_control_enabled(const ControlBit& cb, const uint64_t filmMask, PF_ParamDef* params[]) noexcept
+{
+    if (false == is_control_available(cb.bit, filmMask))
+        return false;
+
+    switch (cb.ctrl)
+    {
+        case FilmSimulationCtrl::DEVELOPMENT_TIME:
+        case FilmSimulationCtrl::DEVELOPMENT_TEMPERATURE:
+            return get_check_box_value(params, FilmSimulationCtrl::DEVELOPMENT_ENABLE);
+
+        case FilmSimulationCtrl::VEILING_FLARE:
+            return false == get_check_box_value(params, FilmSimulationCtrl::VEILING_FLARE_AUTO);
+
+        case FilmSimulationCtrl::CORNER_FALLOFF:
+            return false == get_check_box_value(params, FilmSimulationCtrl::CORNER_FALLOFF_AUTO);
+
+        default:
+        break;
+    }
+
+    if (true == is_film_damage_child(cb.ctrl))
+        return is_control_available(film::eCTRL_BIT_FILM_DAMAGE_ENABLED, filmMask) &&
+               get_check_box_value(params, FilmSimulationCtrl::ENABLE_FILM_DAMAGE);
+
+    return true;
+}
+
+
+// Applies the enabled / disabled state to every stock-dependent control,
+// calling PF_UpdateParamUI only for a control whose state changes.
 // Not noexcept: AEFX_SuiteScoper THROWS (a PF_Err) when the suite cannot be
 // acquired, and a throw out of a noexcept function is std::terminate -- the host
-// process dies. The caller catches and returns the error to AE instead.
-static void on_film_stock_changes(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[])
+// process dies. The callers catch and return the error to AE instead.
+static void refresh_control_states(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[])
 {
-    const film::eFILM_PROFILE filmProfile = get_list_box_value<film::eFILM_PROFILE>(params, FilmSimulationCtrl::FILM_STOCK);
+    const film::eFILM_PROFILE filmProfile = get_film_profile(params);
     const uint64_t filmMask = film::kFilmControlAvailability[UnderlyingType(filmProfile)];
 
     const auto site = AEFX_SuiteScoper<PF_ParamUtilsSuite3>(in_data, kPFParamUtilsSuite, kPFParamUtilsSuiteVersion3, out_data);
@@ -89,11 +166,31 @@ static void on_film_stock_changes(PF_InData* in_data, PF_OutData* out_data, PF_P
         // AE SDK: PF_UpdateParamUI must receive a COPY of the param def -- never the
         // PF_ParamDef passed in params[] (see the SDK "Supervisor" sample).
         PF_ParamDef paramDef = *params[UnderlyingType(cb.ctrl)];
-        set_control_status(paramDef.ui_flags, is_control_available(cb.bit, filmMask));
-        site->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(cb.ctrl), &paramDef);
+        const PF_ParamUIFlags before = paramDef.ui_flags;
+        set_control_status(paramDef.ui_flags, is_control_enabled(cb, filmMask, params));
+        if (paramDef.ui_flags != before)
+            site->PF_UpdateParamUI(in_data->effect_ref, UnderlyingType(cb.ctrl), &paramDef);
     }
 
     return;
+}
+
+
+static PF_Err refresh_control_states_safe(PF_InData* in_data, PF_OutData* out_data, PF_ParamDef* params[])
+{
+    try
+    {
+        refresh_control_states(in_data, out_data, params);
+    }
+    catch (const PF_Err& thrownErr)
+    {
+        return thrownErr;
+    }
+    catch (...)
+    {
+        return PF_Err_INTERNAL_STRUCT_DAMAGED;
+    }
+    return PF_Err_NONE;
 }
 
 
@@ -108,22 +205,13 @@ PF_Err user_update_params_handler
 {
     switch (which_hitP->param_index)
     {
+        // the stock and every check-box that governs other controls
         case UnderlyingType(FilmSimulationCtrl::FILM_STOCK):
-        {
-            try
-            {
-                on_film_stock_changes(in_data, out_data, params);
-            }
-            catch (const PF_Err& thrownErr)
-            {
-                return thrownErr;
-            }
-            catch (...)
-            {
-                return PF_Err_INTERNAL_STRUCT_DAMAGED;
-            }
-        }
-        break;
+        case UnderlyingType(FilmSimulationCtrl::DEVELOPMENT_ENABLE):
+        case UnderlyingType(FilmSimulationCtrl::VEILING_FLARE_AUTO):
+        case UnderlyingType(FilmSimulationCtrl::CORNER_FALLOFF_AUTO):
+        case UnderlyingType(FilmSimulationCtrl::ENABLE_FILM_DAMAGE):
+            return refresh_control_states_safe(in_data, out_data, params);
 
         default:
         break;
@@ -133,6 +221,9 @@ PF_Err user_update_params_handler
 }
 
 
+// PF_Cmd_UPDATE_PARAMS_UI: also sent after a project is opened, when the
+// panel shows the flags registered in SetupControlElements() -- restore the
+// state that belongs to the saved values.
 PF_Err user_update_params_ui
 (
     PF_InData			*in_data,
@@ -141,7 +232,7 @@ PF_Err user_update_params_ui
     PF_LayerDef			*outputP
 )
 {
-    return PF_Err_NONE;
+    return refresh_control_states_safe(in_data, out_data, params);
 }
 
 
@@ -152,7 +243,7 @@ AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int3
     // or a "stock's own" choice, leaves the engine default (or sentinel) in place.
     CACHE_ALIGN AlgoControls algoParams = getAlgoControlsDefault();
 
-    algoParams.filmProfile = get_list_box_value<film::eFILM_PROFILE>(params, FilmSimulationCtrl::FILM_STOCK);
+    algoParams.filmProfile = get_film_profile(params);   // clamped to the database
     algoParams.frameRate = ((fps < 1.0) ? 24.0 : fps);
     algoParams.frameIndex = idx;
 
@@ -173,6 +264,8 @@ AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int3
         algoParams.greyTarget = get_float_slider_value(params, FilmSimulationCtrl::MID_GRAY_TARGET);
     if (is_control_available(film::eCTRL_BIT_BLACK_POINT_STRETCH, filmMask))
         algoParams.blackPointStretch = get_float_slider_value(params, FilmSimulationCtrl::BLACK_POINT_STRETCH);
+    if (is_control_available(film::eCTRL_BIT_AIM_EXPOSURE, filmMask))
+        algoParams.aimExposure = get_check_box_value(params, FilmSimulationCtrl::AIM_EXPOSURE);
 
     // Development & storage.
     // Development time / temperature are applied ONLY when "Development Enable"
@@ -250,6 +343,8 @@ AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int3
     {
         if (is_control_available(film::eCTRL_BIT_DAMAGE_STRENGTH, filmMask))
             algoParams.damage.damageStrength = get_float_slider_value(params, FilmSimulationCtrl::OVERALL_STRENGHT);
+        if (is_control_available(film::eCTRL_BIT_DAMAGE_SEED, filmMask))          // int slider, offset
+            algoParams.damage.damageSeed = DamageSeedDef + get_slider_value(params, FilmSimulationCtrl::DAMAGE_SEED);
         if (is_control_available(film::eCTRL_BIT_DUST_LEVEL, filmMask))
             algoParams.damage.dustLevel = get_float_slider_value(params, FilmSimulationCtrl::DUST);
         if (is_control_available(film::eCTRL_BIT_DEBRIS_LEVEL, filmMask))
@@ -280,6 +375,16 @@ AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int3
             algoParams.damage.flickerStops = get_float_slider_value(params, FilmSimulationCtrl::PRINTER_FLICKER);
         if (is_control_available(film::eCTRL_BIT_SCANNER_ARTIFACTS, filmMask))
             algoParams.damage.scannerArtifacts = get_float_slider_value(params, FilmSimulationCtrl::SCANNER_ARTIFACTS);
+        if (is_control_available(film::eCTRL_BIT_DEFECT_OPTICS, filmMask))
+            algoParams.damage.defectOptics = get_check_box_value(params, FilmSimulationCtrl::DEFECT_READER_OPTICS);
+        if (is_control_available(film::eCTRL_BIT_SCRATCH_LIFETIME, filmMask))
+            algoParams.damage.scratchLifetime = get_float_slider_value(params, FilmSimulationCtrl::TRANSPORT_SCRATCH_LIFETIME);
+        if (is_control_available(film::eCTRL_BIT_DUST_LIFETIME, filmMask))
+            algoParams.damage.dustLifetime = get_float_slider_value(params, FilmSimulationCtrl::PERSISTENT_DUST_LIFETIME);
+        if (is_control_available(film::eCTRL_BIT_DEFECT_VARIABILITY, filmMask))
+            algoParams.damage.defectVariability = get_float_slider_value(params, FilmSimulationCtrl::DEFECT_VARIABILITY);
+        if (is_control_available(film::eCTRL_BIT_DEFECT_VISIBILITY, filmMask))
+            algoParams.damage.defectVisibility = get_float_slider_value(params, FilmSimulationCtrl::DEFECT_VISIBILITY);
     }
 
     // Spectral & temporal
@@ -287,6 +392,8 @@ AlgoControls getAlgoControls(PF_ParamDef* params[], const double fps, const int3
         algoParams.spectralTaking = get_check_box_value(params, FilmSimulationCtrl::SPECTRAL_TAKING_MATRIX);
     if (is_control_available(film::eCTRL_BIT_GRAIN_TEMPORAL_MODE, filmMask))
         algoParams.grainTemporalMode = get_list_box_value<GrainTemporalModeCtrl>(params, FilmSimulationCtrl::GRAIN_TEMPORAL_MODE);
+    if (is_control_available(film::eCTRL_BIT_SEED, filmMask))                    // int slider, offset
+        algoParams.seed = SeedDef + get_slider_value(params, FilmSimulationCtrl::GRAIN_SEED);
     if (is_control_available(film::eCTRL_BIT_SPECTRAL_UPSAMPLING, filmMask))
         algoParams.spectralUpsampling = get_check_box_value(params, FilmSimulationCtrl::SPECTRAL_UPSAMPLING);
 

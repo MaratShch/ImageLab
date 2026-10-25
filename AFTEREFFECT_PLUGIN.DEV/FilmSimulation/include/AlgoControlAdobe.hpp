@@ -46,3 +46,16 @@ inline constexpr bool is_control_available(const film::eFILM_CONTROL_BIT bit, co
 {
     return static_cast<bool>(0ull != ((1ull << UnderlyingType(bit)) & mask));
 }
+
+
+// Selected film stock, CLAMPED to the database. The pop-up index comes from a
+// saved project and indexes film::kFilmControlAvailability; a project saved
+// with a larger database (or a damaged one) must not read past the table.
+inline film::eFILM_PROFILE get_film_profile(PF_ParamDef* params[]) noexcept
+{
+    static_assert(film::kFilmControlAvailability.size() == static_cast<size_t>(UnderlyingType(film::eFILM_PROFILE::eTOTAL_FILMS_PROFILES)),
+                  "availability table and film enumeration disagree");
+    constexpr int32_t lastFilm = static_cast<int32_t>(UnderlyingType(film::eFILM_PROFILE::eTOTAL_FILMS_PROFILES)) - 1;
+    const int32_t idx = static_cast<int32_t>(params[UnderlyingType(FilmSimulationCtrl::FILM_STOCK)]->u.pd.value) - 1;   // AE pop-ups are 1-based
+    return static_cast<film::eFILM_PROFILE>(idx < 0 ? 0 : (idx > lastFilm ? lastFilm : idx));
+}

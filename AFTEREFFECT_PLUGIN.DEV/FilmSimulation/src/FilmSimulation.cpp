@@ -35,7 +35,7 @@ GlobalSetup(
 {
     PF_Err	err = PF_Err_NONE;
 
-    // Builds all 224 profiles exactly once. Thread-safe; repeat calls
+    // Builds all film profiles of the database (231) exactly once. Thread-safe; repeat calls
     // (AE can call GlobalSetup more than once) return true immediately.
     if (false == film::LoadFilmDataBase())
         return PF_Err_OUT_OF_MEMORY;   // only failure cause; a later call retries
@@ -43,12 +43,18 @@ GlobalSetup(
     if (false == LoadMemoryInterfaceProvider(in_data))
         return PF_Err_INTERNAL_STRUCT_DAMAGED;
 
+    // ⚠ Keep AE_Effect_Global_OutFlags / _2 in FilmSimulation.r EQUAL to these
+    // two values (AE reports a mismatch otherwise):
+    //   out_flags1 = 0x06000006 = 100663302, out_flags2 = 0x00021448 = 136264.
+    //  * NON_PARAM_VARY, not PIX_INDEPENDENT: grain, damage, gate weave and
+    //    flicker change from frame to frame with unchanged parameters, and the
+    //    blurs / halation / flare make a pixel depend on its neighbours.
+    //  * no CUSTOM_UI: the effect has no custom UI (DrawEvent is a stub).
+    //  * no USE_OUTPUT_EXTENT: the whole frame is always processed.
     constexpr PF_OutFlags out_flags1 =
-		PF_OutFlag_PIX_INDEPENDENT       |
+		PF_OutFlag_NON_PARAM_VARY        |
 		PF_OutFlag_SEND_UPDATE_PARAMS_UI |
-		PF_OutFlag_USE_OUTPUT_EXTENT     |
 		PF_OutFlag_DEEP_COLOR_AWARE      |
-        PF_OutFlag_CUSTOM_UI             |
         PF_OutFlag_WIDE_TIME_INPUT;
 
     constexpr PF_OutFlags out_flags2 =
@@ -228,7 +234,9 @@ UpdateParameterUI
     PF_LayerDef			*outputP
 )
 {
-    return PF_Err_NONE;
+    // Restores the enabled / disabled state of every control (stock
+    // availability and the check-box dependencies) - also after a project load.
+    return user_update_params_ui (in_data, out_data, params, outputP);
 }
 
 
@@ -295,6 +303,11 @@ EffectMain(
 	catch (PF_Err& thrown_err)
 	{
 		err = thrown_err;
+	}
+	catch (...)
+	{
+		// std::bad_alloc or any other exception must not cross into the host.
+		err = PF_Err_INTERNAL_STRUCT_DAMAGED;
 	}
 
 	return err;

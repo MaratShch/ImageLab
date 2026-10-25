@@ -24,3 +24,16 @@ static_assert(DevelopmentMinutesUiDef >= DevelopmentMinutesMin && DevelopmentMin
 static_assert(DevelopmentCelsiusUiDef >= DevelopmentCelsiusMin && DevelopmentCelsiusUiDef <= DevelopmentCelsiusMax, "DevelopmentCelsiusUiDef out of range");
 static_assert(FlareUiDef    >= FlareMin    && FlareUiDef    <= FlareMax,    "FlareUiDef out of range");
 static_assert(VignetteUiDef >= VignetteMin && VignetteUiDef <= VignetteMax, "VignetteUiDef out of range");
+
+
+// ---------------------------------------------------------------------------
+// Seeds. The engine seeds (SeedDef 12345, DamageSeedDef 20250803) are 32-bit
+// identifiers; an AE integer slider is not a good editor for the whole int32
+// range (and a float slider cannot hold 20250803 exactly). The panel therefore
+// edits an OFFSET added to the engine default: 0 renders exactly as
+// getAlgoControlsDefault(), every other value draws another realisation.
+// ---------------------------------------------------------------------------
+constexpr int32_t PanelSeedOffsetMin = 0;
+constexpr int32_t PanelSeedOffsetMax = 30000;
+constexpr int32_t PanelSeedOffsetDef = 0;
+static_assert(PanelSeedOffsetDef >= PanelSeedOffsetMin && PanelSeedOffsetDef <= PanelSeedOffsetMax, "PanelSeedOffsetDef out of range");

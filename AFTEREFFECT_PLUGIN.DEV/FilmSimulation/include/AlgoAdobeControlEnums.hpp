@@ -18,6 +18,7 @@ enum class FilmSimulationCtrl : int32_t
     EXPOSURE_TIME,
     MID_GRAY_TARGET,
     BLACK_POINT_STRETCH,
+    AIM_EXPOSURE,           // check-box: expose to the data sheet's grey-card aim (bit 57)
     GROUP_STOP_EXPOSURE_AND_TONE,
     GROUP_START_DEVELOPMENT,
     DEVELOPMENT_ENABLE,
@@ -57,7 +58,7 @@ enum class FilmSimulationCtrl : int32_t
     GROUP_START_FILM_DAMAGE_AND_AGE,
     ENABLE_FILM_DAMAGE,
     OVERALL_STRENGHT,
-//    DAMAGE_SEED,
+    DAMAGE_SEED,            // int slider: offset added to DamageSeedDef (bit 30)
     DUST,
     DEBRIS,
     FIBRES,
@@ -73,10 +74,16 @@ enum class FilmSimulationCtrl : int32_t
     COLOUR_VEIL,
     PRINTER_FLICKER,
     SCANNER_ARTIFACTS,
+    DEFECT_READER_OPTICS,   // check-box (bit 51)
+    TRANSPORT_SCRATCH_LIFETIME, // seconds, 0 = stock's own (bit 52)
+    PERSISTENT_DUST_LIFETIME,   // seconds (bit 53)
+    DEFECT_VARIABILITY,     // 0..1 (bit 54)
+    DEFECT_VISIBILITY,      // 0..3 (bit 55)
     GROUP_STOP_FILM_DAMAGE_AND_AGE,
     GROUP_START_SPECTRAL_AND_TEMPORAL,
     SPECTRAL_TAKING_MATRIX,
     GRAIN_TEMPORAL_MODE,
+    GRAIN_SEED,             // int slider: offset added to SeedDef (bit 46)
     SPECTRAL_UPSAMPLING,
     GROUP_STOP_SPECTRAL_AND_TEMPORAL,
     GROUP_START_RAW_STOCK,
@@ -85,74 +92,87 @@ enum class FilmSimulationCtrl : int32_t
     TOTAL_PARAMS
 };
 
+// Control names, in the ORDER THE CONTROLS ARE ADDED in SetupControlElements():
+// the N-th named control uses itemNames[N] (the comment is N). Group ends have
+// no name and take no entry. Inserting a control = inserting its name at the
+// same position here and renumbering the itemNames[] uses after it.
 constexpr char itemNames[][32] = {
     " ",                            // 0
-    " ",
-    "Film Stock",
-    "Film Stock",
-    "Film Format",
-    "Process Variant",
-    "Exposure & Tone",
-    "Exposure",
-    "Exposure Time",
-    "Mid-Gray Target",
-    "Black Point Stretch",
-    "Development And Storage",      // 10
-    "Development Enable",
-    "Development Time",
-    "Development Temperature",
-    "Years of Dark Storage",
-    "Storage Temperature",
-    "Batch Position",
-    "Colour & White Balance",
-    "Scene Colour Temperature",
-    "White Balance Strength",
-    "Print & Duplication",          // 20
-    "Print Stock",
-    "Duplication Generation",
-    "Intermediate Stock",
-    "Print Grain",
-    "Emulsion Character",
-    "Grain",
-    "Halation",
-    "DIR Couplers",
-    "Misregistration",
-    "Coating Unevenness",           // 30
-    "Reseau Reconstruction",
-    "Lens and Reader",
-    "Veiling Flare",
-    "Corner Falloff",
-    "Scanner Specularity",
-    "Scanner Fixed Pattern",
-    "Film Damage and Age",
-    "Enable Film Damage",
-    "Overall Strength",
-    "Damage Seed",                  // 40
-    "Dust",
-    "Debris",
-    "Fibres",
-    "Clumping",
-    "Gate Dirt",
-    "Gate Wave",
-    "Splice and Tear Events",
-    "Transport Scratches",
-    "Handling Scratches",
-    "Processing Quality",           // 50
-    "Drying Marks",
-    "Storage Severity",
-    "Colour Veil",
-    "Printer Flicker",
-    "Scanner Artifacts",
-    "Spectral and Temporal",
-    "Spectral Taking Matrix",
-    "Grain Temporal Mode",
-    "Spectral Upsampling",
-    "Raw Stock",                    // 60
-    "Film Age (expired stock)",
-    "Developer",
-    "Veiling Flare: Stock's Own",
-    "Corner Falloff: Stock's Own"   // 64
+    " ",                            // 1
+    "Film Stock",                   // 2
+    "Film Stock",                   // 3
+    "Film Format",                  // 4
+    "Process Variant",              // 5
+    "Exposure & Tone",              // 6
+    "Exposure",                     // 7
+    "Exposure Time",                // 8
+    "Mid-Gray Target",              // 9
+    "Black Point Stretch",          // 10
+    "Aim Exposure",                 // 11
+    "Development And Storage",      // 12
+    "Development Enable",           // 13
+    "Development Time",             // 14
+    "Development Temperature",      // 15
+    "Developer",                    // 16
+    "Years of Dark Storage",        // 17
+    "Storage Temperature",          // 18
+    "Batch Position",               // 19
+    "Colour & White Balance",       // 20
+    "Scene Colour Temperature",     // 21
+    "White Balance Strength",       // 22
+    "Print & Duplication",          // 23
+    "Print Stock",                  // 24
+    "Duplication Generation",       // 25
+    "Intermediate Stock",           // 26
+    "Print Grain",                  // 27
+    "Emulsion Character",           // 28
+    "Grain",                        // 29
+    "Halation",                     // 30
+    "DIR Couplers",                 // 31
+    "Misregistration",              // 32
+    "Coating Unevenness",           // 33
+    "Reseau Reconstruction",        // 34
+    "Lens and Reader",              // 35
+    "Veiling Flare: Stock's Own",   // 36
+    "Veiling Flare",                // 37
+    "Corner Falloff: Stock's Own",  // 38
+    "Corner Falloff",               // 39
+    "Scanner Specularity",          // 40
+    "Scanner Fixed Pattern",        // 41
+    "Film Damage and Age",          // 42
+    "Enable Film Damage",           // 43
+    "Overall Strength",             // 44
+    "Damage Seed",                  // 45
+    "Dust",                         // 46
+    "Debris",                       // 47
+    "Fibres",                       // 48
+    "Clumping",                     // 49
+    "Gate Dirt",                    // 50
+    "Gate Wave",                    // 51
+    "Splice and Tear Events",       // 52
+    "Transport Scratches",          // 53
+    "Handling Scratches",           // 54
+    "Processing Quality",           // 55
+    "Drying Marks",                 // 56
+    "Storage Severity",             // 57
+    "Colour Veil",                  // 58
+    "Printer Flicker",              // 59
+    "Scanner Artifacts",            // 60
+    "Defect Reader Optics",         // 61
+    "Transport Scratch Lifetime",   // 62
+    "Persistent Dust Lifetime",     // 63
+    "Defect Temporal Variability",  // 64
+    "Defect Visibility",            // 65
+    "Spectral and Temporal",        // 66
+    "Spectral Taking Matrix",       // 67
+    "Grain Temporal Mode",          // 68
+    "Grain Seed",                   // 69
+    "Spectral Upsampling",          // 70
+    "Raw Stock",                    // 71
+    "Film Age (expired stock)"      // 72
 };
+
+static_assert(sizeof(itemNames) / sizeof(itemNames[0]) == 73, "itemNames: one name per named control - update the count when a control is added");
 
 
 #endif // __IMAGE_LAB2_ALGO_ADOBE_CONTROL_ENUMERATORS__

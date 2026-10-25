@@ -10,9 +10,10 @@
 
 #include "Common.hpp"
 #include "CompileTimeUtils.hpp"
-#include "AlgoMemHandler.hpp" 
+#include "AlgoMemHandler.hpp"
 #include "ImageLabMemInterface.hpp"
 
+#include <cstdio>    // std::printf, diagnostic path only
 #include <vector>
 
 
@@ -21,9 +22,13 @@ namespace
     // ----------------------------------------------------------------------
     //  Largest frame dimension accepted.
     //
-    //  65535 keeps every byte count below the range of the int32_t the pool
-    //  interface takes, with room to spare, and no real render approaches it. A
-    //  larger request is refused rather than silently wrapping an offset.
+    //  65535 keeps every int32_t geometry product (padded width x height in
+    //  ELEMENTS) and every std::size_t byte product on a 64-bit build free of
+    //  overflow. It does NOT keep the arena inside the pool's int32_t byte
+    //  count -- 65535 x 65535 planes are tens of gigabytes -- and was never what
+    //  enforced that: the explicit requiredBytes > 0x7FFFFFFF refusal below is.
+    //  (Corrected 2026-10-13; the earlier wording claimed the dimension cap
+    //  alone kept byte counts inside int32_t.)
     // ----------------------------------------------------------------------
     constexpr int32_t ALGO_MAX_DIMENSION = 65535;
 
@@ -45,6 +50,10 @@ namespace
     // Frequency-domain areas: FFT plan tables, one half spectrum, the FFT work
     // area and the per-transfer 1D tables (AlgoFrequency.hpp).
     constexpr int32_t ALGO_FREQ_SLICE_COUNT = 4;
+
+    // The spectral-upsampling response table (2026-10-13): one float slice of
+    // ALGO_JH_COUNT entries, independent of the frame geometry.
+    constexpr int32_t ALGO_TABLE_SLICE_COUNT = 1;
 
 
     // ----------------------------------------------------------------------
@@ -73,22 +82,32 @@ namespace
     //    - Their lifetime runs to program exit, so the pointers stay valid for as
     //      long as any handler does.
     // ----------------------------------------------------------------------
+    //
+    //  ⚠ 2026-10-13 (memory review): THE TABLES ARE NO LONGER COPIED. The three
+    //  accessors used to initialise a function-local static COPY of each
+    //  table. The database accessors return a const reference to storage that
+    //  is itself built exactly once and never modified or freed (there is
+    //  deliberately no UnloadFilmDataBase), so the copy doubled the database's
+    //  resident memory for nothing -- and worse, a copy taken while the load
+    //  had failed (out of memory) cached an EMPTY table for the life of the
+    //  process, after which every handler carried profileCount 0 and the
+    //  engine, which may not validate, would index past it. Returning the
+    //  references directly removes both: no second copy, and a failed load is
+    //  retried by GetFilmDatabase() on the next allocation, which refuses
+    //  (below) while the table is empty.
     const std::vector<film::FilmProfile>& profileTable (void) noexcept
     {
-        static const std::vector<film::FilmProfile> table = film::GetFilmDatabase();
-        return table;
+        return film::GetFilmDatabase();
     }
 
     const std::vector<film::PrintStock>& printTable (void) noexcept
     {
-        static const std::vector<film::PrintStock> table = film::GetPrintStocks();
-        return table;
+        return film::GetPrintStocks();
     }
 
     const std::vector<film::FilmFormat>& formatTable (void) noexcept
     {
-        static const std::vector<film::FilmFormat> table = film::GetFilmFormats();
-        return table;
+        return film::GetFilmFormats();
     }
 
 
@@ -132,12 +151,24 @@ namespace
 // ---------------------------------------------------------------------------
 MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexcept
 {
+    // Plugin build: the layout diagnostic of the engine's test harness is off
+    // (the plugin header has no dbgPrn parameter); the printf paths compile out.
+    constexpr bool dbgPrn = false;
+
     // Zero-initialised, so every failure path below can simply return it: a
     // caller testing SuperBufferHead sees null and totalSize sees zero.
     MemHandler algoMemHandler{};
 
     if (sizeX <= 0 || sizeY <= 0 ||
         sizeX > ALGO_MAX_DIMENSION || sizeY > ALGO_MAX_DIMENSION)
+        return algoMemHandler;
+
+    // 2026-10-13: no film table, no handler. GetFilmDatabase() loads lazily and
+    // returns an empty table only when that load failed (out of memory); the
+    // engine indexes pProfileDb without validation, so a handler with
+    // profileCount 0 must never be handed out. The load is retried on the next
+    // call.
+    if (profileTable().empty())
         return algoMemHandler;
 
     // ==================================================================
@@ -265,6 +296,10 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
     const std::size_t offFreqWork  = stack.push(AlgoFreqWorkBytes (sizeX, sizeY));
     const std::size_t offFreqTable = stack.push(AlgoFreqTableBytes(sizeX, sizeY));
 
+    // --- spectral-upsampling response table, LAST so no earlier offset moved ---
+    const std::size_t offSpecLut = stack.push(
+        static_cast<std::size_t>(ALGO_JH_COUNT) * sizeof(float));
+
     // Cross-check: every PHYSICAL plane must have been pushed exactly once.
     //
     // The stage term is the physical triple count, not the 25 logical stages, so this
@@ -276,12 +311,16 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
         6 + (ALGO_PHYSICAL_STAGE_TRIPLES * 3)
           + ALGO_SCRATCH_SINGLE_COUNT
           + (ALGO_SCRATCH_TRIPLE_COUNT * 3)
-          + ALGO_FREQ_SLICE_COUNT;
+          + ALGO_FREQ_SLICE_COUNT
+          + ALGO_TABLE_SLICE_COUNT;
 
     if (stack.slices != expectedSlices)
     {
         // A mismatch is a coding error in THIS file, not a runtime condition. Refuse
         // rather than hand back an arena whose layout does not match the struct.
+        if (dbgPrn)
+            std::printf("[AlgoMemHandler] LAYOUT ERROR: pushed %d slices, expected %d\n",
+                        stack.slices, expectedSlices);
         return algoMemHandler;
     }
 
@@ -300,105 +339,117 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
     // would be a heap overflow rather than an out-of-memory failure.
     if (requiredBytes > static_cast<std::size_t>(0x7FFFFFFF))
     {
+        if (dbgPrn)
+            std::printf("[AlgoMemHandler] %d x %d needs %zu bytes, beyond the pool interface\n",
+                        sizeX, sizeY, requiredBytes);
         return algoMemHandler;
     }
 
-
     void* pBlock = nullptr;
-    const int32_t blockId = GetMemoryBlock(static_cast<int32_t>(requiredBytes), static_cast<int32_t>(ALGO_ALIGN_BYTES), &pBlock);
+
+    // ⚠ 2026-10-13: the alignment REQUESTED is CACHE_LINE (64), not
+    // ALGO_ALIGN_BYTES (32). Every slice is rounded to CACHE_LINE relative to
+    // the base, which only yields 64-byte slices -- the false-sharing promise
+    // of OffsetStack and the FFT plan's kPlanAlign = 64 -- if the base is
+    // 64-aligned. The pool treats the argument as a HINT (a 16-mod-32 base was
+    // observed, see AVX2/Algo_02_Sim.cpp), so nothing may DEPEND on it: every
+    // vector access stays unaligned and the FFT library re-aligns its own work
+    // area. Asking for the right figure costs nothing.
+    const int32_t blockId = GetMemoryBlock(static_cast<int32_t>(requiredBytes),
+                                           static_cast<int32_t>(CACHE_LINE),
+                                           &pBlock);
+
     if (blockId < 0 || nullptr == pBlock)
         return algoMemHandler;
 
-        uint8_t* superBuffer = reinterpret_cast<uint8_t*>(pBlock);
+    // ==================================================================
+    // 4. MAP EVERY POINTER
+    // ==================================================================
+    algoMemHandler.memBlockId      = static_cast<int64_t>(blockId);
+    algoMemHandler.SuperBufferHead = static_cast<uint8_t*>(pBlock);
+    algoMemHandler.totalSize       = requiredBytes;
 
-        algoMemHandler.SuperBufferHead = superBuffer; 
-        algoMemHandler.memBlockId = 1; // Mark as valid
+    algoMemHandler.padW    = padX;
+    algoMemHandler.padH    = padY;
+    algoMemHandler.activeW = sizeX;
+    algoMemHandler.activeH = sizeY;
 
-        // ==================================================================
-        // 4. MAP EVERY POINTER
-        // ==================================================================
-        algoMemHandler.memBlockId      = static_cast<int64_t>(blockId);
-        algoMemHandler.SuperBufferHead = static_cast<uint8_t*>(pBlock);
-        algoMemHandler.totalSize       = requiredBytes;
+    // Attach the lookup tables. Done here rather than left to the caller so the
+    // engine can never be handed null tables; see the note on profileTable above.
+    algoMemHandler.pProfileDb   = profileTable().data();
+    algoMemHandler.profileCount = static_cast<int32_t>(profileTable().size());
+    algoMemHandler.pFormatDb    = formatTable().data();
+    algoMemHandler.formatCount  = static_cast<int32_t>(formatTable().size());
+    algoMemHandler.pPrintDb     = printTable().data();
+    algoMemHandler.printCount   = static_cast<int32_t>(printTable().size());
 
-        algoMemHandler.padW    = padX;
-        algoMemHandler.padH    = padY;
-        algoMemHandler.activeW = sizeX;
-        algoMemHandler.activeH = sizeY;
+    // Local helpers so each mapping line states only which buffer it is, not how
+    // an address is formed.
+    auto asImg = [pBlock](const std::size_t off) noexcept -> ImgType*
+    {
+        return static_cast<ImgType*>(ComputeAddress(pBlock, off));
+    };
 
-        // Attach the lookup tables. Done here rather than left to the caller so the
-        // engine can never be handed null tables; see the note on profileTable above.
-        algoMemHandler.pProfileDb   = profileTable().data();
-        algoMemHandler.profileCount = static_cast<int32_t>(profileTable().size());
-        algoMemHandler.pFormatDb    = formatTable().data();
-        algoMemHandler.formatCount  = static_cast<int32_t>(formatTable().size());
-        algoMemHandler.pPrintDb     = printTable().data();
-        algoMemHandler.printCount   = static_cast<int32_t>(printTable().size());
+    auto asAlgo = [pBlock](const std::size_t off) noexcept -> AlgoType*
+    {
+        return static_cast<AlgoType*>(ComputeAddress(pBlock, off));
+    };
 
-        // Local helpers so each mapping line states only which buffer it is, not how
-        // an address is formed.
-        auto asImg = [pBlock](const std::size_t off) noexcept -> ImgType*
-        {
-            return static_cast<ImgType*>(ComputeAddress(pBlock, off));
-        };
+    algoMemHandler.Src_R = asImg(offSrcR);
+    algoMemHandler.Src_G = asImg(offSrcG);
+    algoMemHandler.Src_B = asImg(offSrcB);
+    algoMemHandler.Dst_R = asImg(offDstR);
+    algoMemHandler.Dst_G = asImg(offDstG);
+    algoMemHandler.Dst_B = asImg(offDstB);
 
-        auto asAlgo = [pBlock](const std::size_t off) noexcept -> AlgoType*
-        {
-            return static_cast<AlgoType*>(ComputeAddress(pBlock, off));
-        };
+    // The 75 stage pointers, in the same order the offsets were pushed. Written out
+    // rather than looped, because the struct's fields are named individually and
+    // there is no array to iterate; the index literals make a transposition visible.
+    algoMemHandler.S02_R  = asAlgo(offStage[ 0][0]);  algoMemHandler.S02_G  = asAlgo(offStage[ 0][1]);  algoMemHandler.S02_B  = asAlgo(offStage[ 0][2]);
+    algoMemHandler.S02b_R = asAlgo(offStage[ 1][0]);  algoMemHandler.S02b_G = asAlgo(offStage[ 1][1]);  algoMemHandler.S02b_B = asAlgo(offStage[ 1][2]);
+    algoMemHandler.S03_R  = asAlgo(offStage[ 2][0]);  algoMemHandler.S03_G  = asAlgo(offStage[ 2][1]);  algoMemHandler.S03_B  = asAlgo(offStage[ 2][2]);
+    algoMemHandler.S03b_R = asAlgo(offStage[ 3][0]);  algoMemHandler.S03b_G = asAlgo(offStage[ 3][1]);  algoMemHandler.S03b_B = asAlgo(offStage[ 3][2]);
+    algoMemHandler.S03c_R = asAlgo(offStage[ 4][0]);  algoMemHandler.S03c_G = asAlgo(offStage[ 4][1]);  algoMemHandler.S03c_B = asAlgo(offStage[ 4][2]);
+    algoMemHandler.S04_R  = asAlgo(offStage[ 5][0]);  algoMemHandler.S04_G  = asAlgo(offStage[ 5][1]);  algoMemHandler.S04_B  = asAlgo(offStage[ 5][2]);
+    algoMemHandler.S05_R  = asAlgo(offStage[ 6][0]);  algoMemHandler.S05_G  = asAlgo(offStage[ 6][1]);  algoMemHandler.S05_B  = asAlgo(offStage[ 6][2]);
+    algoMemHandler.S06_R  = asAlgo(offStage[ 7][0]);  algoMemHandler.S06_G  = asAlgo(offStage[ 7][1]);  algoMemHandler.S06_B  = asAlgo(offStage[ 7][2]);
+    algoMemHandler.S06b_R = asAlgo(offStage[ 8][0]);  algoMemHandler.S06b_G = asAlgo(offStage[ 8][1]);  algoMemHandler.S06b_B = asAlgo(offStage[ 8][2]);
+    algoMemHandler.S07_R  = asAlgo(offStage[ 9][0]);  algoMemHandler.S07_G  = asAlgo(offStage[ 9][1]);  algoMemHandler.S07_B  = asAlgo(offStage[ 9][2]);
+    algoMemHandler.S08_R  = asAlgo(offStage[10][0]);  algoMemHandler.S08_G  = asAlgo(offStage[10][1]);  algoMemHandler.S08_B  = asAlgo(offStage[10][2]);
+    algoMemHandler.S08b_R = asAlgo(offStage[11][0]);  algoMemHandler.S08b_G = asAlgo(offStage[11][1]);  algoMemHandler.S08b_B = asAlgo(offStage[11][2]);
+    algoMemHandler.S09_R  = asAlgo(offStage[12][0]);  algoMemHandler.S09_G  = asAlgo(offStage[12][1]);  algoMemHandler.S09_B  = asAlgo(offStage[12][2]);
+    algoMemHandler.S09b_R = asAlgo(offStage[13][0]);  algoMemHandler.S09b_G = asAlgo(offStage[13][1]);  algoMemHandler.S09b_B = asAlgo(offStage[13][2]);
+    algoMemHandler.S10_R  = asAlgo(offStage[14][0]);  algoMemHandler.S10_G  = asAlgo(offStage[14][1]);  algoMemHandler.S10_B  = asAlgo(offStage[14][2]);
+    algoMemHandler.S10b_R = asAlgo(offStage[15][0]);  algoMemHandler.S10b_G = asAlgo(offStage[15][1]);  algoMemHandler.S10b_B = asAlgo(offStage[15][2]);
+    algoMemHandler.S11_R  = asAlgo(offStage[16][0]);  algoMemHandler.S11_G  = asAlgo(offStage[16][1]);  algoMemHandler.S11_B  = asAlgo(offStage[16][2]);
+    algoMemHandler.S12_R  = asAlgo(offStage[17][0]);  algoMemHandler.S12_G  = asAlgo(offStage[17][1]);  algoMemHandler.S12_B  = asAlgo(offStage[17][2]);
+    algoMemHandler.S13_R  = asAlgo(offStage[18][0]);  algoMemHandler.S13_G  = asAlgo(offStage[18][1]);  algoMemHandler.S13_B  = asAlgo(offStage[18][2]);
+    algoMemHandler.S14_R  = asAlgo(offStage[19][0]);  algoMemHandler.S14_G  = asAlgo(offStage[19][1]);  algoMemHandler.S14_B  = asAlgo(offStage[19][2]);
+    algoMemHandler.S14b_R = asAlgo(offStage[20][0]);  algoMemHandler.S14b_G = asAlgo(offStage[20][1]);  algoMemHandler.S14b_B = asAlgo(offStage[20][2]);
+    algoMemHandler.S14c_R = asAlgo(offStage[21][0]);  algoMemHandler.S14c_G = asAlgo(offStage[21][1]);  algoMemHandler.S14c_B = asAlgo(offStage[21][2]);
+    algoMemHandler.S15_R  = asAlgo(offStage[22][0]);  algoMemHandler.S15_G  = asAlgo(offStage[22][1]);  algoMemHandler.S15_B  = asAlgo(offStage[22][2]);
+    algoMemHandler.S16_R  = asAlgo(offStage[23][0]);  algoMemHandler.S16_G  = asAlgo(offStage[23][1]);  algoMemHandler.S16_B  = asAlgo(offStage[23][2]);
+    algoMemHandler.S17_R  = asAlgo(offStage[24][0]);  algoMemHandler.S17_G  = asAlgo(offStage[24][1]);  algoMemHandler.S17_B  = asAlgo(offStage[24][2]);
 
-        algoMemHandler.Src_R = asImg(offSrcR);
-        algoMemHandler.Src_G = asImg(offSrcG);
-        algoMemHandler.Src_B = asImg(offSrcB);
-        algoMemHandler.Dst_R = asImg(offDstR);
-        algoMemHandler.Dst_G = asImg(offDstG);
-        algoMemHandler.Dst_B = asImg(offDstB);
+    algoMemHandler.Scr_BlurA    = asAlgo(offBlurA);
+    algoMemHandler.Scr_BlurB    = asAlgo(offBlurB);
+    algoMemHandler.Scr_Luma     = asAlgo(offLuma);
+    algoMemHandler.Scr_Field    = asAlgo(offField);
+    algoMemHandler.Scr_FieldLo  = asAlgo(offFieldLo);
+    algoMemHandler.Scr_Dbar     = asAlgo(offDbar);
+    algoMemHandler.Scr_DbarBlur = asAlgo(offDbarBlur);
 
-        // The 75 stage pointers, in the same order the offsets were pushed. Written out
-        // rather than looped, because the struct's fields are named individually and
-        // there is no array to iterate; the index literals make a transposition visible.
-        algoMemHandler.S02_R  = asAlgo(offStage[ 0][0]);  algoMemHandler.S02_G  = asAlgo(offStage[ 0][1]);  algoMemHandler.S02_B  = asAlgo(offStage[ 0][2]);
-        algoMemHandler.S02b_R = asAlgo(offStage[ 1][0]);  algoMemHandler.S02b_G = asAlgo(offStage[ 1][1]);  algoMemHandler.S02b_B = asAlgo(offStage[ 1][2]);
-        algoMemHandler.S03_R  = asAlgo(offStage[ 2][0]);  algoMemHandler.S03_G  = asAlgo(offStage[ 2][1]);  algoMemHandler.S03_B  = asAlgo(offStage[ 2][2]);
-        algoMemHandler.S03b_R = asAlgo(offStage[ 3][0]);  algoMemHandler.S03b_G = asAlgo(offStage[ 3][1]);  algoMemHandler.S03b_B = asAlgo(offStage[ 3][2]);
-        algoMemHandler.S03c_R = asAlgo(offStage[ 4][0]);  algoMemHandler.S03c_G = asAlgo(offStage[ 4][1]);  algoMemHandler.S03c_B = asAlgo(offStage[ 4][2]);
-        algoMemHandler.S04_R  = asAlgo(offStage[ 5][0]);  algoMemHandler.S04_G  = asAlgo(offStage[ 5][1]);  algoMemHandler.S04_B  = asAlgo(offStage[ 5][2]);
-        algoMemHandler.S05_R  = asAlgo(offStage[ 6][0]);  algoMemHandler.S05_G  = asAlgo(offStage[ 6][1]);  algoMemHandler.S05_B  = asAlgo(offStage[ 6][2]);
-        algoMemHandler.S06_R  = asAlgo(offStage[ 7][0]);  algoMemHandler.S06_G  = asAlgo(offStage[ 7][1]);  algoMemHandler.S06_B  = asAlgo(offStage[ 7][2]);
-        algoMemHandler.S06b_R = asAlgo(offStage[ 8][0]);  algoMemHandler.S06b_G = asAlgo(offStage[ 8][1]);  algoMemHandler.S06b_B = asAlgo(offStage[ 8][2]);
-        algoMemHandler.S07_R  = asAlgo(offStage[ 9][0]);  algoMemHandler.S07_G  = asAlgo(offStage[ 9][1]);  algoMemHandler.S07_B  = asAlgo(offStage[ 9][2]);
-        algoMemHandler.S08_R  = asAlgo(offStage[10][0]);  algoMemHandler.S08_G  = asAlgo(offStage[10][1]);  algoMemHandler.S08_B  = asAlgo(offStage[10][2]);
-        algoMemHandler.S08b_R = asAlgo(offStage[11][0]);  algoMemHandler.S08b_G = asAlgo(offStage[11][1]);  algoMemHandler.S08b_B = asAlgo(offStage[11][2]);
-        algoMemHandler.S09_R  = asAlgo(offStage[12][0]);  algoMemHandler.S09_G  = asAlgo(offStage[12][1]);  algoMemHandler.S09_B  = asAlgo(offStage[12][2]);
-        algoMemHandler.S09b_R = asAlgo(offStage[13][0]);  algoMemHandler.S09b_G = asAlgo(offStage[13][1]);  algoMemHandler.S09b_B = asAlgo(offStage[13][2]);
-        algoMemHandler.S10_R  = asAlgo(offStage[14][0]);  algoMemHandler.S10_G  = asAlgo(offStage[14][1]);  algoMemHandler.S10_B  = asAlgo(offStage[14][2]);
-        algoMemHandler.S10b_R = asAlgo(offStage[15][0]);  algoMemHandler.S10b_G = asAlgo(offStage[15][1]);  algoMemHandler.S10b_B = asAlgo(offStage[15][2]);
-        algoMemHandler.S11_R  = asAlgo(offStage[16][0]);  algoMemHandler.S11_G  = asAlgo(offStage[16][1]);  algoMemHandler.S11_B  = asAlgo(offStage[16][2]);
-        algoMemHandler.S12_R  = asAlgo(offStage[17][0]);  algoMemHandler.S12_G  = asAlgo(offStage[17][1]);  algoMemHandler.S12_B  = asAlgo(offStage[17][2]);
-        algoMemHandler.S13_R  = asAlgo(offStage[18][0]);  algoMemHandler.S13_G  = asAlgo(offStage[18][1]);  algoMemHandler.S13_B  = asAlgo(offStage[18][2]);
-        algoMemHandler.S14_R  = asAlgo(offStage[19][0]);  algoMemHandler.S14_G  = asAlgo(offStage[19][1]);  algoMemHandler.S14_B  = asAlgo(offStage[19][2]);
-        algoMemHandler.S14b_R = asAlgo(offStage[20][0]);  algoMemHandler.S14b_G = asAlgo(offStage[20][1]);  algoMemHandler.S14b_B = asAlgo(offStage[20][2]);
-        algoMemHandler.S14c_R = asAlgo(offStage[21][0]);  algoMemHandler.S14c_G = asAlgo(offStage[21][1]);  algoMemHandler.S14c_B = asAlgo(offStage[21][2]);
-        algoMemHandler.S15_R  = asAlgo(offStage[22][0]);  algoMemHandler.S15_G  = asAlgo(offStage[22][1]);  algoMemHandler.S15_B  = asAlgo(offStage[22][2]);
-        algoMemHandler.S16_R  = asAlgo(offStage[23][0]);  algoMemHandler.S16_G  = asAlgo(offStage[23][1]);  algoMemHandler.S16_B  = asAlgo(offStage[23][2]);
-        algoMemHandler.S17_R  = asAlgo(offStage[24][0]);  algoMemHandler.S17_G  = asAlgo(offStage[24][1]);  algoMemHandler.S17_B  = asAlgo(offStage[24][2]);
+    algoMemHandler.Scr_LogE_R = asAlgo(offLogE[0]);
+    algoMemHandler.Scr_LogE_G = asAlgo(offLogE[1]);
+    algoMemHandler.Scr_LogE_B = asAlgo(offLogE[2]);
 
-        algoMemHandler.Scr_BlurA    = asAlgo(offBlurA);
-        algoMemHandler.Scr_BlurB    = asAlgo(offBlurB);
-        algoMemHandler.Scr_Luma     = asAlgo(offLuma);
-        algoMemHandler.Scr_Field    = asAlgo(offField);
-        algoMemHandler.Scr_FieldLo  = asAlgo(offFieldLo);
-        algoMemHandler.Scr_Dbar     = asAlgo(offDbar);
-        algoMemHandler.Scr_DbarBlur = asAlgo(offDbarBlur);
+    algoMemHandler.Scr_Grain_R = asAlgo(offGrain[0]);
+    algoMemHandler.Scr_Grain_G = asAlgo(offGrain[1]);
+    algoMemHandler.Scr_Grain_B = asAlgo(offGrain[2]);
 
-        algoMemHandler.Scr_LogE_R = asAlgo(offLogE[0]);
-        algoMemHandler.Scr_LogE_G = asAlgo(offLogE[1]);
-        algoMemHandler.Scr_LogE_B = asAlgo(offLogE[2]);
+    algoMemHandler.Scr_SpectralLut =
+        static_cast<float*>(ComputeAddress(pBlock, offSpecLut));
 
-        algoMemHandler.Scr_Grain_R = asAlgo(offGrain[0]);
-        algoMemHandler.Scr_Grain_G = asAlgo(offGrain[1]);
-        algoMemHandler.Scr_Grain_B = asAlgo(offGrain[2]);
-    
     // Build the FFT plan (twiddles, digit-reversal tables) into the arena once
     // for this geometry. Refusal returns the block and a zeroed handler, the
     // same failure contract as every other path here.
@@ -408,8 +459,34 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
                               ComputeAddress(pBlock, offFreqWork),
                               ComputeAddress(pBlock, offFreqTable)))
     {
-        FreeMemoryBlock(static_cast<int32_t>(algoMemHandler.memBlockId));
+        FreeMemoryBlock(blockId);
         return MemHandler{};
+    }
+
+    // ==================================================================
+    // 5. DIAGNOSTIC
+    // ==================================================================
+    if (dbgPrn)
+    {
+        std::printf("[AlgoMemHandler] %d x %d  padded %d x %d\n",
+                    sizeX, sizeY, padX, padY);
+        std::printf("  sizeof(ImgType)  = %zu   plane %zu bytes\n",
+                    sizeof(ImgType), imgPlaneBytes);
+        std::printf("  sizeof(AlgoType) = %zu   plane %zu bytes\n",
+                    sizeof(AlgoType), algoPlaneBytes);
+        // Both counts, because the interesting fact is the ratio between them. A
+        // report showing only 25 would hide whether the ping/pong layout is actually
+        // in force, and that is the first thing anyone debugging a footprint wants
+        // to know.
+        std::printf("  stage triples    = %d logical, %d physical (%s)\n",
+                    ALGO_STAGE_TRIPLE_COUNT,
+                    ALGO_PHYSICAL_STAGE_TRIPLES,
+                    (ALGO_RETAIN_ALL_STAGES != 0) ? "all retained"
+                                                  : "ping/pong");
+        std::printf("  slices           = %d\n", stack.slices);
+        std::printf("  total            = %zu bytes (%.2f MiB)\n",
+                    requiredBytes, static_cast<double>(requiredBytes) / 1048576.0);
+        std::printf("  blockId = %d   head = %p\n", blockId, pBlock);
     }
 
     return algoMemHandler;
@@ -419,7 +496,7 @@ MemHandler alloc_memory_buffers (const int32_t sizeX, const int32_t sizeY) noexc
 // ---------------------------------------------------------------------------
 //  free_memory_buffers
 // ---------------------------------------------------------------------------
-void free_memory_buffers(MemHandler& algoMemHandler) noexcept
+void free_memory_buffers (MemHandler& algoMemHandler) noexcept
 {
     // Safe on an already-zeroed handler and safe to call twice: the null test
     // covers both, so a double free cannot reach the pool.
