@@ -117,7 +117,7 @@
     <ClInclude Include="include\ImageLabMemInterface.hpp">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="include\GuidedFilter_CUDA.hpp">
+    <ClInclude Include="include\GuidedFilter_GPU.hpp">
       <Filter>include</Filter>
     </ClInclude>
   </ItemGroup>
@@ -162,6 +162,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\ImageLabMemInterface.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\GuidedFilter_GPU.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

@@ -2,7 +2,7 @@
 #include <cstdint>
 #include <cmath>
 #include <algorithm>
-#include "GuidedFilter_CUDA.hpp"
+#include "GuidedFilter_GPU.hpp"
 
 // ============================================================================
 // Guided Filter on CUDA (CUDA 10.2 API only; target sm_61, GTX 1060).
@@ -422,7 +422,7 @@ void ImageLabGuidedFilter32_CUDA
     int                    dstPitch,
     int                    width,
     int                    height,
-    const AlgoControls* RESTRICT algoGpuParams,
+    AlgoControls* RESTRICT algoGpuParams,
     int                    frameCount,
     cudaStream_t           stream
 )
