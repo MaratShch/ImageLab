@@ -80,7 +80,14 @@
 // Stock parameters, including InterimageSpec.
 #include "film_profiles.hpp"
 
+// AlgoCorrectionLayerSet, the colour-correction layers (2026-10-25).
+#include "AlgoSpectralSensitivity.hpp"
+
 #include <cstdint>   // int32_t
+#include <cmath>     // std::pow (law C tables)
+
+// AlgoCurveLut, AlgoCurveLutEval[V]: the shared table and lookup (law C, v68).
+#include "AlgoCurveLut.hpp"
 
 
 // ---------------------------------------------------------------------------
@@ -97,6 +104,81 @@ constexpr AlgoType ALGO_IIE_REF_FLOOR = static_cast<AlgoType>(1.0e-4);
 // film_sim.FOURTH_LAYER_E_FLOOR.
 constexpr AlgoType ALGO_FOURTH_LAYER_E_FLOOR = static_cast<AlgoType>(1.0e-12);
 constexpr AlgoType ALGO_FOURTH_LAYER_TEN     = static_cast<AlgoType>(10.0);
+
+
+// ---------------------------------------------------------------------------
+//  2026-10-26c (schema v68): THE REVERSAL LAW C TABLES. Twin of
+//  film_sim.iie_rev_tables -- the same domain, size and values, read through
+//  the same AlgoCurveLutEval[V] interpolation, so the engines agree by
+//  construction.
+//
+//      u(D) = max(Dmax - D, 0) / (Dmax - Dmin),  s(D) = max(D - Dmin, 0) / (Dmax - Dmin)
+//      V(D) = -(u0 (Dmax - Dmin) / pd) (u/u0)^pd   donor release   (vLut[0..2])
+//      g(D) = (u/u0)^pr (s/s0)^ph                  receiver gate   (gLut[0..2])
+//      s0 = 0.25, u0 = 0.75 -- fixed points of the stock's own scale
+//
+//  V non-decreasing in D: a donor that developed less never counts as more
+//  inhibiting; g >= 0 -- so the Hanson-Horton shift stays >= 0. pd =
+//  donor_convexity (0 = unset = 1), pr = receiver_gate, ph = receiver_gate_hl.
+// ---------------------------------------------------------------------------
+constexpr double ALGO_IIE_REV_LUT_LO = -0.5;
+constexpr double ALGO_IIE_REV_LUT_HI =  6.0;
+
+// v68 law C tables (twin: film_sim.iie_rev_tables). Normalised on the stock's
+// own scale N = Dmax - Dmin at the fixed point s0 = 0.25 (u0 = 0.75):
+//   u = max(Dmax - D, 0)/N, s = max(D - Dmin, 0)/N
+//   V(D) = -(u0 N/pd) (u/u0)^pd          donor release, non-decreasing in D
+//   g(D) = (u/u0)^pr (s/s0)^ph           receiver gate, 1 at s0
+// ⚠ ANCHOR-INDEPENDENT BY DESIGN: dRef is not read (a reference-normalised
+// draft made the chemistry depend on the render's grey target).
+constexpr double ALGO_IIE_REV_S0 = 0.25;
+
+inline void AlgoBuildIieRevLuts
+(
+    const film::InterimageSpec& iie,
+    const film::RGBCurves&      curves,
+    const AlgoType              dRef[3],
+    AlgoCurveLut*               vLut,     // [3]
+    AlgoCurveLut*               gLut      // [3]
+) noexcept
+{
+    (void)dRef;
+    const double pd = (iie.donor_convexity > 0.0) ? iie.donor_convexity : 1.0;
+    const double pr = iie.receiver_gate;
+    const double ph = iie.receiver_gate_hl;
+    const double s0 = ALGO_IIE_REV_S0;
+    const double u0 = 1.0 - s0;
+    const double step = (ALGO_IIE_REV_LUT_HI - ALGO_IIE_REV_LUT_LO)
+                      / static_cast<double>(ALGO_CURVE_LUT_SIZE - 1);
+    const film::ToneCurve* cv[3] = { &curves.r, &curves.g, &curves.b };
+
+    for (int32_t c = 0; c < 3; c++)
+    {
+        const double dmax = static_cast<double>(cv[c]->dmax());
+        const double dmin = static_cast<double>(cv[c]->dmin);
+        const double rng  = MAX_VALUE(dmax - dmin, 1.0e-3);
+
+        for (int32_t i = 0; i <= ALGO_CURVE_LUT_SIZE; i++)
+        {
+            const double x  = ALGO_IIE_REV_LUT_LO + step * static_cast<double>(i);
+            const double ur = MAX_VALUE(dmax - x, 0.0) / rng / u0;
+            vLut[c].d[i] = static_cast<AlgoType>(-(u0 * rng / pd) * std::pow(ur, pd));
+            double g = 1.0;
+            if (pr != 0.0)
+                g *= std::pow(ur, pr);
+            if (ph != 0.0)
+                g *= std::pow(MAX_VALUE(x - dmin, 0.0) / rng / s0, ph);
+            gLut[c].d[i] = static_cast<AlgoType>(g);
+        }
+        vLut[c].lo      = static_cast<AlgoType>(ALGO_IIE_REV_LUT_LO);
+        vLut[c].invStep = static_cast<AlgoType>(1.0 / step);
+        vLut[c].maxIdx  = static_cast<AlgoType>(ALGO_CURVE_LUT_SIZE - 1);
+        gLut[c].lo      = vLut[c].lo;
+        gLut[c].invStep = vLut[c].invStep;
+        gLut[c].maxIdx  = vLut[c].maxIdx;
+    }
+    return;
+}
 
 
 // ---------------------------------------------------------------------------
@@ -119,6 +201,10 @@ constexpr AlgoType ALGO_FOURTH_LAYER_TEN     = static_cast<AlgoType>(10.0);
 //                layer (always on since 2026-10-22e); 0 = no CL term
 //  clOffset      2026-10-22: the CL layer's speed relative to green, log10
 //                (AlgoSpectralFourthLayerRow offsetOut); 0 = not traced
+//  corr          2026-10-25 (schema v66): the colour-correction layers
+//                (AlgoSpectralCorrectionLayers), or nullptr / count 0 for none.
+//                Negative or reversal; each layer's fixed term joins its
+//                target record's correction after the CL term.
 //
 //  The three scratch planes must be distinct from each other, from the source,
 //  from the destination and from the log-exposure planes.
@@ -144,5 +230,6 @@ void AlgoStage08b_Interimage
     const HighPrecType       anchor[3],
     const AlgoType           clRow[3],
     const AlgoType           clStrength,
-    const AlgoType           clOffset
+    const AlgoType           clOffset,
+    const AlgoCorrectionLayerSet* corr
 ) noexcept;

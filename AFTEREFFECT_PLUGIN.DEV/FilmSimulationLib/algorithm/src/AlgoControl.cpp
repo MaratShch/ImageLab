@@ -442,7 +442,7 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     controls.misregScale   = 1.0;   // film_sim: misreg_scale
     controls.coatingScale  = 1.0;   // film_sim: coating_scale
 
-    // film_sim: scanner_specular = 0.853
+    // film_sim: scanner_specular = 0.796 (0.853 until 2026-10-26c)
     //
     // ⚠⚠ THIS LINE IS NEW ON 2026-09-06 AND ITS ABSENCE WAS A LATENT TWIN
     // DIVERGENCE. Until today this field was never assigned here at all: it
@@ -455,9 +455,12 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     // directly and would not have exercised getAlgoControlsDefault().
     //
     // ⚠ THE VALUE IS AN OWNER DECISION, NOT A MEASUREMENT OF ANY SCANNER.
-    // 0.853 is 1 - E with E = 0.1471, the collected-scatter fraction fitted to
-    // Trumpy & Gschwind 2015 Fig. 5 (after Streiffert 1947) -- the same fit that
-    // produced the beta 1.6746 the monochrome profiles carry. E belongs to
+    // 0.796 is 1 - E with E = 0.204, the collected-scatter fraction of the
+    // Silberstein-Tuttle law fitted to STREIFFERT'S OWN PRINTED diffuse /
+    // specular table as Trumpy & Flueckiger 2019 Fig. 3 reproduce it (owner-
+    // approved 2026-10-26c). Until then 0.853 = 1 - 0.1471, the fit to Trumpy &
+    // Gschwind 2015 Fig. 5's DRAWING of the same curve -- the drawing is the
+    // weaker source of the two. E belongs to
     // STREIFFERT'S DENSITOMETER; adopting it as the shipped reader geometry is a
     // stated provisional stand-in, chosen 2026-09-06 in preference to shipping
     // the stage inert.
@@ -469,7 +472,7 @@ AlgoControls getAlgoControlsDefault (void) noexcept
     // AlgoBatchPosition.hpp for why the anchor is the stored value and not the
     // band centre.
     controls.batchPosition = BatchPositionDef;
-    controls.scannerSpecular = 0.853;  // film_sim: scanner_specular
+    controls.scannerSpecular = 0.796;  // film_sim: scanner_specular
     controls.scannerFixedPattern = 0.0;  // film_sim: scanner_fixed_pattern (v49)
 
     // ----------------------------------------------------------------------

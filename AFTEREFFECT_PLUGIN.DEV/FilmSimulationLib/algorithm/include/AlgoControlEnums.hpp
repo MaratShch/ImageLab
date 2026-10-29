@@ -689,7 +689,8 @@ constexpr int32_t GenerationsStep = 1;
 // Specular fraction of the scanner illuminant, for the Callier correction.
 constexpr double ScannerSpecularMin  = 0.0;
 constexpr double ScannerSpecularMax  = 1.0;
-constexpr double ScannerSpecularDef  = 0.853;  // 1 - Streiffert's E = 0.1471
+constexpr double ScannerSpecularDef  = 0.796;  // 1 - E, E = 0.204: Streiffert's PRINTED table
+                                               // (Trumpy & Flueckiger 2019 Fig. 3); 0.853 until v68
 //: v49. Fraction of grain VARIANCE that is frame-locked sensor pattern.
 //: 0 = pure emulsion, which is the film behaviour and the pre-v49 path.
 constexpr double ScannerFixedPatternDef = 0.0;

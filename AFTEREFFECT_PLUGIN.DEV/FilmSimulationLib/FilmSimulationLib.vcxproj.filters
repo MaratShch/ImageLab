@@ -360,6 +360,9 @@
     <ClCompile Include="algorithm\src\FilmSimLutGenerator.cpp">
       <Filter>algorithm\src</Filter>
     </ClCompile>
+    <ClCompile Include="database\src\film_profiles_data_78.cpp">
+      <Filter>database\src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="database\include\film_enum.hpp">

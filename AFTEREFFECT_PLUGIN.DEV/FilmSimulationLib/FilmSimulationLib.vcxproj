@@ -239,6 +239,7 @@
     <ClCompile Include="database\src\film_profiles_data_75.cpp" />
     <ClCompile Include="database\src\film_profiles_data_76.cpp" />
     <ClCompile Include="database\src\film_profiles_data_77.cpp" />
+    <ClCompile Include="database\src\film_profiles_data_78.cpp" />
     <ClCompile Include="database\src\LoadFilmDataBase.cpp" />
   </ItemGroup>
   <ItemGroup>

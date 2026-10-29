@@ -130,6 +130,7 @@
 #include "AlgoDyeImpurity.hpp"
 #include "AlgoCallier.hpp"   // stage 12b (queue C41)           // stage 12
 #include "AlgoDuplication.hpp"           // stage 13
+#include "AlgoSpectralView.hpp"          // stage 13r (2026-10-27c)
 #include "AlgoTransmittance.hpp"         // stage 14
 #include "AlgoReseauReconstruct.hpp"     // stage 14b
 #include "AlgoSilverTone.hpp"            // stage 14c
@@ -1425,8 +1426,24 @@ void Algorithm_Main
             clStrength = static_cast<AlgoType>(profile.spectral.cl_red_inhibition);
     }
 
+    // 2026-10-25 (schema v66): the colour-correction layers (Kuramitsu et
+    // al. 2004: the reversal 4th / 5th / 6th layers), negative or reversal,
+    // always on where the stock carries one (no control, owner rule 19). Each
+    // layer's fixed term joins its target record's correction. Twin:
+    // film_sim.correction_layers_adjust.
+    AlgoCorrectionLayerSet corrSet;
+    corrSet.count = 0;
+
+    if (profile.spectral.hasCorrectionLayerEffect()
+        && (false == profile.is_monochrome))
+    {
+        AlgoSpectralCorrectionLayers(profile,
+                                     static_cast<HighPrecType>(algoCtrl.sceneKelvin),
+                                     corrSet);
+    }
+
     ALGO_PROF_MARK("08b  interimage");
-    if (false == AlgoPass08b(profile, clStrength > ALGO_ZERO))
+    if (false == AlgoPass08b(profile, (clStrength > ALGO_ZERO) || (corrSet.count > 0)))
     {
         dst = AlgoStageDst(t08b, t08, cur);
         AlgoStage08b_Interimage(cur.r, cur.g, cur.b,
@@ -1434,7 +1451,8 @@ void Algorithm_Main
                                 logER, logEG, logEB,
                                 scrLuma, scrField, scrFieldLo,
                                 sizeX, sizeY, pitch,
-                                profile, anchor, clRow, clStrength, clOffset);
+                                profile, anchor, clRow, clStrength, clOffset,
+                                &corrSet);
         cur = dst;
     }
 
@@ -1678,7 +1696,10 @@ void Algorithm_Main
     //     matrix. Grain acquires a slight chromatic correlation, and it should.
     // -----------------------------------------------------------------------
     ALGO_PROF_MARK("12   dye impurity");
-    if (false == AlgoPass12(profile))
+    // 2026-10-27c: NOT on a transparency viewed through its own dye spectra
+    // (AlgoSpectralView.hpp) -- the spectra ARE the crosstalk, dye_matrix was
+    // its 3x3 stand-in, and applying both would count it twice.
+    if ((false == AlgoPass12(profile)) && !AlgoSpectralViewApplies(profile))
     {
         dst = AlgoStageDst(t12, t11, cur);
         AlgoStage12_DyeImpurity(cur.r, cur.g, cur.b,
@@ -1734,6 +1755,30 @@ void Algorithm_Main
     }
 
     // -----------------------------------------------------------------------
+    // 13r. A TRANSPARENCY VIEWED THROUGH ITS OWN DYES        S12 (in place)
+    //
+    //     2026-10-27c (owner: "the dye spectra -- use it in algorithm"). On a
+    //     colour reversal stock carrying its traced three-dye panel, the status
+    //     densities become the densities an eye sees through those dyes under
+    //     D55 (AlgoSpectralView.hpp; reference pg/spectral_view.py), with D-min
+    //     and the anchored mid grey kept where they were.
+    // -----------------------------------------------------------------------
+    if (profile.isReversal() && AlgoSpectralViewApplies(profile))
+    {
+        ALGO_PROF_MARK("13r  spectral view");
+        HighPrecType svMid[3];
+        AlgoSpecViewMidDensity(profile, anchor,
+                               AlgoCouplerFlatScale(profile,
+                                   static_cast<HighPrecType>(algoCtrl.couplerScale),
+                                   pxPerMm),
+                               static_cast<HighPrecType>(algoCtrl.scannerSpecular),
+                               svMid);
+        AlgoSpecViewTable svTab;
+        AlgoSpecViewBuild(profile, svMid, svTab);
+        AlgoSpecViewApply(cur.r, cur.g, cur.b, sizeX, sizeY, pitch, svTab);
+    }
+
+    // -----------------------------------------------------------------------
     // 13. DUPLICATION GENERATIONS, THEN THE PRINT          S12 -> S13
     //
     //     Nobody ever projected a camera negative. A release print is three or four
@@ -1768,6 +1813,35 @@ void Algorithm_Main
                                 finalCurves,
                                 memHandler.Freq);
         cur = dst;
+
+        // ---------------------------------------------------------------------
+        // 13p. THE PRINT'S OWN DARK STORAGE (2026-10-27c)    S13 (in place)
+        //      Timed fresh, then stored: published dye fade per record and
+        //      D-min stain (AlgoPrintStorageFade; film_sim 13p). The same
+        //      storage controls that age the camera film.
+        // ---------------------------------------------------------------------
+        HighPrecType pfFade[3], pfStain[3];
+        if ((nullptr != pPrint)
+            && AlgoPrintStorageFade(*pPrint, storageYearsEff,
+                                    algoCtrl.storageCelsius, pfFade, pfStain))
+        {
+            ALGO_PROF_MARK("13p  print storage");
+            AlgoType* pl[3] = { cur.r, cur.g, cur.b };
+            const AlgoType dmn[3] = { static_cast<AlgoType>(finalCurves.r.dmin),
+                                      static_cast<AlgoType>(finalCurves.g.dmin),
+                                      static_cast<AlgoType>(finalCurves.b.dmin) };
+            for (int32_t c = 0; c < 3; c++)
+            {
+                const AlgoType keep = static_cast<AlgoType>(1.0 - pfFade[c]);
+                const AlgoType add  = static_cast<AlgoType>(pfStain[c]);
+                for (int32_t y = 0; y < sizeY; y++)
+                {
+                    AlgoType* RESTRICT row = pl[c] + static_cast<std::ptrdiff_t>(y) * pitch;
+                    for (int32_t x = 0; x < sizeX; x++)
+                        row[x] = dmn[c] + (row[x] - dmn[c]) * keep + add;
+                }
+            }
+        }
     }
 
     // -----------------------------------------------------------------------

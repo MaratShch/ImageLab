@@ -1297,8 +1297,11 @@ struct ThirdPartyObservations
 /// ProcessingFamily is also wrong: it carries measured time-gamma POINTS, and a
 /// vendor sentence is not a point on that curve.
 ///
-/// NOTHING IN EITHER RENDERER READS THIS. Carried, validated and reported, as
-/// schema v7 introduced dye_density and friends.
+/// READ BY THE PROCESS-VARIANT RESOLVER since schema v69 (2026-10-27): the
+/// limits bound the offered steps; gamma / fog / speed replace the family
+/// estimate on a colour negative's family path; on a colour reversal stock the
+/// reversal push model reads all of it plus the Dmax loss below
+/// (AlgoProcessVariant.hpp, film_sim.resolve_process_variant).
 ///
 /// ⚠ base_fog_penalty_per_stop == 0.0f IS AMBIGUOUS ON ITS OWN. It means either
 /// "no source states one" or "a source states there is none", and those are
@@ -1307,6 +1310,23 @@ struct ThirdPartyObservations
 /// exists here BECAUSE its vendor makes the negative claim -- "push processed
 /// up to 3 stops further without any base fog issues". Same class of problem as
 /// the v15 PrintGrainIndex censoring sentinel, solved the same way.
+/// Schema v70 (2026-10-27c): the characteristic curve's ENDPOINTS AS TRACED
+/// (film_profiles.MeasuredEndpoints), R/G/B. dmax is the density reached at
+/// the RIGHT-HAND END of the printed exposure axis, log_e_end its log exposure
+/// on the stored curve's own axis -- a measured point the rendered curve is
+/// checked against (verify G-V70-ENDPOINTS), not an asymptote. All zero = the
+/// stock has no traced endpoints.
+struct MeasuredEndpoints
+{
+    Vec3  dmin;        ///< base+fog plateau as traced
+    Vec3  dmax;        ///< density at the end of the traced exposure axis
+    Vec3  gamma;       ///< steepest 0.60-decade slope of the trace
+    Vec3  log_e_end;   ///< curve-axis log exposure of the dmax reading
+    float log_e_span;  ///< decades the trace covers
+    int32_t page;      ///< page of the source panel
+};
+
+
 struct PushSpec
 {
     float max_push_stops;             ///< stated max OVERdevelopment, stops; 0 = not stated
@@ -1315,6 +1335,12 @@ struct PushSpec
     bool  fog_penalty_stated;         ///< true only if a source spoke about the penalty at all
     float gamma_gain_per_stop;        ///< fractional gamma rise per pushed stop; 0 = not stated
     float speed_gain_per_stop;        ///< fraction of each pushed stop realised as true speed, 1.0 = all
+    // schema v69 (2026-10-27): the reversal push model's Dmax loss, D = r_c x^q
+    // at first-developer extension x = (t - t0) / t0 (AlgoProcessVariant.hpp).
+    float dmax_loss_r;                ///< red record Dmax loss coefficient r_c; 0 = not stated
+    float dmax_loss_g;                ///< green record
+    float dmax_loss_b;                ///< blue record
+    float dmax_loss_exponent;         ///< q; 0 = not stated (then no loss)
     // [source: informational, not stored in C++ since 2026-10-08 -- emitted as a comment beside each profile]
 };
 
@@ -1536,6 +1562,26 @@ struct InterimageSpec {
     /// developer and land in "high dye-density areas". Normalised at mid grey,
     /// so a neutral stays untouched under either mechanism.
     double density_weighting;
+    // -- schema v68 (2026-10-26c): the reversal law C (film_profiles.py
+    // InterimageSpec). donor_convexity pd: donor release
+    // V(D) = -(u0 N/pd) (u/u0)^pd, N = Dmax - Dmin, u = max(Dmax - D, 0)/N;
+    // receiver gate: the receiver's correction scaled by
+    // g = (u/u0)^pr * (s/s0)^ph, s = max(D - Dmin, 0)/N, s0 = 0.25, u0 = 0.75
+    // -- pr (receiver_gate) the shadow side, ph (receiver_gate_hl) the
+    // highlight side (AlgoBuildIieRevLuts). (1, 0, 0) = the pre-v68 law exactly; 0 in donor_convexity
+    // (value-initialised) is read as 1. Reversal only, density_weighting 0.
+    double donor_convexity;
+    double receiver_gate;
+    double receiver_gate_hl;
+
+    bool lawC (void) const noexcept {
+        return (donor_convexity > 0.0 && donor_convexity != 1.0)
+            || receiver_gate != 0.0 || receiver_gate_hl != 0.0;
+    }
+
+    bool receiverGated (void) const noexcept {
+        return receiver_gate != 0.0 || receiver_gate_hl != 0.0;
+    }
 
     bool active (void) const noexcept {
         return iterations > 0
@@ -1616,6 +1662,24 @@ struct TakingFilter {
     bool hasCurve() const { return !transmission.empty(); }
 };
 
+/// One colour-CORRECTION layer (schema v66, 2026-10-25): an emulsion layer
+/// that forms no dye and inhibits the development of a TARGET record, which
+/// shows as an effective NEGATIVE spectral sensitivity of that record
+/// (Kuramitsu et al., FUJIFILM R&D No. 49, 2004: the reversal 4th / 5th / 6th
+/// layers). Read by stage 8b, always on where present (no control):
+///     negative  adj_t = -k (D_s(logE_L + o) - D_s(logE_t + o))
+///     reversal  adj_t = +k (D_s(-(logE_t + tr_s + o)) - D_s(-(logE_L + tr_s + o)))
+/// logE_L mixed from the three exposures by AlgoSpectralCorrectionLayerRow.
+/// ⚠ EMITTED AFTER THE push_back (VS2015 SP3 nested-initializer rule): the
+/// profile literal carries {} and plain statements on v.back() fill it.
+struct CorrectionLayer {
+    int32_t target;                 ///< record inhibited: 0 R, 1 G, 2 B
+    int32_t standin;                ///< record whose curve stands in for the layer's
+    double strength;                ///< k, log E per density unit; 0 = no effect
+    double level_rel_green_log;     ///< peak vs green peak, log10; 0 = not traced
+    std::vector<double> log_s;      ///< peak-normalised log10, the stock's spectral grid
+};
+
 struct SpectralSensitivity {
     double lambda_start_nm;
     double lambda_step_nm;
@@ -1651,6 +1715,10 @@ struct SpectralSensitivity {
     double cl_peak_rel_green_log;
     std::string criterion;
     // [source: informational, not stored in C++ since 2026-10-08 -- emitted as a comment beside each profile]
+    // -- schema v66 (2026-10-25) ---------------------------------------------
+    /// The colour-correction layers (CorrectionLayer). Empty on every stock
+    /// but the three Fuji reversal films of Kuramitsu et al. 2004.
+    std::vector<CorrectionLayer> correction_layers;
 
     bool hasData() const {
         return !log_s_pan.empty()
@@ -1663,6 +1731,14 @@ struct SpectralSensitivity {
     /// True where stage 8b can apply the fourth layer (curve + strength).
     bool hasFourthLayerEffect() const
     { return !log_s_c.empty() && cl_red_inhibition > 0.0; }
+
+    /// True where stage 8b has at least one correction layer with an effect.
+    bool hasCorrectionLayerEffect() const
+    {
+        for (const CorrectionLayer& c : correction_layers)
+            if (c.strength > 0.0 && !c.log_s.empty()) return true;
+        return false;
+    }
 };
 
 /// Where a profile's numbers come from (schema v2, DM-19). Machine-readable
@@ -2313,6 +2389,18 @@ struct FilmProfile {
     std::vector<ExtraToneCurve> extra_tone_curves;
     std::vector<FilterFactor>   filter_factors;
     std::vector<ExtraFact>      extra_facts;
+    // -- schema v67 (2026-10-26b), READ BY STAGE 12b AND ITS REFERENCES -------
+    /// The CHROMATIC Callier effect: per reader channel (R, G, B at the status M
+    /// band centres 640 / 540 / 450 nm) the factor on callier_q - 1, green = 1.
+    /// Channel c reads beta 1 + (callier_q - 1) * factor (AlgoCallierQChannel);
+    /// exactly callier_q when the factor is 1.0. Trumpy & Gschwind 2017 /
+    /// Trumpy & Flueckiger 2019 (film_profiles.TRUMPY_CHROMATIC_CALLIER):
+    /// silver scatters short wavelengths more. 1/1/1 on every dye image.
+    double callier_spectral_r;
+    double callier_spectral_g;
+    double callier_spectral_b;
+    // -- schema v70 (2026-10-27c) -------------------------------------------
+    MeasuredEndpoints measured_endpoints;
 
     bool isReversal() const { return kind == StockKind::Reversal; }
 };
@@ -2625,7 +2713,9 @@ def _interimage(ii) -> str:
         "{ "
         + f"{_d(ii.a_rg)}, {_d(ii.a_rb)}, {_d(ii.a_gr)}, "
         + f"{_d(ii.a_gb)}, {_d(ii.a_br)}, {_d(ii.a_bg)}, {ii.iterations}, "
-        + f"{_d(ii.density_weighting)}"
+        + f"{_d(ii.density_weighting)}, "
+        + f"{_d(ii.donor_convexity)}, {_d(ii.receiver_gate)}, "
+        + f"{_d(ii.receiver_gate_hl)}"
         + " }"
     )
 
@@ -2656,7 +2746,8 @@ def _spectral(sp) -> str:
         + f"{_dvec(sp.log_s_c)}, "
         + f"{_d(sp.cl_red_inhibition)}, "
         + f"{_d(sp.cl_peak_rel_green_log)}, "
-        + f'"{_escape(sp.criterion)}"'
+        + f'"{_escape(sp.criterion)}", '
+        + "{}"          # correction_layers: _correction_layer_statements (VS2015)
         + " }"
     )
 
@@ -3234,6 +3325,25 @@ def _printing_matrix_statements(p) -> str:
     return "".join(out)
 
 
+def _correction_layer_statements(p) -> str:
+    """Plain statements that append p.spectral.correction_layers to v.back()
+    (schema v66; after the push_back, the VS2015 SP3 rule)."""
+    out = []
+    for c in p.spectral.correction_layers:
+        L = ["        {",
+             f"            //@ Correction layer {_escape(c.name)}: inhibits record "
+             f"{'RGB'[c.target]}, stand-in curve {'RGB'[c.standin]}.",
+             "            CorrectionLayer e;",
+             f"            e.target = {int(c.target)};  e.standin = {int(c.standin)};",
+             f"            e.strength = {_d(c.strength)};  "
+             f"e.level_rel_green_log = {_d(c.level_rel_green_log)};",
+             f"            e.log_s = {_dvec(c.log_s)};",
+             "            v.back().spectral.correction_layers.push_back(e);",
+             "        }"]
+        out.append("\n".join(L) + "\n")
+    return "".join(out)
+
+
 def _human_profile_line(p) -> str:
     """One readable line about a film, written under its marker."""
     mono = getattr(p, "is_monochrome", False)
@@ -3346,6 +3456,14 @@ def _third_party(x) -> str:
     )
 
 
+def _measured_endpoints(x) -> str:
+    """MeasuredEndpoints initialiser (schema v70): four Vec3, a float, an int."""
+    v3 = lambda t: "{ " + ", ".join(_f(float(v)) for v in t) + " }"
+    return ("{ " + ", ".join([v3(x.dmin), v3(x.dmax), v3(x.gamma),
+                              v3(x.log_e_end), _f(x.log_e_span),
+                              str(int(x.page))]) + " }")
+
+
 def _push(x) -> str:
     """PushSpec initialiser (schema v16). All-zero + empty = nothing published."""
     return (
@@ -3358,6 +3476,10 @@ def _push(x) -> str:
                 "true" if x.fog_penalty_stated else "false",
                 _f(x.gamma_gain_per_stop),
                 _f(x.speed_gain_per_stop),
+                _f(x.dmax_loss_r),
+                _f(x.dmax_loss_g),
+                _f(x.dmax_loss_b),
+                _f(x.dmax_loss_exponent),
             ]
         )
         + " }"
@@ -3720,7 +3842,11 @@ def _profile_block(p: FilmProfile) -> str:
             {_tolerance(p.tolerance)},
             {_printing_matrices(p.printing_matrices)},
             {_d(p.aim_exposure_shift_stops)},
-            {_v65_vectors(p)}
+            {_v65_vectors(p)},
+            {_d(p.callier_spectral[0])},
+            {_d(p.callier_spectral[1])},
+            {_d(p.callier_spectral[2])},
+            {_measured_endpoints(p.measured_endpoints)}
         }},
 """
 
@@ -4076,7 +4202,9 @@ if MAX_PROFILES_PER_SLOT:
     #: 76 -> 77 on 2026-10-16d: EASTMAN_SUPER_SENSITIVE_1217 is profile 229,
     #: one more than 76 x 3 hold. ⚠ The owner's .vcxproj must list
     #: film_profiles_data_77.cpp.
-    N_DATA_SLOTS = 77
+    #: 77 -> 78 on 2026-10-28: FUJI_ETERNA_RDS_4791 is profile 232. ⚠ The
+    #: owner's .vcxproj must list film_profiles_data_78.cpp.
+    N_DATA_SLOTS = 78
 #: schema v61: a profile whose development points emit more than this many
 #: bytes has them appended by a separate function in its slot file. The
 #: per-FUNCTION ceiling below is what the split keeps; the slot FILE may then
@@ -4969,6 +5097,25 @@ constexpr double ePUSH_FAMILY_DMIN_SHIFT_1  = @PF_D1@;
 constexpr double ePUSH_FAMILY_GAMMA_SCALE_2 = @PF_G2@;
 constexpr double ePUSH_FAMILY_DMIN_SHIFT_2  = @PF_D2@;
 
+// ---------------------------------------------------------------------------
+// Process variant -- the colour REVERSAL push model (schema v69, 2026-10-27).
+//
+// GENERATED FROM film_profiles.J83_E6_PUSH / VNF1_FORCED / EP0426181_ALPHA /
+// REVERSAL_PUSH_IIE_CAP. A step is a first-developer time change, in minutes,
+// indexed [PULL_2, PULL_1, PUSH_1, PUSH_2, PUSH_3]; 0.0 = the process table has
+// no such step. The interimage time exponent alpha comes from EP 0 426 181
+// Table 3 by receiver grain habit; a push never takes the largest interimage
+// term above REV_PUSH_IIE_CAP. Reference: film_sim._reversal_push_resolve.
+// ---------------------------------------------------------------------------
+constexpr const char* const eREV_PUSH_E6_PROCESS  = "Process E-6";
+constexpr double eREV_PUSH_E6_DELTA_MIN[5]        = { @RP_E6@ };
+constexpr const char* const eREV_PUSH_VNF1_PROCESS = "Process VNF-1";
+constexpr double eREV_PUSH_VNF1_DELTA_MIN[5]      = { @RP_VNF1@ };
+constexpr double eREV_PUSH_ALPHA_TABULAR          = @RP_AT@;
+constexpr double eREV_PUSH_ALPHA_CONVENTIONAL     = @RP_AC@;
+constexpr double eREV_PUSH_ALPHA_UNKNOWN          = @RP_AU@;
+constexpr double eREV_PUSH_IIE_CAP                = @RP_CAP@;
+
 }  // namespace film
 """
 
@@ -5043,6 +5190,11 @@ def write_film_enum(cpp_path: Path, hpp_path: Path, stamp: str) -> int:
                          for v in (1.0, -1.0)))
     import film_profiles as _fpm
     _pf = _fpm.PUSH_FAMILY_MODEL
+
+    def _rp_row(tab):
+        d = tab["delta_minutes"]
+        return ", ".join(repr(float(d.get(k, 0.0)))
+                         for k in ("PULL_2", "PULL_1", "PUSH_1", "PUSH_2", "PUSH_3"))
     hpp_path.write_text(brief_cpp(
         ENUM_TEMPLATE.replace("@GENERATED@", stamp)
                      .replace("@SCHEMA_VERSION@", str(SCHEMA_VERSION))
@@ -5056,6 +5208,12 @@ def write_film_enum(cpp_path: Path, hpp_path: Path, stamp: str) -> int:
                      .replace("@PF_D1@", repr(float(_pf[1][1])))
                      .replace("@PF_G2@", repr(float(_pf[2][0])))
                      .replace("@PF_D2@", repr(float(_pf[2][1])))
+                     .replace("@RP_E6@", _rp_row(_fpm.J83_E6_PUSH))
+                     .replace("@RP_VNF1@", _rp_row(_fpm.VNF1_FORCED))
+                     .replace("@RP_AT@", repr(float(_fpm.EP0426181_ALPHA["tabular"])))
+                     .replace("@RP_AC@", repr(float(_fpm.EP0426181_ALPHA["conventional"])))
+                     .replace("@RP_AU@", repr(float(_fpm.EP0426181_ALPHA["unknown"])))
+                     .replace("@RP_CAP@", repr(float(_fpm.REVERSAL_PUSH_IIE_CAP)))
                      .replace("@PF_N1@", str(_pf[1][2]))
                      .replace("@PF_N2@", str(_pf[2][2]))
                      .replace("@COUNT@", str(len(names))), "film_enum.hpp"),
@@ -5356,6 +5514,7 @@ def generate(outdir: Path | str = ".",
                     calls += f"        {fn}_{k}(v.back().processing_family.points);\n"
                 blk = blk + calls
             blk = blk + _printing_matrix_statements(p)
+            blk = blk + _correction_layer_statements(p)
             units.append(("blk", brief_cpp(blk, "film_profiles_data_unit",
                                            keep_sentinel=True)))
             units.extend(("hlp", brief_cpp(h, "film_profiles_data_unit",

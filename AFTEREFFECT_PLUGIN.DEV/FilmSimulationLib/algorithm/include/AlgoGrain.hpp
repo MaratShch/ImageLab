@@ -464,10 +464,39 @@ inline HighPrecType AlgoGrainApertureLegacy (const HighPrecType fCyclesPerMm) no
 //  Nothing is fitted and nothing is approximated here: film_profiles agrees with
 //  this to 4.4e-16 over the whole band, which G-V48-LEGACY asserts.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+//  AlgoGrainDyeCloudWiden -- 2026-10-27c (owner: "dye-cloud size -- use it").
+//
+//  A dye cloud of DIAMETER d (FWHM of its density profile) is a Gaussian of
+//  sigma d / (2 sqrt(2 ln 2)) around each developed grain. Every mixture term
+//  is convolved with it EXACTLY -- a product of Gaussian transfers is the
+//  Gaussian whose variances add, and it distributes over the mixture (the same
+//  identity the clustering lobe uses). Weights are unchanged, and the rms
+//  calibration integral is taken over the widened terms, so the stored rms is
+//  reproduced at its reference aperture. Twin: film_profiles._dye_cloud_widen.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_GRAIN_DYE_CLOUD_SIGMA_PER_DIAMETER =
+    0.42466090014400953;   // 1 / (2 sqrt(2 ln 2))
+
+inline HighPrecType AlgoGrainDyeCloudWiden
+(
+    const HighPrecType sigmaMm,
+    const HighPrecType dyeCloudUm
+) noexcept
+{
+    if (!(dyeCloudUm > 0.0))
+        return sigmaMm;
+    const HighPrecType sd = dyeCloudUm / 1000.0
+                          * ALGO_GRAIN_DYE_CLOUD_SIGMA_PER_DIAMETER;
+    return std::sqrt(sigmaMm * sigmaMm + sd * sd);
+}
+
+
 inline film::GrainSpectrumTerms AlgoGrainLegacyTerms
 (
     const AlgoType clumpUm,
-    const AlgoType clumpGain
+    const AlgoType clumpGain,
+    const HighPrecType dyeCloudUm = 0.0
 ) noexcept
 {
     film::GrainSpectrumTerms t{};
@@ -491,7 +520,7 @@ inline film::GrainSpectrumTerms AlgoGrainLegacyTerms
     const HighPrecType sHi  = ALGO_GRAIN_SIGMA_PER_1E / fHi;
 
     t.count        = 1;
-    t.sigma_mm[0]  = static_cast<float>(sHi);
+    t.sigma_mm[0]  = static_cast<float>(AlgoGrainDyeCloudWiden(sHi, dyeCloudUm));
     t.weight[0]    = 1.0f;
 
     const HighPrecType g = static_cast<HighPrecType>(
@@ -724,7 +753,8 @@ inline film::GrainSpectrumTerms AlgoGrainJincTerms
     const HighPrecType grainUm,
     const HighPrecType sigmaLn,
     const HighPrecType clumpUm,
-    const HighPrecType clumpGain
+    const HighPrecType clumpGain,
+    const HighPrecType dyeCloudUm = 0.0
 ) noexcept
 {
     film::GrainSpectrumTerms t{};
@@ -880,7 +910,7 @@ inline film::GrainSpectrumTerms AlgoGrainJincTerms
 
     for (int32_t i = 0; i < k; i++)
     {
-        t.sigma_mm[i] = static_cast<float>(sig[i]);
+        t.sigma_mm[i] = static_cast<float>(AlgoGrainDyeCloudWiden(sig[i], dyeCloudUm));
         t.weight[i]   = static_cast<float>(w[i]);
     }
 
@@ -927,12 +957,14 @@ inline film::GrainSpectrumTerms AlgoGrainTermsFor
 
     if (!booleanJinc)
         return AlgoGrainLegacyTerms(clump,
-                                    static_cast<AlgoType>(grain.clump_gain));
+                                    static_cast<AlgoType>(grain.clump_gain),
+                                    static_cast<HighPrecType>(grain.dye_cloud_um));
 
     return AlgoGrainJincTerms(static_cast<HighPrecType>(grainArr[channel]),
                               static_cast<HighPrecType>(grain.size_sigma_log),
                               static_cast<HighPrecType>(clumpArr[channel]),
-                              static_cast<HighPrecType>(grain.clump_gain));
+                              static_cast<HighPrecType>(grain.clump_gain),
+                              static_cast<HighPrecType>(grain.dye_cloud_um));
 }
 
 
@@ -1413,10 +1445,43 @@ inline HighPrecType AlgoGrainSkewness
 //  field stops being the right model, because real film there shows countable
 //  discrete specks that no transform of a Gaussian can produce.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+//  AlgoPartialFillMoments -- 2026-10-27c, twin of film_profiles.
+//  partial_fill_moments. A fraction f of grains is caught mid-development
+//  (ProcessingSpec::partial_fill_fraction, Tani): those deposit U ~ U(0, 1) of
+//  their density, the rest U = 1, so E[U^k] = (1 - f) + f / (k + 1).
+//  e1 = E[U] (the count at a density is larger by 1 / e1); kappa =
+//  E[U^3] / E[U^2]^(3/2) (the variable-jump factor on the skewness).
+//  f = 0 gives (1, 1): the binary-grain law exactly.
+// ---------------------------------------------------------------------------
+inline void AlgoPartialFillMoments
+(
+    const HighPrecType fraction,
+    HighPrecType&      e1,
+    HighPrecType&      kappa
+) noexcept
+{
+    HighPrecType f = fraction;
+    if (f < 0.0) f = 0.0;
+    if (f > 1.0) f = 1.0;
+    if (f <= 0.0)
+    {
+        e1 = 1.0;
+        kappa = 1.0;
+        return;
+    }
+    e1 = (1.0 - f) + f / 2.0;
+    const HighPrecType e2 = (1.0 - f) + f / 3.0;
+    const HighPrecType e3 = (1.0 - f) + f / 4.0;
+    kappa = e3 / std::pow(e2, 1.5);
+}
+
+
 inline HighPrecType AlgoGrainMarginalCoeff
 (
     const HighPrecType nElem,
-    const HighPrecType sigmaLn
+    const HighPrecType sigmaLn,
+    const HighPrecType skewScale = 1.0
 ) noexcept
 {
     const HighPrecType a = AlgoGrainAlpha(nElem);
@@ -1426,7 +1491,7 @@ inline HighPrecType AlgoGrainMarginalCoeff
 
     const HighPrecType f = 1.0 - a;
 
-    const HighPrecType g = AlgoGrainSkewness(nElem, sigmaLn)
+    const HighPrecType g = AlgoGrainSkewness(nElem, sigmaLn) * skewScale
                          * f * std::sqrt(f);
 
     const HighPrecType c = g / 6.0;
@@ -1459,17 +1524,24 @@ inline void AlgoGrainApplyMarginal
     const AlgoType           dmin,
     const HighPrecType       grainUm,
     const HighPrecType       sigmaLn,
-    const HighPrecType       elemArea
+    const HighPrecType       elemArea,
+    const HighPrecType       partialFill = 0.0
 ) noexcept
 {
     if ((elemArea <= 0.0) || (grainUm <= 0.0))
         return;
 
+    // 2026-10-27c: partially developed grains (see AlgoPartialFillMoments).
+    HighPrecType pfE1 = 1.0, pfKappa = 1.0;
+    AlgoPartialFillMoments(partialFill, pfE1, pfKappa);
+
     // N_elem is LINEAR in net density, so the density above which the gate is
     // shut is one divide -- and then the common case is one compare per pixel
     // rather than a log and a square root.
-    const HighPrecType perD =
+    HighPrecType perD =
         AlgoGrainCenterDensity(1.0, grainUm, sigmaLn) * elemArea;
+    if (pfE1 != 1.0)
+        perD = perD / pfE1;
 
     if (perD <= 0.0)
         return;
@@ -1518,7 +1590,8 @@ inline void AlgoGrainApplyMarginal
             if (!(net > 0.0) || (net >= dShut))
                 continue;
 
-            const HighPrecType c = AlgoGrainMarginalCoeff(net * perD, sigmaLn);
+            const HighPrecType c = AlgoGrainMarginalCoeff(net * perD, sigmaLn,
+                                                          pfKappa);
 
             if (c <= 0.0)
                 continue;

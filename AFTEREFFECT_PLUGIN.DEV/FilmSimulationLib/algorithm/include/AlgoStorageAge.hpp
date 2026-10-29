@@ -327,3 +327,48 @@ inline double AlgoSeverityStorageYears
         * AlgoStorageTimeFactor(static_cast<HighPrecType>(storageCelsius))
         / AlgoStorageTimeFactor(static_cast<HighPrecType>(ALGO_SEVERITY_CELSIUS)));
 }
+
+
+// ---------------------------------------------------------------------------
+//  AlgoPrintStorageFade -- 2026-10-27c (owner: "print-stock ageing -- use it
+//  in algorithm"). Twin of film_sim.print_storage_fade. The PRINT was timed
+//  fresh and then stored: each dye's image density fades by the film law on
+//  the print's own published record, and D-min stains by
+//  0.10 D x (storage-equivalent years / published years to +0.10 D), linear
+//  (the constant-rate Arrhenius prediction the figure is). No orange mask on a
+//  print, so D-min is not refused here as it is for the camera film.
+// ---------------------------------------------------------------------------
+constexpr HighPrecType ALGO_DYE_STABILITY_CRITERION_D = 0.10;
+
+inline bool AlgoPrintStorageFade
+(
+    const film::PrintStock& ps,
+    const double            years,
+    const double            celsius,
+    HighPrecType            fade[3],
+    HighPrecType            stain[3]
+) noexcept
+{
+    for (int32_t c = 0; c < 3; c++) { fade[c] = 0.0; stain[c] = 0.0; }
+    const film::DyeStabilitySpec& d = ps.dye_stability;
+    const bool hasData = (d.censor_years > 0.0f)
+        || (d.loss_c > 0.0f) || (d.loss_m > 0.0f) || (d.loss_y > 0.0f)
+        || (d.loss_r > 0.0f) || (d.loss_g > 0.0f) || (d.loss_b > 0.0f)
+        || (d.dmin_gain_r > 0.0f) || (d.dmin_gain_g > 0.0f) || (d.dmin_gain_b > 0.0f);
+    if (!(years > 0.0) || !hasData)
+        return false;
+    const HighPrecType te = AlgoStorageEquivalentYears(
+        static_cast<HighPrecType>(years), static_cast<HighPrecType>(celsius),
+        static_cast<HighPrecType>(d.reference_temp_c));
+    const HighPrecType pct = static_cast<HighPrecType>(d.loss_percent);
+    fade[0] = AlgoDarkFadeFraction(static_cast<HighPrecType>(d.loss_c), te, pct);
+    fade[1] = AlgoDarkFadeFraction(static_cast<HighPrecType>(d.loss_m), te, pct);
+    fade[2] = AlgoDarkFadeFraction(static_cast<HighPrecType>(d.loss_y), te, pct);
+    const float g[3] = { d.dmin_gain_r, d.dmin_gain_g, d.dmin_gain_b };
+    for (int32_t c = 0; c < 3; c++)
+        stain[c] = (g[c] > 0.0f)
+                 ? ALGO_DYE_STABILITY_CRITERION_D * te / static_cast<HighPrecType>(g[c])
+                 : 0.0;
+    return (fade[0] != 0.0) || (fade[1] != 0.0) || (fade[2] != 0.0)
+        || (stain[0] != 0.0) || (stain[1] != 0.0) || (stain[2] != 0.0);
+}

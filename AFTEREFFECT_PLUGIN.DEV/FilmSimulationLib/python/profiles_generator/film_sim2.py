@@ -522,7 +522,8 @@ def _anchors_hook(*args, **kw):
     return res
 
 
-def _callier_hook(dens, curves, callier_q, specular, is_monochrome):
+def _callier_hook(dens, curves, callier_q, specular, is_monochrome,
+                  spectral=(1.0, 1.0, 1.0)):
     """Runs where film_sim's stage 12 ends: the spectral read-out first (only
     while a film_sim2 render is in progress), then film_sim's own Callier."""
     if _ACTIVE_READOUT is not None and dens.ndim == 3 and dens.shape[2] == 3:
@@ -537,7 +538,7 @@ def _callier_hook(dens, curves, callier_q, specular, is_monochrome):
             _STATS["neutral"] = "equal-density diagonal (anchors not seen)"
         dens[...] = ro.apply(dens)
         np.maximum(dens, np.float32(0.0), out=dens)
-    return _ORIG_CALLIER(dens, curves, callier_q, specular, is_monochrome)
+    return _ORIG_CALLIER(dens, curves, callier_q, specular, is_monochrome, spectral)
 
 
 # ===========================================================================

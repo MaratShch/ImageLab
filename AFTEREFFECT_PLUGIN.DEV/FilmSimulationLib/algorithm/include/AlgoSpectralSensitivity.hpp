@@ -78,6 +78,25 @@
 
 
 // ---------------------------------------------------------------------------
+//  2026-10-25 (schema v66): the colour-correction layers stage 8b applies,
+//  resolved once per frame (AlgoSpectralCorrectionLayers). Fixed size, no
+//  allocation: three layers is the most any document describes (Kuramitsu et
+//  al. 2004: the 4th, 5th and 6th), four leaves one spare.
+// ---------------------------------------------------------------------------
+constexpr int32_t ALGO_MAX_CORRECTION_LAYERS = 4;
+
+struct AlgoCorrectionLayerSet
+{
+    int32_t  count;                                   // active layers, 0 = none
+    AlgoType row     [ALGO_MAX_CORRECTION_LAYERS][3]; // mixing row, sum 1
+    AlgoType strength[ALGO_MAX_CORRECTION_LAYERS];    // k > 0
+    AlgoType offset  [ALGO_MAX_CORRECTION_LAYERS];    // speed vs green, log10
+    int32_t  target  [ALGO_MAX_CORRECTION_LAYERS];    // record inhibited, 0..2
+    int32_t  standin [ALGO_MAX_CORRECTION_LAYERS];    // stand-in curve, 0..2
+};
+
+
+// ---------------------------------------------------------------------------
 //  The common wavelength grid the integrals are evaluated on.
 //
 //  This is the grid the INTEGRALS are evaluated on. It is NOT the stored
@@ -269,6 +288,23 @@ bool AlgoSpectralFourthLayerRow (const film::FilmProfile& profile,
 
 double AlgoSpectralFourthLayerPeakNm
     (const film::FilmProfile& profile) noexcept;
+
+// 2026-10-25 (schema v66): one colour-correction layer's mixing row (sum 1)
+// and speed offset (0 when level_rel_green_log is not traced); false without
+// a curve or with a non-positive sceneKelvin. Twins:
+// film_sim.correction_layer_row / correction_layer_offset.
+bool AlgoSpectralCorrectionLayerRow (const film::FilmProfile&     profile,
+                                     const film::CorrectionLayer& layer,
+                                     const HighPrecType           sceneKelvin,
+                                     AlgoType                     rowOut[3],
+                                     AlgoType*                    offsetOut) noexcept;
+
+// 2026-10-25: every active correction layer (strength > 0, curve present,
+// colour stock) into `out`, in stored order, at most
+// ALGO_MAX_CORRECTION_LAYERS; returns out.count. Stage 8b reads the set.
+int32_t AlgoSpectralCorrectionLayers (const film::FilmProfile& profile,
+                                      const HighPrecType       sceneKelvin,
+                                      AlgoCorrectionLayerSet&  out) noexcept;
 
 
 // ---------------------------------------------------------------------------

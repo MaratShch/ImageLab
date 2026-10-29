@@ -21,8 +21,10 @@
 //  push_stops (full curves -- Scala 200x, PORTRA 800, PJ400, PJ800, 400UC,
 //  T-MAX P3200, Gevachrome 605, Super Anscochrome), or, for a colour negative
 //  without one at Push +1 / +2, the FAMILY MODEL record (gamma_scale and
-//  dmin_shift, an estimate). Records that are not a step stay in the database
-//  with an empty id and are never selected.
+//  dmin_shift, an estimate; the stock's own PushSpec values replace it where
+//  stated, v69), or, for a colour REVERSAL stock on Process E-6 / VNF-1, the
+//  reversal push model (v69, first-developer time). Records that are not a
+//  step stay in the database with an empty id and are never selected.
 //
 //  WHY A WHOLE PROFILE AND NOT AN EXTRA STAGE ARGUMENT
 //  ---------------------------------------------------
@@ -68,7 +70,7 @@
 // database (film_profiles.PUSH_FAMILY_MODEL) by cpp_codegen.py.
 #include "film_enum.hpp"
 
-#include <cmath>     // std::lround
+#include <cmath>     // std::lround, std::pow, std::fabs, std::fmax, std::fmin
 #include <cstdint>
 #include <cstddef>
 
@@ -135,6 +137,47 @@ inline bool AlgoFindProcessRecord
     return false;
 }
 
+//  Signed stops of a step: Pull -2 .. Push +3; 0 for As shipped / invalid.
+//  film_profiles.PROCESS_STEP_STOPS is the same table.
+inline int32_t AlgoProcessStepStops (const ProcessVariantCtrl variant) noexcept
+{
+    switch (variant)
+    {
+        case ProcessVariantCtrl::ePULL_2: return -2;
+        case ProcessVariantCtrl::ePULL_1: return -1;
+        case ProcessVariantCtrl::ePUSH_1: return  1;
+        case ProcessVariantCtrl::ePUSH_2: return  2;
+        case ProcessVariantCtrl::ePUSH_3: return  3;
+        default:                          return  0;
+    }
+}
+
+//  The stock's own stated PushSpec limits (schema v69): a step of n stops is
+//  offered only where it lies inside max_push_stops / max_pull_stops (0 = not
+//  stated, no stock-level limit). film_profiles.push_step_within_limits.
+inline bool AlgoPushStepWithinLimits
+(
+    const film::FilmProfile&  p,
+    const ProcessVariantCtrl  variant
+) noexcept
+{
+    const int32_t n = AlgoProcessStepStops(variant);
+    const double  mp = static_cast<double>(p.push.max_push_stops);
+    const double  ml = static_cast<double>(p.push.max_pull_stops);
+    if ((n > 0) && (mp > 0.0) && (static_cast<double>(n) > mp + 1e-9))
+        return false;
+    if ((n < 0) && (ml > 0.0) && (static_cast<double>(-n) > ml + 1e-9))
+        return false;
+    return true;
+}
+
+//  A monochrome stock processed in Process C-41 (a dye image).
+//  film_profiles.chromogenic_c41.
+inline bool AlgoChromogenicC41 (const film::FilmProfile& p) noexcept
+{
+    return p.processing.developer == "Process C-41";
+}
+
 inline bool AlgoPushFamilyApplies
 (
     const film::FilmProfile&  p,
@@ -144,10 +187,218 @@ inline bool AlgoPushFamilyApplies
     if ((ProcessVariantCtrl::ePUSH_1 != variant) &&
         (ProcessVariantCtrl::ePUSH_2 != variant))
         return false;
-    if (p.is_monochrome || (film::StockKind::Negative != p.kind))
+    if (film::StockKind::Negative != p.kind)
+        return false;
+    // v69: a chromogenic (C-41) monochrome negative joins the family where its
+    // maker states a push rating; silver monochrome stays out.
+    if (p.is_monochrome &&
+        !(AlgoChromogenicC41(p) && (p.push.max_push_stops > 0.0f)))
+        return false;
+    // v69: the stock's own stated push limit bounds the family model too.
+    if (false == AlgoPushStepWithinLimits(p, variant))
         return false;
     const film::ProcessVariant* rec = nullptr;
     return !AlgoFindProcessRecord(p, ProcessVariantCtrlKeyOf(variant), &rec);
+}
+
+
+// ---------------------------------------------------------------------------
+//  The colour REVERSAL push model (schema v69, 2026-10-27, owner decision)
+//
+//  A push / pull of a colour reversal stock is its FIRST developer run for
+//  t = t0 (1 + x): x from the process table (J-83 for E-6, Table 11-6 for
+//  VNF-1), t0 = ProcessingSpec::minutes. Per record: gamma x (1 + g n) for a
+//  push; Dmax - r_c x^q for a push (the shoulder moves so the curve ends
+//  there); D-min + fog n where stated; all six interimage terms x (1 + x)^alpha
+//  (EP 0 426 181, alpha by receiver grain habit; a push limited by
+//  eREV_PUSH_IIE_CAP); exposure index x 2^(n s). film_sim._reversal_push_resolve
+//  is the reference.
+// ---------------------------------------------------------------------------
+
+//  The process table's first-developer time change for `variant`, minutes;
+//  false when the stock is not a colour reversal on a tabled process, or the
+//  table has no such step.
+inline bool AlgoReversalPushDelta
+(
+    const film::FilmProfile&  p,
+    const ProcessVariantCtrl  variant,
+    double&                   deltaMin
+) noexcept
+{
+    deltaMin = 0.0;
+    if (p.is_monochrome || (film::StockKind::Reversal != p.kind))
+        return false;
+    if (!(p.processing.minutes > 0.0f))
+        return false;
+    const double* row = nullptr;
+    if (p.processing.developer == film::eREV_PUSH_E6_PROCESS)
+        row = film::eREV_PUSH_E6_DELTA_MIN;
+    else if (p.processing.developer == film::eREV_PUSH_VNF1_PROCESS)
+        row = film::eREV_PUSH_VNF1_DELTA_MIN;
+    else
+        return false;
+    int32_t idx = -1;
+    switch (variant)
+    {
+        case ProcessVariantCtrl::ePULL_2: idx = 0; break;
+        case ProcessVariantCtrl::ePULL_1: idx = 1; break;
+        case ProcessVariantCtrl::ePUSH_1: idx = 2; break;
+        case ProcessVariantCtrl::ePUSH_2: idx = 3; break;
+        case ProcessVariantCtrl::ePUSH_3: idx = 4; break;
+        default:                          return false;
+    }
+    if (0.0 == row[idx])
+        return false;
+    deltaMin = row[idx];
+    return true;
+}
+
+//  film_profiles.reversal_push_model_applies.
+inline bool AlgoReversalPushApplies
+(
+    const film::FilmProfile&  p,
+    const ProcessVariantCtrl  variant
+) noexcept
+{
+    double d = 0.0;
+    if (false == AlgoReversalPushDelta(p, variant, d))
+        return false;
+    const film::ProcessVariant* rec = nullptr;
+    if (AlgoFindProcessRecord(p, ProcessVariantCtrlKeyOf(variant), &rec))
+        return false;
+    return AlgoPushStepWithinLimits(p, variant);
+}
+
+//  x = (t - t0) / t0; 0 when the model does not apply.
+//  film_profiles.reversal_push_extension.
+inline double AlgoReversalPushExtension
+(
+    const film::FilmProfile&  p,
+    const ProcessVariantCtrl  variant
+) noexcept
+{
+    double d = 0.0;
+    if (false == AlgoReversalPushDelta(p, variant, d))
+        return 0.0;
+    return d / static_cast<double>(p.processing.minutes);
+}
+
+//  film_profiles.reversal_push_alpha.
+inline double AlgoReversalPushAlpha (const film::FilmProfile& p) noexcept
+{
+    if (p.emulsion.habit == "tabular")
+        return film::eREV_PUSH_ALPHA_TABULAR;
+    if ((p.emulsion.habit == "cubic") || (p.emulsion.habit == "octahedral") ||
+        (p.emulsion.habit == "nontabular"))
+        return film::eREV_PUSH_ALPHA_CONVENTIONAL;
+    return film::eREV_PUSH_ALPHA_UNKNOWN;
+}
+
+inline double AlgoIieMaxTerm (const film::InterimageSpec& i) noexcept
+{
+    double m = std::fabs(i.a_rg);
+    m = std::fmax(m, std::fabs(i.a_rb));
+    m = std::fmax(m, std::fabs(i.a_gr));
+    m = std::fmax(m, std::fabs(i.a_gb));
+    m = std::fmax(m, std::fabs(i.a_br));
+    m = std::fmax(m, std::fabs(i.a_bg));
+    return m;
+}
+
+inline bool AlgoIieActive (const film::InterimageSpec& i) noexcept
+{
+    return (i.iterations > 0) &&
+           ((0.0 != i.a_rg) || (0.0 != i.a_rb) || (0.0 != i.a_gr) ||
+            (0.0 != i.a_gb) || (0.0 != i.a_br) || (0.0 != i.a_bg));
+}
+
+//  The factor on all six interimage terms. film_profiles.reversal_push_iie_scale.
+inline double AlgoReversalPushIieScale
+(
+    const film::FilmProfile&  p,
+    const ProcessVariantCtrl  variant
+) noexcept
+{
+    const double x = AlgoReversalPushExtension(p, variant);
+    if ((0.0 == x) || (false == AlgoIieActive(p.interimage)))
+        return 1.0;
+    double k = std::pow(1.0 + x, AlgoReversalPushAlpha(p));
+    if (k > 1.0)
+    {
+        const double m = AlgoIieMaxTerm(p.interimage);
+        if (m > 0.0)
+            k = std::fmin(k, std::fmax(film::eREV_PUSH_IIE_CAP / m, 1.0));
+    }
+    return k;
+}
+
+inline const film::FilmProfile& AlgoReversalPushResolve
+(
+    const film::FilmProfile&  asShipped,
+    const ProcessVariantCtrl  variant,
+    film::FilmProfile&        store
+) noexcept
+{
+    const int32_t n = AlgoProcessStepStops(variant);
+    const double  x = AlgoReversalPushExtension(asShipped, variant);
+    const film::PushSpec& ps = asShipped.push;
+    const double loss[3] = { static_cast<double>(ps.dmax_loss_r),
+                             static_cast<double>(ps.dmax_loss_g),
+                             static_cast<double>(ps.dmax_loss_b) };
+    const double q  = static_cast<double>(ps.dmax_loss_exponent);
+    const double gg = static_cast<double>(ps.gamma_gain_per_stop);
+    const double fg = static_cast<double>(ps.base_fog_penalty_per_stop);
+
+    store = asShipped;
+    film::ToneCurve* const c[3] =
+    { &store.curves.r, &store.curves.g, &store.curves.b };
+    for (int32_t k = 0; k < 3; k++)
+    {
+        const double g0  = static_cast<double>(c[k]->gamma);
+        const double d0  = static_cast<double>(c[k]->dmin);
+        const double toe = static_cast<double>(c[k]->toe_x);
+        const double sh  = static_cast<double>(c[k]->shoulder_x);
+        double g = g0;
+        if ((n > 0) && (gg > 0.0))
+            g = g0 * (1.0 + gg * static_cast<double>(n));
+        double dmin = d0;
+        if ((n > 0) && ps.fog_penalty_stated)
+            dmin = d0 + fg * static_cast<double>(n);
+        const bool lose = (x > 0.0) && (loss[k] > 0.0) && (q > 0.0);
+        if ((g == g0) && (dmin == d0) && !lose)
+            continue;   // a record nothing moves keeps its curve and table
+        double dmaxNew = d0 + g0 * (sh - toe);
+        if (lose)
+            dmaxNew -= loss[k] * std::pow(x, q);
+        const double span = std::fmax((dmaxNew - dmin) / g, 0.05);
+        c[k]->gamma      = static_cast<float>(g);
+        c[k]->dmin       = static_cast<float>(dmin);
+        c[k]->shoulder_x = static_cast<float>(toe + span);
+        // An adjusted curve is a model: the measured table is dropped.
+        c[k]->meas_x = nullptr;
+        c[k]->meas_d = nullptr;
+        c[k]->meas_m = nullptr;
+        c[k]->meas_n = 0;
+    }
+    if (0 != asShipped.exposure_index)
+    {
+        const double s = (ps.speed_gain_per_stop > 0.0f)
+                       ? static_cast<double>(ps.speed_gain_per_stop) : 1.0;
+        store.exposure_index = static_cast<int32_t>(std::lround(
+            static_cast<double>(asShipped.exposure_index)
+            * std::pow(2.0, static_cast<double>(n) * s)));
+    }
+    const double kI = AlgoReversalPushIieScale(asShipped, variant);
+    if (1.0 != kI)
+    {
+        store.interimage.a_rg *= kI;
+        store.interimage.a_rb *= kI;
+        store.interimage.a_gr *= kI;
+        store.interimage.a_gb *= kI;
+        store.interimage.a_br *= kI;
+        store.interimage.a_bg *= kI;
+    }
+    return store;
 }
 
 //  True when the host should ENABLE `variant` for stock `p`: As shipped always,
@@ -165,7 +416,8 @@ inline bool AlgoProcessVariantOffered
         return false;
     const film::ProcessVariant* rec = nullptr;
     return AlgoFindProcessRecord(p, ProcessVariantCtrlKeyOf(variant), &rec)
-        || AlgoPushFamilyApplies(p, variant);
+        || AlgoPushFamilyApplies(p, variant)
+        || AlgoReversalPushApplies(p, variant);
 }
 
 
@@ -197,14 +449,26 @@ inline const film::FilmProfile& AlgoResolveProcessVariant
         // No record of its own. A colour negative at Push +1 / +2 renders the
         // FAMILY MODEL; anything else is not offered and renders as shipped,
         // by reference and with no copy.
+        if (AlgoReversalPushApplies(asShipped, variant))
+            return AlgoReversalPushResolve(asShipped, variant, store);
         if (false == AlgoPushFamilyApplies(asShipped, variant))
             return asShipped;
 
         const bool two = (ProcessVariantCtrl::ePUSH_2 == variant);
-        const double gs = two ? film::ePUSH_FAMILY_GAMMA_SCALE_2
-                              : film::ePUSH_FAMILY_GAMMA_SCALE_1;
-        const double ds = two ? film::ePUSH_FAMILY_DMIN_SHIFT_2
-                              : film::ePUSH_FAMILY_DMIN_SHIFT_1;
+        const double nStops = two ? 2.0 : 1.0;
+        double gs = two ? film::ePUSH_FAMILY_GAMMA_SCALE_2
+                        : film::ePUSH_FAMILY_GAMMA_SCALE_1;
+        double ds = two ? film::ePUSH_FAMILY_DMIN_SHIFT_2
+                        : film::ePUSH_FAMILY_DMIN_SHIFT_1;
+        // v69: the stock's OWN stated push behaviour outranks the family
+        // estimate (PushSpec gamma gain, stated fog penalty, speed gain).
+        const film::PushSpec& ps = asShipped.push;
+        if (ps.gamma_gain_per_stop > 0.0f)
+            gs = 1.0 + static_cast<double>(ps.gamma_gain_per_stop) * nStops;
+        if (ps.fog_penalty_stated)
+            ds = static_cast<double>(ps.base_fog_penalty_per_stop) * nStops;
+        const double sp = (ps.speed_gain_per_stop > 0.0f)
+                        ? static_cast<double>(ps.speed_gain_per_stop) : 1.0;
 
         store = asShipped;
         film::ToneCurve* const c[3] =
@@ -223,7 +487,7 @@ inline const film::FilmProfile& AlgoResolveProcessVariant
         if (0 != asShipped.exposure_index)
             store.exposure_index = static_cast<int32_t>(
                 std::lround(static_cast<double>(asShipped.exposure_index)
-                            * (two ? 4.0 : 2.0)));
+                            * std::pow(2.0, nStops * sp)));
         return store;
     }
 
@@ -298,8 +562,8 @@ inline const film::FilmProfile& AlgoResolveProcessVariant
 //  The maker's stated push / pull latitude (film::PushSpec::max_push_stops /
 //  max_pull_stops; 38 / 31 stocks), for the HOST: how far a panel may offer to
 //  push or pull this film, and where to warn. 0 = the sheet is silent, which
-//  is not a refusal. NOT a render input -- a push renders through the stock's
-//  traced process variants and the Development Time control.
+//  is not a refusal. Since schema v69 the same limits also bound the steps the
+//  resolver offers (AlgoPushStepWithinLimits).
 //  film_sim.push_range / push_within_range are the same functions.
 // ---------------------------------------------------------------------------
 inline void AlgoPushRange

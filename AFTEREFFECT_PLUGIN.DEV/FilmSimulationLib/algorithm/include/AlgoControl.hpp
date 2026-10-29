@@ -1735,7 +1735,7 @@ struct AlgoControls
      *  3  AE CONTROL     slider, and it MUST HIDE OR DISABLE ITSELF on a stock
      *                    that carries no `tolerance` record -- the same rule
      *                    processVariant follows for an empty variant list.
-     *                    \warning THAT IS 219 OF 231 STOCKS -- the twelve it
+     *                    \warning THAT IS 220 OF 232 STOCKS -- the twelve it
      *                    moves are the Soviet TU / GOST films whose documents
      *                    print two-sided gamma or D-min bands (the GOST 24876
      *                    Foto films and FN-64 print one-sided limits it does
@@ -2253,11 +2253,13 @@ struct AlgoControls
      *                    specular
      *  5  MIN            0
      *  6  MAX            1
-     *  7  DEFAULT        0.853   (AlgoControl.cpp, getAlgoControlsDefault) --
-     *                    1 - E with Streiffert's fitted E = 0.1471. ⚠ RAISED
-     *                    FROM 0 ON 2026-09-06 BY OWNER DECISION, and it moves
-     *                    pixels: a monochrome stock reads Q 1.485 at net
-     *                    density 1.0. ⚠ It is a DENSITOMETER geometry adopted
+     *  7  DEFAULT        0.796   (AlgoControl.cpp, getAlgoControlsDefault) --
+     *                    1 - E with E = 0.204 fitted to Streiffert's PRINTED
+     *                    table (Trumpy & Flueckiger 2019 Fig. 3; 0.853 = 1 -
+     *                    0.1471 from the 2015 drawing until 2026-10-26c). ⚠
+     *                    RAISED FROM 0 ON 2026-09-06 BY OWNER DECISION, and it
+     *                    moves pixels: a monochrome stock reads Q 1.429 at net
+     *                    density 1.0 (1.485 at 0.853). ⚠ It is a DENSITOMETER geometry adopted
      *                    as a provisional stand-in, NOT a measurement of any
      *                    scanner. 0 remains the setting that reproduces the
      *                    stored (diffuse) characteristic curves exactly

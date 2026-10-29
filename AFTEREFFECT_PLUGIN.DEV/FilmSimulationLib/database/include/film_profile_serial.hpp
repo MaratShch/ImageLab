@@ -23,12 +23,12 @@
 #ifndef FILM_PROFILE_SERIAL_HPP
 #define FILM_PROFILE_SERIAL_HPP
 
-#define FILM_SERIAL_SCHEMA_VERSION 65
+#define FILM_SERIAL_SCHEMA_VERSION 70
 #define FILM_SERIAL_FORMAT_VERSION 1
-#define FILM_SERIAL_FIXED_SIZE 1368
-#define FILM_SERIAL_SECTION_COUNT 46
+#define FILM_SERIAL_FIXED_SIZE 1488
+#define FILM_SERIAL_SECTION_COUNT 48
 #define FILM_SERIAL_NAMED_STRING_COUNT 29
-#define FILM_SERIAL_MAX_SIZE 17072
+#define FILM_SERIAL_MAX_SIZE 18264
 
 // Sections, directory order: S(name, kind, element bytes)
 #define FILM_SERIAL_SECTIONS(S) \
@@ -58,6 +58,8 @@
     S(LayerStackOrder, IDX, 4) \
     S(ReciprocityTableCcFilters, IDX, 4) \
     S(NamedStrings, IDX, 4) \
+    S(SpectralCorrectionLayers, RECORDS, 32) \
+    S(SpectralCorrectionLayers_LogS, POOL, 8) \
     S(ProcessingFamilyPoints, RECORDS, 80) \
     S(ProcessingFamilyLaws, RECORDS, 48) \
     S(ProcessingFamilyCapacity, RECORDS, 56) \
@@ -254,52 +256,68 @@
     X(interimage.a_bg, F64, 992, 1) \
     X(interimage.iterations, I32, 1000, 1) \
     X(interimage.density_weighting, F64, 1008, 1) \
-    X(dye_density.lambda_start_nm, F64, 1016, 1) \
-    X(dye_density.lambda_step_nm, F64, 1024, 1) \
-    X(layer_stack.resolving_top, F64, 1032, 1) \
-    X(layer_stack.resolving_mid, F64, 1040, 1) \
-    X(layer_stack.resolving_bot, F64, 1048, 1) \
-    X(processing_family.temperature_coeff_per_c, F64, 1056, 1) \
-    X(processing_family.gamma_infinity, F64, 1064, 1) \
-    X(processing_family.dev_rate_k, F64, 1072, 1) \
-    X(processing_family.induction_t0_min, F64, 1080, 1) \
-    X(processing_family.temp_q10, F64, 1088, 1) \
-    X(push.max_push_stops, F32, 1096, 1) \
-    X(push.max_pull_stops, F32, 1100, 1) \
-    X(push.base_fog_penalty_per_stop, F32, 1104, 1) \
-    X(push.fog_penalty_stated, BOOL, 1108, 1) \
-    X(push.gamma_gain_per_stop, F32, 1112, 1) \
-    X(push.speed_gain_per_stop, F32, 1116, 1) \
-    X(emulsion.grain_um, F32, 1120, 1) \
-    X(emulsion.size_sigma_log, F32, 1124, 1) \
-    X(emulsion.aspect_ratio, F32, 1128, 1) \
-    X(emulsion.iodide_mol_pct, F32, 1132, 1) \
-    X(emulsion.coated_um, F32, 1136, 1) \
-    X(third_party.dmax, F32, 1140, 1) \
-    X(third_party.latitude_stops, F32, 1144, 1) \
-    X(third_party.speed_offset, F32, 1148, 1) \
-    X(third_party.saturation, F32, 1152, 1) \
-    X(third_party.vignette, F32, 1156, 1) \
-    X(third_party.halation_intensity, F32, 1160, 1) \
-    X(third_party.halation_radius_norm, F32, 1164, 1) \
-    X(third_party.halation_threshold_norm, F32, 1168, 1) \
-    X(third_party.halation_tint, F32, 1172, 3) \
-    X(third_party.orange_mask, F32, 1184, 3) \
-    X(third_party.crosstalk, F32, 1196, 9) \
-    X(third_party.color_matrix, F32, 1232, 9) \
-    X(third_party.layer_curve_r, F32, 1268, 4) \
-    X(third_party.layer_curve_g, F32, 1284, 4) \
-    X(third_party.layer_curve_b, F32, 1300, 4) \
-    X(third_party.grain_bias, F32, 1316, 3) \
-    X(base.base_um, F32, 1328, 1) \
-    X(base.total_film_um, F32, 1332, 1) \
-    X(base.specific_gravity, F32, 1336, 1) \
-    X(base.lower_shrink, BOOL, 1340, 1) \
-    X(base.raw_storage_max_f, F32, 1344, 1) \
-    X(base.raw_storage_max_rh_pct, F32, 1348, 1) \
-    X(base.packaged_equilibrium_rh_pct, F32, 1352, 1) \
-    X(base.guaranteed_shelf_life_months, I32, 1356, 1) \
-    X(aim_exposure_shift_stops, F64, 1360, 1) \
+    X(interimage.donor_convexity, F64, 1016, 1) \
+    X(interimage.receiver_gate, F64, 1024, 1) \
+    X(interimage.receiver_gate_hl, F64, 1032, 1) \
+    X(dye_density.lambda_start_nm, F64, 1040, 1) \
+    X(dye_density.lambda_step_nm, F64, 1048, 1) \
+    X(layer_stack.resolving_top, F64, 1056, 1) \
+    X(layer_stack.resolving_mid, F64, 1064, 1) \
+    X(layer_stack.resolving_bot, F64, 1072, 1) \
+    X(processing_family.temperature_coeff_per_c, F64, 1080, 1) \
+    X(processing_family.gamma_infinity, F64, 1088, 1) \
+    X(processing_family.dev_rate_k, F64, 1096, 1) \
+    X(processing_family.induction_t0_min, F64, 1104, 1) \
+    X(processing_family.temp_q10, F64, 1112, 1) \
+    X(push.max_push_stops, F32, 1120, 1) \
+    X(push.max_pull_stops, F32, 1124, 1) \
+    X(push.base_fog_penalty_per_stop, F32, 1128, 1) \
+    X(push.fog_penalty_stated, BOOL, 1132, 1) \
+    X(push.gamma_gain_per_stop, F32, 1136, 1) \
+    X(push.speed_gain_per_stop, F32, 1140, 1) \
+    X(push.dmax_loss_r, F32, 1144, 1) \
+    X(push.dmax_loss_g, F32, 1148, 1) \
+    X(push.dmax_loss_b, F32, 1152, 1) \
+    X(push.dmax_loss_exponent, F32, 1156, 1) \
+    X(emulsion.grain_um, F32, 1160, 1) \
+    X(emulsion.size_sigma_log, F32, 1164, 1) \
+    X(emulsion.aspect_ratio, F32, 1168, 1) \
+    X(emulsion.iodide_mol_pct, F32, 1172, 1) \
+    X(emulsion.coated_um, F32, 1176, 1) \
+    X(third_party.dmax, F32, 1180, 1) \
+    X(third_party.latitude_stops, F32, 1184, 1) \
+    X(third_party.speed_offset, F32, 1188, 1) \
+    X(third_party.saturation, F32, 1192, 1) \
+    X(third_party.vignette, F32, 1196, 1) \
+    X(third_party.halation_intensity, F32, 1200, 1) \
+    X(third_party.halation_radius_norm, F32, 1204, 1) \
+    X(third_party.halation_threshold_norm, F32, 1208, 1) \
+    X(third_party.halation_tint, F32, 1212, 3) \
+    X(third_party.orange_mask, F32, 1224, 3) \
+    X(third_party.crosstalk, F32, 1236, 9) \
+    X(third_party.color_matrix, F32, 1272, 9) \
+    X(third_party.layer_curve_r, F32, 1308, 4) \
+    X(third_party.layer_curve_g, F32, 1324, 4) \
+    X(third_party.layer_curve_b, F32, 1340, 4) \
+    X(third_party.grain_bias, F32, 1356, 3) \
+    X(base.base_um, F32, 1368, 1) \
+    X(base.total_film_um, F32, 1372, 1) \
+    X(base.specific_gravity, F32, 1376, 1) \
+    X(base.lower_shrink, BOOL, 1380, 1) \
+    X(base.raw_storage_max_f, F32, 1384, 1) \
+    X(base.raw_storage_max_rh_pct, F32, 1388, 1) \
+    X(base.packaged_equilibrium_rh_pct, F32, 1392, 1) \
+    X(base.guaranteed_shelf_life_months, I32, 1396, 1) \
+    X(aim_exposure_shift_stops, F64, 1400, 1) \
+    X(callier_spectral_r, F64, 1408, 1) \
+    X(callier_spectral_g, F64, 1416, 1) \
+    X(callier_spectral_b, F64, 1424, 1) \
+    X(measured_endpoints.dmin, F32, 1432, 3) \
+    X(measured_endpoints.dmax, F32, 1444, 3) \
+    X(measured_endpoints.gamma, F32, 1456, 3) \
+    X(measured_endpoints.log_e_end, F32, 1468, 3) \
+    X(measured_endpoints.log_e_span, F32, 1480, 1) \
+    X(measured_endpoints.page, I32, 1484, 1) \
 
 // Enum members of the fixed block: X(member path, kind, offset, lo, hi, flag mask); flags when mask != 0
 #define FILM_SERIAL_FIXED_ENUMS(X) \
@@ -375,6 +393,7 @@
 
 // Record lists: R(member path, record type, section, macro prefix)
 #define FILM_SERIAL_RECORDS(R) \
+    R(spectral.correction_layers, film::CorrectionLayer, SpectralCorrectionLayers, FILM_SERIAL_REC_CorrectionLayer) \
     R(processing_family.points, film::DevelopmentPoint, ProcessingFamilyPoints, FILM_SERIAL_REC_DevelopmentPoint) \
     R(processing_family.laws, film::DevelopmentLaw, ProcessingFamilyLaws, FILM_SERIAL_REC_DevelopmentLaw) \
     R(processing_family.capacity, film::DevelopmentCapacity, ProcessingFamilyCapacity, FILM_SERIAL_REC_DevelopmentCapacity) \
@@ -388,6 +407,23 @@
     R(extra_tone_curves, film::ExtraToneCurve, ExtraToneCurves, FILM_SERIAL_REC_ExtraToneCurve) \
     R(filter_factors, film::FilterFactor, FilterFactors, FILM_SERIAL_REC_FilterFactor) \
     R(extra_facts, film::ExtraFact, ExtraFacts, FILM_SERIAL_REC_ExtraFact) \
+
+// Record film::CorrectionLayer (spectral.correction_layers)
+#define FILM_SERIAL_REC_CorrectionLayer_SIZE 32
+#define FILM_SERIAL_REC_CorrectionLayer_FIXED(X) \
+    X(target, I32, 0, 1) \
+    X(standin, I32, 4, 1) \
+    X(strength, F64, 8, 1) \
+    X(level_rel_green_log, F64, 16, 1) \
+
+#define FILM_SERIAL_REC_CorrectionLayer_ENUMS(X) \
+
+#define FILM_SERIAL_REC_CorrectionLayer_STRINGS(X) \
+
+#define FILM_SERIAL_REC_CorrectionLayer_VECTORS(X) \
+    X(log_s, F64, SpectralCorrectionLayers_LogS, 24, 28) \
+
+#define FILM_SERIAL_REC_CorrectionLayer_MEAS(X) \
 
 // Record film::DevelopmentPoint (processing_family.points)
 #define FILM_SERIAL_REC_DevelopmentPoint_SIZE 80
@@ -927,52 +963,68 @@ constexpr unsigned interimage__a_br = 984;
 constexpr unsigned interimage__a_bg = 992;
 constexpr unsigned interimage__iterations = 1000;
 constexpr unsigned interimage__density_weighting = 1008;
-constexpr unsigned dye_density__lambda_start_nm = 1016;
-constexpr unsigned dye_density__lambda_step_nm = 1024;
-constexpr unsigned layer_stack__resolving_top = 1032;
-constexpr unsigned layer_stack__resolving_mid = 1040;
-constexpr unsigned layer_stack__resolving_bot = 1048;
-constexpr unsigned processing_family__temperature_coeff_per_c = 1056;
-constexpr unsigned processing_family__gamma_infinity = 1064;
-constexpr unsigned processing_family__dev_rate_k = 1072;
-constexpr unsigned processing_family__induction_t0_min = 1080;
-constexpr unsigned processing_family__temp_q10 = 1088;
-constexpr unsigned push__max_push_stops = 1096;
-constexpr unsigned push__max_pull_stops = 1100;
-constexpr unsigned push__base_fog_penalty_per_stop = 1104;
-constexpr unsigned push__fog_penalty_stated = 1108;
-constexpr unsigned push__gamma_gain_per_stop = 1112;
-constexpr unsigned push__speed_gain_per_stop = 1116;
-constexpr unsigned emulsion__grain_um = 1120;
-constexpr unsigned emulsion__size_sigma_log = 1124;
-constexpr unsigned emulsion__aspect_ratio = 1128;
-constexpr unsigned emulsion__iodide_mol_pct = 1132;
-constexpr unsigned emulsion__coated_um = 1136;
-constexpr unsigned third_party__dmax = 1140;
-constexpr unsigned third_party__latitude_stops = 1144;
-constexpr unsigned third_party__speed_offset = 1148;
-constexpr unsigned third_party__saturation = 1152;
-constexpr unsigned third_party__vignette = 1156;
-constexpr unsigned third_party__halation_intensity = 1160;
-constexpr unsigned third_party__halation_radius_norm = 1164;
-constexpr unsigned third_party__halation_threshold_norm = 1168;
-constexpr unsigned third_party__halation_tint = 1172;
-constexpr unsigned third_party__orange_mask = 1184;
-constexpr unsigned third_party__crosstalk = 1196;
-constexpr unsigned third_party__color_matrix = 1232;
-constexpr unsigned third_party__layer_curve_r = 1268;
-constexpr unsigned third_party__layer_curve_g = 1284;
-constexpr unsigned third_party__layer_curve_b = 1300;
-constexpr unsigned third_party__grain_bias = 1316;
-constexpr unsigned base__base_um = 1328;
-constexpr unsigned base__total_film_um = 1332;
-constexpr unsigned base__specific_gravity = 1336;
-constexpr unsigned base__lower_shrink = 1340;
-constexpr unsigned base__raw_storage_max_f = 1344;
-constexpr unsigned base__raw_storage_max_rh_pct = 1348;
-constexpr unsigned base__packaged_equilibrium_rh_pct = 1352;
-constexpr unsigned base__guaranteed_shelf_life_months = 1356;
-constexpr unsigned aim_exposure_shift_stops = 1360;
+constexpr unsigned interimage__donor_convexity = 1016;
+constexpr unsigned interimage__receiver_gate = 1024;
+constexpr unsigned interimage__receiver_gate_hl = 1032;
+constexpr unsigned dye_density__lambda_start_nm = 1040;
+constexpr unsigned dye_density__lambda_step_nm = 1048;
+constexpr unsigned layer_stack__resolving_top = 1056;
+constexpr unsigned layer_stack__resolving_mid = 1064;
+constexpr unsigned layer_stack__resolving_bot = 1072;
+constexpr unsigned processing_family__temperature_coeff_per_c = 1080;
+constexpr unsigned processing_family__gamma_infinity = 1088;
+constexpr unsigned processing_family__dev_rate_k = 1096;
+constexpr unsigned processing_family__induction_t0_min = 1104;
+constexpr unsigned processing_family__temp_q10 = 1112;
+constexpr unsigned push__max_push_stops = 1120;
+constexpr unsigned push__max_pull_stops = 1124;
+constexpr unsigned push__base_fog_penalty_per_stop = 1128;
+constexpr unsigned push__fog_penalty_stated = 1132;
+constexpr unsigned push__gamma_gain_per_stop = 1136;
+constexpr unsigned push__speed_gain_per_stop = 1140;
+constexpr unsigned push__dmax_loss_r = 1144;
+constexpr unsigned push__dmax_loss_g = 1148;
+constexpr unsigned push__dmax_loss_b = 1152;
+constexpr unsigned push__dmax_loss_exponent = 1156;
+constexpr unsigned emulsion__grain_um = 1160;
+constexpr unsigned emulsion__size_sigma_log = 1164;
+constexpr unsigned emulsion__aspect_ratio = 1168;
+constexpr unsigned emulsion__iodide_mol_pct = 1172;
+constexpr unsigned emulsion__coated_um = 1176;
+constexpr unsigned third_party__dmax = 1180;
+constexpr unsigned third_party__latitude_stops = 1184;
+constexpr unsigned third_party__speed_offset = 1188;
+constexpr unsigned third_party__saturation = 1192;
+constexpr unsigned third_party__vignette = 1196;
+constexpr unsigned third_party__halation_intensity = 1200;
+constexpr unsigned third_party__halation_radius_norm = 1204;
+constexpr unsigned third_party__halation_threshold_norm = 1208;
+constexpr unsigned third_party__halation_tint = 1212;
+constexpr unsigned third_party__orange_mask = 1224;
+constexpr unsigned third_party__crosstalk = 1236;
+constexpr unsigned third_party__color_matrix = 1272;
+constexpr unsigned third_party__layer_curve_r = 1308;
+constexpr unsigned third_party__layer_curve_g = 1324;
+constexpr unsigned third_party__layer_curve_b = 1340;
+constexpr unsigned third_party__grain_bias = 1356;
+constexpr unsigned base__base_um = 1368;
+constexpr unsigned base__total_film_um = 1372;
+constexpr unsigned base__specific_gravity = 1376;
+constexpr unsigned base__lower_shrink = 1380;
+constexpr unsigned base__raw_storage_max_f = 1384;
+constexpr unsigned base__raw_storage_max_rh_pct = 1388;
+constexpr unsigned base__packaged_equilibrium_rh_pct = 1392;
+constexpr unsigned base__guaranteed_shelf_life_months = 1396;
+constexpr unsigned aim_exposure_shift_stops = 1400;
+constexpr unsigned callier_spectral_r = 1408;
+constexpr unsigned callier_spectral_g = 1416;
+constexpr unsigned callier_spectral_b = 1424;
+constexpr unsigned measured_endpoints__dmin = 1432;
+constexpr unsigned measured_endpoints__dmax = 1444;
+constexpr unsigned measured_endpoints__gamma = 1456;
+constexpr unsigned measured_endpoints__log_e_end = 1468;
+constexpr unsigned measured_endpoints__log_e_span = 1480;
+constexpr unsigned measured_endpoints__page = 1484;
 }}}  // namespace film::serial::off
 
 #include <cstddef>

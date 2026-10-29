@@ -386,6 +386,27 @@ def callier_net(d_net, q: float, s: float):
     return -np.log10(np.maximum(t, 1e-300))
 
 
+def callier_channel_q(q: float, spectral, c: int) -> float:
+    """The Callier beta READER CHANNEL c sees (2026-10-26b, schema v67).
+
+    `FilmProfile.callier_spectral` scales beta - 1 per reader channel (R, G, B
+    at the ISO 5-3 status M band centres 640 / 540 / 450 nm): Trumpy &
+    Gschwind (CIC 2017) and Trumpy & Flueckiger (JIST 2019) measured Q(lambda,
+    D) on a silver film and found the Callier effect stronger at short
+    wavelengths -- the "chromatic Callier effect". Green is the reference (1.0),
+    so the stored, photopically calibrated beta is unchanged there.
+
+    ⚠ RETURNS q ITSELF WHEN THE FACTOR IS 1.0 OR q IS 1.0 -- not 1 + (q-1)*1,
+    which is not bit-exact in float -- so every stock without spectral data
+    renders exactly as before.
+    """
+    q = float(q)
+    f = float(spectral[c])
+    if q == 1.0 or f == 1.0:
+        return q
+    return 1.0 + (q - 1.0) * f
+
+
 class _QOnly:
     """Carries just `callier_q`, so `callier_lut` can serve `callier_density`.
 
@@ -452,12 +473,19 @@ def callier_lut_at(lut, d_net):
     return out
 
 
+def _spectral_view_applies(profile) -> bool:
+    """2026-10-27c: a colour transparency with its own three-dye panel is
+    viewed spectrally (spectral_view.py) instead of through stage 12's 3x3."""
+    import spectral_view as _sv
+    return _sv.applies(profile)
+
+
 def solve_anchors(
     profile: FilmProfile,
     print_stock: PrintStock,
     grey_target: float,
     coupler_scale: float = 1.0,
-    scanner_specular: float = 0.853,
+    scanner_specular: float = 0.796,
     black_point_stretch: float = 1.0,
 ) -> tuple[float, float, float]:
     """Per-channel exposure anchors that land 18% scene grey on target.
@@ -495,6 +523,11 @@ def solve_anchors(
     """
     curves = profile.curves.as_tuple()
     neg_m = profile.dye_matrix
+    # 2026-10-27c: a transparency viewed through its own dye spectra
+    # (spectral_view) carries its crosstalk spectrally; stage 12 does not
+    # apply `dye_matrix` to it, so neither may the anchor solve.
+    if _spectral_view_applies(profile):
+        neg_m = IDENTITY3
     take = profile.taking_matrix
 
     # ⚠ THE SOLVE HAS TO SEE THE READER'S OPTICS TOO (C22, 2026-08-23). Callier
@@ -513,14 +546,16 @@ def solve_anchors(
     # same function, so the two cannot drift apart in meaning -- only by the
     # table's own interpolation error, which `cpp_parity` measures.
     _cal_inert = callier_is_inert(profile, scanner_specular)
-    _cal_q = float(profile.callier_q)
+    # 2026-10-26b: one beta per reader channel (callier_channel_q).
+    _cal_q = [callier_channel_q(profile.callier_q, profile.callier_spectral, k)
+              for k in range(3)]
     _cal_s = float(scanner_specular)
 
     def _cal_apply(d: list[float]) -> list[float]:
         if _cal_inert:
             return list(d)
         return [curves[k].dmin
-                + float(callier_net(d[k] - curves[k].dmin, _cal_q, _cal_s))
+                + float(callier_net(d[k] - curves[k].dmin, _cal_q[k], _cal_s))
                 for k in range(3)]
 
     # Log exposure each record actually receives from a neutral 18% grey, which
@@ -1414,6 +1449,151 @@ def fourth_layer_adjust(log_e, curves, row, strength, offset: float = 0.0):
 FOURTH_LAYER_E_FLOOR = 1.0e-12
 
 
+# -- 2026-10-25 (schema v66, owner-approved approach A): the COLOUR-CORRECTION
+# LAYERS, generalised. Kuramitsu et al., FUJIFILM R&D No. 49 pp. 11-18 (2004):
+# a correction layer forms no dye and inhibits its TARGET record's
+# development, an effective negative spectral sensitivity (Fig. 12). Same
+# law as the CL layer above, for any target, any stand-in curve, negative or
+# reversal; data-driven, always on where the stock carries a layer with a
+# strength (no control, owner rule 19). Twins: AlgoSpectralCorrectionLayerRow
+# and AlgoStage08b_Interimage (scalar, AVX2).
+
+def correction_layer_sensitivity(profile, layer) -> np.ndarray | None:
+    """A correction layer's LINEAR sensitivity on ``spectral_grid()``, or None.
+
+    The conversion of `fourth_layer_sensitivity`, applied to `layer.log_s`
+    (log interpolation, zero outside the measured range, behind the stock's
+    taking filter when it has one).
+    """
+    sp = profile.spectral
+    if not layer.log_s:
+        return None
+    grid = spectral_grid()
+    src_lam = (sp.lambda_start_nm
+               + sp.lambda_step_nm * np.arange(len(layer.log_s), dtype=np.float64))
+    interp = np.interp(grid, src_lam, np.asarray(layer.log_s, dtype=np.float64),
+                       left=-np.inf, right=-np.inf)
+    out = np.where(np.isfinite(interp), np.power(10.0, interp), 0.0)
+    tf = getattr(profile, "taking_filter", None)
+    if tf is not None and tf.renders:
+        out = out * taking_filter_transmission(
+            tf, grid, sp.lambda_start_nm, sp.lambda_step_nm)
+    return out
+
+
+def correction_layer_row(profile, layer, scene_kelvin: float = 5500.0) -> np.ndarray | None:
+    """Weights mixing the three record exposures into the layer's exposure.
+
+    `fourth_layer_row` for one correction layer: INTEGRAL S_L * P_p * I(T),
+    normalised to sum 1, so a neutral gives logE_L = logE_t and the term
+    vanishes on every grey. None without a curve.
+    """
+    cl = correction_layer_sensitivity(profile, layer)
+    if cl is None:
+        return None
+    grid = spectral_grid()
+    illum = planck_spd(scene_kelvin)
+    prim = _srgb_primary_spd()
+    trap = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    w = np.array([trap(cl * prim[p] * illum, grid) for p in range(3)],
+                 dtype=np.float64)
+    tot = float(w.sum())
+    if not tot > 0.0:
+        return None
+    return (w / tot).astype(np.float32)
+
+
+def correction_layer_offset(profile, layer, scene_kelvin: float = 5500.0) -> float:
+    """The layer's integrated speed relative to the GREEN record, log10.
+
+    `fourth_layer_offset` with `layer.level_rel_green_log`; 0.0 when the level
+    is not traced (every stored layer today).
+    """
+    lvl = float(layer.level_rel_green_log)
+    if lvl == 0.0:
+        return 0.0
+    cl = correction_layer_sensitivity(profile, layer)
+    sens = layer_sensitivities(profile)
+    if cl is None or sens is None or sens.shape[0] != 3 or not scene_kelvin > 0.0:
+        return 0.0
+    grid = spectral_grid()
+    illum = planck_spd(scene_kelvin)
+    trap = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    ncl = float(trap(cl * illum, grid))
+    ng = float(trap(sens[1] * illum, grid))
+    if not (ncl > 0.0 and ng > 0.0):
+        return 0.0
+    return float(np.float32(lvl + np.log10(ncl / ng)))
+
+
+def correction_layers_active(profile) -> bool:
+    """True when stage 8b applies at least one correction layer."""
+    return bool((not profile.is_monochrome)
+                and any(c.strength > 0.0 and c.log_s
+                        for c in profile.spectral.correction_layers))
+
+
+def correction_layer_adjust(log_e, curves, row, strength, offset, target,
+                            standin, reversal, anchors):
+    """One correction layer's (h, w) log-exposure term for its TARGET record.
+
+        logE_L = log10(sum_p row[p] * 10**logE_p)
+        negative: -k * (D_s(logE_L + o) - D_s(logE_t + o))
+        reversal: +k * (D_s(-(logE_t + tr_s + o)) - D_s(-(logE_L + tr_s + o)))
+
+    D_s = the stand-in record's curve, tr_s its reversal trim (anchor). On a
+    reversal stock the layer develops in the FIRST (black-and-white)
+    developer, so its inhibitor grows with ITS exposure; read on the
+    positive curve that is D_s falling, hence the swapped difference -- the
+    target's curve argument RISES (more dye, less apparent exposure) where
+    the layer is exposed more than the target: a negative sensitivity, the
+    sign Fig. 12 draws. Zero on every neutral (logE_L = logE_t).
+    """
+    le = log_e.astype(np.float32)
+    e = (np.float32(row[0]) * np.power(np.float32(10.0), le[:, :, 0])
+         + np.float32(row[1]) * np.power(np.float32(10.0), le[:, :, 1])
+         + np.float32(row[2]) * np.power(np.float32(10.0), le[:, :, 2]))
+    le_l = np.log10(np.maximum(e, np.float32(FOURTH_LAYER_E_FLOOR))).astype(np.float32)
+    le_t = le[:, :, target]
+    off = np.float32(offset)
+    if reversal:
+        tr = np.float32(anchors[standin]) + off
+        return (np.float32(strength)
+                * (density(-(le_t + tr), curves[standin])
+                   - density(-(le_l + tr), curves[standin]))).astype(np.float32)
+    return (np.float32(-strength)
+            * (density(le_l + off, curves[standin])
+               - density(le_t + off, curves[standin]))).astype(np.float32)
+
+
+def correction_layers_adjust(profile, log_e, curves, anchors,
+                             scene_kelvin: float = 5500.0):
+    """Per-record sums of every active correction layer's term, or None.
+
+    A list of three (h, w) float32 arrays or None (no layer targets that
+    record), summed in the stored order of the layers. Formed once from the
+    exposures and held fixed through the interimage iterations.
+    """
+    if not correction_layers_active(profile):
+        return None
+    out = [None, None, None]
+    for layer in profile.spectral.correction_layers:
+        if not (layer.strength > 0.0 and layer.log_s):
+            continue
+        row = correction_layer_row(profile, layer, scene_kelvin)
+        if row is None:
+            continue
+        term = correction_layer_adjust(
+            log_e, curves, row, layer.strength,
+            correction_layer_offset(profile, layer, scene_kelvin),
+            layer.target, layer.standin, profile.is_reversal, anchors)
+        t = layer.target
+        if out[t] is None:
+            out[t] = np.zeros(term.shape, dtype=np.float32)
+        out[t] += term
+    return out if any(o is not None for o in out) else None
+
+
 def spectral_upsampling_lut(profile, scene_kelvin: float = 5500.0):
     """The per-stock Jakob-Hanika response table for stage 2b, or None.
 
@@ -1926,6 +2106,58 @@ def push_within_range(profile, stops: float) -> bool:
     return True
 
 
+def _reversal_push_resolve(profile, key):
+    """The reversal push model (schema v69, owner-approved 2026-10-27).
+
+    A push / pull of n stops on a colour reversal stock is its first
+    developer run for t = t0 (1 + x), x from the process table (J-83 for E-6,
+    Table 11-6 for VNF-1; fp.reversal_push_extension). Per record c:
+      gamma   x (1 + g n) for a push, g = PushSpec.gamma_gain_per_stop
+      Dmax    - r_c x^q   for a push (x > 0), r_c / q = PushSpec.dmax_loss_*;
+              the shoulder moves so the new curve ends there (pull: held --
+              no source measures it)
+      dmin    + fog n     where a source stated the fog penalty
+      interimage (all six terms) x (1 + x)^alpha, alpha by receiver grain habit
+              (EP 0 426 181; fp.reversal_push_alpha) -- push AND pull; a push
+              never exceeds fp.REVERSAL_PUSH_IIE_CAP (fp.reversal_push_iie_scale)
+      EI      x 2^(n s),  s = PushSpec.speed_gain_per_stop (1 if unstated)
+    Twin: AlgoResolveProcessVariant (AlgoProcessVariant.hpp).
+    """
+    n = fp.PROCESS_STEP_STOPS[key]
+    x = fp.reversal_push_extension(profile, key)
+    ps = profile.push
+    loss = ps.dmax_loss_rgb
+    q = ps.dmax_loss_exponent
+    out = []
+    for c, r in zip(profile.curves.as_tuple(), loss):
+        g = float(c.gamma)
+        if n > 0 and ps.gamma_gain_per_stop > 0.0:
+            g = g * (1.0 + ps.gamma_gain_per_stop * n)
+        dmin = float(c.dmin)
+        if n > 0 and ps.fog_penalty_stated:
+            dmin = dmin + ps.base_fog_penalty_per_stop * n
+        lose = x > 0.0 and r > 0.0 and q > 0.0
+        if g == float(c.gamma) and dmin == float(c.dmin) and not lose:
+            # nothing moves on this record (a pull: no source measures one) --
+            # the stored curve, measured table included, stays as it is
+            out.append(c)
+            continue
+        dmax_new = float(c.dmin) + float(c.gamma) * (float(c.shoulder_x) - float(c.toe_x))
+        if lose:
+            dmax_new = dmax_new - r * x ** q
+        span = max((dmax_new - dmin) / g, 0.05)
+        out.append(_retune(c, gamma=g, dmin=dmin, shoulder_x=float(c.toe_x) + span))
+    sp = ps.speed_gain_per_stop if ps.speed_gain_per_stop > 0.0 else 1.0
+    ei = int(round(profile.exposure_index * (2.0 ** (n * sp)))) \
+        if profile.exposure_index else profile.exposure_index
+    iie = profile.interimage
+    k = fp.reversal_push_iie_scale(profile, key)
+    if k != 1.0:
+        iie = replace(iie, a_rg=iie.a_rg * k, a_rb=iie.a_rb * k, a_gr=iie.a_gr * k,
+                      a_gb=iie.a_gb * k, a_br=iie.a_br * k, a_bg=iie.a_bg * k)
+    return replace(profile, curves=RGBCurves(*out), exposure_index=ei, interimage=iie)
+
+
 def resolve_process_variant(profile, variant):
     """The profile as a chosen PROCESS renders it. Returns `profile` unchanged
     when nothing is chosen, so this is inert by default.
@@ -1979,14 +2211,26 @@ def resolve_process_variant(profile, variant):
         # scale and one D-min shift on all three channels, an estimate
         # (film_profiles.PUSH_FAMILY_MODEL). The C++ resolver applies the same
         # two numbers, emitted into film_enum.hpp.
+        if fp.reversal_push_model_applies(profile, key):
+            return _reversal_push_resolve(profile, key)
         if not fp.push_family_model_applies(profile, key):
             return profile
         n = fp.PROCESS_STEP_STOPS[key]
         gs, ds, _k = fp.PUSH_FAMILY_MODEL[n]
+        # v69 (2026-10-27): the stock's OWN stated push behaviour outranks the
+        # family estimate -- PushSpec.gamma_gain_per_stop (fractional gamma per
+        # pushed stop), base_fog_penalty_per_stop where a source spoke about it,
+        # speed_gain_per_stop for the exposure index.
+        ps = profile.push
+        if ps.gamma_gain_per_stop > 0.0:
+            gs = 1.0 + ps.gamma_gain_per_stop * n
+        if ps.fog_penalty_stated:
+            ds = ps.base_fog_penalty_per_stop * n
         curves = RGBCurves(
             *[_retune(c, gamma=c.gamma * gs, dmin=c.dmin + ds)
               for c in profile.curves.as_tuple()])
-        ei = int(round(profile.exposure_index * (2 ** n))) \
+        sp = ps.speed_gain_per_stop if ps.speed_gain_per_stop > 0.0 else 1.0
+        ei = int(round(profile.exposure_index * (2.0 ** (n * sp)))) \
             if profile.exposure_index else profile.exposure_index
         return replace(profile, curves=curves, exposure_index=ei)
 
@@ -2126,7 +2370,12 @@ def development_family_group(profile):
     rdil = ndil(getattr(fam, "reference_dilution", ""))
     named = {}
     if want:
-        named = {k: v for k, v in groups.items() if norm(k[1]) == want}
+        # 2026-10-27c: a record may print the developer's NAME followed by its
+        # formula ("ЦПВ-1 colour developer (p-aminodiethylaniline ...)"); the
+        # name is then the developer the record names.
+        named = {k: v for k, v in groups.items()
+                 if norm(k[1]) == want
+                 or (norm(k[1]) and want.startswith(norm(k[1]) + " "))}
     if not named and ref and (ci_only or not want):
         named = {k: v for k, v in groups.items()
                  if norm(k[1]) == ref
@@ -2185,6 +2434,8 @@ def _development_law(profile, key):
     fam = getattr(profile, "processing_family", None)
     if fam is None:
         return None
+    if rate_size_law_applies(profile) and not fam.laws and not fam.has_rate_law:
+        return rate_size_law(profile, key)
     law = fam.law_for(key[1], key[3])
     if law is not None:
         return (float(law.gamma_infinity), float(law.dev_rate_k),
@@ -2199,6 +2450,35 @@ def _development_law(profile, key):
 DEVELOPMENT_LAW_CEILING = 0.80
 
 
+def rate_size_law_applies(profile) -> bool:
+    """2026-10-27c: PARALLEL development with a stated rate-size coefficient
+    (Tani Fig. 7.12, r = coeff / d) and a crystal size -- the development
+    rate is then a property of the emulsion, and the Development Time control
+    follows it on a colour stock too (the two Svema colour negatives)."""
+    pr = profile.processing
+    return (pr.progress == fp.DevelopmentProgress.PARALLEL
+            and pr.rate_size_coeff_um_min > 0.0
+            and profile.emulsion.grain_um > 0.0)
+
+
+def rate_size_law(profile, key):
+    """(gamma_inf, k, t0) from the rate-size law: k = coeff / grain_um per
+    minute, t0 = 0 (Tani's parallel development has no induction period).
+    gamma_inf is fitted to the selected group's own points (it cancels in the
+    gamma RATIO the control applies; it sets only the 0.80 gamma_inf ceiling)."""
+    import math
+    pr = profile.processing
+    k = pr.rate_size_coeff_um_min / profile.emulsion.grain_um
+    sel = development_family_group(profile)
+    if sel is None:
+        return None
+    pts = sel[1]
+    vals = [g / (1.0 - math.exp(-k * t)) for t, g in pts if t > 0.0 and g > 0.0]
+    if not vals:
+        return None
+    return (sum(vals) / len(vals), k, 0.0)
+
+
 def development_axis(profile):
     """Everything the Development Time control reads, or None (#209).
 
@@ -2211,7 +2491,8 @@ def development_axis(profile):
     usable group, or no defensible anchor.
     """
     import math
-    if not getattr(profile, "is_monochrome", False):
+    if (not getattr(profile, "is_monochrome", False)
+            and not rate_size_law_applies(profile)):
         return None
     sel = development_family_group(profile)
     if sel is None:
@@ -2702,6 +2983,33 @@ def dark_fade_fractions(profile, years: float,
     return tuple(out)
 
 
+#: Kodak's dark-stability criterion: the density change a "years" figure
+#: is printed against (DyeStabilitySpec docstring: 0.10 D).
+DYE_STABILITY_CRITERION_D = 0.10
+
+
+def print_storage_fade(print_stock, years: float,
+                       celsius: float = STORAGE_CELSIUS_DEF):
+    """((f_c, f_m, f_y), (stain_r, stain_g, stain_b)) for a PRINT after
+    `years` of dark storage, 2026-10-27c.
+
+    Dye loss: `dark_fade_fractions`, the film law, read on the print's own
+    record. D-min stain: the published years to a +0.10 D gain at D-min,
+    linear in storage-equivalent time (a constant-rate Arrhenius prediction is
+    what the figure is). ⚠ Unlike the camera film there is no orange mask on a
+    print, so the D-min refusal of `resolve_storage_age` does not apply."""
+    if years is None or years <= 0.0:
+        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
+    spec = getattr(print_stock, "dye_stability", None)
+    if spec is None or not spec.has_data:
+        return (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
+    f = dark_fade_fractions(print_stock, years, celsius)
+    eq = storage_equivalent_years(years, celsius, spec.reference_temp_c)
+    st = tuple(DYE_STABILITY_CRITERION_D * eq / g if g > 0.0 else 0.0
+               for g in (spec.dmin_gain_r, spec.dmin_gain_g, spec.dmin_gain_b))
+    return f, st
+
+
 def resolve_storage_age(profile, years: float,
                         celsius: float = STORAGE_CELSIUS_DEF):
     """The film as `years` of dark storage leave it (queue P64).
@@ -3031,7 +3339,7 @@ def resolve_aim_exposure(profile, shift_stops: float):
     consistent negative, so the print is re-timed as a lab would time an
     aim-exposed negative. `profile` unchanged when shift_stops is 0 or when
     any curve carries a measured table (a table is a measurement at its own
-    abscissae; none of the 17 aim stocks carries one).
+    abscissae; none of the 20 aim stocks carries one).
     Twin: AlgoResolveAimExposure (AlgorithmMain.cpp).
     """
     if shift_stops == 0.0:
@@ -3044,7 +3352,8 @@ def resolve_aim_exposure(profile, shift_stops: float):
         *[replace(c, toe_x=c.toe_x - s, shoulder_x=c.shoulder_x - s) for c in cs]))
 
 
-def callier_density(dens, curves, callier_q, specular, is_monochrome):
+def callier_density(dens, curves, callier_q, specular, is_monochrome,
+                     spectral=(1.0, 1.0, 1.0)):
     """Stage 12b: the density a SPECULAR reader sees. In place on `dens`.
 
     Callier's coefficient Q is the ratio of specular to diffuse density for the
@@ -3093,14 +3402,17 @@ def callier_density(dens, curves, callier_q, specular, is_monochrome):
     """
     if specular <= 0.0 or callier_q == 1.0:
         return dens
-    lut = callier_lut(_QOnly(callier_q), specular)
-    lo, step, vals = lut
-    v32 = vals.astype(np.float32)
-    n = len(v32)
-    hi_x = np.float32(lo + step * (n - 1))
-    slope_lo = np.float32((v32[1] - v32[0]) / step)
-    slope_hi = np.float32((v32[n - 1] - v32[n - 2]) / step)
+    # 2026-10-26b, schema v67: ONE TABLE PER READER CHANNEL when the stock
+    # carries a chromatic Callier spectrum (`spectral`, see callier_channel_q);
+    # the same table three times otherwise, which is the pre-v67 pass exactly.
     for c in range(3):
+        lut = callier_lut(_QOnly(callier_channel_q(callier_q, spectral, c)), specular)
+        lo, step, vals = lut
+        v32 = vals.astype(np.float32)
+        n = len(v32)
+        hi_x = np.float32(lo + step * (n - 1))
+        slope_lo = np.float32((v32[1] - v32[0]) / step)
+        slope_hi = np.float32((v32[n - 1] - v32[n - 2]) / step)
         dmin = np.float32(curves[c].dmin)
         # Net density, including the NEGATIVE values grain produces in the base.
         # The law is defined there and needs no branch, which is what keeps the
@@ -3118,8 +3430,112 @@ def callier_density(dens, curves, callier_q, specular, is_monochrome):
     return dens
 
 
+#: 2026-10-26c (schema v68): the shared tables of the reversal law C --
+#: donor release V_j and receiver gate g_c over density. The SAME size, domain
+#: and interpolation as the C++ AlgoCurveLut (AlgoBuildFuncLut /
+#: AlgoCurveLutEval[V]), so the three engines agree by construction.
+IIE_REV_LUT_SIZE = 4096
+IIE_REV_LUT_LO = -0.5
+IIE_REV_LUT_HI = 6.0
+
+
+IIE_REV_S0 = 0.25    # the normalisation point on the stock's own scale
+
+
+def iie_rev_tables(curves, d_ref, iie):
+    """((V_r, V_g, V_b), (g_r, g_g, g_b)) for the v68 reversal law.
+
+    Each table is (lo, inv_step, max_idx, values[SIZE + 1] float64) over
+    density. Normalised on the STOCK'S OWN scale, N = Dmax - Dmin, at the fixed
+    point s0 = IIE_REV_S0 of it (D0 = Dmin + s0 N, u0 = 1 - s0):
+        u = max(Dmax - D, 0) / N,   s = max(D - Dmin, 0) / N
+        V(D) = -(u0 N / pd) * (u / u0)**pd             donor release, V'(D0) = 1
+        g(D) = (u / u0)**pr * (s / s0)**ph             receiver gate, g(D0) = 1
+    V is non-decreasing in D (a denser, less developed donor never releases
+    more) and g >= 0, so the Hanson-Horton shift stays >= 0; the neutral twin
+    in apply_interimage keeps a neutral exactly untouched.
+    ⚠ ANCHOR-INDEPENDENT BY DESIGN (2026-10-26c). A first draft normalised at
+    the mid-grey reference density d_ref the anchors produce; with pd 5.6 that
+    made the film's chemistry scale as (Dmax - Dref)^(1 - pd), i.e. depend on
+    the render's grey target, and blow up toward a dark one. s0 = 0.25 is where
+    that reference sits on the twelve Fuji stocks at the default grey (0.19 ..
+    0.25 of the scale), so the coefficients keep their magnitude. d_ref is no
+    longer read.
+    """
+    del d_ref
+    # 0 -> 1 guard mirrors AlgoInterimage.hpp literally (2026-10-27b audit);
+    # unreachable through the validated DB (donor_convexity in [0.5, 8]).
+    pd = float(iie.donor_convexity)
+    if not pd > 0.0:
+        pd = 1.0
+    pr = float(iie.receiver_gate)
+    ph = float(getattr(iie, "receiver_gate_hl", 0.0))
+    s0 = IIE_REV_S0
+    u0 = 1.0 - s0
+    step = (IIE_REV_LUT_HI - IIE_REV_LUT_LO) / float(IIE_REV_LUT_SIZE - 1)
+    xs = IIE_REV_LUT_LO + step * np.arange(IIE_REV_LUT_SIZE + 1, dtype=np.float64)
+    # ⚠ float64 tables and lookup (2026-10-26c): the scalar C++ twin builds and
+    # reads the table in double (AlgoType); a float32 position (t ~ 4000 has a
+    # 2.4e-4 ulp) put the Python reference 7e-6 D off it. The lookup result is
+    # cast to float32 like every other density in this pipeline.
+    inv = 1.0 / step
+    vt, gt = [], []
+    for j in range(3):
+        cj = curves[j]
+        # float32 operands, as the C++ ToneCurve::dmax() and its float fields
+        dmax = float(np.float32(cj.dmin) + np.float32(cj.gamma)
+                     * (np.float32(cj.shoulder_x) - np.float32(cj.toe_x)))
+        dmin = float(np.float32(cj.dmin))
+        rng = max(dmax - dmin, 1e-3)
+        ur = np.maximum(dmax - xs, 0.0) / rng / u0
+        v = -(u0 * rng / pd) * ur ** pd
+        g = np.ones_like(ur)
+        if pr != 0.0:
+            g = g * ur ** pr
+        if ph != 0.0:
+            g = g * (np.maximum(xs - dmin, 0.0) / rng / s0) ** ph
+        vt.append((float(IIE_REV_LUT_LO), inv, float(IIE_REV_LUT_SIZE - 1), v))
+        gt.append((float(IIE_REV_LUT_LO), inv, float(IIE_REV_LUT_SIZE - 1), g))
+    return vt, gt
+
+
+def iie_rev_lut_at(tab, x):
+    """Linear lookup in an iie_rev_tables table, clamped to its domain.
+
+    Same operation order as the C++ AlgoCurveLutEval: t = (x - lo) * inv,
+    clamp to [0, SIZE-1], i = trunc(t), d0 + (d1 - d0) * (t - i) -- in double,
+    as the scalar engine; the result is returned as float32.
+    """
+    lo, inv, mx, v = tab
+    t = (np.asarray(x, dtype=np.float64) - lo) * inv
+    t = np.minimum(np.maximum(t, 0.0), mx)
+    i = t.astype(np.int32)
+    f = t - i
+    d0 = v[i]
+    return (d0 + (v[i + 1] - d0) * f).astype(np.float32)
+
+
+def _rev_weighted_delta(d, ref_j, dw):
+    """(D - D_ref) * w(D), the reversal branch's weighted donor term.
+
+    w = (1 - dw) + dw * D / D_ref, capped at 1 for dw > 0 (taper below the
+    reference) and clipped to [0, 1 - dw] for dw < 0 (highlight emphasis,
+    2026-10-26). One definition for the donor plane AND its neutral twin.
+    """
+    delta = d - np.float32(ref_j)
+    if dw == 0.0:
+        return delta
+    ref = max(ref_j, 1e-4)
+    wj = (1.0 - dw) + dw * (d / np.float32(ref))
+    if dw > 0.0:
+        np.minimum(wj, np.float32(1.0), out=wj)
+    else:
+        np.clip(wj, np.float32(0.0), np.float32(1.0 - dw), out=wj)
+    return delta * wj.astype(np.float32)
+
+
 def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal,
-                     cl_adj=None):
+                     cl_adj=None, corr_adj=None):
     """Stage 8b, the VERTICAL half of the DIR chemistry. In place on `dens`.
 
     ⚠ FACTORED OUT OF `simulate()` ON 2026-08-20 SO THERE IS ONE DEFINITION.
@@ -3142,6 +3558,11 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal,
     offset for the RED record from `fourth_layer_adjust`, or None. Added to
     red's correction on every iteration of the NEGATIVE branch (the fourth
     layer is never applied to reversal stocks).
+
+    `corr_adj` (2026-10-25, schema v66): the colour-correction layers' fixed
+    per-record terms from `correction_layers_adjust` (list of three arrays /
+    None), or None. Added to each target's correction on every iteration of
+    EITHER branch, after the CL term.
     """
     log_e = curves_or_log_e
     h, w = dens.shape[0], dens.shape[1]
@@ -3209,6 +3630,40 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal,
     # unchanged (not yet measured). C++ twins: AlgoStage08b_Interimage, scalar
     # and AVX2.
     d_ref_px = None
+    # ⚠ 2026-10-26 -- THE NEUTRAL-PRESERVING REFERENCE, REVERSAL (owner-approved
+    # tasks b/item 2, the evidence: Shuto et al. 1997 Fig. 2). The maker's
+    # reversal curve is the WHITE-LIGHT curve and already contains the
+    # interimage; the fixed mid-grey reference applied it a second time to
+    # every neutral away from mid grey. Receiver c now measures donor j
+    # against the donor's own weighted term under a NEUTRAL exposure at c's
+    # log E, density(-(logE_c + anchor_j), curve_j) -- the twin of the
+    # negative fix of 2026-10-01f, with the density weighting kept:
+    #     adj_c = sum_j a_cj [W_j(D_j) - W_j(D_j(neutral at logE_c))]
+    # A neutral gets exactly zero and renders on the stored curves.
+    w_neu = None
+    # 2026-10-26c (schema v68): reversal law C -- donor release V_j and
+    # receiver gate g_c from shared tables (iie_rev_tables), replacing the
+    # density weighting. Defaults keep the law below exactly.
+    law_c = bool(reversal and iie.law_c)
+    vtab = gtab = None
+    gate_on = False
+    if law_c:
+        vtab, gtab = iie_rev_tables(curves, d_ref, iie)
+        # receiver gate: read per pass from the receiver's own density
+        # before that pass updates it (C++ reads rO[x] the same way)
+        gate_on = bool(iie.receiver_gated)
+
+    def _donor_term(dd, j):
+        if law_c:
+            return iie_rev_lut_at(vtab[j], dd)
+        return _rev_weighted_delta(dd, d_ref[j], dw)
+
+    if reversal:
+        w_neu = [[None if j == c or m[c][j] == 0.0 else
+                  _donor_term(
+                      density(-(log_e[:, :, c] + np.float32(anchors[j])),
+                              curves[j]).astype(np.float32), j)
+                  for j in range(3)] for c in range(3)]
     if not reversal:
         # d_ref_px[c][j] = density(logE_c, curve_j), j != c. Fixed across the
         # iterations: it depends on exposure only.
@@ -3227,64 +3682,84 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal,
                     adj += np.float32(m[c][j]) * (snap[j] - d_ref_px[c][j])
                 if c == 0 and cl_adj is not None:
                     adj += cl_adj
+                if corr_adj is not None and corr_adj[c] is not None:
+                    adj += corr_adj[c]
                 dens[:, :, c] = density(log_e[:, :, c] + adj, curves[c])
             del snap
             continue
-        delta = [dens[:, :, j] - np.float32(d_ref[j]) for j in range(3)]
-        if dw > 0.0:
-            for j in range(3):
-                ref = max(d_ref[j], 1e-4)
-                wj = (1.0 - dw) + dw * (dens[:, :, j] / np.float32(ref))
-                # ⚠⚠ THE CAP IS 1.0, AND THE OLD ONE WAS A NO-OP. CORRECTED
-                # 2026-09-09 after the owner rendered a real frame.
-                #
-                # It used to be `(1 - dw) + dw * dmax / ref` -- the value the
-                # weight reaches AT dmax. But `density()` approaches dmax only
-                # asymptotically, so D < dmax for every finite exposure and
-                # that minimum COULD NEVER BIND. The 2026-09-02 note calling
-                # it "provably inert ... every render bit-for-bit what it was"
-                # was describing a no-op as a fix. Queue item C18 asked for a
-                # bound; what landed was a bound that cannot engage.
-                #
-                # ⚠ WHY THE UNBOUNDED FORM WAS WRONG, in one line: the weight
-                # is linear in D_j and it MULTIPLIES (D_j - d_ref), so the
-                # product is QUADRATIC in density --
-                #     (D_j - Dr)*[(1-dw) + dw*D_j/Dr]
-                #       = (1-dw)(D_j - Dr) + (dw/Dr)*D_j*(D_j - Dr)
-                # US4729943A says the reversal effect "lands in high dye-
-                # density areas", which is ONE factor of density; the
-                # `- d_ref` exists only to keep a neutral untouched.
-                # Multiplying them DOUBLE-COUNTS density. Measured on
-                # FUJI_VELVIA_50: delta*w ran +0.009 at the calibration point
-                # to +2.829 at dmax, i.e. -0.402 logE of one-channel shift.
-                #
-                # ⚠ WHY 1.0 IS PRINCIPLED AND NOT ARBITRARY. Capping at 1
-                # turns the weighting from a GAIN into a REDISTRIBUTION: the
-                # effect is at FULL strength at and above the reference
-                # density and TAPERS BELOW it, so the stage still concentrates
-                # where the neighbouring layer is dense -- which is what the
-                # patent actually states -- while the stage's total strength
-                # stays set by the coefficients, which are calibrated at that
-                # reference. No constant is invented.
-                #
-                # ⚠ IT DELIBERATELY UNDER-MODELS. A convex-but-bounded weight
-                # is the physically right shape and needs TWO constants (an
-                # asymptote and a half-density) that no surveyed source
-                # prints. That is C18's wedge measurement, still open. Until
-                # it exists, under-modelling is the honest direction.
-                #
-                # Measured on the owner's frame, FUJI_VELVIA_50, table apron:
-                #   before  R 242.8  G 29.1  B 0.0   R=255 on 15.42 % of frame
-                #   after   R  70.1  G  4.6  B 0.0   R=255 on  7.92 %
-                #   (interimage off: R 25.4;  original image: R 42.1)
-                np.minimum(wj, np.float32(1.0), out=wj)
-                delta[j] = delta[j] * wj.astype(np.float32)
+        # The weighted donor terms (cap / clip history: see _rev_weighted_delta
+        # and the C18 notes kept below).
+        delta = [_donor_term(dens[:, :, j], j) for j in range(3)]
+        # ---- history of the weight (code before 2026-10-26, now in _rev_weighted_delta) ----
+        # delta = [dens[:, :, j] - np.float32(d_ref[j]) for j in range(3)]
+        # if dw != 0.0:
+        #     for j in range(3):
+        #         ref = max(d_ref[j], 1e-4)
+        #         wj = (1.0 - dw) + dw * (dens[:, :, j] / np.float32(ref))
+        #         # ⚠⚠ THE CAP IS 1.0, AND THE OLD ONE WAS A NO-OP. CORRECTED
+        #         # 2026-09-09 after the owner rendered a real frame.
+        #         #
+        #         # It used to be `(1 - dw) + dw * dmax / ref` -- the value the
+        #         # weight reaches AT dmax. But `density()` approaches dmax only
+        #         # asymptotically, so D < dmax for every finite exposure and
+        #         # that minimum COULD NEVER BIND. The 2026-09-02 note calling
+        #         # it "provably inert ... every render bit-for-bit what it was"
+        #         # was describing a no-op as a fix. Queue item C18 asked for a
+        #         # bound; what landed was a bound that cannot engage.
+        #         #
+        #         # ⚠ WHY THE UNBOUNDED FORM WAS WRONG, in one line: the weight
+        #         # is linear in D_j and it MULTIPLIES (D_j - d_ref), so the
+        #         # product is QUADRATIC in density --
+        #         #     (D_j - Dr)*[(1-dw) + dw*D_j/Dr]
+        #         #       = (1-dw)(D_j - Dr) + (dw/Dr)*D_j*(D_j - Dr)
+        #         # US4729943A says the reversal effect "lands in high dye-
+        #         # density areas", which is ONE factor of density; the
+        #         # `- d_ref` exists only to keep a neutral untouched.
+        #         # Multiplying them DOUBLE-COUNTS density. Measured on
+        #         # FUJI_VELVIA_50: delta*w ran +0.009 at the calibration point
+        #         # to +2.829 at dmax, i.e. -0.402 logE of one-channel shift.
+        #         #
+        #         # ⚠ WHY 1.0 IS PRINCIPLED AND NOT ARBITRARY. Capping at 1
+        #         # turns the weighting from a GAIN into a REDISTRIBUTION: the
+        #         # effect is at FULL strength at and above the reference
+        #         # density and TAPERS BELOW it, so the stage still concentrates
+        #         # where the neighbouring layer is dense -- which is what the
+        #         # patent actually states -- while the stage's total strength
+        #         # stays set by the coefficients, which are calibrated at that
+        #         # reference. No constant is invented.
+        #         #
+        #         # ⚠ IT DELIBERATELY UNDER-MODELS. A convex-but-bounded weight
+        #         # is the physically right shape and needs TWO constants (an
+        #         # asymptote and a half-density) that no surveyed source
+        #         # prints. That is C18's wedge measurement, still open. Until
+        #         # it exists, under-modelling is the honest direction.
+        #         #
+        #         # Measured on the owner's frame, FUJI_VELVIA_50, table apron:
+        #         #   before  R 242.8  G 29.1  B 0.0   R=255 on 15.42 % of frame
+        #         #   after   R  70.1  G  4.6  B 0.0   R=255 on  7.92 %
+        #         #   (interimage off: R 25.4;  original image: R 42.1)
+        #         if dw > 0.0:
+        #             np.minimum(wj, np.float32(1.0), out=wj)
+        #         else:
+        #             # NEGATIVE density_weighting (2026-10-26, Shuto 1997
+        #             # Fig. 2): HIGHLIGHT emphasis -- the weight RISES where
+        #             # the neighbouring layer is THIN, 1 + |dw| (1 - D/Dref),
+        #             # bounded to [0, 1 + |dw|]; 1 at the reference, so a
+        #             # mid-grey neutral is untouched as before.
+        #             np.clip(wj, np.float32(0.0), np.float32(1.0 - dw), out=wj)
+        #         delta[j] = delta[j] * wj.astype(np.float32)
         for c in range(3):
             adj = np.zeros((h, w), dtype=np.float32)
             for j in range(3):
                 if j == c or m[c][j] == 0.0:
                     continue
-                adj += np.float32(m[c][j]) * delta[j]
+                if w_neu is not None:
+                    adj += np.float32(m[c][j]) * (delta[j] - w_neu[c][j])
+                else:
+                    adj += np.float32(m[c][j]) * delta[j]
+            if gate_on:
+                # v68 receiver gate (interimage terms only)
+                adj *= iie_rev_lut_at(gtab[c], dens[:, :, c])
             # ⚠ REVERSAL SIGN CORRECTED 2026-09-08. `adj` is ADDED outside
             # the negation, not subtracted. It used to read `- adj`, with a
             # comment claiming inhibition "reduces development in both cases".
@@ -3319,6 +3794,8 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal,
             # FUJI_PROVIA_400F, KODAK_EKTACHROME_100D_5285,
             # SUPER_ANSCOCHROME_1957. Recorded as an open gap in NotFound.md
             # under owner instruction to leave the stored values untouched.
+            if corr_adj is not None and corr_adj[c] is not None:
+                adj += corr_adj[c]      # 2026-10-25: correction layers
             if reversal:
                 dens[:, :, c] = density(
                     -(log_e[:, :, c] + np.float32(anchors[c])) + adj,
@@ -3326,8 +3803,29 @@ def apply_interimage(dens, curves_or_log_e, curves, iie, anchors, reversal,
                 )
             else:
                 dens[:, :, c] = density(log_e[:, :, c] + adj, curves[c])
-    del delta, d_ref_px
+    del delta, d_ref_px, w_neu
     return dens
+
+
+def apply_stage8b_terms_only(dens, log_e, curves, anchors, reversal,
+                             cl_adj=None, corr_adj=None):
+    """Stage 8b with an INACTIVE interimage spec: only the fixed CL and
+    correction-layer terms, one pass, on the records they target. In place.
+
+    Twin of the C++ stage's single pass with a zero matrix. A stock with
+    neither term is left untouched (the pre-2026-10-25 `elif` behaviour).
+    """
+    for c in range(3):
+        a = cl_adj if (c == 0 and cl_adj is not None) else None
+        if corr_adj is not None and corr_adj[c] is not None:
+            a = corr_adj[c] if a is None else (a + corr_adj[c]).astype(np.float32)
+        if a is None:
+            continue
+        if reversal:
+            dens[:, :, c] = density(-(log_e[:, :, c] + np.float32(anchors[c])) + a,
+                                    curves[c])
+        else:
+            dens[:, :, c] = density(log_e[:, :, c] + a, curves[c])
 
 
 def apply_dir_couplers(dens, cp, grid, coupler_scale, is_monochrome):
@@ -4624,11 +5122,15 @@ class RenderSettings:
     # -- profiles carry Q = 1.0. It moves the 69 monochrome stocks only.
     # --
     # -- ⚠⚠ DEFAULT RAISED 0.0 -> 0.853 ON 2026-09-06, BY OWNER DECISION, AND IT
-    # -- MOVES PIXELS. 0.853 is 1 - E with E = 0.1471, the collected-scatter
+    # -- MOVES PIXELS. 0.853 was 1 - E with E = 0.1471, the collected-scatter
     # -- fraction fitted to Trumpy & Gschwind 2015 Fig. 5 (after Streiffert
     # -- 1947) by `trumpy_callier_q.py` -- the same fit that gave beta 1.6746.
-    # -- At this setting a monochrome stock reads Q 1.485 at net density 1.0,
-    # -- i.e. +0.485 D, and Q 1.569 in the deep toe.
+    # -- ⚠ 0.853 -> 0.796 ON 2026-10-26c (owner-approved, case 2): Trumpy &
+    # -- Flueckiger 2019 Fig. 3 PRINTS Streiffert's diffuse/specular table, and
+    # -- the Silberstein-Tuttle law fits the printed numbers at E 0.204 / beta
+    # -- 1.623 -- the 2015 figure is a drawing of the same curve, the weaker
+    # -- source (trumpy_chromatic_callier.py). At 0.796 a monochrome stock
+    # -- reads Q 1.429 at net density 1.0 (1.485 at 0.853).
     # -- ⚠ WHAT IT IS NOT: a measurement of any scanner. E is a property of
     # -- STREIFFERT'S 1947 DENSITOMETER, and the owner adopted it as a stated
     # -- provisional stand-in for a reader geometry rather than as a claim about
@@ -4643,7 +5145,7 @@ class RenderSettings:
     # -- ⚠ 0.0 REMAINS THE VALUE THAT REPRODUCES THE STORED CHARACTERISTIC
     # -- CURVES EXACTLY, because those are DIFFUSE densities. Anyone comparing a
     # -- render against a datasheet must set it back to 0.
-    scanner_specular: float = 0.853
+    scanner_specular: float = 0.796
     coupler_scale: float = 1.0
     scanner_f50: float = 0.0        # 0 = take from print stock
 
@@ -5580,12 +6082,17 @@ def simulate(
             cl_adj = fourth_layer_adjust(
                 log_e, curves, cl_row, profile.spectral.cl_red_inhibition,
                 fourth_layer_offset(profile, settings.scene_kelvin))
+    # 2026-10-25 (schema v66): the colour-correction layers -- every target,
+    # negative or reversal, always on where the stock carries one.
+    corr_adj = correction_layers_adjust(profile, log_e, curves, anchors,
+                                        settings.scene_kelvin)
     if profile.interimage.active and not profile.is_monochrome:
         apply_interimage(dens, log_e, curves, profile.interimage,
-                         anchors, reversal, cl_adj)
-    elif cl_adj is not None:
-        dens[:, :, 0] = density(log_e[:, :, 0] + cl_adj, curves[0])
-    del log_e, cl_adj
+                         anchors, reversal, cl_adj, corr_adj)
+    else:
+        apply_stage8b_terms_only(dens, log_e, curves, anchors, reversal,
+                                 cl_adj, corr_adj)
+    del log_e, cl_adj, corr_adj
 
     # -- 9. DIR coupler inter-image effects ---------------------------------
     apply_dir_couplers(dens, profile.couplers, grid,
@@ -5713,7 +6220,8 @@ def simulate(
             # emulsion behind the filter grid, so it cannot have per-layer grain.
             terms = fp.grain_gauss_terms(
                 spec_model, clump_um=clumps[1], clump_gain=gs.clump_gain,
-                grain_um=grain_um[1], size_sigma_log=gs.size_sigma_log)
+                grain_um=grain_um[1], size_sigma_log=gs.size_sigma_log,
+                dye_cloud_um=gs.dye_cloud_um)
             field = make_grain_field(
                 h, w, px_per_mm, terms, gs.rms_granularity, scan_sigma_px,
                 gs.anisotropy, grain_seed, frame_index, RngStage.GRAIN_G,
@@ -5734,7 +6242,8 @@ def simulate(
                     fp.grain_gauss_terms(
                         spec_model, clump_um=clumps[c],
                         clump_gain=gs.clump_gain, grain_um=grain_um[c],
-                        size_sigma_log=gs.size_sigma_log),
+                        size_sigma_log=gs.size_sigma_log,
+                        dye_cloud_um=gs.dye_cloud_um),
                     rms_c[c], scan_sigma_px, gs.anisotropy,
                     grain_seed, frame_index, streams[c], aperture,
                     grain_rho, grain_fixed)
@@ -5802,9 +6311,17 @@ def simulate(
             field = fields[c]
             if settings.marginal_model == "hybrid" and elem_um2 > 0.0:
                 net = np.maximum(dens[:, :, c] - np.float32(dmin), 0.0)
+                # 2026-10-27c: partially developed grains (Tani's developer
+                # physics, ProcessingSpec.partial_fill_fraction) -- more of
+                # them per unit density, and a wider jump distribution.
+                _pf_e1, _pf_k = fp.partial_fill_moments(
+                    profile.processing.partial_fill_fraction)
                 n_elem = fp.grain_n_elem(net, grain_um[c], gs.size_sigma_log,
                                          elem_um2)
-                coeff = fp.grain_marginal_coeff(n_elem, gs.size_sigma_log)
+                if _pf_e1 != 1.0:
+                    n_elem = n_elem / _pf_e1
+                coeff = fp.grain_marginal_coeff(n_elem, gs.size_sigma_log,
+                                                _pf_k)
                 if float(np.max(coeff)) > 0.0:
                     # Standardise by the field's own RMS, transform, restore.
                     # The RMS is a property of this plane and this transfer, so
@@ -5840,8 +6357,12 @@ def simulate(
     np.maximum(dens, np.float32(0.0), out=dens)
 
     # -- 12. dye impurity / scanner crosstalk -------------------------------
+    # 2026-10-27c: NOT on a transparency viewed through its own dye spectra --
+    # the spectra are the crosstalk (stage 13r below), the matrix was its
+    # 3x3 stand-in, and applying both would count it twice.
+    _specview = _spectral_view_applies(profile)
     m = np.asarray(profile.dye_matrix, dtype=np.float32)
-    if not np.allclose(m, np.eye(3, dtype=np.float32)):
+    if not _specview and not np.allclose(m, np.eye(3, dtype=np.float32)):
         dens = dens.reshape(-1, 3) @ m.T
         dens = dens.reshape(h, w, 3).astype(np.float32)
 
@@ -5854,12 +6375,28 @@ def simulate(
     # steepened density. Before stage 13 rather than after, since the print
     # stage's own curve must act on what its optics actually see.
     callier_density(dens, curves, profile.callier_q,
-                    settings.scanner_specular, profile.is_monochrome)
+                    settings.scanner_specular, profile.is_monochrome,
+                    profile.callier_spectral)
 
     # -- 13. duplication generations, then print -----------------------------
     if reversal:
         # The slide already is the positive. Its own dmin/dmax become the white
         # and black points; no second curve, no inversion.
+        # -- 13r. 2026-10-27c: viewed through its OWN dyes (spectral_view):
+        # status densities -> dye amounts -> T(lambda) -> D55 / CIE 1931 ->
+        # linear sRGB, as equivalent densities with D-min and the anchored grey
+        # where they were. Owner: "the dye spectra -- use it in algorithm".
+        if _specview:
+            import spectral_view as _sv
+            _dm = _sv.reversal_mid_density(profile, anchors, _cs_flat)
+            if not callier_is_inert(profile, settings.scanner_specular):
+                _dm = [curves[c].dmin + float(callier_net(
+                    _dm[c] - curves[c].dmin,
+                    callier_channel_q(profile.callier_q, profile.callier_spectral, c),
+                    float(settings.scanner_specular))) for c in range(3)]
+            _tab = _sv.build_table(profile, _dm)
+            if _tab is not None:
+                dens = _sv.apply(dens, _tab)
         out = dens
         final_curves = curves
     else:
@@ -5872,10 +6409,12 @@ def simulate(
         # correct -- the two references disagreed, and the print re-timed against
         # the wrong one.
         if not callier_is_inert(profile, settings.scanner_specular):
-            _cq = float(profile.callier_q)
             _cs = float(settings.scanner_specular)
             d_mid = [curves[c].dmin
-                     + float(callier_net(d_mid[c] - curves[c].dmin, _cq, _cs))
+                     + float(callier_net(d_mid[c] - curves[c].dmin,
+                                         callier_channel_q(profile.callier_q,
+                                                           profile.callier_spectral, c),
+                                         _cs))
                      for c in range(3)]
 
         # Nobody ever projected the camera negative. A release print is three or
@@ -6004,11 +6543,25 @@ def simulate(
         del dens
         final_curves = pcurves
 
+
         pm = np.asarray(print_stock.dye_matrix, dtype=np.float32)
         if not np.allclose(pm, np.eye(3, dtype=np.float32)):
             out = np.ascontiguousarray(
                 (out.reshape(-1, 3) @ pm.T).reshape(h, w, 3), dtype=np.float32
             )
+        # -- 13p. (after the print dye matrix, as the C++ stage-13 twins
+        # apply it inside stage 13 and 13p follows) 2026-10-27c: the PRINT's own dark storage (owner: "print-
+        # stock ageing -- use it in algorithm"). The print was timed fresh and
+        # then stored; its published dye stability fades each dye's image
+        # density and stains D-min. Same storage controls as the film.
+        _pf, _ps = print_storage_fade(
+            print_stock, getattr(settings, "storage_years", 0.0),
+            getattr(settings, "storage_celsius", STORAGE_CELSIUS_DEF))
+        if _pf != (0.0, 0.0, 0.0) or _ps != (0.0, 0.0, 0.0):
+            for c in range(3):
+                dmc = np.float32(pcurves[c].dmin)
+                out[:, :, c] = (dmc + (out[:, :, c] - dmc) * np.float32(1.0 - _pf[c])
+                                + np.float32(_ps[c]))
 
     # -- 14. print grain, then transmittance to display linear ---------------
     if not reversal and settings.print_grain and print_stock.grain_rms > 0.0:
@@ -6204,14 +6757,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--grain", type=float, default=1.0, dest="grain_scale")
     p.add_argument("--halation", type=float, default=1.0, dest="halation_scale")
-    p.add_argument("--scanner-specular", type=float, default=0.853,
+    p.add_argument("--scanner-specular", type=float, default=0.796,
                    dest="scanner_specular",
                    help="reader optics: 0 = diffuse integrating sphere, which "
                         "reproduces the stored (diffuse) characteristic curves "
                         "exactly; 1 = condenser/point source, applying the "
-                        "stock's full Callier coefficient. DEFAULT 0.853 = "
-                        "1 - E with Streiffert's fitted E = 0.1471 (owner "
-                        "decision 2026-09-06; a densitometer geometry adopted "
+                        "stock's full Callier coefficient. DEFAULT 0.796 = "
+                        "1 - E with E = 0.204 fitted to Streiffert's printed "
+                        "table (owner decisions 2026-09-06 / 2026-10-26c; a "
+                        "densitometer geometry adopted "
                         "as a provisional stand-in, NOT a scanner measurement). "
                         "Monochrome stocks only -- colour carries Q = 1.0")
     p.add_argument("--couplers", type=float, default=1.0, dest="coupler_scale")

@@ -517,7 +517,7 @@ void AlgoStage13_Duplication
         dMid[c] = AlgoCallierApplyScalar(
             dMid[c],
             static_cast<HighPrecType>(curveAt(profile.curves, c).dmin),
-            static_cast<HighPrecType>(profile.callier_q),
+            AlgoCallierQChannel(profile, c),   // 2026-10-26b, schema v67
             static_cast<HighPrecType>(params.scannerSpecular));
     }
 

@@ -315,7 +315,12 @@ inline void AlgoDevelopmentGroup
     {
         for (std::size_t i = 0u; i < live.size(); ++i)
         {
-            if (norm(devs[live[i]]) == want)
+            // 2026-10-27c: a record may print the developer's NAME followed
+            // by its formula; the name is then the developer it names.
+            const std::string nd = norm(devs[live[i]]);
+            if ((nd == want)
+                || (!nd.empty() && (want.size() > nd.size())
+                    && (0 == want.compare(0, nd.size() + 1u, nd + " "))))
                 named.push_back(live[i]);
         }
     }
@@ -490,13 +495,28 @@ struct AlgoDevelopmentAxis
     }
 };
 
+// ---------------------------------------------------------------------------
+//  AlgoRateSizeLawApplies -- 2026-10-27c, twin of film_sim.
+//  rate_size_law_applies: PARALLEL development with a stated rate-size
+//  coefficient (Tani Fig. 7.12, r = coeff / d per minute) and a crystal size.
+//  The development rate is then a property of the emulsion and the
+//  Development Time control follows it on a colour stock too.
+// ---------------------------------------------------------------------------
+inline bool AlgoRateSizeLawApplies(const film::FilmProfile& p) noexcept
+{
+    return (p.processing.progress == film::DevelopmentProgress::Parallel)
+        && (p.processing.rate_size_coeff_um_min > 0.0f)
+        && (p.emulsion.grain_um > 0.0f);
+}
+
+
 inline bool AlgoDevelopmentAxisBuild
 (
     const film::FilmProfile& p,
     AlgoDevelopmentAxis&     ax
 ) noexcept
 {
-    if (!p.is_monochrome)
+    if (!p.is_monochrome && !AlgoRateSizeLawApplies(p))
         return false;
 
     std::string dev;
@@ -550,7 +570,35 @@ inline bool AlgoDevelopmentAxisBuild
     // The governing law (see the header note).
     const film::ProcessingFamily& fam = p.processing_family;
     ax.hasLaw = false;
-    for (std::size_t i = 0u; i < fam.laws.size(); ++i)
+    // 2026-10-27c: the rate-size law where no family law governs
+    // (film_sim.rate_size_law). gamma_inf from the group's own points; it
+    // cancels in the ratio the control applies and sets only the ceiling.
+    if (AlgoRateSizeLawApplies(p) && fam.laws.empty() && !fam.hasRateLaw())
+    {
+        const HighPrecType kk =
+            static_cast<HighPrecType>(p.processing.rate_size_coeff_um_min)
+            / static_cast<HighPrecType>(p.emulsion.grain_um);
+        HighPrecType sum = 0;
+        int32_t n = 0;
+        for (std::size_t i = 0u; i < ax.pts.size(); ++i)
+        {
+            const HighPrecType t = ax.pts[i].first;
+            const HighPrecType g = ax.pts[i].second;
+            if ((t > static_cast<HighPrecType>(0)) && (g > static_cast<HighPrecType>(0)))
+            {
+                sum += g / (static_cast<HighPrecType>(1) - std::exp(-kk * t));
+                ++n;
+            }
+        }
+        if (n > 0)
+        {
+            ax.hasLaw = true;
+            ax.gInf = sum / static_cast<HighPrecType>(n);
+            ax.k    = kk;
+            ax.t0   = static_cast<HighPrecType>(0);
+        }
+    }
+    for (std::size_t i = 0u; !ax.hasLaw && i < fam.laws.size(); ++i)
     {
         const film::DevelopmentLaw& L = fam.laws[i];
         if (!L.hasRateLaw())

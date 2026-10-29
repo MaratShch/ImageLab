@@ -85,9 +85,9 @@
 //      AlgoStage12b_Callier     the per-pixel pass
 //
 //  ⚠⚠ NO LONGER INERT BY DEFAULT, AS OF 2026-09-06. `scannerSpecular` now
-//  defaults to 0.853 (AlgoControl.cpp, getAlgoControlsDefault), so a render at
-//  defaults APPLIES this stage on every monochrome stock -- Q 1.485 at net
-//  density 1.0, i.e. +0.485 D. Setting it to 0.0 still reproduces a pre-Callier
+//  defaults to 0.796 (AlgoControl.cpp, getAlgoControlsDefault; 0.853 until
+//  2026-10-26c), so a render at defaults APPLIES this stage on every monochrome
+//  stock -- Q 1.429 at net density 1.0, i.e. +0.429 D. Setting it to 0.0 still reproduces a pre-Callier
 //  render bit for bit, and 0.0 is what a comparison against a stored
 //  characteristic curve requires, those being DIFFUSE densities. The early-out
 //  path is unchanged and still exact at 0.0; only the shipped value moved.
@@ -182,6 +182,38 @@ inline bool AlgoCallierInert
 
 
 // ---------------------------------------------------------------------------
+//  AlgoCallierQChannel  (2026-10-26b, schema v67)
+//
+//  The beta READER CHANNEL c (0 R, 1 G, 2 B) sees: the chromatic Callier
+//  effect. FilmProfile::callier_spectral_{r,g,b} scale callier_q - 1 per
+//  channel (status M band centres 640 / 540 / 450 nm, green = 1): silver
+//  scatters short wavelengths more (Trumpy & Gschwind 2017, Trumpy &
+//  Flueckiger 2019). Twin of film_sim.callier_channel_q.
+//
+//  ⚠ RETURNS q ITSELF WHEN THE FACTOR IS 1.0 OR q IS 1.0 -- not 1 + (q-1)*1,
+//  which is not bit-exact -- so every stock without spectral data renders as
+//  before, and every dye image stays inert.
+// ---------------------------------------------------------------------------
+inline HighPrecType AlgoCallierQChannel
+(
+    const film::FilmProfile& profile,
+    const int32_t            c
+) noexcept
+{
+    const HighPrecType q = static_cast<HighPrecType>(profile.callier_q);
+    const HighPrecType f = static_cast<HighPrecType>(
+        (0 == c) ? profile.callier_spectral_r
+      : (1 == c) ? profile.callier_spectral_g
+                 : profile.callier_spectral_b);
+
+    if ((q == 1.0) || (f == 1.0))
+        return q;
+
+    return 1.0 + ((q - 1.0) * f);
+}
+
+
+// ---------------------------------------------------------------------------
 //  AlgoCallierLut
 //
 //  ⚠ THE TABLE IS PART OF THE LAW, NOT AN OPTIMISATION OF IT. AlgoCallierNet
@@ -219,7 +251,8 @@ inline void AlgoCallierLutBuild
 (
     AlgoCallierLut&          lut,
     const film::FilmProfile& profile,
-    const HighPrecType       scannerSpecular
+    const HighPrecType       scannerSpecular,
+    const int32_t            channel
 ) noexcept
 {
     lut.active = !AlgoCallierInert(profile, scannerSpecular);
@@ -227,7 +260,8 @@ inline void AlgoCallierLutBuild
     if (!lut.active)
         return;
 
-    const HighPrecType q = static_cast<HighPrecType>(profile.callier_q);
+    // 2026-10-26b: one table per reader channel (AlgoCallierQChannel).
+    const HighPrecType q = AlgoCallierQChannel(profile, channel);
 
     lut.lo      = ALGO_CALLIER_LUT_MIN;
     lut.step    = (ALGO_CALLIER_LUT_MAX - ALGO_CALLIER_LUT_MIN)
@@ -359,17 +393,20 @@ inline void AlgoStage12b_Callier
     const HighPrecType       scannerSpecular
 ) noexcept
 {
-    AlgoCallierLut lut;
-
-    AlgoCallierLutBuild(lut, profile, scannerSpecular);
-
-    if (!lut.active)
+    if (AlgoCallierInert(profile, scannerSpecular))
         return;
 
     AlgoType* plane[3] = { pDstR, pDstG, pDstB };
 
+    //  2026-10-26b (schema v67): ONE TABLE PER READER CHANNEL -- the chromatic
+    //  Callier effect (AlgoCallierQChannel). With callier_spectral 1/1/1 the
+    //  three tables are identical to the single pre-v67 table, bit for bit.
+    AlgoCallierLut lut;
+
     for (int32_t c = 0; c < 3; c++)
     {
+        AlgoCallierLutBuild(lut, profile, scannerSpecular, c);
+
         AlgoType* RESTRICT pD = plane[c];
 
         // The base carries no developed silver and therefore no scattering, so

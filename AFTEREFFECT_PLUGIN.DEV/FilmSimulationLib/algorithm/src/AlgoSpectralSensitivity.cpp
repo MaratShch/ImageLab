@@ -534,6 +534,138 @@ bool AlgoSpectralFourthLayerRow
 
 
 // ---------------------------------------------------------------------------
+//  2026-10-25 (schema v66): one colour-CORRECTION layer's mixing row and speed
+//  offset -- AlgoSpectralFourthLayerRow applied to CorrectionLayer::log_s and
+//  ::level_rel_green_log. Twins: film_sim.correction_layer_row /
+//  correction_layer_offset.
+bool AlgoSpectralCorrectionLayerRow
+(
+    const film::FilmProfile&     profile,
+    const film::CorrectionLayer& layer,
+    const HighPrecType           sceneKelvin,
+    AlgoType                     rowOut[3],
+    AlgoType*                    offsetOut
+) noexcept
+{
+    const film::SpectralSensitivity& sp = profile.spectral;
+
+    if (nullptr != offsetOut)
+        *offsetOut = static_cast<AlgoType>(0);
+
+    if (layer.log_s.empty() || !(sceneKelvin > 0.0))
+        return false;
+
+    HighPrecType cl[ALGO_SPECTRAL_N];
+    resampleLinear(layer.log_s, sp.lambda_start_nm, sp.lambda_step_nm, cl);
+
+    for (int32_t i = 0; i < ALGO_SPECTRAL_N; i++)
+        cl[i] *= takingFilterT(profile, gridLambda(i));
+
+    HighPrecType illum[ALGO_SPECTRAL_N];
+    blackbodySpd(sceneKelvin, illum);
+
+    const HighPrecType centres[3] =
+    {
+        ALGO_SPECTRAL_PRIMARY_R_NM,
+        ALGO_SPECTRAL_PRIMARY_G_NM,
+        ALGO_SPECTRAL_PRIMARY_B_NM
+    };
+
+    HighPrecType w[3];
+    HighPrecType sum = 0.0;
+
+    for (int32_t p = 0; p < 3; p++)
+    {
+        HighPrecType prim[ALGO_SPECTRAL_N];
+        primarySpd(centres[p], prim);
+
+        HighPrecType prod[ALGO_SPECTRAL_N];
+
+        for (int32_t i = 0; i < ALGO_SPECTRAL_N; i++)
+            prod[i] = cl[i] * prim[i] * illum[i];
+
+        w[p] = integrate(prod);
+        sum += w[p];
+    }
+
+    if (!(sum > 0.0))
+        return false;
+
+    for (int32_t p = 0; p < 3; p++)
+        rowOut[p] = static_cast<AlgoType>(static_cast<float>(w[p] / sum));
+
+    if ((nullptr != offsetOut) && (0.0 != layer.level_rel_green_log))
+    {
+        HighPrecType sens[3][ALGO_SPECTRAL_N];
+
+        if (fetchLayers(profile, sens) == 3)
+        {
+            HighPrecType pc[ALGO_SPECTRAL_N];
+            HighPrecType pg[ALGO_SPECTRAL_N];
+
+            for (int32_t i = 0; i < ALGO_SPECTRAL_N; i++)
+            {
+                pc[i] = cl[i] * illum[i];
+                pg[i] = sens[1][i] * illum[i];
+            }
+
+            const HighPrecType ncl = integrate(pc);
+            const HighPrecType ng  = integrate(pg);
+
+            if ((ncl > 0.0) && (ng > 0.0))
+                *offsetOut = static_cast<AlgoType>(static_cast<float>(
+                    layer.level_rel_green_log + std::log10(ncl / ng)));
+        }
+    }
+
+    return true;
+}
+
+
+// ---------------------------------------------------------------------------
+//  2026-10-25 (schema v66): every active correction layer of the stock, in
+//  stored order, into the fixed-size set stage 8b reads. Twin:
+//  film_sim.correction_layers_adjust (its row / offset / gating half).
+int32_t AlgoSpectralCorrectionLayers
+(
+    const film::FilmProfile& profile,
+    const HighPrecType       sceneKelvin,
+    AlgoCorrectionLayerSet&  out
+) noexcept
+{
+    out.count = 0;
+
+    if (profile.is_monochrome)
+        return 0;
+
+    for (const film::CorrectionLayer& c : profile.spectral.correction_layers)
+    {
+        if (out.count >= ALGO_MAX_CORRECTION_LAYERS)
+            break;
+        if (!(c.strength > 0.0) || c.log_s.empty())
+            continue;
+        if ((c.target < 0) || (c.target > 2) || (c.standin < 0) || (c.standin > 2))
+            continue;
+
+        const int32_t k = out.count;
+        AlgoType offset = static_cast<AlgoType>(0);
+
+        if (false == AlgoSpectralCorrectionLayerRow(profile, c, sceneKelvin,
+                                                    out.row[k], &offset))
+            continue;
+
+        out.strength[k] = static_cast<AlgoType>(c.strength);
+        out.offset  [k] = offset;
+        out.target  [k] = c.target;
+        out.standin [k] = c.standin;
+        out.count++;
+    }
+
+    return out.count;
+}
+
+
+// ---------------------------------------------------------------------------
 bool AlgoSpectralBalanceGains
 (
     const film::FilmProfile& profile,

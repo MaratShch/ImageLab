@@ -1374,7 +1374,9 @@ void AlgoStage11_Grain
         // field three times against three densities would be three different
         // answers about one silver image.
         AlgoGrainApplyMarginal(pScrFieldR, pDstG, sizeX, sizeY, pitch,
-                               dmin[1], grainUm[1], sigmaLn, elemArea);
+                               dmin[1], grainUm[1], sigmaLn, elemArea,
+                               static_cast<HighPrecType>(
+                                   profile.processing.partial_fill_fraction));
 
         // The same field three times. Three independent fields here would produce
         // coloured speckle on a black-and-white image.
@@ -1431,7 +1433,9 @@ void AlgoStage11_Grain
 
         for (int32_t c = 0; c < 3; c++)
             AlgoGrainApplyMarginal(field[c], dstPl[c], sizeX, sizeY, pitch,
-                                   dmin[c], grainUm[c], sigmaLn, elemArea);
+                                   dmin[c], grainUm[c], sigmaLn, elemArea,
+                                   static_cast<HighPrecType>(
+                                       profile.processing.partial_fill_fraction));
 
         AlgoAddGrain(pDstR, pDstG, pDstB,
                      pScrFieldR, pScrFieldG, pScrFieldB,

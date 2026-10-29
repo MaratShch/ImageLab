@@ -20,29 +20,26 @@
 //  the solve is a sixty-step bisection whose bracket shrinks below float resolution
 //  long before it finishes.
 //
-//  AlgoStage08b_Interimage is left scalar deliberately. It measures 1.38 ms - two
-//  tenths of one per cent - because it is inactive on most stocks, and it re-evaluates
-//  the curve inside a fixed-point iteration, so vectorising it would multiply the
-//  transcendental approximation error by the iteration count for no measurable gain.
+//  AlgoStage08b_Interimage IS vectorised (since v68): the law-C reverse tables
+//  are built once per frame in HighPrecType by the shared AlgoBuildIieRevLuts and
+//  the pixel loop runs 8-lane LUT gathers. (Header corrected 2026-10-27b; it used
+//  to say 8b was left scalar.)
 //
-//  TRANSCENDENTALS COME FROM FastCompute::AVX2, WHICH IS A SPEED CHOICE
+//  TRANSCENDENTALS (header corrected 2026-10-27b)
 //
-//  Measured against a double reference over the ranges this stage uses:
+//  The characteristic curve is NOT evaluated through a fast exp any more. The
+//  per-pixel pass evaluates it through the 4096-entry AlgoCurveLut built in
+//  HighPrecType from the closed-form softplus (measured bound 4.24e-6 D interp,
+//  3.12e-7 D clamp -- AlgoCurveLut.hpp). The Schraudolph-exp softplus this header
+//  used to describe (~3 % exp error, ~0.1 D) is gone from this unit.
 //
-//      Log   max rel 9.45e-05    max abs 1.52e-05
-//      Exp   max rel 2.98e-02    (Schraudolph bit-trick)
-//
-//  Exp carries three per cent. Propagated through the softplus - whose derivative
-//  with respect to its exponential is u/(1+u), at most one - that is up to 0.03
-//  absolute in each ramp, and multiplied by gamma, which reaches about 3.5 on the
-//  contrasty stocks, roughly 0.1 in density. Around ten per cent in transmittance.
-//
-//  That is a KNOWN and DELIBERATE trade, taken to measure the fast path end to end
-//  before choosing between fast and accurate. It is not a defect to be discovered
-//  later: this file will not match the scalar reference to the 1e-6 budget, and it is
-//  not meant to yet. The accurate alternative is a range-reduced exp - n =
-//  round(x*log2e), r = x - n*ln2, minimax polynomial on r, exponent field written
-//  directly - at roughly twelve instructions instead of two.
+//  What remains approximate here: log10 E is computed with
+//  FastCompute::AVX2::Log (max rel 9.45e-05, max abs 1.52e-05 in ln) where the
+//  scalar unit uses std::log10 in double and Python np.log10. This one-sided
+//  approximation is the main contributor to the measured scalar-vs-AVX2 chain
+//  worst case (5.96e-05 against the 1e-4 budget, chain_parity.py). If that
+//  budget tightens, switch to the range-reduced accurate log stage 13 carries
+//  (algoLogAccV).
 //
 //  Pipeline stage 8: exposure to density.
 //
@@ -89,6 +86,7 @@
 #include "AlgoDisplayWhite.hpp"   // 2026-10-20b: shared white point
 #include "Common.hpp"
 #include "AlgoCharacteristicCurve.hpp"
+#include "AlgoSpectralView.hpp"
 #include "AlgoInterimage.hpp"
 #include "AlgoCallier.hpp"  // AlgoCallierNet / AlgoCallierApplyScalar (C41, G3)
 #include "AlgoHalation.hpp"
@@ -205,55 +203,9 @@ namespace
     // algoCurveLutV moved to AlgoCurveLut.hpp so stage 13 can use the same
     // vector lookup against the same table. Called below as AlgoCurveLutEvalV.
 
-    // ----------------------------------------------------------------------
-    //  Vector softplus:  k * log(1 + exp(x/k))
-    //
-    //  The shape of the whole characteristic curve. Two of these per sample per
-    //  channel, so this function IS stage 8's cost.
-    //
-    //  THE LINEAR ASYMPTOTE IS NOT AN OPTIMISATION, IT IS A CORRECTNESS GUARD.
-    //
-    //  Far up the ramp softplus equals its own asymptote x to well beyond the last
-    //  representable bit, and the exponential is heading for overflow. The scalar
-    //  path returns x directly above ALGO_SOFTPLUS_LINEAR_LIMIT; this does the same
-    //  through a blend, so both paths agree in the tail and neither has to survive an
-    //  infinity. Selecting rather than branching also keeps all eight lanes on one
-    //  code path, which is the point of the exercise.
-    //
-    //  Both sides of the blend are ALWAYS evaluated - that is how a vector select
-    //  works - so the exponential still runs on lanes whose result is discarded.
-    //  FastCompute's Exp clamps its argument to +/- 87 internally, which is what
-    //  keeps those discarded lanes from producing an infinity that could contaminate
-    //  nothing, but would show up under a NaN check.
-    //
-    //  x       already offset:  logE - toe_x  or  logE - shoulder_x
-    //  k       knee width
-    //  invK    its reciprocal, formed once per channel outside the pixel loop
-    // ----------------------------------------------------------------------
-    FORCE_INLINE __m256 algoSoftplusV (const __m256 x,
-                                       const __m256 k,
-                                       const __m256 invK) noexcept
-    {
-        const __m256 z = _mm256_mul_ps(x, invK);
-
-        const __m256 vLimit = _mm256_set1_ps(
-            static_cast<float>(ALGO_SOFTPLUS_LINEAR_LIMIT));
-
-        // Lanes where the asymptote applies. _CMP_GT_OQ - ordered, non-signalling -
-        // so a NaN argument selects the log path rather than raising.
-        const __m256 useLinear = _mm256_cmp_ps(z, vLimit, _CMP_GT_OQ);
-
-        // log1p(exp(z)) as log(1 + exp(z)). The addition of one is exact for any
-        // exp result at or above the float epsilon, and below that both forms give
-        // zero - so the accuracy the scalar log1p buys back is entirely inside a
-        // region where the softplus contributes nothing to the density.
-        const __m256 u = FastCompute::AVX2::Exp(z);
-
-        const __m256 lg =
-            FastCompute::AVX2::Log(_mm256_add_ps(u, _mm256_set1_ps(1.0f)));
-
-        return _mm256_blendv_ps(_mm256_mul_ps(k, lg), x, useLinear);
-    }
+    // algoSoftplusV (Schraudolph exp + fast log softplus) REMOVED 2026-10-27b:
+    // dead since the curve moved to AlgoCurveLut (no caller; grep-verified).
+    // Stage 13 keeps its own accurate algoSoftplusV for the print curve.
 
 
     // ----------------------------------------------------------------------
@@ -534,14 +486,26 @@ void AlgoSolveAnchors
 ) noexcept
 {
     const film::RGBCurves& curves = profile.curves;
-    const film::Matrix3&   negM   = profile.dye_matrix;
+    // 2026-10-27c: a transparency viewed through its own dye spectra carries
+    // its crosstalk spectrally (AlgoSpectralView.hpp); stage 12 does not apply
+    // dye_matrix to it, so neither may this solve.
+    static const film::Matrix3 kIdentity3 = {{ {{ 1.0f, 0.0f, 0.0f }},
+                                               {{ 0.0f, 1.0f, 0.0f }},
+                                               {{ 0.0f, 0.0f, 1.0f }} }};
+    const film::Matrix3&   negM   = AlgoSpectralViewApplies(profile)
+                                  ? kIdentity3 : profile.dye_matrix;
 
     // ⚠ QUEUE C41, and this twin moves in the same commit as the scalar one by
     // rule: the solve is a MODEL, not an execution strategy, so the two paths
     // may differ in how they compute it and never in what they compute. Exactly
     // 1.0 at the default and on every colour stock.
-    const HighPrecType callierQ =
-        static_cast<HighPrecType>(profile.callier_q);
+    // 2026-10-26b (schema v67): one beta per reader channel -- the chromatic
+    // Callier effect (AlgoCallierQChannel); exactly callier_q on every channel
+    // of a stock without spectral data.
+    const HighPrecType callierQ[3] = {
+        AlgoCallierQChannel(profile, 0),
+        AlgoCallierQChannel(profile, 1),
+        AlgoCallierQChannel(profile, 2) };
 
     // Where a neutral grey starts on each record's own curve.
     HighPrecType logEMid[3];
@@ -610,7 +574,7 @@ void AlgoSolveAnchors
                     const HighPrecType read = AlgoCallierApplyScalar(
                         mixed,
                         static_cast<HighPrecType>(curveOf(curves, c).dmin),
-                        callierQ,
+                        callierQ[c],
                         scannerSpecular);
 
                     return normalisedTransmittance(read, curveOf(curves, c),
@@ -662,7 +626,7 @@ void AlgoSolveAnchors
         dMid[c] = AlgoCallierApplyScalar(
             dMid[c],
             static_cast<HighPrecType>(curveOf(curves, c).dmin),
-            callierQ,
+            callierQ[c],
             scannerSpecular);
     }
 
@@ -1086,7 +1050,8 @@ void AlgoStage08b_Interimage
     const HighPrecType       anchor[3],
     const AlgoType           clRow[3],
     const AlgoType           clStrength,
-    const AlgoType           clOffset
+    const AlgoType           clOffset,
+    const AlgoCorrectionLayerSet* corr
 ) noexcept
 {
     const film::InterimageSpec& iie = profile.interimage;
@@ -1100,11 +1065,21 @@ void AlgoStage08b_Interimage
                     && (false == profile.isReversal());
     const bool iieOn = iie.active();
 
+    // 2026-10-25 (schema v66): the colour-correction layers, negative or
+    // reversal, always on where the stock carries one (no control). Mirror of
+    // the scalar unit. Twin: film_sim.correction_layers_adjust.
+    const int32_t nCorr = ((nullptr != corr) && (false == profile.is_monochrome))
+                        ? MIN_VALUE(corr->count, ALGO_MAX_CORRECTION_LAYERS) : 0;
+    const bool corrOn = (nCorr > 0);
+    bool corrTarget[3] = { false, false, false };
+    for (int32_t k = 0; k < nCorr; k++)
+        corrTarget[corr->target[k]] = true;
+
     // A monochrome stock has one emulsion layer, so there is nothing for an
     // inhibitor to diffuse INTO. The copy is required rather than a skip: the
     // retained-buffer policy gives this stage its own destination, and leaving it
     // unwritten would put stale contents in the chain for everything downstream.
-    if (((false == iieOn) && (false == clOn)) || profile.is_monochrome)
+    if (((false == iieOn) && (false == clOn) && (false == corrOn)) || profile.is_monochrome)
     {
         AlgoCopyImage(pSrcR, pSrcG, pSrcB, pDstR, pDstG, pDstB, sizeX, sizeY, pitch);
         return;
@@ -1173,7 +1148,9 @@ void AlgoStage08b_Interimage
     // reversal behaviour.
     const AlgoType dw = static_cast<AlgoType>(iie.density_weighting);
 
-    const bool wantWeight = (dw > ALGO_ZERO);
+    // 2026-10-26 (Shuto 1997 Fig. 2): a NEGATIVE density_weighting is a
+    // highlight emphasis -- the weight rises where the neighbour is thin.
+    const bool wantWeight = (dw > ALGO_ZERO) || (dw < ALGO_ZERO);
 
     // Reciprocals of the reference densities, formed once, for the weighting
     // normalisation. Floored so a stock with essentially no base fog does not
@@ -1187,6 +1164,9 @@ void AlgoStage08b_Interimage
     // channel's own Dmax. VERBATIM from the scalar translation unit - queue
     // item C18, 2026-09-02 - and provably non-binding, see the note at its use.
     AlgoType wCap[3];
+    // Lower bound on the weight: inert (-1e30) for dw > 0, so that branch is
+    // bit-for-bit what it was; zero for dw < 0 (2026-10-26).
+    AlgoType wFloor[3];
 
     for (int32_t c = 0; c < 3; c++)
     {
@@ -1229,6 +1209,17 @@ void AlgoStage08b_Interimage
         // non-binding across the database, and that assertion is what proved
         // this was a no-op. Do not delete it to save a multiply.
         wCap[c] = ALGO_ONE;
+        wFloor[c] = static_cast<AlgoType>(-1.0e30);
+        // ⚠ 2026-10-26: NEGATIVE dw = HIGHLIGHT EMPHASIS (Shuto, Kuwashima,
+        // Bando, Takada, IS&T 50th 1997, Fig. 2, fitted by
+        // shuto_calibration.py). w = 1 + |dw| (1 - D/Dref), clipped to
+        // [0, 1 + |dw|]; one at the reference as before. Twin of
+        // film_sim.apply_interimage.
+        if (dw < ALGO_ZERO)
+        {
+            wCap[c]   = ALGO_ONE - dw;
+            wFloor[c] = ALGO_ZERO;
+        }
     }
 
     // Per-channel curve parameters and reversal trims, hoisted out of the pixel
@@ -1254,6 +1245,15 @@ void AlgoStage08b_Interimage
     // BUILT from and are no longer read per pixel. Retained rather than deleted so
     // the profile fields driving this stage stay visible at the point of use.
     (void)dmin; (void)gamma; (void)toeX; (void)toeK; (void)shX; (void)shK;
+
+    // 2026-10-26c (schema v68): reversal law C. Donor release V_j(D) replaces
+    // the density weighting; receiver gate g_c(D) on the interimage terms.
+    // Shared tables, built as in the scalar unit (AlgoBuildIieRevLuts).
+    const bool lawC   = reversal && iie.lawC();
+    const bool gateOn = lawC && iie.receiverGated();
+    static thread_local AlgoCurveLut revLut[6];
+    if (lawC)
+        AlgoBuildIieRevLuts(iie, curves, dRef, &revLut[0], &revLut[3]);
 
     const AlgoType* logEPlane[3] = { pLogER, pLogEG, pLogEB };
     AlgoType* dstPlane [3] = { pDstR,  pDstG,  pDstB  };
@@ -1306,7 +1306,8 @@ void AlgoStage08b_Interimage
     //      logE_c' = logE_c + sum_{j != c} a_cj * (D_j - D_j(logE_c))
     //
     //  so every neutral renders exactly on the stored white-light curves.
-    //  Reversal keeps the fixed reference and the density weighting.
+    //  Reversal since 2026-10-26: the same neutral twin, on the weighted
+    //  donor terms (revAdj below).
     // ----------------------------------------------------------------------
     const bool neutralRef = (false == reversal);
 
@@ -1378,6 +1379,19 @@ void AlgoStage08b_Interimage
                         _mm256_maskstore_ps(pE + x, vTail,
                                             _mm256_maskload_ps(pD + x, vTail));
                 }
+                else if (lawC)
+                {
+                    // v68 law C: the donor's monotone release V_j(D).
+                    const AlgoCurveLut& vl = revLut[j];
+
+                    for (int32_t v = 0; v < vecCount; v++, x += ALGO_AVX2_LANES)
+                        _mm256_storeu_ps(pE + x,
+                            AlgoCurveLutEvalV(_mm256_loadu_ps(pD + x), vl));
+
+                    if (tailN > 0)
+                        _mm256_maskstore_ps(pE + x, vTail,
+                            AlgoCurveLutEvalV(_mm256_maskload_ps(pD + x, vTail), vl));
+                }
                 else if (wantWeight)
                 {
                     // Weight rising with the neighbour's own density, and
@@ -1401,12 +1415,13 @@ void AlgoStage08b_Interimage
                     const __m256 vSlope = _mm256_set1_ps(dw * invRj);
                     const __m256 vRef   = _mm256_set1_ps(ref);
                     const __m256 vWCap  = _mm256_set1_ps(wCap[j]);
+                    const __m256 vWFlr  = _mm256_set1_ps(wFloor[j]);
 
                     for (int32_t v = 0; v < vecCount; v++, x += ALGO_AVX2_LANES)
                     {
                         const __m256 d = _mm256_loadu_ps(pD + x);
-                        const __m256 w = _mm256_min_ps(
-                            _mm256_fmadd_ps(vSlope, d, vBase), vWCap);
+                        const __m256 w = _mm256_max_ps(_mm256_min_ps(
+                            _mm256_fmadd_ps(vSlope, d, vBase), vWCap), vWFlr);
 
                         _mm256_storeu_ps(pE + x,
                             _mm256_mul_ps(_mm256_sub_ps(d, vRef), w));
@@ -1415,8 +1430,8 @@ void AlgoStage08b_Interimage
                     if (tailN > 0)
                     {
                         const __m256 d = _mm256_maskload_ps(pD + x, vTail);
-                        const __m256 w = _mm256_min_ps(
-                            _mm256_fmadd_ps(vSlope, d, vBase), vWCap);
+                        const __m256 w = _mm256_max_ps(_mm256_min_ps(
+                            _mm256_fmadd_ps(vSlope, d, vBase), vWCap), vWFlr);
 
                         _mm256_maskstore_ps(pE + x, vTail,
                             _mm256_mul_ps(_mm256_sub_ps(d, vRef), w));
@@ -1443,8 +1458,10 @@ void AlgoStage08b_Interimage
         // ------------------------------------------------------------------
         for (int32_t c = 0; c < 3; c++)
         {
-            if ((false == iieOn) && (0 != c))
-                continue;   // 2026-10-21: CL term only (red)
+            // 2026-10-21: inactive interimage = the fixed terms only: the CL
+            // term on red, 2026-10-25 the correction layers on their targets.
+            if ((false == iieOn) && (false == (clOn && (0 == c))) && (false == corrTarget[c]))
+                continue;
 
             // Which neighbours actually couple into this channel. Skipping a zero
             // coefficient removes a whole plane read per pixel, and zeros are
@@ -1497,6 +1514,50 @@ void AlgoStage08b_Interimage
                 return a;
             };
 
+            // Reversal, 2026-10-26 (owner-approved; Shuto et al. 1997 Fig. 2):
+            // each donor's weighted term minus its NEUTRAL twin -- the same
+            // term evaluated on lut[j] at THIS layer's log E, -(le + trim_j).
+            // The weight is the difference planes' own expression, op for op.
+            auto revW = [&](const int32_t j, const __m256 d) noexcept -> __m256
+            {
+                if (lawC)
+                    return AlgoCurveLutEvalV(d, revLut[j]);   // v68 law C
+
+                const __m256 vRefJ = _mm256_set1_ps(dRef[j]);
+
+                if (!wantWeight)
+                    return _mm256_sub_ps(d, vRefJ);
+
+                const __m256 w = _mm256_max_ps(_mm256_min_ps(
+                    _mm256_fmadd_ps(_mm256_set1_ps(dw * invRef[j]), d,
+                                    _mm256_set1_ps(ALGO_ONE - dw)),
+                    _mm256_set1_ps(wCap[j])), _mm256_set1_ps(wFloor[j]));
+
+                return _mm256_mul_ps(_mm256_sub_ps(d, vRefJ), w);
+            };
+
+            auto revAdj = [&](const __m256 le, const __m256 d0,
+                              const __m256 d1, const __m256 d2) noexcept -> __m256
+            {
+                __m256 a = _mm256_setzero_ps();
+                const __m256 z = _mm256_setzero_ps();
+
+                if (m0 != ALGO_ZERO)
+                    a = _mm256_fmadd_ps(vM0, _mm256_sub_ps(d0, revW(0, AlgoCurveLutEvalV(
+                            _mm256_sub_ps(z, _mm256_add_ps(le, _mm256_set1_ps(trim[0]))),
+                            lut[0]))), a);
+                if (m1 != ALGO_ZERO)
+                    a = _mm256_fmadd_ps(vM1, _mm256_sub_ps(d1, revW(1, AlgoCurveLutEvalV(
+                            _mm256_sub_ps(z, _mm256_add_ps(le, _mm256_set1_ps(trim[1]))),
+                            lut[1]))), a);
+                if (m2 != ALGO_ZERO)
+                    a = _mm256_fmadd_ps(vM2, _mm256_sub_ps(d2, revW(2, AlgoCurveLutEvalV(
+                            _mm256_sub_ps(z, _mm256_add_ps(le, _mm256_set1_ps(trim[2]))),
+                            lut[2]))), a);
+
+                return a;
+            };
+
             // 2026-10-21: fourth-layer offset for n (<= 8) lanes; lanes past
             // n are zero. Red receiver of a negative only.
             const bool clHere = clOn && neutralRef && (0 == c);
@@ -1521,6 +1582,57 @@ void AlgoStage08b_Interimage
                 return _mm256_load_ps(out);
             };
 
+            // 2026-10-25: every correction layer targeting THIS record, per
+            // lane in scalar (pow / log10), donor curves read from the same
+            // tables. Mirror of the scalar AlgoCorrectionAdj.
+            const bool corrHere = corrTarget[c];
+
+            auto corrAdjV = [&](const AlgoType* RESTRICT leR, const AlgoType* RESTRICT leG,
+                                const AlgoType* RESTRICT leB, const int32_t n) noexcept -> __m256
+            {
+                alignas(32) AlgoType out[ALGO_AVX2_LANES] = {};
+                const AlgoType* lePl[3] = { leR, leG, leB };
+
+                for (int32_t q = 0; q < n; q++)
+                {
+                    AlgoType sum = ALGO_ZERO;
+                    const AlgoType leT = lePl[c][q];
+
+                    for (int32_t k = 0; k < nCorr; k++)
+                    {
+                        if (corr->target[k] != c)
+                            continue;
+
+                        const AlgoType* w = corr->row[k];
+                        const AlgoType e = w[0] * std::pow(ALGO_FOURTH_LAYER_TEN, leR[q])
+                                         + w[1] * std::pow(ALGO_FOURTH_LAYER_TEN, leG[q])
+                                         + w[2] * std::pow(ALGO_FOURTH_LAYER_TEN, leB[q]);
+                        const AlgoType leL =
+                            std::log10(MAX_VALUE(e, ALGO_FOURTH_LAYER_E_FLOOR));
+                        const int32_t  sIx = corr->standin[k];
+                        const AlgoType o   = corr->offset[k];
+
+                        if (reversal)
+                        {
+                            const AlgoType trS = trim[sIx] + o;
+                            sum += corr->strength[k]
+                                 * (AlgoCurveLutEval(-(leT + trS), lut[sIx])
+                                    - AlgoCurveLutEval(-(leL + trS), lut[sIx]));
+                        }
+                        else
+                        {
+                            sum += -corr->strength[k]
+                                 * (AlgoCurveLutEval(leL + o, lut[sIx])
+                                    - AlgoCurveLutEval(leT + o, lut[sIx]));
+                        }
+                    }
+
+                    out[q] = sum;
+                }
+
+                return _mm256_load_ps(out);
+            };
+
             for (int32_t y = 0; y < sizeY; y++)
             {
                 const std::ptrdiff_t off = static_cast<std::ptrdiff_t>(y) * pitch;
@@ -1529,6 +1641,7 @@ void AlgoStage08b_Interimage
                 const AlgoType* RESTRICT r0  = pE0 + off;
                 const AlgoType* RESTRICT r1  = pE1 + off;
                 const AlgoType* RESTRICT r2  = pE2 + off;
+                const AlgoType* RESTRICT rLR = logEPlane[0] + off;
                 const AlgoType* RESTRICT rLG = logEPlane[1] + off;
                 const AlgoType* RESTRICT rLB = logEPlane[2] + off;
 
@@ -1560,10 +1673,20 @@ void AlgoStage08b_Interimage
                     }
                     else
                     {
-                        adj = _mm256_mul_ps(vM0, _mm256_loadu_ps(r0 + x));
-                        adj = _mm256_fmadd_ps(vM1, _mm256_loadu_ps(r1 + x), adj);
-                        adj = _mm256_fmadd_ps(vM2, _mm256_loadu_ps(r2 + x), adj);
+                        adj = revAdj(le, _mm256_loadu_ps(r0 + x),
+                                         _mm256_loadu_ps(r1 + x),
+                                         _mm256_loadu_ps(r2 + x));
+
+                        // v68 receiver gate on the interimage terms only, read
+                        // at this layer's own density before this pass
+                        if (gateOn)
+                            adj = _mm256_mul_ps(adj, AlgoCurveLutEvalV(
+                                    _mm256_loadu_ps(rO + x), revLut[3 + c]));
                     }
+
+                    if (corrHere)
+                        adj = _mm256_add_ps(adj,
+                                corrAdjV(rLR + x, rLG + x, rLB + x, ALGO_AVX2_LANES));
 
                     // Back into the curve. A reversal stock negates the trimmed
                     // log exposure, and the correction is ADDED outside that
@@ -1623,13 +1746,18 @@ void AlgoStage08b_Interimage
                     }
                     else
                     {
-                        adj = _mm256_mul_ps(vM0,
-                                  _mm256_maskload_ps(r0 + x, vTail));
-                        adj = _mm256_fmadd_ps(vM1,
-                                  _mm256_maskload_ps(r1 + x, vTail), adj);
-                        adj = _mm256_fmadd_ps(vM2,
-                                  _mm256_maskload_ps(r2 + x, vTail), adj);
+                        adj = revAdj(le, _mm256_maskload_ps(r0 + x, vTail),
+                                         _mm256_maskload_ps(r1 + x, vTail),
+                                         _mm256_maskload_ps(r2 + x, vTail));
+
+                        if (gateOn)
+                            adj = _mm256_mul_ps(adj, AlgoCurveLutEvalV(
+                                    _mm256_maskload_ps(rO + x, vTail), revLut[3 + c]));
                     }
+
+                    if (corrHere)
+                        adj = _mm256_add_ps(adj,
+                                corrAdjV(rLR + x, rLG + x, rLB + x, tailN));
 
                     // Same sign correction as the main body above, 2026-09-08.
                     const __m256 arg = reversal

@@ -105,7 +105,7 @@ struct AlgoDefectOpticsCtx
     bool         callier;     // on, and stage 12b will act on this stock
     HighPrecType s;           // reader specular fraction, clamped to [0, 1]
     HighPrecType sRef;        // anchor of the law
-    HighPrecType q;           // FilmProfile::callier_q
+    HighPrecType q[3];        // beta per reader channel (AlgoCallierQChannel, v67)
     HighPrecType dmin[3];     // curve D_min per record
     HighPrecType visibility;  // FilmDamage::defectVisibility (2026-10-20b)
     HighPrecType baseD[3];    // clear-base density per record (2026-10-20b)
@@ -135,7 +135,9 @@ inline AlgoDefectOpticsCtx AlgoDefectOpticsMake
     ctx.on      = on;
     ctx.s       = CLAMP_VALUE(scannerSpecular, 0.0, 1.0);
     ctx.sRef    = CLAMP_VALUE(sRef, 1.0e-3, 1.0);
-    ctx.q       = static_cast<HighPrecType>(profile.callier_q);
+    ctx.q[0]    = AlgoCallierQChannel(profile, 0);
+    ctx.q[1]    = AlgoCallierQChannel(profile, 1);
+    ctx.q[2]    = AlgoCallierQChannel(profile, 2);
     ctx.callier = on && !AlgoCallierInert(profile, scannerSpecular);
     ctx.dmin[0] = static_cast<HighPrecType>(profile.curves.r.dmin);
     ctx.dmin[1] = static_cast<HighPrecType>(profile.curves.g.dmin);
@@ -258,19 +260,20 @@ inline HighPrecType AlgoDefectComposeRead
         return dOld + dRead;
 
     const HighPrecType dm   = ctx.dmin[channel];
+    const HighPrecType q    = ctx.q[channel];   // 2026-10-26b: per channel
     const HighPrecType xOld = dOld - dm;
-    const HighPrecType yOld = AlgoCallierNet(xOld, ctx.q, ctx.s);
+    const HighPrecType yOld = AlgoCallierNet(xOld, q, ctx.s);
 
     // Start from the first-order step: dRead over the local slope.
     const HighPrecType e  = 1.0 - ctx.s;
     const HighPrecType a  = std::pow(10.0, -xOld);
-    const HighPrecType b  = std::pow(10.0, -(ctx.q * xOld));
+    const HighPrecType b  = std::pow(10.0, -(q * xOld));
     const HighPrecType t  = MAX_VALUE((e * a) + ((1.0 - e) * b), 1.0e-300);
-    const HighPrecType sl = MAX_VALUE(((e * a) + ((1.0 - e) * ctx.q * b)) / t,
+    const HighPrecType sl = MAX_VALUE(((e * a) + ((1.0 - e) * q * b)) / t,
                                       1.0e-6);
 
     const HighPrecType xNew = AlgoDefectCallierInverse(
-        yOld + dRead, xOld + (dRead / sl), ctx.q, ctx.s);
+        yOld + dRead, xOld + (dRead / sl), q, ctx.s);
 
     return dm + xNew;
 }
