@@ -59,25 +59,34 @@ namespace AlgoWB
         return true;
     }
 
-    // ---- CAT cone-response matrices (row-major), verified constants --------
+    // ---- CAT cone-response matrices (row-major) ------------------------------
+    // Stored at the precision their STANDARDS publish - more digits would only
+    // imply accuracy the models do not have:
+    //   Bradford  (Lam 1985; ICC v4)          4 decimals
+    //   CAT02     (CIECAM02, CIE 159:2004)    4 decimals
+    //   CAT16     (CAM16, Li et al. 2017)     6 decimals
+    //   Von Kries (Hunt-Pointer-Estevez)      4 decimals
+    // Each is exactly representable to the published digits as a double
+    // literal; the forward->inverse pair is derived at run time from the SAME
+    // stored matrix (mat3_inverse), so closure M*M^-1 = I holds to ~1e-16.
     inline const double* cat_matrix(int model)
     {
-        static const double BRADFORD[9] = {
-             0.8951000,  0.2664000, -0.1614000,
-            -0.7502000,  1.7135000,  0.0367000,
-             0.0389000, -0.0685000,  1.0296000 };
-        static const double CAT02[9] = {
-             0.7328000,  0.4296000, -0.1624000,
-            -0.7036000,  1.6975000,  0.0061000,
-             0.0030000,  0.0136000,  0.9834000 };
-        static const double CAT16[9] = {
+        static constexpr double BRADFORD[9] = {
+             0.8951,  0.2664, -0.1614,
+            -0.7502,  1.7135,  0.0367,
+             0.0389, -0.0685,  1.0296 };
+        static constexpr double CAT02[9] = {
+             0.7328,  0.4296, -0.1624,
+            -0.7036,  1.6975,  0.0061,
+             0.0030,  0.0136,  0.9834 };
+        static constexpr double CAT16[9] = {
              0.401288,   0.650173,  -0.051461,
             -0.250268,   1.204414,   0.045854,
             -0.002079,   0.048952,   0.953127 };
-        static const double VONKRIES[9] = {   // HPE, equal-energy normalized
-             0.3897000,  0.6890000, -0.0787000,
-            -0.2298000,  1.1834000,  0.0464000,
-             0.0000000,  0.0000000,  1.0000000 };
+        static constexpr double VONKRIES[9] = {   // HPE, equal-energy normalized
+             0.3897,  0.6890, -0.0787,
+            -0.2298,  1.1834,  0.0464,
+             0.0000,  0.0000,  1.0000 };
         switch (model) {
             case cat_CAT02:    return CAT02;
             case cat_CAT16:    return CAT16;

@@ -1,54 +1,57 @@
 // =============================================================================
-// AlgorithmMain.cpp  —  PHASE 2 orchestration (Steps A' , A , B , C , D)
+// AlgorithmMain.cpp  -  PHASE 2 orchestration (Steps A', A, B, C, D)
+//                       + the SETUP and COMPUTE entry points the host calls.
 //
-// Called ONCE PER RENDER CALL, after Phase 1 (ingest + fused measure) has
-// already produced:
-//     * memHandler input  : linear, interleaved, working-space RGB float32
-//                           (or the CONFIDENCE MAP, when that output view is
-//                           selected — the fused pass writes it in place)
-//     * superPixel        : the locus-gated weighted mean
+// The effect has TWO jobs, mapped onto the two white points of the chromatic
+// adaptation:
+//     SOURCE white = what the light WAS   -> correcting it is WHITE BALANCE
+//     TARGET white = what you WANT        -> moving it is GRADING (the Look)
+// Source is absolute (mireds, seeded from the measurement); target is a
+// delivery preset plus Look OFFSETS that default to zero.
 //
-// The effect has TWO jobs, and they map onto the two white points of the
-// chromatic adaptation:
-//     SOURCE white  = what the light WAS  -> correcting it is WHITE BALANCE
-//     TARGET white  = what you WANT       -> moving it is CREATIVE GRADING
-// Source is absolute (seeded from the measurement); target is a preset plus
-// user OFFSETS that default to zero, so "no look" is a true no-op and a look
-// copied between shots stays meaningful. This mirrors how grading tools split
-// absolute (camera-RAW) from relative (primaries) temperature control.
+// Three entry points, by when they run:
+//     Algorithm_BuildMeasureSetup()  once, and again whenever observer,
+//                                    working space or gate band change
+//     Algorithm_ComputeReference()   when the user presses Compute
+//     Algorithm_Main()               every render call
 //
-// This function does NOT measure pixels. Phase 1 did that. Here we:
-//     A'  solve the super-pixel -> measured CCT/Duv        (ALWAYS)
-//     A   choose the SOURCE white  = WHITE BALANCE         (Measure | Manual)
-//     B   choose the TARGET white  = LOOK / GRADE          (preset + offsets)
-//     C   build ONE 3x3 correction matrix M_wb             (once per frame)
-//     D   apply M_wb to every pixel                        (AVX2)
+// Every AlgoControls field is read here (or is documented as consumed by the
+// setup / compute entry point). Controls are validated ONCE per call on a
+// local copy with normalize_algo_controls(), so invalid host data never
+// reaches the maths.
 //
 // SINGLE-THREADED per call by design: the host tiles the frame and calls this
-// concurrently on several threads. Nothing here writes shared mutable state.
+// concurrently. Nothing here writes shared mutable state.
 // =============================================================================
 
-#include "AlgorithmMain.hpp"          // declaration only
-#include "AlgoControl.hpp"            // YOUR AlgoControls
+#include "AlgorithmMain.hpp"          // declarations
+#include "AlgoControl.hpp"            // AlgoControls, AlgoCtl:: limits
 #include "AlgoWhiteBalance.hpp"       // Step C : build_wb_matrix, eCatModel
-#include "AlgoApplyWB.hpp"            // Step D : apply_white_balance, ApplyParams
+#include "AlgoApplyWB.hpp"            // Step D : apply_white_balance
+#include "AlgoReference.hpp"          // WbReference, confidence, refinement
 #include "color_utils.hpp"            // Step A': superpixel_to_cct
-#include "CCTLut/CCTLut.hpp"          // CCT_MIN / CCT_MAX of the generated grid
+#include "CCTLut/CCTLut.hpp"                 // CCT_MIN / CCT_MAX of the generated grid
 #include "ColorTransformMatrix.hpp"   // eCOLOR_OBSERVER
 #include "Algo2Rgb2XYZ.hpp"           // sRGBtoXYZ_f64 / XYZtosRGB_f64
 #include "super_pixel.hpp"            // SuperPixel<>, CctDuv<>
 
+// The UI enums in AlgoControl.hpp mirror enums owned by the algorithm
+// headers. Pin the correspondence so a renumbering cannot silently remap.
+static_assert(static_cast<int32_t>(clipCtl_Auto)   == static_cast<int32_t>(AlgoWB::clip_Auto),   "clip enum drift");
+static_assert(static_cast<int32_t>(clipCtl_Always) == static_cast<int32_t>(AlgoWB::clip_Always), "clip enum drift");
+static_assert(static_cast<int32_t>(clipCtl_Never)  == static_cast<int32_t>(AlgoWB::clip_Never),  "clip enum drift");
+static_assert(static_cast<int32_t>(cat_Bradford)   == static_cast<int32_t>(AlgoWB::cat_Bradford), "CAT enum drift");
+static_assert(static_cast<int32_t>(cat_CAT16)      == static_cast<int32_t>(AlgoWB::cat_CAT16),    "CAT enum drift");
+static_assert(static_cast<int32_t>(cat_CAT02)      == static_cast<int32_t>(AlgoWB::cat_CAT02),    "CAT enum drift");
+static_assert(static_cast<int32_t>(cat_VonKries)   == static_cast<int32_t>(AlgoWB::cat_VonKries), "CAT enum drift");
+static_assert(static_cast<int32_t>(obs_CIE_1931_2deg)  == static_cast<int32_t>(observer_CIE_1931), "observer enum drift");
+static_assert(static_cast<int32_t>(obs_CIE_1964_10deg) == static_cast<int32_t>(observer_CIE_1964), "observer enum drift");
 
-// ---------------------------------------------------------------------------
-// Local helpers — all internal, none of these are user-visible parameters.
-// ---------------------------------------------------------------------------
+
 namespace
 {
     // ------------------------------------------------------------------
-    // MemHandler adapters - THE ONLY TWO LINES THAT TOUCH YOUR BUFFER
-    // MEMBER NAMES. If your MemHandler spells them differently, edit here
-    // and nowhere else. (Names taken from your own main.cpp comments:
-    // "memHndl (in: srcRGB_f32, out: dstRGB_f32)".)
+    // MemHandler adapters - the ONLY two lines touching buffer member names.
     // ------------------------------------------------------------------
     inline const float* mem_linear_in (const MemHandler& m) noexcept
     { return m.srcRGB_f32; }
@@ -57,71 +60,87 @@ namespace
     { return m.dstRGB_f32; }
 
     // ------------------------------------------------------------------
-    // Controls your AlgoControls does not carry yet. They are fixed at the
-    // documented defaults so the build works against your struct AS IT IS.
-    // Add the fields when you want them exposed, then replace each constant
-    // with params.<field>. Nothing else changes.
+    // Delivery TARGETS - the real white points, not Planckian approximations.
+    //
+    // CORRECTED in this revision. The previous table used ROUNDED mireds
+    // (154/182/200/159) and Duv = 0 for every entry. But the standard whites
+    // are NOT on the Planckian locus: D65/D55/D50 sit at Duv ~ +0.0032 and the
+    // DCI-P3 white at +0.0134. sRGB's own white (1,1,1) IS D65, so "Render for
+    // D65" with Duv 0 would push a perfectly neutral image 0.0032 Duv toward
+    // magenta.
+    //
+    // Values: CCT/Duv of each standard chromaticity, computed by THIS
+    // project's CCT engine (Ohno 2013 on the 1-K CIE-1931 LUT) so that
+    // build_wb_matrix() reproduces the chromaticity on round-trip.
+    // Independent check (colour-science): agrees to 0.03 K and 1e-6 Duv.
+    // PRECISION: the chromaticities are published to 4 decimals
+    // (e.g. D65 x = 0.3127, y = 0.3290), i.e. about +-1 K / +-3e-5 Duv of
+    // physical uncertainty. The stored digits are enough for a sub-1e-5 uv
+    // round-trip; more would be false precision.
+    //   D65    x 0.3127 y 0.3290   D55    x 0.3324 y 0.3474
+    //   D50    x 0.3457 y 0.3585   DCI-P3 x 0.3140 y 0.3510
     // ------------------------------------------------------------------
-    constexpr double  kStrength      = 1.0;    // 100 %  (no 'strength' field yet)
-    constexpr bool    kHighlightSafe = false;  // internal option, default off
-    constexpr int32_t kWarmthMired   = 0;      // Look: no offset  (no fields yet)
-    constexpr double  kTintShiftDuv  = 0.0;    // Look: no offset
-    constexpr double  kTargetCct     = 6504.0; // v1 fixed D65, per your Step B note
-    constexpr double  kTargetDuv     = 0.0;
+    struct TargetWhite { double cct; double duv; };
+    constexpr TargetWhite kTargetD65   { 6504.3449, 0.00320720 };
+    constexpr TargetWhite kTargetD55   { 5503.6515, 0.00324810 };
+    constexpr TargetWhite kTargetD50   { 5000.7264, 0.00319328 };
+    constexpr TargetWhite kTargetDCIP3 { 6302.7974, 0.01343665 };
 
-    // UI tint (+-100, magenta-positive) -> CIE Duv. ONE NUMBER TO CONFIRM:
-    // this maps the full +-100 slider onto +-0.020 Duv, which covers real
-    // illuminants with headroom (validated extremes: -0.0112 Sunset,
-    // +0.0137). Change the constant if you want a different span.
-    constexpr double kTintToDuv = 2.0e-4;
-    // UI mired  ->  Kelvin.  The UI works in mireds because a fixed Kelvin
-    // step is not perceptually uniform (dUv per Kelvin varies ~460x over
-    // 2000..40000 K; per mired only ~1.3x). The ALGORITHM works in Kelvin
-    // because the CCT LUT is Kelvin-indexed at 1 K. Convert here, once.
-    inline double mired_to_kelvin (const int32_t miredCoarse,
-                                  const int32_t miredFine) noexcept
+    inline TargetWhite target_base (const int32_t preset) noexcept
     {
-        // coarse and fine are SUMMED before conversion - never applied as two
-        // separate corrections.
-        int32_t m = miredCoarse + miredFine;
-        if (m < 25)   m = 25;          // 40000 K
-        if (m > 1111) m = 1111;        //   900 K  (full LUT span)
-        return 1000000.0 / static_cast<double>(m);
+        switch (preset)
+        {
+            case target_D55:   return kTargetD55;
+            case target_D50:   return kTargetD50;
+            case target_DCIP3: return kTargetDCIP3;
+            case target_D65:
+            default:           return kTargetD65;
+        }
     }
 
-    // UI tint -> CIE Duv.  UI convention is MAGENTA-POSITIVE; the physical
-    // Duv sign is GREEN-positive, hence the negation. Coarse is in units of
-    // 1e-3, fine in units of 1e-4 (see the control specification).
-    inline double tint_to_duv (const int32_t tintCoarse,
-                               const int32_t tintFine) noexcept
+    // SOURCE white from the controls (Manual mode).
+    // Temperature: coarse + fine in mireds -> Kelvin via the SAME helper the UI
+    // uses for its readout (control_source_kelvin), so they cannot disagree.
+    // Tint: UI is magenta-positive, CIE Duv is green-positive -> negate.
+    inline void source_from_controls (const AlgoControls& c,
+                                      double& cct, double& duv) noexcept
     {
-        const double duv = static_cast<double>(tintCoarse) * 1.0e-3 +
-                           static_cast<double>(tintFine)   * 1.0e-4;
-        return -duv;                   // UI magenta-positive -> CIE green-positive
+        cct = control_source_kelvin(c);
+        duv = -((static_cast<double>(c.tint) + static_cast<double>(c.tintFine))
+                * AlgoCtl::kTintToDuv);
     }
 
-    // ---- working-space RGB <-> XYZ (D65) --------------------------------
-    // Uses the project's canonical tables from Algo2Rgb2XYZ.hpp. Both
-    // directions come from ONE 50-digit derivation, so round-trips close
-    // exactly - verified here: the shipped literals match a 50-digit
-    // reference with ZERO error in both directions, and M*M^-1 - I is 1.2e-16.
-    //
-    // The SAME pair must also feed build_locus_gate() and the AVX2 measure
-    // context. Measurement and correction disagreeing about the working space
-    // is a correctness bug, not a tolerance issue.
-    //
-    // Rec.2020: define IMAGELAB2_HAVE_REC2020_MATRICES once the matching pair
-    // is added to Algo2Rgb2XYZ.hpp (constants supplied separately, same
-    // derivation). Until then workingSpace != 0 falls back to sRGB rather
-    // than referencing symbols that do not exist.
-    // Maps YOUR eWorkingSpace (ws_Auto=0, ws_sRGB_709=1, ws_Rec2020=2,
-    // ws_DisplayP3=3, ws_ACEScg=4) onto the matrix pair.
-    // ws_Auto falls back to sRGB, exactly as your header specifies.
-    // Rec.2020 / P3 / ACEScg currently fall back to sRGB because the tree has
-    // only the sRGB pair; the Rec.2020 constants are supplied separately in
-    // the same derivation. A silent wrong matrix is worse than a documented
-    // fallback, so this is deliberate - wire the others before shipping those
-    // working spaces.
+    // TARGET white = delivery base + the LOOK offsets.
+    //   warmth : mired SHIFT added to the base mireds. Positive -> higher mired
+    //            -> lower K -> warmer image. Additive and base-independent.
+    //   tint shift : same UI units as tint, magenta-positive -> negate.
+    // With all offsets at 0 this is the exact delivery white (pure WB).
+    inline void target_from_controls (const AlgoControls& c, const bool withLook,
+                                      double& cct, double& duv) noexcept
+    {
+        const TargetWhite b = target_base(c.targetPreset);
+        double m = kelvin_to_mired(b.cct);
+        duv = b.duv;
+        if (withLook)
+        {
+            m   += static_cast<double>(c.warmthMired) + static_cast<double>(c.warmthFineMired);
+            duv -= (static_cast<double>(c.tintShift) + static_cast<double>(c.tintShiftFine))
+                   * AlgoCtl::kTintToDuv;
+        }
+        // keep inside the LUT span (900 .. 40000 K)
+        const double mLo = kelvin_to_mired(CCT_LUT_1931_2DEG::CCT_MAX);
+        const double mHi = kelvin_to_mired(CCT_LUT_1931_2DEG::CCT_MIN);
+        if (m < mLo) m = mLo;
+        if (m > mHi) m = mHi;
+        cct = mired_to_kelvin(m);
+    }
+
+    // Working space -> matrix pair. Maps YOUR eWorkingSpace.
+    // ws_Auto falls back to sRGB as specified. Rec.2020 is enabled by
+    // IMAGELAB2_HAVE_REC2020_MATRICES once the pair is in Algo2Rgb2XYZ.hpp.
+    // Display P3 / ACEScg have no matrices in the tree yet and fall back to
+    // sRGB: a documented fallback is preferable to a silently wrong matrix.
+    // The SAME pair must build the gate (Algorithm_BuildMeasureSetup does).
     inline const double* working_space_to_XYZ (const int32_t ws) noexcept
     {
     #ifdef IMAGELAB2_HAVE_REC2020_MATRICES
@@ -140,56 +159,165 @@ namespace
         return XYZtosRGB_f64;
     }
 
-    // Base delivery target, in MIRED (the offsets below are additive in mired,
-    // which is exactly how conversion filters are specified).
-    inline int32_t target_base_mired (const int32_t preset) noexcept
+    // Observer -> locus LUT. Must match the measurement.
+    inline void pick_lut (const AlgoCCT::CctHandle<double>& h, const int32_t observer,
+                          const AlgoCCT::LutRow*& lut, std::size_t& n) noexcept
     {
-        switch (preset)
-        {
-            case 1:  return 182;   // D55  5503 K
-            case 2:  return 200;   // D50  5003 K
-            case 3:  return 159;   // DCI-P3 6300 K
-            case 0:
-            default: return 154;   // D65  6504 K  (default)
-        }
+        if (obs_CIE_1964_10deg == observer) { const auto p = h.getLut_CIE_1964();
+                                              lut = p.first; n = p.second; }
+        else                                { const auto p = h.getLut_CIE_1931();
+                                              lut = p.first; n = p.second; }
     }
 
-    // TARGET white = delivery base + the user's LOOK offsets.
-    //   warmth  : mired shift. POSITIVE = warmer image. Additive, and the same
-    //             number means the same visual shift at any base temperature.
-    //             Filter equivalents: +18 = 81A, +112 = 85, +131 = 85B,
-    //             -112 = 80B, -131 = 80A.
-    //   tintShift: Duv offset, UI magenta-positive -> negate for CIE.
-    // Both default to 0, so an ungraded shot passes through as pure white
-    // balance.
-    inline void target_white (const int32_t preset,
-                              const int32_t warmthCoarse, const int32_t warmthFine,
-                              const int32_t tintShiftCoarse, const int32_t tintShiftFine,
-                              double& cct, double& duv) noexcept
+    // clipCtl_Auto: clamp unless the output format is _Linear. With an
+    // unknown format we cannot know, so we do not clamp - safe, because
+    // integer and encoded formats clamp at ENCODE inside egress anyway, while
+    // _Linear keeps its HDR (which an unconditional clamp would destroy).
+    inline bool resolve_clip_from_controls (const AlgoControls& c) noexcept
     {
-        int32_t m = target_base_mired(preset) + warmthCoarse + warmthFine;
-        if (m < 25)   m = 25;          // 40000 K
-        if (m > 1111) m = 1111;        //   900 K
-        cct = 1000000.0 / static_cast<double>(m);
-        duv = -(static_cast<double>(tintShiftCoarse) * 1.0e-3 +
-                static_cast<double>(tintShiftFine)   * 1.0e-4);
-    }
-
-    // Observer -> the matching locus LUT. The observer used for the CORRECTION
-    // must be the SAME one used for the MEASUREMENT - a mismatch is a
-    // correctness bug, not a tolerance issue.
-    inline void pick_lut (AlgoCCT::CctHandle<double>& h, const int32_t observer,
-                          const AlgoCCT::LutRow*& lut,
-                          std::size_t& n) noexcept
-    {
-        if (observer_CIE_1964 == observer) { const auto p = h.getLut_CIE_1964();
-                                            lut = p.first; n = p.second; }
-        else                               { const auto p = h.getLut_CIE_1931();
-                                            lut = p.first; n = p.second; }
+        if (clipCtl_Always == c.clipPolicy) return true;
+        if (clipCtl_Never  == c.clipPolicy) return false;
+        if (c.pixelFormat < 0)              return false;      // unknown
+        return AlgoWB::resolve_clip(AlgoWB::clip_Auto,
+                   static_cast<AlgoPrIngest::ePrPixelFormat>(c.pixelFormat));
     }
 } // anonymous namespace
 
 
+// =============================================================================
+// SETUP - build the gate (scalar ingest) and the AVX2 measure context from the
+// controls that change WHAT IS MEASURED: observer, working space, gate band.
+// Call once, and again whenever Algorithm_SetupIsStale() says so.
+// =============================================================================
+bool Algorithm_BuildMeasureSetup (const AlgoCCT::CctHandle<double>& cctHdnl,
+                                  const AlgoControls& params,
+                                  AlgoMeasureSetup& setup) noexcept
+{
+    AlgoControls p = params;
+    normalize_algo_controls(p);
+
+    const AlgoCCT::LutRow* lut = nullptr;
+    std::size_t lutN = 0u;
+    pick_lut(cctHdnl, p.observer, lut, lutN);
+    if (nullptr == lut || lutN < 2u) { setup.valid = false; return false; }
+
+    double full = static_cast<double>(p.gateDuvFull);
+    double zero = static_cast<double>(p.gateDuvZero);
+    AlgoWB::sanitize_gate_band(full, zero);
+
+    AlgoPrIngest::build_locus_gate(lut, lutN, working_space_to_XYZ(p.workingSpace),
+                                   full, zero, setup.gate);
+#ifdef __AVX2__
+    AlgoPrIngest::avx2::build_measure_ctx(setup.gate, setup.ctx);
+#endif
+    setup.observer     = p.observer;
+    setup.workingSpace = p.workingSpace;
+    setup.gateFull     = p.gateDuvFull;
+    setup.gateZero     = p.gateDuvZero;
+    setup.valid        = true;
+    return true;
+}
+
+bool Algorithm_SetupIsStale (const AlgoMeasureSetup& setup,
+                             const AlgoControls& params) noexcept
+{
+    if (!setup.valid) return true;
+    AlgoControls p = params;
+    normalize_algo_controls(p);
+    return setup.observer     != p.observer     ||
+           setup.workingSpace != p.workingSpace ||
+           setup.gateFull     != p.gateDuvFull  ||
+           setup.gateZero     != p.gateDuvZero;
+}
+
+bool Algorithm_ReferenceIsStale (const AlgoWB::WbReference& ref,
+                                 const AlgoControls& params) noexcept
+{
+    if (!ref.valid) return true;
+    AlgoControls p = params;
+    normalize_algo_controls(p);
+    // A reference measured under a different observer, working space or gate
+    // band is a DIFFERENT MEASUREMENT. (A change of target preset is only
+    // advisory: the refinement targeted the old base, so re-Compute is
+    // recommended but the reference is still about the same light.)
+    return ref.builtObserver     != p.observer     ||
+           ref.builtWorkingSpace != p.workingSpace ||
+           ref.builtGateFull     != p.gateDuvFull  ||
+           ref.builtGateZero     != p.gateDuvZero;
+}
+
+
+#ifdef __AVX2__
+// =============================================================================
+// COMPUTE - what the "Compute" button (measureNow) runs.
+//   1. solve the super-pixel -> measured CCT/Duv (observer-matched)
+//   2. classify confidence with the USER'S thresholds; refuse unless allowed
+//   3. refine: solve for the effective source that lands ONE apply on the
+//      NEUTRAL target (delivery base, WITHOUT the Look offsets - the reference
+//      describes the light; the Look is applied on top every frame, so
+//      changing Warmth later does not invalidate it)
+//   4. record the setup it was measured under
+// linearImage MUST be the normal linear image (ingest with confidenceMap
+// OFF): refining against the confidence map would be meaningless.
+// Returns false -> keep the previously stored reference.
+// =============================================================================
+bool Algorithm_ComputeReference (AlgoCCT::CctHandle<double>& cctHdnl,
+                                 const AlgoMeasureSetup&     setup,
+                                 const SuperPixel<double>&   superPixel,
+                                 const double                keptFraction,
+                                 const float*                linearImage,
+                                 const int32_t               sizeX,
+                                 const int32_t               sizeY,
+                                 const AlgoControls&         params,
+                                 AlgoWB::WbReference&        ref) noexcept
+{
+    if (!setup.valid || nullptr == linearImage || sizeX <= 0 || sizeY <= 0)
+        return false;
+
+    AlgoControls p = params;
+    normalize_algo_controls(p);
+
+    const double* const rgb2xyz = working_space_to_XYZ(p.workingSpace);
+    const double* const xyz2rgb = XYZ_to_working_space(p.workingSpace);
+    const eCOLOR_OBSERVER obs   = static_cast<eCOLOR_OBSERVER>(p.observer);
+
+    double mCct = 0.0, mDuv = 0.0;
+    superpixel_to_cct(superPixel, cctHdnl, rgb2xyz, obs, mCct, mDuv);
+
+    const AlgoWB::ConfidenceThresholds thr = AlgoWB::make_thresholds(
+        static_cast<double>(p.confHighPct), static_cast<double>(p.confLowPct),
+        static_cast<double>(p.confDuvCaution), 0 != p.acceptLowConf);
+
+    double tCct = 0.0, tDuv = 0.0;
+    target_from_controls(p, /*withLook=*/false, tCct, tDuv);
+
+    const AlgoCCT::LutRow* lut = nullptr;
+    std::size_t lutN = 0u;
+    pick_lut(cctHdnl, p.observer, lut, lutN);
+
+    constexpr int32_t kMaxRefineRounds = 4;
+    AlgoWB::WbReference out;
+    const bool ok = AlgoWB::compute_reference(
+        linearImage, sizeX, sizeY, setup.ctx, cctHdnl,
+        lut, lutN, CCT_LUT_1931_2DEG::CCT_MIN, CCT_LUT_1931_2DEG::CCT_MAX,
+        mCct, mDuv, keptFraction, tCct, tDuv,
+        p.catModel, static_cast<double>(p.adaptationDegree),
+        rgb2xyz, xyz2rgb, obs, thr, kMaxRefineRounds, out);
+    if (!ok) return false;                     // caller keeps the old reference
+
+    out.builtObserver     = p.observer;
+    out.builtWorkingSpace = p.workingSpace;
+    out.builtGateFull     = p.gateDuvFull;
+    out.builtGateZero     = p.gateDuvZero;
+    out.builtTargetPreset = p.targetPreset;
+    ref = out;
+    return true;
+}
+#endif // __AVX2__
+
+
+// =============================================================================
+// RENDER - every frame.
 // =============================================================================
 void Algorithm_Main
 (
@@ -199,161 +327,124 @@ void Algorithm_Main
     const int32_t               sizeX,       // horizontal size in pixels
     const int32_t               sizeY,       // vertical size in pixels
     const AlgoControls&         params,      // Algorithm control parameters
-    CctDuv<double>&             cct_duv,     // OUT: computed CCT and Duv/Tint
+    CctDuv<double>&             cct_duv,     // OUT: measured CCT and Duv
     const AlgoWB::WbReference*  reference    // stored reference (may be null)
 ) noexcept
 {
+    // Validate ONCE, on a local copy: invalid host data never reaches maths.
+    AlgoControls p = params;
+    normalize_algo_controls(p);
+
     double cct_computed = 0.0;      // STEP A' output: measured CCT [K]
     double duv_computed = 0.0;      // STEP A' output: measured Duv
 
-    // ---- working-space matrices (must match what Phase 1 measured with) ----
-    // The SAME pair feeds the locus gate, the measurement and Step C.
-    const double* const rgb2xyz = working_space_to_XYZ (params.workingSpace);
-    const double* const xyz2rgb = XYZ_to_working_space (params.workingSpace);
+    // ---- working-space matrices: the SAME pair the gate was built with ----
+    const double* const rgb2xyz = working_space_to_XYZ(p.workingSpace);
+    const double* const xyz2rgb = XYZ_to_working_space(p.workingSpace);
 
     // =======================================================================
     // STEP A' : MEASURE the incoming CCT/Duv - ALWAYS (unconditional).
-    // The scene's measured white point is a first-class OUTPUT of every call
-    // (UI readout + confidence workflow), independent of wbMode and of
-    // whether a correction is applied. So it runs before, and regardless of,
-    // Steps A..D.
-    // IN : superPixel (from ingest), RGB->XYZ matrix, params.observer.
+    // The measured white is a first-class OUTPUT of every call (UI readout),
+    // independent of wbMode and of whether a correction is applied.
+    // IN : superPixel (from ingest), RGB->XYZ matrix, observer.
     // OUT: cct_duv (the measured source white).
     // =======================================================================
-    superpixel_to_cct (superPixel, cctHdnl, rgb2xyz,
-                       static_cast<eCOLOR_OBSERVER>(params.observer),
-                       cct_computed, duv_computed);
-
-    cct_duv.cct = cct_computed;    // measured CCT reported unconditionally
-    cct_duv.duv = duv_computed;    // measured Duv reported unconditionally
+    superpixel_to_cct(superPixel, cctHdnl, rgb2xyz,
+                      static_cast<eCOLOR_OBSERVER>(p.observer),
+                      cct_computed, duv_computed);
+    cct_duv.cct = cct_computed;
+    cct_duv.duv = duv_computed;
 
     // =======================================================================
-    // OUTPUT VIEW = CONFIDENCE MAP -> there is nothing to correct.
-    // Phase 1 already wrote the map INTO the input linear buffer, and the
-    // caller selects that buffer for egress. So we return WITHOUT touching
-    // the output buffer - no copy, no matrix, no apply pass. This makes map
-    // mode cheaper than normal operation, and it keeps the map showing what
-    // the MEASUREMENT used (correcting the map would misrepresent it).
-    // The measured readout above is still produced.
+    // OUTPUT = CONFIDENCE MAP -> nothing to correct. Phase 1 wrote the map
+    // into the INPUT buffer and the caller selects it for egress
+    // (main.cpp: confidenceMap ? srcRGB_f32 : dstRGB_f32). Return without
+    // touching the output buffer. The readout above is still produced.
     // =======================================================================
-    if (0 != params.confidenceMap)
+    if (0 != p.confidenceMap)
         return;
 
     // =======================================================================
-    // STEP A : establish the SOURCE white for the CORRECTION.
-    // Distinct from the measurement above: in Manual mode the correction
-    // source comes from the sliders, not from the measured value.
+    // STEP A : SOURCE white  =  WHITE BALANCE.
+    //   Manual  : the sliders (mireds + tint) are authoritative.
+    //   Measure : the stored reference if it is valid AND was measured under
+    //             the current observer / working space / gate band; otherwise
+    //             this frame's own measurement (correct, just not refined).
     // =======================================================================
     double src_cct = 0.0;
     double src_duv = 0.0;
 
-    if (wbMode_Manual == params.wbMode)
+    if (wbMode_Manual == p.wbMode)
     {
-        // Sliders are authoritative. UI mired -> Kelvin, UI tint -> CIE Duv.
-        // Your fields are Kelvin-based: coarse + fine trim, summed.
-        src_cct = static_cast<double>(params.temperatureK) +
-                  static_cast<double>(params.temperatureFineK);
-        // UI tint is magenta-positive; CIE Duv is green-positive -> negate.
-        src_duv = -(static_cast<double>(params.tint) * kTintToDuv);
+        source_from_controls(p, src_cct, src_duv);
     }
-    else if (nullptr != reference && reference->valid)
+    else if (nullptr != reference && !Algorithm_ReferenceIsStale(*reference, p))
     {
-        // Measure mode with a STORED REFERENCE (the normal case).
-        // Note this is the EFFECTIVE source solved at Compute time, not the
-        // raw measurement: it is the value that makes ONE application land on
-        // the target. On Sunset that turns a 11.9 mired residual into 0.09.
-        // The raw measurement is still what the UI reports (set above).
-        src_cct = reference->sourceCct;
+        src_cct = reference->sourceCct;    // refined at Compute time
         src_duv = reference->sourceDuv;
     }
     else
     {
-        // No stored reference yet - fall back to this frame's measurement.
-        // Correct, just not refined (one pass closes ~88 % of the gap).
         src_cct = cct_computed;
         src_duv = duv_computed;
     }
 
-    // ---- measurement / input sanity gate ----------------------------------
-    // A frame with no usable neutral content yields an all-zero super-pixel,
-    // and superpixel_to_cct cannot produce a white point from it. Correcting
-    // on a garbage source would visibly wreck the frame, so pass the image
-    // through unchanged (output stays whatever the caller prepared) while
-    // still reporting the failed measurement upstream.
-    if (!(src_cct > 0.0) || !(src_cct == src_cct))      // 0, negative or NaN
+    // No usable white point (e.g. no neutral content): pass the frame through
+    // unchanged rather than correcting from garbage.
+    if (!(src_cct > 0.0) || !std::isfinite(src_cct) || !std::isfinite(src_duv))
         return;
 
     // =======================================================================
     // STEP B : TARGET white  =  THE LOOK.
-    // Delivery base (D65 etc.) plus the user's Warmth / Tint-shift OFFSETS.
-    // With both offsets at 0 this is pure white balance: the frame is
-    // neutralised to the delivery white. Dial Warmth positive and the frame
-    // gets warmer; negative and it gets cooler - the direction the user
-    // expects, because we are moving the white they are rendering TO.
+    // Delivery base plus Warmth / Tint-shift offsets. All offsets at 0 ->
+    // exact delivery white (pure white balance). Positive Warmth -> warmer.
     // =======================================================================
-    double tgt_cct = 6504.0;   // D65
+    double tgt_cct = 0.0;
     double tgt_duv = 0.0;
-    // v1: fixed D65, exactly as your Step B comment specifies.
-    // LOOK HOOK - when you add the Warmth / Tint-shift fields, replace these
-    // two lines with:
-    //     target_white(params.targetPreset,
-    //                  params.warmthCoarse, params.warmthFine,
-    //                  params.tintShiftCoarse, params.tintShiftFine,
-    //                  tgt_cct, tgt_duv);
-    // target_white() is already present below and needs no change.
-    tgt_cct = 1000000.0 / (double)(target_base_mired(0) + kWarmthMired);
-    tgt_duv = -kTintShiftDuv;
+    target_from_controls(p, /*withLook=*/true, tgt_cct, tgt_duv);
 
     // =======================================================================
-    // STEP C : build M_wb from source/target via the chromatic adaptation
+    // STEP C : M_wb from source/target via the chromatic adaptation
     // transform. Built ONCE here - never per pixel.
-    //   IN : source (src_cct, src_duv), target (tgt_cct, tgt_duv),
-    //        params.catModel, params.adaptationDegree, params.observer,
-    //        working-space RGB<->XYZ pair.
-    //   OUT: M_wb[9] (row-major, linear RGB -> corrected linear RGB)
     // =======================================================================
     const AlgoCCT::LutRow* lut = nullptr;
     std::size_t lutN = 0u;
-    pick_lut (cctHdnl, params.observer, lut, lutN);
+    pick_lut(cctHdnl, p.observer, lut, lutN);
 
     double M_wb[9];
-    const bool matrixOk = AlgoWB::build_wb_matrix (
+    const bool matrixOk = AlgoWB::build_wb_matrix(
                               lut, lutN,
                               CCT_LUT_1931_2DEG::CCT_MIN,   // both generated
                               CCT_LUT_1931_2DEG::CCT_MAX,   // tables share the grid
                               CctDuv<double>{ src_cct, src_duv },
                               CctDuv<double>{ tgt_cct, tgt_duv },
-                              params.catModel,
-                              params.adaptationDegree,      // v1: 1.0
+                              p.catModel,
+                              static_cast<double>(p.adaptationDegree),
                               rgb2xyz, xyz2rgb,
                               M_wb);
-
-    // Singular CAT / working space - cannot happen for the shipped matrices,
-    // but never apply a matrix we failed to build.
     if (!matrixOk)
         return;
 
     // =======================================================================
-    // STEP D : fill the OUTPUT linear RGB buffer from the INPUT linear RGB
-    // buffer. One 3x3 multiply per pixel, 8 pixels at a time (AVX2 + FMA).
-    // Strength, highlight-safe scaling and the clip policy are folded into
-    // the MATRIX inside apply_white_balance - they cost nothing per pixel.
+    // STEP D : OUTPUT linear RGB from INPUT linear RGB. One 3x3 per pixel,
+    // 8 at a time (AVX2 + FMA). Strength, highlight-safe and the clip policy
+    // are folded into the MATRIX / a predicate - zero per-pixel cost.
     // =======================================================================
-    AlgoWB::ApplyParams applyParams;
-    applyParams.strength      = kStrength;         // no 'strength' field yet
-    applyParams.highlightSafe = kHighlightSafe;    // internal, default off
-    // clip_Auto needs the pixel format, which AlgoControls does not carry and
-    // Algorithm_Main cannot see. clip_Never is the safe stand-in: integer and
-    // encoded formats still clamp at ENCODE inside egress, while _Linear
-    // targets keep their HDR - which clip_Always would destroy.
-    applyParams.clipPolicy    = AlgoWB::clip_Never;
+    AlgoWB::ApplyParams ap;
+    ap.strength      = static_cast<double>(p.strength) * 0.01;   // % -> 0..1
+    ap.highlightSafe = (0 != p.highlightSafe);
 
-    AlgoWB::apply_white_balance (mem_linear_in (memHandler),   // const float*
-                                 mem_linear_out(memHandler),   // float*
-                                 sizeX, sizeY,
-                                 M_wb,
-                                 applyParams,
-                                 /*useAvx2=*/ true);       // whole plugin is /arch:AVX2
+    double Mfinal[9];
+    bool   unusedClip = false;
+    AlgoWB::prepare_apply(M_wb, ap, Mfinal, unusedClip);
+    const bool doClip = resolve_clip_from_controls(p);
 
+#ifdef __AVX2__
+    AlgoWB::apply_wb_avx2  (mem_linear_in(memHandler), mem_linear_out(memHandler),
+                            sizeX, sizeY, Mfinal, doClip);
+#else
+    AlgoWB::apply_wb_scalar(mem_linear_in(memHandler), mem_linear_out(memHandler),
+                            sizeX, sizeY, Mfinal, doClip);
+#endif
     return;
 }

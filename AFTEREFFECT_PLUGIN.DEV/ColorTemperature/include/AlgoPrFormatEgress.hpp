@@ -272,8 +272,10 @@ namespace AlgoPrIngest
     // dispatch_writer - the ONLY format switch (once per frame), 1:1 mirror of
     // dispatch_reader.
     // =========================================================================
+    // Returns FALSE for an unsupported format; the callable is not invoked
+    // and the output buffer is left untouched (was a silent no-op).
     template <typename F>
-    inline void dispatch_writer(ePrPixelFormat fmt, F&& f)
+    inline bool dispatch_writer(ePrPixelFormat fmt, F&& f)
     {
         switch (fmt)
         {
@@ -318,8 +320,9 @@ namespace AlgoPrIngest
             case fmt_VUYX_4444_32f:        f(WriteVUYA32<false>{}); break;
 
             case fmt_RGB_444_10u:          f(WriteRGB10{}); break;
-            default: break;
+            default: return false;
         }
+        return true;
     }
 
     // Branch-free traversal, templated on the selected Writer.
@@ -381,8 +384,10 @@ namespace AlgoPrIngest
     // color under zero alpha is undefined by convention). fmt_RGB_444_10u
     // has no alpha - the alpha parameters are ignored for it.
     // =========================================================================
+    // Returns false if 'fmt' is not supported (output buffer untouched).
+    // Existing call sites that ignore the result still compile unchanged.
     template <typename LUT8, typename LUT16, typename LUT10>
-    void egress_from_linear_f32
+    bool egress_from_linear_f32
     (
         const float* srcRGB_f32,
         int32_t sizeX, int32_t sizeY,
@@ -395,7 +400,7 @@ namespace AlgoPrIngest
         const DecodeCtx<LUT8, LUT16, LUT10> ctx{ lut8, lut16, lut10, pick_matrix(fmt) };
         std::uint8_t* dstBase = static_cast<std::uint8_t*>(dst);
         const std::uint8_t* alpBase = static_cast<const std::uint8_t*>(alphaSrc);
-        dispatch_writer(fmt, [&](auto writer) {
+        return dispatch_writer(fmt, [&](auto writer) {
             using W = decltype(writer);
             loop_egress<W>(srcRGB_f32, sizeX, sizeY, dstBase, dstPitch,
                            alpBase, alphaSizeX, alphaPitch, ctx);

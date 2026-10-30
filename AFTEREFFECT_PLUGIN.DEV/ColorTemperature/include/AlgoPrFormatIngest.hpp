@@ -135,7 +135,7 @@ namespace AlgoPrIngest
     // =========================================================================
     struct LocusGate
     {
-        static const int kN = 256;
+        static constexpr int kN = 256;
         double uMin;            // locus u range, ascending grid
         double invStep;         // kN-1 over (uMax - uMin)
         double vTab[kN];        // v(u) on the uniform u grid
@@ -388,8 +388,12 @@ namespace AlgoPrIngest
     // the compile-time reader tag, and hands it to the generic callable f
     // (which instantiates the specialized, branch-free loop for that reader).
     // =========================================================================
+    // Returns FALSE for a format outside the supported 37 (e.g. VUYA_4444_16u,
+    // intentionally not wired): the callable is NOT invoked, so the caller
+    // must not use the output buffer. Previously this was a silent no-op that
+    // left the buffer uninitialised.
     template <typename F>
-    inline void dispatch_reader(ePrPixelFormat fmt, F&& f)
+    inline bool dispatch_reader(ePrPixelFormat fmt, F&& f)
     {
         switch (fmt)
         {
@@ -434,8 +438,9 @@ namespace AlgoPrIngest
             case fmt_VUYX_4444_32f:        f(ReadVUYA32<false>{}); break;
 
             case fmt_RGB_444_10u:          f(ReadRGB10{}); break;
-            default: break;
+            default: return false;
         }
+        return true;
     }
 
     // Rec.601/709 selection (once per frame, outside the loop).
@@ -614,8 +619,10 @@ namespace AlgoPrIngest
     //                super-pixel (0..1). This is the measurement CONFIDENCE:
     //                low values (< ~0.10) mean the scene offers few usable
     //                near-locus pixels and the auto result should be flagged.
+    // Returns false if 'fmt' is not supported (output buffer untouched).
+    // Existing call sites that ignore the result still compile unchanged.
     template <typename LUT8, typename LUT16, typename LUT10>
-    void ingest_and_superpixel
+    bool ingest_and_superpixel
     (
         const void* src, int32_t sizeX, int32_t sizeY, int32_t srcPitch,
         ePrPixelFormat fmt,
@@ -629,7 +636,7 @@ namespace AlgoPrIngest
     {
         const DecodeCtx<LUT8, LUT16, LUT10> ctx{ lut8, lut16, lut10, pick_matrix(fmt) };
         const std::uint8_t* base = static_cast<const std::uint8_t*>(src);
-        dispatch_reader(fmt, [&](auto reader) {
+        return dispatch_reader(fmt, [&](auto reader) {
             using R = decltype(reader);
             if (confidenceMap)
                 loop_fused<R, DecodeCtx<LUT8, LUT16, LUT10>, true >(base, sizeX, sizeY, srcPitch, ctx, gate, dstRGB_f32, super, keptFraction);

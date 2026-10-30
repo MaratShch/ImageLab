@@ -38,7 +38,6 @@
 #include "AlgoApplyWB.hpp"            // apply_white_balance
 #include "cct_interface.hpp"
 
-
 #ifdef __AVX2__
   #include "AlgoMeasureAVX2.hpp"
 #endif
@@ -200,11 +199,24 @@ namespace AlgoWB
         int32_t     refineRounds;   // diagnostics
         double      residualMired;  // achieved |target - re-measured| in mired
 
+        // The setup this reference was measured UNDER. A reference measured
+        // with a different observer, working space or gate band describes a
+        // different measurement and must not be used - see
+        // Algorithm_ReferenceIsStale(). -1 = not recorded.
+        int32_t     builtObserver;
+        int32_t     builtWorkingSpace;
+        float       builtGateFull;
+        float       builtGateZero;
+        int32_t     builtTargetPreset;   // refinement target (advisory only)
+
         WbReference()
             : valid(false), confidence(conf_None), keptFraction(0.0)
             , measuredCct(0.0), measuredDuv(0.0)
             , sourceCct(0.0), sourceDuv(0.0)
-            , refineRounds(0), residualMired(0.0) {}
+            , refineRounds(0), residualMired(0.0)
+            , builtObserver(-1), builtWorkingSpace(-1)
+            , builtGateFull(-1.0f), builtGateZero(-1.0f)
+            , builtTargetPreset(-1) {}
     };
 
     // --------------------------------------------------------------- internals
@@ -332,7 +344,7 @@ namespace AlgoWB
 
         // objective: mired error dominates; Duv is scaled into mired-equivalent
         // units so the two are comparable in one norm (1 mired ~ 3.4e-4 duv).
-        const double kDuvToMired = 1.0 / 3.4e-4;
+        constexpr double kDuvToMired = 1.0 / 3.4e-4;
         auto cost = [&](const Eval& e) {
             const double a = e.m - tM;
             const double b = (e.duv - targetDuv) * kDuvToMired;

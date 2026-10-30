@@ -67,14 +67,14 @@ namespace avx2
                                 _mm256_and_si256(xi, _mm256_set1_epi32(0x007FFFFF))),
                                 _mm256_set1_ps(1.0f));
         const __m256  t    = _mm256_sub_ps(m, _mm256_set1_ps(1.0f));
-        __m256 p = _mm256_set1_ps( 1.459860554e-02f);
-        p = fmadd(p, t, _mm256_set1_ps(-7.592089396e-02f));
-        p = fmadd(p, t, _mm256_set1_ps( 1.886527228e-01f));
-        p = fmadd(p, t, _mm256_set1_ps(-3.214835301e-01f));
-        p = fmadd(p, t, _mm256_set1_ps( 4.717218708e-01f));
-        p = fmadd(p, t, _mm256_set1_ps(-7.202026917e-01f));
-        p = fmadd(p, t, _mm256_set1_ps( 1.442633691e+00f));
-        p = fmadd(p, t, _mm256_set1_ps( 8.116678600e-07f));
+        __m256 p = _mm256_set1_ps( 0.014598605f);
+        p = fmadd(p, t, _mm256_set1_ps(-0.075920895f));
+        p = fmadd(p, t, _mm256_set1_ps( 0.18865272f));
+        p = fmadd(p, t, _mm256_set1_ps(-0.32148352f));
+        p = fmadd(p, t, _mm256_set1_ps( 0.47172186f));
+        p = fmadd(p, t, _mm256_set1_ps(-0.7202027f));
+        p = fmadd(p, t, _mm256_set1_ps( 1.4426337f));
+        p = fmadd(p, t, _mm256_set1_ps( 8.1166786e-07f));
         return _mm256_add_ps(ef, p);
     }
 
@@ -83,13 +83,13 @@ namespace avx2
     {
         const __m256 fl = _mm256_floor_ps(y);
         const __m256 f  = _mm256_sub_ps(y, fl);
-        __m256 p = _mm256_set1_ps(2.187125795e-04f);
-        p = fmadd(p, f, _mm256_set1_ps(1.238241248e-03f));
-        p = fmadd(p, f, _mm256_set1_ps(9.686187232e-03f));
-        p = fmadd(p, f, _mm256_set1_ps(5.547891155e-02f));
-        p = fmadd(p, f, _mm256_set1_ps(2.402310971e-01f));
-        p = fmadd(p, f, _mm256_set1_ps(6.931468376e-01f));
-        p = fmadd(p, f, _mm256_set1_ps(1.000000006e+00f));
+        __m256 p = _mm256_set1_ps(0.00021871258f);
+        p = fmadd(p, f, _mm256_set1_ps(0.0012382412f));
+        p = fmadd(p, f, _mm256_set1_ps(0.009686187f));
+        p = fmadd(p, f, _mm256_set1_ps(0.05547891f));
+        p = fmadd(p, f, _mm256_set1_ps(0.2402311f));
+        p = fmadd(p, f, _mm256_set1_ps(0.6931468f));
+        p = fmadd(p, f, _mm256_set1_ps(1.0f));
         const __m256i ei = _mm256_cvtps_epi32(fl);
         const __m256i pw = _mm256_slli_epi32(_mm256_add_epi32(ei, _mm256_set1_epi32(127)), 23);
         return _mm256_mul_ps(p, _mm256_castsi256_ps(pw));
@@ -136,7 +136,7 @@ namespace avx2
         // DENSE nearest-entry resampling of the gate tables (u step ~2.6e-4:
         // nearest-entry error << taper band, so no per-lane interpolation is
         // needed -> 2 gathers instead of 4). 8 KB total, L1-resident.
-        static const int kNd = 1024;
+        static constexpr int kNd = 1024;
         CACHE_ALIGN float vTab[kNd];
         CACHE_ALIGN float fTab[kNd];
     };
@@ -398,8 +398,8 @@ namespace avx2
     {
         const float aR  = k709 ? 1.5748f          : 1.402f;
         const float aB  = k709 ? 1.8556f          : 1.772f;
-        const float gCr = k709 ? 0.46812427293064877f : 0.71413628620102210f;
-        const float gCb = k709 ? 0.18732427293064878f : 0.34413628620102216f;
+        const float gCr = k709 ? 0.46812427f : 0.7141363f;
+        const float gCb = k709 ? 0.18732427f : 0.3441363f;
         R = fmadd(_mm256_set1_ps(aR), Cr, Y);
         B = fmadd(_mm256_set1_ps(aB), Cb, Y);
         G = _mm256_sub_ps(Y, fmadd(_mm256_set1_ps(gCr), Cr,
@@ -489,7 +489,7 @@ namespace avx2
     // Running frame state: 4 double accumulators x 2 halves + kept counter.
     struct MeasureAccum
     {
-        static const int kFlushEvery = 32;                 // <=256 px per strip
+        static constexpr int kFlushEvery = 32;                 // <=256 px per strip
         __m256  fR, fG, fB, fW;                            // strip (float)
         __m256d rLo, rHi, gLo, gHi, bLo, bHi, wLo, wHi;    // frame (double)
         std::int64_t kept;

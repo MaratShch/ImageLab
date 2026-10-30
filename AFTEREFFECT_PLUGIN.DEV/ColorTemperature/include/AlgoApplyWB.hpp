@@ -136,6 +136,25 @@ namespace AlgoWB
         doClip = resolve_clip(p.clipPolicy, p.targetFmt);
     }
 
+    // ------------------------------------------------------- fused multiply-add
+    // The AVX2 kernel uses _mm256_fmadd_ps: ONE rounding per a*b+c. The scalar
+    // path must do the SAME, explicitly. Writing 'a*b + c' leaves it to the
+    // compiler: GCC contracts it into an FMA at -O2 but NOT at -O0, and MSVC
+    // has its own rules - so scalar/AVX2 agreement used to depend on the
+    // optimisation level (measured: bit-exact at -O2, 1 ulp apart at -O0).
+    // std::fma makes it explicit and compiler-independent.
+    // FMA-capable builds (__AVX2__ / __FMA__): std::fma -> one instruction.
+    // Other builds: a*b + c, deliberately - std::fma without hardware FMA is a
+    // slow software routine, and there is no AVX2 path to agree with anyway.
+    inline float madd_like_avx2 (const float a, const float b, const float c) noexcept
+    {
+    #if defined(__AVX2__) || defined(__FMA__)
+        return std::fma(a, b, c);
+    #else
+        return a * b + c;
+    #endif
+    }
+
     // ------------------------------------------------------------ scalar apply
     // Reference implementation. src may alias dst (in-place).
     inline void apply_wb_scalar (const float* src, float* dst,
@@ -149,13 +168,14 @@ namespace AlgoWB
         for (int64_t i = 0; i < n; ++i)
         {
             const float r = src[i*3 + 0], g = src[i*3 + 1], b = src[i*3 + 2];
-            // NOTE the association order: a*r + (b*g + c*b). It mirrors the
-            // AVX2 kernel's fmadd nesting, which makes the two paths
-            // BIT-EXACTLY equal (verified) - do not "simplify" the
-            // parentheses away, that reintroduces a rounding divergence.
-            float R = m0*r + (m1*g + m2*b);
-            float G = m3*r + (m4*g + m5*b);
-            float B = m6*r + (m7*g + m8*b);
+            // Same nesting AND the same single rounding as the AVX2 kernel:
+            // fma(m0, r, fma(m1, g, m2*b)). Verified bit-exact against
+            // apply_wb_avx2 at -O0, -O1, -O2 and -O3 (GCC 13). The nesting
+            // alone was NOT enough: it only matched at -O2, where GCC happened
+            // to contract the expression into an FMA.
+            float R = madd_like_avx2(m0, r, madd_like_avx2(m1, g, m2*b));
+            float G = madd_like_avx2(m3, r, madd_like_avx2(m4, g, m5*b));
+            float B = madd_like_avx2(m6, r, madd_like_avx2(m7, g, m8*b));
             if (doClip) {
                 R = (R < 0.f) ? 0.f : ((R > 1.f) ? 1.f : R);
                 G = (G < 0.f) ? 0.f : ((G > 1.f) ? 1.f : G);
